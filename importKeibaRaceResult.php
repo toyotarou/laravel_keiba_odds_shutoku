@@ -1,0 +1,236 @@
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * cronで毎分実行される。
+ * $ary に合致する発走前分数のレースのみ結果・オッズを取得してDBに保存する。
+ *
+ * cron設定:
+ *   * 9-17 * * * php /var/www/horse_odds_finder/artisan keiba:importRaceResult >> /var/www/horse_odds_finder/storage/logs/importRaceResult.log 2>&1
+ */
+class ImportKeibaRaceResult extends Command
+{
+    protected $signature = 'keiba:importRaceResult';
+    protected $description = 'ネットケイバからレースの結果・オッズを取得する';
+
+    public function handle(): void
+    {
+        $now  = time();
+        $date = date('Y-m-d');
+
+        $this->info('');
+        $this->info('========== keiba:importRaceResult 開始 ' . date('Y-m-d H:i:s', $now) . ' ==========');
+        $this->info('対象日付: ' . $date);
+
+        // オッズを取得するタイミング（発走X分前）の定義。
+        // cronが毎分動くため、$diff がこの配列に含まれる分のみ処理する。
+        $ary = [24, 21, 18, 15, 12, 9, 6, 3, 0];
+
+        $races = DB::table('t_horse_odds_finder_netkeiba_races')
+            ->where('date', $date)
+            ->orderBy('start_time')
+            ->get();
+
+        $totalRaces = count($races);
+        $this->info("対象レース数: {$totalRaces} 件");
+
+        if ($totalRaces === 0) {
+            $this->info('対象レースが0件のため終了します。');
+            return;
+        }
+
+        $raceIndex = 0;
+        foreach ($races as $race) {
+            $raceIndex++;
+
+            $targetTime  = strtotime("{$race->date} {$race->start_time}");
+            $diffSeconds = $targetTime - $now;
+
+            // 発走までの残り分数（切り捨て）
+            $diff = (int) floor($diffSeconds / 60);
+
+            // 発走済みは処理しない（$diff=0 が最後のタイミング）
+            if ($diff < 0) {
+                continue;
+            }
+
+            $this->info("--------------------------------------------------");
+            $this->info("[{$raceIndex}/{$totalRaces}] race_id={$race->race_id} 発走: {$race->start_time}  (残り {$diff} 分)");
+
+            // $ary に合致しない分数はスキップ
+            if (!in_array($diff, $ary)) {
+                $this->info("  → スキップ (残り{$diff}分は取得タイミング外)");
+                continue;
+            }
+
+            $this->info("  → 取得タイミング合致 (残り{$diff}分) : オッズ取得を開始します。");
+
+            // minutes_before_start の値を決定
+            if ($diff === 24) {
+                $diffMinutes = 999;
+            } elseif ($diff === 0) {
+                $diffMinutes = -999;
+            } else {
+                $diffMinutes = $diff;
+            }
+
+            // 発走済みで確定オッズが保存済みならスクレイピング不要
+            if ($diffMinutes === -999) {
+                $alreadySaved = DB::table('t_horse_odds_finder_netkeiba_odds')
+                    ->where('date',   $race->date)
+                    ->where('kaisuu', $race->kaisuu)
+                    ->where('basho',  $race->basho)
+                    ->where('race',   $race->race)
+                    ->where('minutes_before_start', -999)
+                    ->exists();
+
+                if ($alreadySaved) {
+                    $this->info("  確定オッズ保存済み → スキップ");
+                    continue;
+                }
+            }
+
+            // Node.js でオッズをスクレイピング
+            $json = $this->fetchRaceDetail($race->race_id);
+            if (!$json) {
+                $this->warn("  → 取得失敗: {$race->race_id}");
+                continue;
+            }
+
+            $data = json_decode($json, true);
+            if (json_last_error() !== JSON_ERROR_NONE || empty($data['data'])) {
+                $this->warn("  → JSONパース失敗: {$race->race_id}");
+                continue;
+            }
+
+            $horseCount = count($data['data']);
+            $this->info("  オッズ取得成功 → {$horseCount} 頭分");
+
+            $saved = 0;
+            DB::transaction(function () use ($data, $race, $diffMinutes, &$saved) {
+                foreach ($data['data'] as $horse) {
+                    $this->saveOdds(
+                        $race,
+                        $horse['horse_num'],
+                        $horse['odds'],
+                        $horse['fuku_odds_min'],
+                        $horse['fuku_odds_max'],
+                        $diffMinutes
+                    );
+                    $saved++;
+                }
+
+                $timingKey = [
+                    'date'   => $race->date,
+                    'kaisuu' => $race->kaisuu,
+                    'basho'  => $race->basho,
+                    'day'    => $race->day,
+                    'race'   => $race->race,
+                    'timing' => $diffMinutes,
+                ];
+                $timingValues = [
+                    'get_datetime' => date('Y-m-d H:i:s'),
+                    'odds_from'    => 'netkeiba',
+                ];
+                $exists = DB::table('t_horse_odds_finder_odds_get_timing')->where($timingKey)->exists();
+                if ($exists) {
+                    DB::table('t_horse_odds_finder_odds_get_timing')
+                        ->where($timingKey)
+                        ->update($timingValues);
+                } else {
+                    DB::table('t_horse_odds_finder_odds_get_timing')
+                        ->insert(array_merge($timingKey, $timingValues));
+                }
+            });
+            $this->info("  DB保存完了 → {$saved} 頭分");
+        }
+
+        $this->info('');
+        $this->info('========== keiba:importRaceResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
+        $this->info('');
+    }
+
+    /**
+     * 1頭分のオッズを t_horse_odds_finder_netkeiba_odds に保存する。
+     * minutes_before_start の値によって INSERT/UPDATE の挙動を切り替える。
+     */
+    private function saveOdds(object $race, mixed $num, mixed $oddsValue, mixed $fukuMin, mixed $fukuMax, int $minutesBefore): void
+    {
+        $key = [
+            'date'   => $race->date,
+            'kaisuu' => $race->kaisuu,
+            'basho'  => $race->basho,
+            'day'    => $race->day,
+            'race'   => $race->race,
+            'num'    => $num,
+        ];
+
+        $insert = [
+            ...$key,
+            'odds'                 => $oddsValue,
+            'fuku_min'             => $fukuMin,
+            'fuku_max'             => $fukuMax,
+            'minutes_before_start' => $minutesBefore,
+        ];
+
+        $update = [
+            'odds'     => $oddsValue,
+            'fuku_min' => $fukuMin,
+            'fuku_max' => $fukuMax,
+        ];
+
+        if ($minutesBefore === 999) {
+            $exists = DB::table('t_horse_odds_finder_netkeiba_odds')
+                ->where($key)
+                ->where('minutes_before_start', 999)
+                ->exists();
+
+            if ($exists) {
+                DB::table('t_horse_odds_finder_netkeiba_odds')
+                    ->where($key)
+                    ->where('minutes_before_start', 999)
+                    ->update($update);
+            } else {
+                DB::table('t_horse_odds_finder_netkeiba_odds')->insert($insert);
+            }
+            return;
+        }
+
+        if ($minutesBefore === -999) {
+            $alreadySaved = DB::table('t_horse_odds_finder_netkeiba_odds')
+                ->where($key)
+                ->where('minutes_before_start', -999)
+                ->exists();
+
+            if (!$alreadySaved) {
+                DB::table('t_horse_odds_finder_netkeiba_odds')->insert($insert);
+            }
+            return;
+        }
+
+        DB::table('t_horse_odds_finder_netkeiba_odds')->insert($insert);
+    }
+
+    private function fetchRaceDetail(string $race_id): ?string
+    {
+        $nodeBin    = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
+        $scriptPath = base_path('scripts/keibaOddsGetRaceResult.mjs');
+        $command    = $nodeBin . ' ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg($race_id) . ' 2>/dev/null';
+        $output     = shell_exec($command);
+
+        if (!$output) {
+            return null;
+        }
+
+        json_decode($output, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return trim($output);
+        }
+
+        return null;
+    }
+}

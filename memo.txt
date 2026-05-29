@@ -1,0 +1,182 @@
+
+
+
+使用しているテーブル
+
+mysql> desc t_horse_odds_finder_schedules;
++------------+------+------+-----+---------+----------------+
+| Field      | Type | Null | Key | Default | Extra          |
++------------+------+------+-----+---------+----------------+
+| id         | int  | NO   | PRI | NULL    | auto_increment |
+| date       | text | YES  |     | NULL    |                |
+| kaisuu     | text | YES  |     | NULL    |                |
+| basho      | text | YES  |     | NULL    |                |
+| basho_name | text | YES  |     | NULL    |                |
+| day        | int  | YES  |     | NULL    |                |
++------------+------+------+-----+---------+----------------+
+6 rows in set (0.00 sec)
+
+
+mysql> desc t_horse_odds_finder_races;
++------------+------+------+-----+---------+----------------+
+| Field      | Type | Null | Key | Default | Extra          |
++------------+------+------+-----+---------+----------------+
+| id         | int  | NO   | PRI | NULL    | auto_increment |
+| date       | text | YES  |     | NULL    |                |
+| kaisuu     | text | YES  |     | NULL    |                |
+| basho      | text | YES  |     | NULL    |                |
+| basho_name | text | YES  |     | NULL    |                |
+| day        | text | YES  |     | NULL    |                |
+| race       | int  | YES  |     | NULL    |                |
+| race_name  | text | YES  |     | NULL    |                |
+| start_time | text | YES  |     | NULL    |                |
+| num_horses | int  | YES  |     | NULL    |                |
++------------+------+------+-----+---------+----------------+
+10 rows in set (0.01 sec)
+
+
+
+mysql> desc t_horse_odds_finder_horses;
++------------+------+------+-----+---------+----------------+
+| Field      | Type | Null | Key | Default | Extra          |
++------------+------+------+-----+---------+----------------+
+| id         | int  | NO   | PRI | NULL    | auto_increment |
+| date       | text | YES  |     | NULL    |                |
+| kaisuu     | text | YES  |     | NULL    |                |
+| basho      | text | YES  |     | NULL    |                |
+| basho_name | text | YES  |     | NULL    |                |
+| day        | text | YES  |     | NULL    |                |
+| race       | int  | YES  |     | NULL    |                |
+| waku       | int  | YES  |     | NULL    |                |
+| num        | int  | YES  |     | NULL    |                |
+| name       | text | YES  |     | NULL    |                |
+| horse_url  | text | YES  |     | NULL    |                |
+| jockey     | text | YES  |     | NULL    |                |
+| trainer    | text | YES  |     | NULL    |                |
++------------+------+------+-----+---------+----------------+
+13 rows in set (0.00 sec)
+
+
+
+mysql> desc t_horse_odds_finder_odds;
++----------------------+------+------+-----+---------+----------------+
+| Field                | Type | Null | Key | Default | Extra          |
++----------------------+------+------+-----+---------+----------------+
+| id                   | int  | NO   | PRI | NULL    | auto_increment |
+| date                 | text | YES  |     | NULL    |                |
+| kaisuu               | text | YES  |     | NULL    |                |
+| basho                | text | YES  |     | NULL    |                |
+| day                  | text | YES  |     | NULL    |                |
+| race                 | int  | YES  |     | NULL    |                |
+| num                  | int  | YES  |     | NULL    |                |
+| odds                 | text | YES  |     | NULL    |                |
+| fuku_min             | text | YES  |     | NULL    |                |
+| fuku_max             | text | YES  |     | NULL    |                |
+| minutes_before_start | int  | YES  |     | NULL    |                |
++----------------------+------+------+-----+---------+----------------+
+11 rows in set (0.00 sec)
+
+
+
+
+
+mysql> desc t_horse_odds_finder_netkeiba_races;
++------------+------+------+-----+---------+----------------+
+| Field      | Type | Null | Key | Default | Extra          |
++------------+------+------+-----+---------+----------------+
+| id         | int  | NO   | PRI | NULL    | auto_increment |
+| date       | text | YES  |     | NULL    |                |
+| kaisuu     | text | YES  |     | NULL    |                |
+| basho      | text | YES  |     | NULL    |                |
+| basho_name | text | YES  |     | NULL    |                |
+| day        | text | YES  |     | NULL    |                |
+| race_id    | text | YES  |     | NULL    |                |
+| race       | int  | YES  |     | NULL    |                |
+| race_name  | text | YES  |     | NULL    |                |
+| start_time | text | YES  |     | NULL    |                |
+| num_horses | int  | YES  |     | NULL    |                |
++------------+------+------+-----+---------+----------------+
+11 rows in set (0.00 sec)
+
+
+
+
+
+mysql> desc t_horse_odds_finder_netkeiba_odds;
++----------------------+------+------+-----+---------+----------------+
+| Field                | Type | Null | Key | Default | Extra          |
++----------------------+------+------+-----+---------+----------------+
+| id                   | int  | NO   | PRI | NULL    | auto_increment |
+| date                 | text | YES  |     | NULL    |                |
+| kaisuu               | text | YES  |     | NULL    |                |
+| basho                | text | YES  |     | NULL    |                |
+| day                  | text | YES  |     | NULL    |                |
+| race                 | int  | YES  |     | NULL    |                |
+| num                  | int  | YES  |     | NULL    |                |
+| odds                 | text | YES  |     | NULL    |                |
+| fuku_min             | text | YES  |     | NULL    |                |
+| fuku_max             | text | YES  |     | NULL    |                |
+| minutes_before_start | int  | YES  |     | NULL    |                |
++----------------------+------+------+-----+---------+----------------+
+11 rows in set (0.00 sec)
+
+
+
+
+
+mysql> desc t_horse_odds_finder_odds_get_timing;
++--------------+------+------+-----+---------+----------------+
+| Field        | Type | Null | Key | Default | Extra          |
++--------------+------+------+-----+---------+----------------+
+| id           | int  | NO   | PRI | NULL    | auto_increment |
+| date         | text | YES  |     | NULL    |                |
+| kaisuu       | text | YES  |     | NULL    |                |
+| basho        | text | YES  |     | NULL    |                |
+| day          | text | YES  |     | NULL    |                |
+| race         | int  | YES  |     | NULL    |                |
+| timing       | int  | YES  |     | NULL    |                |
+| get_datetime | text | YES  |     | NULL    |                |
+| odds_from    | text | YES  |     | NULL    |                |
++--------------+------+------+-----+---------+----------------+
+9 rows in set (0.01 sec)
+
+
+
+
+全てのテーブルを貫く一意となるキーとして
+date, kaisuu, basho, day
+が機能している
+
+
+
+
+
+
+[centos@os3-327-53119 ~]$ crontab -l
+# 土曜5:50 全テーブルをTRUNCATEする（importScheduleより前に実行）
+50 5 * * 6 php /var/www/horse_odds_finder/artisan keiba:deleteKeibaTableRecords >> /var/www/horse_odds_finder/storage/logs/deleteKeibaTableRecords.log 2>&1
+
+# 毎日6:00 スケジュール・レース・馬情報を取得してDBに保存する（土日のみ実質動作）
+0 6 * * * php /var/www/horse_odds_finder/artisan keiba:importSchedule >> /var/www/horse_odds_finder/storage/logs/importSchedule.log 2>&1
+
+# 土日6:20 ネットケイバからレースのリストを取得する
+20 6 * * 0,6 php /var/www/horse_odds_finder/artisan keiba:importRace >> /var/www/horse_odds_finder/storage/logs/importRace.log 2>&1
+
+# 土曜7:00 土日両日分のオッズを初回取得する
+0 7 * * 6 php /var/www/horse_odds_finder/artisan keiba:importBaseOdds >> /var/www/horse_odds_finder/storage/logs/importBaseOdds.log 2>&1
+
+# 毎日9:00〜17:00 3分おきにオッズを取得・更新する
+* 9-17 * * * php /var/www/horse_odds_finder/artisan keiba:importOdds >> /var/www/horse_odds_finder/storage/logs/importOdds.log 2>&1
+
+# 毎日9:00〜17:00 3分おきにネットケイバからオッズを取得・更新する
+* 9-17 * * * php /var/www/horse_odds_finder/artisan keiba:importRaceResult >> /var/www/horse_odds_finder/storage/logs/importRaceResult.log 2>&1
+
+
+cronについても書いて欲しい
+
+
+
+
+
+
+
