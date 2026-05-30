@@ -20,6 +20,15 @@ class ImportKeibaBaseOdds extends Command
 
     public function handle(): void
     {
+        // ── 多重起動防止 ─────────────────────────────────────────────
+        $lockFile = sys_get_temp_dir() . '/keiba_importBaseOdds.lock';
+        if (file_exists($lockFile)) {
+            $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
+            return;
+        }
+        file_put_contents($lockFile, getmypid());
+        register_shutdown_function(fn() => @unlink($lockFile));
+
         $now     = microtime(true);
         $script  = base_path('scripts/keibaOddsGetTanpuku.mjs');
         $logFile = base_path('scripts/keibaOddsGetTanpuku.log');
@@ -57,7 +66,8 @@ class ImportKeibaBaseOdds extends Command
             $this->info("[{$raceIndex}/{$totalRaces}] {$race->basho_name} {$race->race}R 「{$race->race_name}」 {$race->date} {$race->start_time}");
 
             // Node.js でオッズをスクレイピング
-            $command = $nodeBin . ' ' . escapeshellarg($script)
+            // timeout 120: Node.js が無応答でもPHPプロセスが永久ブロックしないようにする
+            $command = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($script)
                 . ' ' . escapeshellarg($race->date)
                 . ' ' . escapeshellarg($race->kaisuu)
                 . ' ' . escapeshellarg($race->basho)

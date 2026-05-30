@@ -102,6 +102,15 @@ class ImportKeibaSchedule extends Command
 
     public function handle()
     {
+        // ── 多重起動防止 ─────────────────────────────────────────────
+        $lockFile = sys_get_temp_dir() . '/keiba_importSchedule.lock';
+        if (file_exists($lockFile)) {
+            $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
+            return 0;
+        }
+        file_put_contents($lockFile, getmypid());
+        register_shutdown_function(fn() => @unlink($lockFile));
+
         $this->info('');
         $this->info('╔══════════════════════════════════════════════════╗');
         $this->info('║     競馬スケジュール取得処理 ── 開始              ║');
@@ -134,7 +143,8 @@ class ImportKeibaSchedule extends Command
 
         $nodeBin = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
         $this->info('node パス: ' . $nodeBin);
-        $output = shell_exec($nodeBin . ' ' . escapeshellarg($script) . ' 2>>' . escapeshellarg($logFile));
+        // timeout 300: 2開催×12R×4秒 + ページ遷移 = 最大約250秒かかりうるため180では不足
+        $output = shell_exec('timeout 300 ' . $nodeBin . ' ' . escapeshellarg($script) . ' 2>>' . escapeshellarg($logFile));
 
         $this->info('Node.js スクリプト完了。出力を受け取りました。');
         $this->info('出力文字数: ' . mb_strlen($output ?? '') . ' 文字');

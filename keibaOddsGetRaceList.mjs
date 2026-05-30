@@ -7,6 +7,12 @@
  */
 
 import { chromium } from "playwright";
+import { existsSync, writeFileSync, unlinkSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const lockFile  = join(__dirname, "keibaOddsGetRaceList.lock");
 
 const BASE_URL = "https://race.netkeiba.com/top/";
 const SUB_URL = "https://race.netkeiba.com/top/race_list_sub.html";
@@ -76,55 +82,72 @@ function extractPlaces(lists) {
 }
 
 (async () => {
-    const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
-
-    // まずトップページで利用可能な日付一覧を取得
-    await page.goto(TOP_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.waitForSelector("#date_list_sub li", { timeout: 30000 });
-    await page.waitForTimeout(1000);
-
-    const allDates = await page.$$eval("#date_list_sub li", (els) =>
-        els.map((el) => ({
-            date: el.getAttribute("date"),
-            label: el.textContent.trim(),
-            active: el.classList.contains("ui-tabs-active"),
-        })),
-    );
-
-    let targetDates;
-    if (!arg || arg === "active") {
-        const active = allDates.find((d) => d.active);
-        targetDates = active
-            ? [active.date]
-            : [allDates[allDates.length - 1]?.date];
-    } else if (arg === "all") {
-        targetDates = allDates.map((d) => d.date);
-    } else {
-        targetDates = [arg];
+    // ── 多重起動チェック ──────────────────────────────────────────
+    if (existsSync(lockFile)) {
+        console.error("[LOCK] 既に起動中のため終了します");
+        process.exit(0);
     }
+    writeFileSync(lockFile, String(process.pid));
 
-    const result = {};
+    let browser = null;
 
-    for (const date of targetDates) {
-        if (!date) continue;
+    try {
+        browser = await chromium.launch({ headless: true });
+        const page = await browser.newPage();
 
-        // 日付ごとに専用URLへ直接アクセス（タブ切り替え不要）
-        const url = `${SUB_URL}?kaisai_date=${date}`;
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
-        await page.waitForSelector(".RaceList_DataList", { timeout: 30000 });
-        await page.waitForTimeout(500);
+        // まずトップページで利用可能な日付一覧を取得
+        await page.goto(TOP_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
+        await page.waitForSelector("#date_list_sub li", { timeout: 30000 });
+        await page.waitForTimeout(1000);
 
-        const places = await page.$$eval(".RaceList_DataList", extractPlaces);
-
-        result[date] = places;
-        console.log(
-            `[${date}] ${places.map((p) => `${p.place}(${p.races.length}R)`).join(", ")}`,
+        const allDates = await page.$$eval("#date_list_sub li", (els) =>
+            els.map((el) => ({
+                date: el.getAttribute("date"),
+                label: el.textContent.trim(),
+                active: el.classList.contains("ui-tabs-active"),
+            })),
         );
+
+        let targetDates;
+        if (!arg || arg === "active") {
+            const active = allDates.find((d) => d.active);
+            targetDates = active
+                ? [active.date]
+                : [allDates[allDates.length - 1]?.date];
+        } else if (arg === "all") {
+            targetDates = allDates.map((d) => d.date);
+        } else {
+            targetDates = [arg];
+        }
+
+        const result = {};
+
+        for (const date of targetDates) {
+            if (!date) continue;
+
+            // 日付ごとに専用URLへ直接アクセス（タブ切り替え不要）
+            const url = `${SUB_URL}?kaisai_date=${date}`;
+            await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+            await page.waitForSelector(".RaceList_DataList", { timeout: 30000 });
+            await page.waitForTimeout(500);
+
+            const places = await page.$$eval(".RaceList_DataList", extractPlaces);
+
+            result[date] = places;
+            console.log(
+                `[${date}] ${places.map((p) => `${p.place}(${p.races.length}R)`).join(", ")}`,
+            );
+        }
+
+        console.log("\n=== RESULT JSON ===");
+        console.log(JSON.stringify(result, null, 2));
+
+    } catch (err) {
+        console.error(`致命的エラー: ${err.message}`);
+        process.exitCode = 1;
+    } finally {
+        // ── 必ずブラウザを閉じ、ロックを解除する ────────────
+        if (browser) await browser.close();
+        if (existsSync(lockFile)) unlinkSync(lockFile);
     }
-
-    await browser.close();
-
-    console.log("\n=== RESULT JSON ===");
-    console.log(JSON.stringify(result, null, 2));
 })();

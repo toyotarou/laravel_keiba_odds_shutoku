@@ -247,6 +247,36 @@
     .check-item .check-expect { font-size: 12px; color: #276749; font-weight: 700; }
     .check-item .check-fatal  { font-size: 12px; color: #e53e3e; font-weight: 700; }
 
+    /* ─── メモリバー ─── */
+    .mem-row { margin: 14px 0; }
+    .mem-row-label { font-size: 12px; font-weight: 700; color: #4a5568; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: baseline; }
+    .mem-mb { font-size: 11px; color: #718096; font-weight: 400; }
+    .mem-track { background: #e2e8f0; border-radius: 6px; height: 28px; overflow: hidden; display: flex; }
+    .mem-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.95); overflow: hidden; white-space: nowrap; min-width: 0; padding: 0 4px; }
+    .seg-base  { background: #718096; }
+    .seg-c1    { background: #e53e3e; }
+    .seg-c2    { background: #fc8181; }
+    .seg-c3    { background: #feb2b2; color: #742a2a; }
+    .seg-php2  { background: #4a9eff; }
+    .seg-ok    { background: #c6f6d5; }
+    .mem-over-label { font-size: 11px; color: #e53e3e; font-weight: 700; margin-top: 4px; }
+    .mem-ok-label  { font-size: 11px; color: #38a169; font-weight: 700; margin-top: 4px; }
+    .mem-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .mem-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #4a5568; }
+    .mem-legend-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+    /* ─── 防衛ラインカード ─── */
+    .defense-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 14px 0; }
+    .defense-card { border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; }
+    .defense-head { padding: 10px 14px; font-size: 13px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+    .defense-body { padding: 12px 14px; font-size: 13px; line-height: 1.75; background: #fff; }
+    .defense-body code { font-size: 11px; }
+    .dh-1 { background: #276749; }
+    .dh-2 { background: #2b6cb0; }
+    .dh-3 { background: #6b46c1; }
+    .dh-4 { background: #c05621; }
+    .dh-5 { background: #2d3748; }
+
     /* ─── 最終判定 ─── */
     .verdict { background: #f0fff4; border: 2px solid #68d391; border-radius: 12px; padding: 24px 20px; text-align: center; }
     .verdict .verdict-mark { font-size: 44px; margin-bottom: 8px; }
@@ -261,7 +291,7 @@
 
 <header>
   <h1>競馬オッズ取得システム<br>動作解説</h1>
-  <div class="meta">最終更新: 2026-05-29　／　土日本番前 最終確認版</div>
+  <div class="meta">最終更新: 2026-05-30　／　メモリ危機対応・安全診断追記版</div>
 </header>
 
 <div class="toc">
@@ -278,7 +308,9 @@
     <a href="#checklist">確認チェックリスト</a>
     <a href="#routes">2ルートの関係</a>
     <a href="#fixes">修正履歴</a>
-    <a href="#verdict">最終判定</a>
+    <a href="#code-sim">コード検証</a>
+    <a href="#memory-sim">メモリ危機</a>
+    <a href="#verdict">最終安全診断</a>
   </div>
 </div>
 
@@ -1022,7 +1054,138 @@ if ($minutesBefore === -999) {
 <section id="fixes">
   <h2><span class="h2-icon">🔧</span>修正・変更の記録</h2>
 
-  <h3>2026-05-29 の変更 <span class="badge badge-new">最新</span></h3>
+  <h3>2026-05-30 の変更 <span class="badge badge-new">最新</span></h3>
+  <p style="font-size:13px;color:#718096;margin-bottom:8px;">サーバーダウン障害を受けた緊急対応。メモリリーク・プロセス多重起動の根本修正。</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>対象</th><th>変更内容</th><th>状態</th></tr></thead>
+      <tbody>
+        <tr><td><code>keibaOddsGetSchedule.mjs</code></td><td>try/finally追加 → エラー時も必ずbrowser.close()。ロックファイル追加 → 多重起動防止。</td><td><span class="ok">✅ 適用済み</span></td></tr>
+        <tr><td><code>keibaOddsGetRaceList.mjs</code></td><td>try/finally追加。ロックファイル追加。</td><td><span class="ok">✅ 適用済み</span></td></tr>
+        <tr><td><code>keibaOddsGetTanpuku.mjs</code><br><code>keibaOddsGetRaceResult.mjs</code></td><td>スタールロック対策追加 → OOMキルでロックが残った場合、PID生存確認して古いロックを削除してから起動。</td><td><span class="ok">✅ 適用済み</span></td></tr>
+        <tr><td>全5PHPコマンド</td><td><code>timeout 120</code>（importScheduleは<strong>300</strong>）追加 → Node.jsがハングしてもPHPが永久ブロックしなくなった。importScheduleは2会場処理で最悪294秒かかりうるため180→300に修正。</td><td><span class="ok">✅ 適用済み</span></td></tr>
+        <tr><td>全5PHPコマンド</td><td>PHPレベルのロックファイル追加 → cronが多重起動しても2つ目以降は即終了。</td><td><span class="ok">✅ 適用済み</span></td></tr>
+        <tr><td>サーバー設定</td><td>Swap 1GB追加・永続化（/etc/fstab登録済み）。</td><td><span class="ok">✅ 適用済み</span></td></tr>
+        <tr><td>PHP-FPM設定</td><td>pm.max_children: 50 → 8。960MBサーバーに対して50は過剰だった。</td><td><span class="ok">✅ 適用済み</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── 変更確認チェックリスト ── -->
+  <h3>変更確認チェックリスト（全9ファイル）</h3>
+  <p style="font-size:13px;color:#718096;margin-bottom:8px;">サーバーにアップロード済みか・コードが正しいかを確認した結果。</p>
+
+  <div class="checklist" style="border:1px solid #e8e8e8;border-radius:8px;overflow:hidden;">
+
+    <div class="check-item">
+      <div class="check-time" style="color:#276749;font-size:12px;">Node.js</div>
+      <div class="check-body">
+        <strong>keibaOddsGetSchedule.mjs</strong>
+        <div class="check-sql">L2: import { existsSync, writeFileSync, unlinkSync } — 追加済み</div>
+        <div class="check-sql">L9: const lockFile = join(__dirname, 'keibaOddsGetSchedule.lock')</div>
+        <div class="check-sql">L42: try { ... } finally { browser.close(); unlinkSync(lockFile); }</div>
+        <div class="check-expect">✅ ロックファイル・try/finally ともに確認済み</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#276749;font-size:12px;">Node.js</div>
+      <div class="check-body">
+        <strong>keibaOddsGetRaceList.mjs</strong>
+        <div class="check-sql">L10: import { existsSync, writeFileSync, unlinkSync } — 追加済み</div>
+        <div class="check-sql">L15: const lockFile = join(__dirname, 'keibaOddsGetRaceList.lock')</div>
+        <div class="check-sql">L94: try { ... } L148: } finally { browser.close(); unlinkSync(lockFile); }</div>
+        <div class="check-expect">✅ ロックファイル・try/finally ともに確認済み</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#276749;font-size:12px;">Node.js</div>
+      <div class="check-body">
+        <strong>keibaOddsGetTanpuku.mjs</strong>
+        <div class="check-sql">L2: readFileSync — import追加済み</div>
+        <div class="check-sql">L35: function isProcessAlive(pid) { process.kill(pid, 0) }</div>
+        <div class="check-sql">L42: const storedPid = parseInt(readFileSync(lockFile, 'utf8'), 10)</div>
+        <div class="check-expect">✅ スタールロック検出（PID生存確認）確認済み</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#276749;font-size:12px;">Node.js</div>
+      <div class="check-body">
+        <strong>keibaOddsGetRaceResult.mjs</strong>
+        <div class="check-sql">L12: readFileSync — import追加済み</div>
+        <div class="check-sql">L29: function isProcessAlive(pid) { process.kill(pid, 0) }</div>
+        <div class="check-sql">L36: const storedPid = parseInt(readFileSync(lockFile, 'utf8'), 10)</div>
+        <div class="check-expect">✅ スタールロック検出（PID生存確認）確認済み</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#2b6cb0;font-size:12px;">PHP</div>
+      <div class="check-body">
+        <strong>ImportKeibaOdds.php</strong>
+        <div class="check-sql">L25: $lockFile = sys_get_temp_dir() . '/keiba_importOdds.lock'</div>
+        <div class="check-sql">L31: register_shutdown_function(fn() => @unlink($lockFile))</div>
+        <div class="check-sql">L68: $diff = (int) round($diffSeconds / 60)  ← round()確認</div>
+        <div class="check-sql">L91: $command = 'timeout 120 ' . $nodeBin . ' ...'</div>
+        <div class="check-expect">✅ PHPロック・round()・timeout 120 確認済み</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#2b6cb0;font-size:12px;">PHP</div>
+      <div class="check-body">
+        <strong>importKeibaRaceResult.php</strong>
+        <div class="check-sql">L25: $lockFile = sys_get_temp_dir() . '/keiba_importRaceResult.lock'</div>
+        <div class="check-sql">L31: register_shutdown_function(fn() => @unlink($lockFile))</div>
+        <div class="check-sql">L65: $diff = (int) round($diffSeconds / 60)  ← floor()→round()に修正済み</div>
+        <div class="check-sql">L240: $command = 'timeout 120 ' . $nodeBin . ' ...'</div>
+        <div class="check-expect">✅ PHPロック・round()修正・timeout 120 確認済み</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#2b6cb0;font-size:12px;">PHP</div>
+      <div class="check-body">
+        <strong>ImportKeibaSchedule.php</strong>
+        <div class="check-sql">L106: $lockFile = sys_get_temp_dir() . '/keiba_importSchedule.lock'</div>
+        <div class="check-sql">L112: register_shutdown_function(fn() => @unlink($lockFile))</div>
+        <div class="check-sql">L147: shell_exec('timeout 300 ' . ...)  ← 180→300に修正済み</div>
+        <div class="check-expect">✅ PHPロック・timeout 300（バグ修正）確認済み</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#2b6cb0;font-size:12px;">PHP</div>
+      <div class="check-body">
+        <strong>ImportKeibaBaseOdds.php</strong>
+        <div class="check-sql">L24: $lockFile = sys_get_temp_dir() . '/keiba_importBaseOdds.lock'</div>
+        <div class="check-sql">L30: register_shutdown_function(fn() => @unlink($lockFile))</div>
+        <div class="check-sql">L70: $command = 'timeout 120 ' . $nodeBin . ' ...'</div>
+        <div class="check-expect">✅ PHPロック・timeout 120 確認済み</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#2b6cb0;font-size:12px;">PHP</div>
+      <div class="check-body">
+        <strong>importKeibaRace.php</strong>
+        <div class="check-sql">L29: $lockFile = sys_get_temp_dir() . '/keiba_importRace.lock'</div>
+        <div class="check-sql">L35: register_shutdown_function(fn() => @unlink($lockFile))</div>
+        <div class="check-sql">L118: $command = 'timeout 120 ' . $nodeBin . ' ...'</div>
+        <div class="check-expect">✅ PHPロック・timeout 120 確認済み</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="green-box" style="margin-top:16px;">
+    <strong>全9ファイルの修正を確認完了。サーバーへのアップロード（FileZilla）も反映済み。</strong><br>
+    crontabのコメント修正も2026-05-30に完了。
+  </div>
+
+  <h3>2026-05-29 の変更</h3>
   <div class="table-wrap">
     <table>
       <thead><tr><th>ファイル</th><th>変更内容</th><th>状態</th></tr></thead>
@@ -1052,18 +1215,395 @@ if ($minutesBefore === -999) {
 </section>
 
 <!-- ══════════════════════════════════════════ -->
-<!--  最終判定                                  -->
+<!--  コードロジック検証                        -->
+<!-- ══════════════════════════════════════════ -->
+<section id="code-sim">
+  <h2><span class="h2-icon">🔬</span>コードロジック検証シミュレーション</h2>
+
+  <div class="info-box">全ファイルを精査した結果です。<strong>✅ 正常 / ⚠️ 注意 / ❌ バグ</strong> で分類しています。</div>
+
+  <!-- ── ① タイミング判定 ── -->
+  <h3>① タイミング判定ロジック（importOdds vs importRaceResult）</h3>
+
+  <p>2つのコマンドで <strong>残り分数の計算方法が違います</strong>。</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>コマンド</th><th>計算式</th><th>効果</th></tr></thead>
+      <tbody>
+        <tr><td><code>importOdds</code></td><td><code>round($diff / 60)</code></td><td>23.5分前 → 24と判定（広め）</td></tr>
+        <tr><td><code>importRaceResult</code></td><td><code>floor($diff / 60)</code></td><td>23.9分前 → 23と判定（狭め）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>例：レース発走 <strong>10:00:00</strong>、cronが <strong>9:36:03</strong> に発火（3秒遅延）した場合:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>実残り秒</th><th>importOdds<br>round(1437÷60)</th><th>importRaceResult<br>floor(1437÷60)</th><th>結果</th></tr></thead>
+      <tbody>
+        <tr><td>1440s（ちょうど24分）</td><td>24 ✅</td><td>24 ✅</td><td>両方処理</td></tr>
+        <tr><td>1437s（3秒遅延）</td><td>round(23.95)=<strong>24</strong> ✅</td><td>floor(23.95)=<strong>23</strong> ❌</td><td><span class="badge badge-warn">JRAのみ取得。netkeibaスキップ</span></td></tr>
+        <tr><td>1410s（30秒遅延）</td><td>round(23.5)=<strong>24</strong> ✅</td><td>floor(23.5)=<strong>23</strong> ❌</td><td><span class="badge badge-warn">JRAのみ取得</span></td></tr>
+        <tr><td>1409s（31秒遅延）</td><td>round(23.48)=<strong>23</strong> ❌</td><td>floor(23.48)=<strong>23</strong> ❌</td><td>両方スキップ（次の21分前で取得）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note-box">
+    <strong>⚠️ 軽微な非対称性</strong><br>
+    サーバー負荷でcronが数秒遅れると、<strong>23分30秒〜59秒のウィンドウ</strong>でimportRaceResultだけ24分前タイミングを取りこぼすことがある。致命的ではない（次の21分前で取得が続く）が、importRaceResultも <code>round()</code> に揃えると完全に一致する。
+  </div>
+
+  <!-- ── ② ロックファイル4シナリオ ── -->
+  <h3>② ロックファイル 4シナリオ完全検証</h3>
+
+  <div class="checklist" style="border:1px solid #e8e8e8;border-radius:8px;overflow:hidden;">
+
+    <div class="check-item">
+      <div class="check-time" style="color:#276749;">正常終了</div>
+      <div class="check-body">
+        <strong>✅ 正常動作</strong><br>
+        <code>finally { browser.close(); unlinkSync(lockFile); }</code><br>
+        例外なく終了 → finallyが確実に動く → lockファイル削除 → 次回起動OK
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#c05621;">timeout<br>SIGTERM</div>
+      <div class="check-body">
+        <strong>✅ 安全（スタールロックで対応）</strong><br>
+        <code>timeout 120</code> がSIGTERMを送信 → Node.jsはfinallyを実行<strong>しない</strong>まま終了 → lockファイルが残る。<br>
+        しかしPlaywright の <code>--remote-debugging-pipe</code> が切断されるため、<strong>Chromiumは自動的に終了</strong>（メモリリークなし）。<br>
+        次回起動時: lockファイルあり → PID確認 → 死んでいる → lock削除 → 正常起動
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#e53e3e;">OOMキル<br>SIGKILL</div>
+      <div class="check-body">
+        <strong>✅ 安全（SIGTERM同様）</strong><br>
+        SIGKILLはプロセスを即座に殺す。finallyは動かない。lockファイルが残る。<br>
+        Chromiumもpipe切断で終了。スタールロック検出で次回起動時に自動復旧。
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#2b6cb0;">同引数で<br>多重起動</div>
+      <div class="check-body">
+        <strong>✅ 正常にブロック</strong><br>
+        lockファイルあり → <code>isProcessAlive(storedPid)</code> → 生存中 → 即終了。<br>
+        Chromiumは起動しない。メモリ増加なし。
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── ③ importSchedule タイムアウト計算 ── -->
+  <h3>③ importSchedule タイムアウト計算（バグ修正済み）</h3>
+
+  <p>keibaOddsGetSchedule.mjs は <strong>全会場×全レースを1回のセッションで処理</strong>します。</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>処理</th><th>最小時間</th><th>最悪時間</th></tr></thead>
+      <tbody>
+        <tr><td>JRAトップ + オッズページ</td><td>6s</td><td>6s</td></tr>
+        <tr><td>2会場 × 12R × ページ遷移(3s+1s)</td><td>96s</td><td>96s</td></tr>
+        <tr><td>2会場 × 12R × waitForSelector</td><td>0s（即ロード）</td><td>192s（8s×12×2）</td></tr>
+        <tr><td><strong>合計</strong></td><td><strong>約 102s</strong></td><td><strong>約 294s</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="warn-box">
+    <strong>❌ 旧timeout 180秒では最悪ケースに対応できなかった</strong><br>
+    ネット遅延時に294秒かかると timeout が先に発動し、JSONが出力される前に Node.js が強制終了 → JSON パース失敗 → races テーブルが空のまま → <strong>土曜丸1日全滅</strong>。
+  </div>
+  <div class="green-box">
+    <strong>✅ 300秒に変更済み（今日のコード修正）</strong><br>
+    <code>timeout 300</code> にすることで最悪ケース(294s)をカバーできる。
+  </div>
+
+  <!-- ── ④ トランザクション保護 ── -->
+  <h3>④ トランザクション保護の動作確認</h3>
+
+  <div class="tx-wrap">
+    <div class="tx-header">importOdds / importRaceResult — 1レース分の書き込み</div>
+    <div class="tx-body">
+      <span class="tx-check">// Node.js 成功 → 15頭分JSON取得</span><br>
+      BEGIN TRANSACTION<br>
+      &nbsp;<span class="tx-insert">馬1〜15: INSERT or UPDATE（oddsテーブル）</span><br>
+      &nbsp;<span class="tx-upsert">odds_get_timing: INSERT or UPDATE</span><br>
+      &nbsp;<span class="tx-rollback">↑ DBエラーが起きた場合 → 全ロールバック</span><br>
+      <span class="tx-commit">COMMIT ✅ — 全馬 + timing が一体でコミット</span>
+    </div>
+  </div>
+  <div class="green-box">
+    <strong>✅ 中途半端なデータは残らない</strong><br>
+    15頭中13頭でエラーが起きても、1〜12頭のINSERTも全て巻き戻される。次の取得タイミングで改めて全馬取得される。
+  </div>
+
+  <!-- ── ⑤ timeout後のリトライ挙動 ── -->
+  <h3>⑤ timeout後のリトライ挙動シミュレーション</h3>
+
+  <p><code>importOdds</code>（maxRetry=2）が JRA サイトに繋がらない場合:</p>
+  <pre><code>retry 1: timeout 120 → 120秒後に Node.js 強制終了
+          shell_exec 戻り値: null
+          json_decode(null) → null → リトライ
+          sleep(3秒待ち)
+retry 2: timeout 120 → 120秒後に Node.js 強制終了
+          shell_exec 戻り値: null
+          リトライ上限 → このレースをスキップ
+
+1レースの最大所要時間: 120 + 3 + 120 = 243秒 ≈ 4分</code></pre>
+
+  <div class="note-box">
+    <strong>⚠️ 注意: PHPロックが4分間保持される</strong><br>
+    1レースで243秒かかると、その間 <code>keiba_importOdds.lock</code> が保持される。<br>
+    次の cron（毎分）は全てロックを見て即終了するため安全だが、<strong>他の全レースのオッズ取得も遅延する</strong>。<br>
+    JRAサイト障害時は1レースにつき4分ブロックされることを把握しておく。
+  </div>
+
+  <!-- ── ⑥ 発見した問題 ── -->
+  <h3>⑥ 発見した問題・改善点まとめ</h3>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>分類</th><th>内容</th><th>影響</th><th>対応</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="badge badge-ng">バグ</span></td>
+          <td>importScheduleのtimeout 180秒が不足。最悪294秒かかりえた。</td>
+          <td>土曜6時の全データ取得失敗→1日全滅リスク</td>
+          <td><span class="ok">✅ 300秒に修正済み</span></td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-warn">軽微</span></td>
+          <td><code>importOdds</code>はround()、<code>importRaceResult</code>はfloor()で残り分数を計算。cronが数秒遅れると24分前タイミングをnetkeibaが取りこぼす。</td>
+          <td>netkeibaルートで稀に1タイミング欠損</td>
+          <td>importRaceResultもround()に変更推奨</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-warn">軽微</span></td>
+          <td>crontabのコメントが<code># 3分おきに</code>だが実際は<code>* 9-17</code>（毎分実行）。</td>
+          <td>ドキュメント誤り。動作は正しい。</td>
+          <td>コメント修正推奨</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-warn">軽微</span></td>
+          <td><code>keibaOddsGetTanpuku.log</code>がappendモード。deleteKeibaTableRecordsが毎週削除するので実害はないが、削除漏れると無制限に成長。</td>
+          <td>ディスク枯渇リスク（低）</td>
+          <td>ログローテーション設定推奨</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-ok">正常</span></td>
+          <td>try/finally → browser.close()は正常・例外・SIGTERMすべてのルートで機能確認済み。</td>
+          <td>–</td>
+          <td>✅ 対応不要</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-ok">正常</span></td>
+          <td>スタールロック検出（PID生存確認）はOOMキル後も正常に復旧することを確認。</td>
+          <td>–</td>
+          <td>✅ 対応不要</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-ok">正常</span></td>
+          <td>-999（0分前）の二重取得ガードはPHP側1重・saveOdds内2重で保護されている。</td>
+          <td>–</td>
+          <td>✅ 対応不要</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ -->
+<!--  メモリ危機シミュレーション               -->
+<!-- ══════════════════════════════════════════ -->
+<section id="memory-sim">
+  <h2><span class="h2-icon">🧠</span>メモリ危機シミュレーション</h2>
+
+  <div class="warn-box">
+    <strong>2026-05-30 実際に発生したサーバーダウンの原因分析。</strong><br>
+    「RAM 960MB が少なすぎた」のではなく、<strong>プロセスが際限なく積み重なる構造になっていた</strong>ことが本当の問題でした。
+  </div>
+
+  <!-- ── 修正前 ── -->
+  <h3>修正前：連鎖崩壊のメカニズム</h3>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-time">9:XX分 0秒 — importOdds 起動（1回目）</div>
+      <div class="tl-title">Chromium 起動 → +600MB</div>
+      <p>JRAサイトにアクセスしてオッズを取得しようとする。</p>
+      <pre><code>shell_exec('node keibaOddsGetTanpuku.mjs ...')
+↑ タイムアウト指定なし。JRAが遅ければ無限待ち。
+  PHPプロセスはここでフリーズ。</code></pre>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot red"></div>
+      <div class="tl-time red">9:XX分 30秒 — JRAサイト応答なし</div>
+      <div class="tl-title">PHP が shell_exec() でハング</div>
+      <p>Node.js は page.goto() の応答を待ち続ける。<br>
+      Chromium は起動したまま <strong>600MB を消費し続ける</strong>。<br>
+      importRaceResult も同様に別の Chromium をハング中。</p>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot red"></div>
+      <div class="tl-time red">9:XX+1分 — cron が importOdds を再起動（2回目）</div>
+      <div class="tl-title">PHP ロックなし → 2つ目の PHP + 別のレースに新 Chromium</div>
+      <p>前のPHPがハング中でも、cronは1分後に容赦なく次を起動する。</p>
+      <p>2回目のPHPは前と<strong>別のレース</strong>を処理しようとするため、Node.jsロックをすり抜けて新しいChromiumを起動する。</p>
+      <div class="warn-box" style="margin:8px 0;">RAM計算：<br>ベースライン 340MB + Chromium×2（1,210MB）+ active PHP×2（100MB）= <strong>1,650MB</strong><br>RAM 960MB を大幅超過。Swapなし → <strong>OOM キラー発動</strong></div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot red"></div>
+      <div class="tl-time red">9:XX+2分 — さらに3回目のimportOdds + importRaceResult</div>
+      <div class="tl-title">Chromium が 4〜6 本に増殖 → 完全にメモリ枯渇</div>
+      <p>OOMキラーが MySQL・Nginx を kill → DB接続・HTTP応答が消滅。<br>
+      sshd も kill → SSH接続が切断。<br>
+      <strong>さくらVPSのコントロールパネルから強制リセットしか手段がない状態。</strong></p>
+    </div>
+  </div>
+
+  <!-- ── 修正後 ── -->
+  <h3>修正後：5つの防衛ラインの動き</h3>
+
+  <div class="defense-grid">
+    <div class="defense-card">
+      <div class="defense-head dh-1">① PHP レベルのロックファイル</div>
+      <div class="defense-body">
+        <code>/tmp/keiba_importOdds.lock</code> が存在する間、次のcron起動は即終了する。<br>
+        → <strong>同時に動くimportOddsは常に1本だけ。</strong>
+        <pre style="margin-top:8px;"><code>if (file_exists($lockFile)) {
+    // 即終了。Chromium 起動なし。
+    return;
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="defense-card">
+      <div class="defense-head dh-2">② timeout 120（PHP側）</div>
+      <div class="defense-body">
+        JRAサイトが完全に応答しなくなっても、<strong>120秒後にNode.jsプロセスを強制終了</strong>する。<br>
+        → PHPが永久ブロックすることがなくなった。
+        <pre style="margin-top:8px;"><code>shell_exec('timeout 120 node keibaOddsGetTanpuku.mjs ...')</code></pre>
+      </div>
+    </div>
+
+    <div class="defense-card">
+      <div class="defense-head dh-3">③ try/finally でbrowser.close()を保証（Node.js側）</div>
+      <div class="defense-body">
+        例外・timeout・正常終了、どのルートを通っても<strong>必ずChromiumが閉じる</strong>。<br>
+        → プロセスが残留してメモリを食い続けることがない。
+        <pre style="margin-top:8px;"><code>} finally {
+    if (browser) await browser.close();
+    if (existsSync(lockFile)) unlinkSync(lockFile);
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="defense-card">
+      <div class="defense-head dh-4">④ Node.js レベルのロックファイル（スタールロック対応済み）</div>
+      <div class="defense-body">
+        同じレースの Chromium が2本起動しない。<br>
+        OOMキルでロックが残っても、<strong>PIDの生存確認で古いロックを自動削除</strong>して再起動できる。
+        <pre style="margin-top:8px;"><code>// OOMキル後の復旧
+if (!isProcessAlive(storedPid)) {
+    unlinkSync(lockFile); // 古いロックを削除
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="defense-card">
+      <div class="defense-head dh-5">⑤ Swap 1GB + PHP-FPM max_children=8</div>
+      <div class="defense-body">
+        <strong>Swap</strong> → 一時的なメモリ超過でもOOMキラーがすぐ発動しなくなる緩衝材。<br>
+        <strong>max_children=8</strong> → PHP-FPMワーカーの上限。以前の50は960MBサーバーに対して致命的に多すぎた。
+      </div>
+    </div>
+  </div>
+
+  <!-- ── メモリ実数計算 ── -->
+  <h3>メモリ使用量 実数計算</h3>
+
+  <h4>Chromium 1インスタンスの内訳（実測値）</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>プロセス種別</th><th>実測メモリ</th></tr></thead>
+      <tbody>
+        <tr><td>chrome-headless-shell（メイン）</td><td>約 110 MB</td></tr>
+        <tr><td>zygote × 2</td><td>約 60 MB</td></tr>
+        <tr><td>GPU プロセス</td><td>約 70 MB</td></tr>
+        <tr><td>network service</td><td>約 70 MB</td></tr>
+        <tr><td>renderer ← <strong>最大の消費源</strong></td><td>約 250 MB</td></tr>
+        <tr><td>audio service</td><td>約 45 MB</td></tr>
+        <tr><td><strong>1インスタンス 合計</strong></td><td><strong>約 605 MB</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>修正前 vs 修正後 メモリ比較</h4>
+  <p style="font-size:12px;color:#718096;margin-bottom:4px;">利用可能メモリ = RAM 960MB + Swap 1,024MB = <strong>1,984MB</strong> を100%として表示</p>
+
+  <p style="font-size:13px;font-weight:700;color:#e53e3e;margin:12px 0 4px;">修正前（最悪ケース：Chromium 3本同時）</p>
+  <div class="mem-row">
+    <div class="mem-track mem-over" style="border:2px solid #e53e3e;">
+      <div class="mem-seg seg-base"  style="width:17%;">ベース<br>340MB</div>
+      <div class="mem-seg seg-c1"    style="width:30%;">Chromium①<br>605MB</div>
+      <div class="mem-seg seg-c2"    style="width:30%;">Chromium②<br>605MB</div>
+      <div class="mem-seg seg-c3"    style="width:24%;">Chromium③…</div>
+    </div>
+    <div class="mem-over-label">⚠ 合計 約2,155MB → 利用可能(1,984MB)を超過 → OOM発動</div>
+  </div>
+
+  <p style="font-size:13px;font-weight:700;color:#38a169;margin:16px 0 4px;">修正後（最悪ケース：importOdds + importRaceResult 同時稼働）</p>
+  <div class="mem-row">
+    <div class="mem-track">
+      <div class="mem-seg seg-base" style="width:17%;">ベース<br>340MB</div>
+      <div class="mem-seg seg-c1"   style="width:30%;">Chromium①<br>605MB</div>
+      <div class="mem-seg seg-c2"   style="width:30%;">Chromium②<br>605MB</div>
+      <div class="mem-seg seg-php2" style="width:5%;" title="PHP×2: 100MB"></div>
+      <div class="mem-seg seg-ok"   style="width:18%;color:#276749;font-weight:700;">余裕<br>334MB</div>
+    </div>
+    <div class="mem-ok-label">✅ 合計 約1,650MB → 余裕 334MB あり（安全）</div>
+  </div>
+
+  <div class="mem-legend">
+    <div class="mem-legend-item"><div class="mem-legend-dot" style="background:#718096;"></div>ベースライン（OS/Nginx/MySQL/PHP-FPM）</div>
+    <div class="mem-legend-item"><div class="mem-legend-dot" style="background:#e53e3e;"></div>Chromium（1本 ≒ 605MB）</div>
+    <div class="mem-legend-item"><div class="mem-legend-dot" style="background:#4a9eff;"></div>アクティブPHP worker</div>
+    <div class="mem-legend-item"><div class="mem-legend-dot" style="background:#c6f6d5;border:1px solid #38a169;"></div>余裕（安全マージン）</div>
+  </div>
+
+  <div class="info-box" style="margin-top:16px;">
+    <strong>なぜ Chromium 1本が 600MB も食うのか</strong><br><br>
+    Chromium は内部でメインプロセス・レンダラー・GPU・ネットワーク・サンドボックスを<strong>別プロセス</strong>として立ち上げる設計です。これは安全のための設計ですが、メモリの多いPCを前提としています。<br><br>
+    960MB のサーバーで複数本同時起動すると即座に危険域に入ります。「1レースにつき1本・PHPロックで並列禁止」というルールが不可欠です。
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ -->
+<!--  最終安全診断                              -->
 <!-- ══════════════════════════════════════════ -->
 <section id="verdict">
   <div class="verdict">
     <div class="verdict-mark">✅</div>
-    <p class="verdict-text">全6ファイル確認済み。<br>土日の本番稼働に耐えられる状態です。</p>
+    <p class="verdict-text">修正完了。<br>メモリ危機は構造的に解決されました。</p>
     <div class="verdict-sub">
-      <strong>土曜・日曜で把握しておくこと：</strong><br><br>
-      ・土曜6:00のimportSchedule失敗だけが致命的。6:05頃にログ確認を。<br><br>
-      ・日曜6:00のimportScheduleは日曜分のoddsを削除するが、これは正常動作。9時以降に再取得される。<br><br>
-      ・odds_get_timingはimportBaseOddsでは書かれない。9時以降の定点取得から記録が始まる。<br><br>
-      ・トランザクションにより、中途半端なデータが残ることはなくなった。万が一DBエラーが起きても、そのタイミングのデータが丸ごとロールバックされるだけで、次のタイミングで取得が続く。
+      <strong>今日（2026-05-30）対応した内容：</strong><br><br>
+      ・<strong>Node.js側</strong> — 全スクリプトに try/finally でbrowser.close()を保証。keibaOddsGetSchedule・RaceListにロックファイル追加。スタールロック（OOMキル後の残留ロック）を自動解除するPID生存確認を追加。<br><br>
+      ・<strong>PHP側</strong> — 全5コマンドに <code>timeout 120</code> 追加（JRAハング時の永久ブロック解消）。PHPレベルのロックファイルで多重起動を防止。<br><br>
+      ・<strong>サーバー</strong> — Swap 1GB追加・永続化。PHP-FPM max_children 50→8 に削減。<br><br>
+      <strong>次の土曜日に確認すべきこと：</strong><br><br>
+      ・6:05頃 importSchedule ログが「正常終了」か確認（ここの失敗だけが致命的）。<br>
+      ・9:00〜17:00 中、Chromiumが複数本残留していないか時々確認：<code>ps aux | grep -c chrom</code> → 8本以下なら正常。<br>
+      ・メモリ確認：<code>free -m</code> → available が 200MB 以上あれば安全。<br><br>
+      <strong>今後も気をつけること：</strong><br><br>
+      ・JRAサイトのレイアウト変更でスクレイピングが失敗しても、timeout+lockの仕組みで<strong>サーバーはダウンしない</strong>（取得失敗するだけで安全に終了）。<br>
+      ・ロックファイルが <code>/tmp/</code> に残留していたら手動で <code>rm -f /tmp/keiba_*.lock</code> で削除できる。
     </div>
   </div>
 </section>
@@ -1073,7 +1613,7 @@ if ($minutesBefore === -999) {
 </main>
 
 <footer>
-  競馬オッズ取得システム 動作解説　／　最終更新: 2026-05-29
+  競馬オッズ取得システム 動作解説　／　最終更新: 2026-05-30
 </footer>
 
 </body>

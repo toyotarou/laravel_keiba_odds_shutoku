@@ -1,11 +1,12 @@
 import { chromium } from 'playwright';
-import { createWriteStream } from 'fs';
+import { createWriteStream, existsSync, writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 // ── ログ設定 ─────────────────────────────────────────────────────
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const logStream = createWriteStream(join(__dirname, 'keibaOddsGetSchedule.log'), { flags: 'w' });
+const lockFile  = join(__dirname, 'keibaOddsGetSchedule.lock');
 
 // ログをファイルとターミナル（stderr）の両方に出力する
 // stderr に書く理由: stdout は PHP が受け取る JSON 専用にしたいため
@@ -26,12 +27,26 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // ── メイン ────────────────────────────────────────────────────────
 (async () => {
+    // ── 多重起動チェック ──────────────────────────────────────────
+    if (existsSync(lockFile)) {
+        log('[LOCK] 既に起動中のため終了します');
+        console.log(JSON.stringify({ schedules: [], races: [], horses: [] }));
+        logStream.end();
+        process.exit(0);
+    }
+    writeFileSync(lockFile, String(process.pid));
+    log(`[LOCK] ロックファイル作成: ${lockFile}`);
+
+    let browser = null;
+
+    try {
+
     log('================================================================');
     log('keibaOddsGetSchedule 開始');
     log('================================================================');
 
     log('ブラウザ起動中...');
-    const browser = await chromium.launch({
+    browser = await chromium.launch({
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
@@ -87,9 +102,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     if (kaisaiList.length === 0) {
         log('[Step 2] 本日の開催情報なし。終了します。');
         console.log(JSON.stringify({ schedules: [], races: [], horses: [] }));
-        logStream.end();
-        await browser.close();
-        return;
+        return; // finally でブラウザ・ロックを解放
     }
 
     const result = { schedules: [], races: [], horses: [] };
@@ -122,20 +135,44 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         // レース一覧を取得（発走時刻・レース名・単複リンク有無）
         const raceInfoList = await page.evaluate(() => {
             return [...document.querySelectorAll('tbody tr')].map((row, i) => {
-                const raceNum  = i + 1;
                 const timeText = row.querySelector('td.time')?.textContent.trim() ?? '';
                 const tm       = timeText.match(/(\d+)[時:](\d+)/);
                 const startTime = tm
                     ? `${tm[1].padStart(2,'0')}:${tm[2].padStart(2,'0')}:00`
                     : 'XXX';
-                const raceName   = row.querySelector('td.race_name div div')?.textContent.trim() ?? '';
-                const hasTanpuku = !!row.querySelector('div.tanpuku a');
+                const raceName    = row.querySelector('td.race_name div div')?.textContent.trim() ?? '';
+                const tanpukuLink = row.querySelector('div.tanpuku a');
+                const hasTanpuku  = !!tanpukuLink;
 
-                return { raceNum, raceName, startTime, hasTanpuku };
+                // onclick / href からレース番号を取得する
+                // インデックス(i+1)ではなく実際のレース番号を使うことで、
+                // JRAが11R・12Rだけ表示している場合にも正しく記録できる
+                const tanpukuAttr = tanpukuLink?.getAttribute('onclick')
+                    ?? tanpukuLink?.getAttribute('href')
+                    ?? '';
+                const raceNum = (() => {
+                    // パターン1: /数字/ または /0詰め数字/（例: /11/ /011/）
+                    const slashMatches = [...tanpukuAttr.matchAll(/\/0*(\d{1,2})\//g)];
+                    if (slashMatches.length > 0) {
+                        return Number(slashMatches[slashMatches.length - 1][1]);
+                    }
+                    // パターン2: カンマ・シングルクォートで囲まれた1〜2桁の数字
+                    const quoteMatches = [...tanpukuAttr.matchAll(/[,']\s*0*(\d{1,2})\s*[,'"]/g)];
+                    if (quoteMatches.length > 0) {
+                        return Number(quoteMatches[quoteMatches.length - 1][1]);
+                    }
+                    // フォールバック: 行インデックス+1
+                    return i + 1;
+                })();
+
+                return { raceNum, rowIndex: i, raceName, startTime, hasTanpuku, tanpukuAttr };
             });
         });
         
         log(`  レース一覧: ${raceInfoList.length}件確認`);
+        raceInfoList.forEach(ri =>
+            log(`    行${ri.rowIndex}: raceNum=${ri.raceNum} startTime=${ri.startTime} attr="${ri.tanpukuAttr.slice(0, 80)}"`)
+        );
 
         // ── Step 4: 各レースの馬名を取得 ────────────────────────
         for (const ri of raceInfoList) {
@@ -156,17 +193,18 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                 });
                 continue;
             }
-            
+
             log(`  [${raceLabel}] 単複ページへ遷移... (${ri.startTime} ${ri.raceName})`);
 
             // 該当レース行の単複リンクをクリック
+            // rowIndex（0始まりの行位置）を使うことで、表示レースが途中から始まっても正しく動く
             const clicked = await page.evaluate((idx) => {
                 const link = document.querySelectorAll('tbody tr')[idx]
                     ?.querySelector('div.tanpuku a');
                 if (!link) return false;
                 link.click();
                 return true;
-            }, ri.raceNum - 1);
+            }, ri.rowIndex);
 
             if (!clicked) {
                 log(`  [${raceLabel}] クリック失敗 → スキップ`);
@@ -286,14 +324,23 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     log(`  馬 (horses):      ${result.horses.length}件`);
     log('================================================================');
 
-    logStream.end();
-
     // JSON を stdout に出力（Laravel コマンドが受け取る）
     console.log(JSON.stringify(result));
 
-    await browser.close();
-})().catch(async (err) => {
-    log(`致命的エラー: ${err.message}`);
-    logStream.end();
-    process.exit(1);
-});
+    } catch (err) {
+        log(`致命的エラー: ${err.message}`);
+        console.log(JSON.stringify({ schedules: [], races: [], horses: [] }));
+        process.exitCode = 1;
+    } finally {
+        // ── 必ずブラウザを閉じ、ロックを解除する ────────────
+        if (browser) {
+            await browser.close();
+            log('[FINALLY] ブラウザをクローズしました。');
+        }
+        if (existsSync(lockFile)) {
+            unlinkSync(lockFile);
+            log('[FINALLY] ロックファイルを削除しました。');
+        }
+        logStream.end();
+    }
+})();

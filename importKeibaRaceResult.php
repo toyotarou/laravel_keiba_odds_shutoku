@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
+use App\Constants\Constants;
+
 /**
  * cronで毎分実行される。
  * $ary に合致する発走前分数のレースのみ結果・オッズを取得してDBに保存する。
@@ -19,6 +21,15 @@ class ImportKeibaRaceResult extends Command
 
     public function handle(): void
     {
+        // ── 多重起動防止 ─────────────────────────────────────────────
+        $lockFile = sys_get_temp_dir() . '/keiba_importRaceResult.lock';
+        if (file_exists($lockFile)) {
+            $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
+            return;
+        }
+        file_put_contents($lockFile, getmypid());
+        register_shutdown_function(fn() => @unlink($lockFile));
+
         $now  = time();
         $date = date('Y-m-d');
 
@@ -28,7 +39,7 @@ class ImportKeibaRaceResult extends Command
 
         // オッズを取得するタイミング（発走X分前）の定義。
         // cronが毎分動くため、$diff がこの配列に含まれる分のみ処理する。
-        $ary = [24, 21, 18, 15, 12, 9, 6, 3, 0];
+        $ary = Constants::ODDS_GET_TIMING;
 
         $races = DB::table('t_horse_odds_finder_netkeiba_races')
             ->where('date', $date)
@@ -50,8 +61,8 @@ class ImportKeibaRaceResult extends Command
             $targetTime  = strtotime("{$race->date} {$race->start_time}");
             $diffSeconds = $targetTime - $now;
 
-            // 発走までの残り分数（切り捨て）
-            $diff = (int) floor($diffSeconds / 60);
+            // 発走までの残り分数（四捨五入）importOddsと合わせてround()を使う
+            $diff = (int) round($diffSeconds / 60);
 
             // 発走済みは処理しない（$diff=0 が最後のタイミング）
             if ($diff < 0) {
@@ -95,20 +106,25 @@ class ImportKeibaRaceResult extends Command
             }
 
             // Node.js でオッズをスクレイピング
+            $raceStart = microtime(true);
+
             $json = $this->fetchRaceDetail($race->race_id);
             if (!$json) {
-                $this->warn("  → 取得失敗: {$race->race_id}");
+                $fetchMs = round((microtime(true) - $raceStart) * 1000);
+                $this->warn("  → 取得失敗: {$race->race_id} ({$fetchMs}ms)");
                 continue;
             }
 
             $data = json_decode($json, true);
             if (json_last_error() !== JSON_ERROR_NONE || empty($data['data'])) {
-                $this->warn("  → JSONパース失敗: {$race->race_id}");
+                $fetchMs = round((microtime(true) - $raceStart) * 1000);
+                $this->warn("  → JSONパース失敗: {$race->race_id} ({$fetchMs}ms)");
                 continue;
             }
 
+            $fetchMs    = round((microtime(true) - $raceStart) * 1000);
             $horseCount = count($data['data']);
-            $this->info("  オッズ取得成功 → {$horseCount} 頭分");
+            $this->info("  Node.js 取得完了 → {$horseCount} 頭分 ({$fetchMs}ms)");
 
             $saved = 0;
             DB::transaction(function () use ($data, $race, $diffMinutes, &$saved) {
@@ -146,7 +162,8 @@ class ImportKeibaRaceResult extends Command
                         ->insert(array_merge($timingKey, $timingValues));
                 }
             });
-            $this->info("  DB保存完了 → {$saved} 頭分");
+            $totalMs = round((microtime(true) - $raceStart) * 1000);
+            $this->info("  DB保存完了 → {$saved} 頭分  (合計 {$totalMs}ms)");
         }
 
         $this->info('');
@@ -219,7 +236,8 @@ class ImportKeibaRaceResult extends Command
     {
         $nodeBin    = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
         $scriptPath = base_path('scripts/keibaOddsGetRaceResult.mjs');
-        $command    = $nodeBin . ' ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg($race_id) . ' 2>/dev/null';
+        // timeout 120: Node.js が無応答でもPHPプロセスが永久ブロックしないようにする
+        $command    = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg($race_id) . ' 2>/dev/null';
         $output     = shell_exec($command);
 
         if (!$output) {

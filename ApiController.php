@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use DB;
 
+use App\Constants\Constants;
+
 class ApiController extends Controller
 {
 
@@ -55,9 +57,40 @@ class ApiController extends Controller
             ->orderBy('basho')
             ->orderBy('race')
             ->orderBy('num')
+            ->orderBy('minutes_before_start')
             ->get();
 
         return response()->json(['data' => $result]);
     }
 
+    public function getHorseDetail(Request $request)
+    {
+        $cname = $request->query('cname');
+        if (!$cname) {
+            return response()->json(['error' => 'cname パラメータが必要です'], 400);
+        }
+        $script = base_path('scripts/keibaOddsGetHorseDetail.mjs');
+        if (!file_exists($script)) {
+            return response()->json(['error' => 'スクリプトが見つかりません: ' . $script], 500);
+        }
+        $output = shell_exec('node ' . escapeshellarg($script) . ' ' . escapeshellarg($cname) . ' 2>/dev/null');
+        if (!$output) {
+            return response()->json(['error' => 'スクレイピング失敗（出力なし）'], 500);
+        }
+        $data = json_decode($output, true);
+        if (!$data) {
+            return response()->json(['error' => 'JSONパース失敗'], 500);
+        }
+        return response()->json(['data' => $data]);
+    }
+    
+    public function getHorseOddsFinderConfigs()
+    {
+        
+        return response()->json(['data' => [
+            "odds_get_timing" => implode("|", Constants::ODDS_GET_TIMING),
+        ]]);
+        
+    }
+    
 }

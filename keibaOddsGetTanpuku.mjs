@@ -1,10 +1,8 @@
 import { chromium } from 'playwright';
-import { createWriteStream } from 'fs';
+import { createWriteStream, existsSync, writeFileSync, unlinkSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-// ── 引数パース ────────────────────────────────────────────────────
-// 呼び出し例: node keibaOddsGetTanpuku.mjs 2026-05-17 2 05 1
 const args    = process.argv.slice(2);
 const date    = args[0] ?? '2026-05-17';
 const kaisuu  = args[1] ?? '2';
@@ -18,13 +16,9 @@ const kaisaiMap = {
 };
 const bashoName = kaisaiMap[basho] ?? basho;
 
-// ── ログ設定 ─────────────────────────────────────────────────────
-// flags:'a' でレース分を1つのファイルに追記していく
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const logStream = createWriteStream(join(__dirname, 'keibaOddsGetTanpuku.log'), { flags: 'a' });
 
-// ファイルとターミナル（stderr）の両方に出力する
-// stderr に書く理由: stdout は PHP が受け取る JSON 専用にしたいため
 const log = (msg) => {
     const line = `[${new Date().toLocaleString('ja-JP')}] ${msg}\n`;
     logStream.write(line);
@@ -33,141 +27,158 @@ const log = (msg) => {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// ── メイン ────────────────────────────────────────────────────────
+// ── ロックファイルパス（引数ごとに一意にする）─────────────────
+const lockKey  = `${date}_${kaisuu}_${basho}_${raceNum}`;
+const lockFile = join(__dirname, `keibaOddsGetTanpuku_${lockKey}.lock`);
+
+/** ロックファイルが指すPIDが実際に生きているか確認する（スタールロック対策） */
+function isProcessAlive(pid) {
+    try { process.kill(pid, 0); return true; } catch { return false; }
+}
+
 (async () => {
-    log('================================================================');
-    log('keibaOddsGetTanpuku 開始');
-    log(`  date   : ${date}`);
-    log(`  kaisuu : ${kaisuu}回`);
-    log(`  basho  : ${basho} (${bashoName})`);
-    log(`  race   : ${raceNum}R`);
-    log('================================================================');
-
-    // ── Step 1: ブラウザ起動 ─────────────────────────────────────
-    log('[Step 1] ブラウザ（Playwright / Chromium）を起動中...');
-    const browser = await chromium.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    const page = await browser.newPage();
-    await page.setViewportSize({ width: 1280, height: 800 });
-    log('[Step 1] ブラウザ起動完了。');
-
-    // ── Step 2: JRA トップページへ ───────────────────────────────
-    log('[Step 2] JRA トップページにアクセス中...');
-    log('  URL: https://www.jra.go.jp/');
-    await page.goto('https://www.jra.go.jp/', { waitUntil: 'networkidle', timeout: 60000 });
-    log('[Step 2] JRA トップページ ロード完了。');
-
-    // ── Step 3: 「オッズ」リンクをクリック ──────────────────────
-    log('[Step 3] 「オッズ」リンクをクリック中...');
-    await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll('a'));
-        const target = links.find(a => a.textContent.trim() === 'オッズ');
-        if (target) target.click();
-    });
-    log('[Step 3] クリック完了。オッズ開催選択ページへの遷移を待機中...');
-    await page.waitForSelector('a', { timeout: 15000 }).catch(() => {});
-    await sleep(2000);
-    log('[Step 3] オッズ開催選択ページへ遷移完了。');
-
-    // ── Step 4: 指定開催をクリック ──────────────────────────────
-    log(`[Step 4] 開催「${kaisuu}回${bashoName}」のリンクを探してクリック中...`);
-    const clicked4 = await page.evaluate(({ kaisuu, bashoName }) => {
-        const links = Array.from(document.querySelectorAll('a'));
-        const target = links.find(a => a.textContent.includes(`${kaisuu}回${bashoName}`));
-        if (target) { target.click(); return true; }
-        return false;
-    }, { kaisuu, bashoName });
-    if (!clicked4) {
-        log(`[Step 4] WARNING: 「${kaisuu}回${bashoName}」のリンクが見つかりませんでした。`);
-        console.log(JSON.stringify([]));
-        await browser.close();
-        return;
-    }
-    log(`[Step 4] クリック完了。${kaisuu}回${bashoName} レース一覧ページへの遷移を待機中...`);
-    await page.waitForSelector('tbody tr', { timeout: 15000 }).catch(() => {});
-    await sleep(1000);
-    log(`[Step 4] ${kaisuu}回${bashoName} レース一覧ページへ遷移完了。`);
-
-    // ── Step 5: 指定レースの単複リンクをクリック ────────────────
-    log(`[Step 5] ${raceNum}R の行から「単勝・複勝」リンクをクリック中...`);
-    log(`  対象行インデックス: ${parseInt(raceNum) - 1}（0始まり）`);
-    const clicked5 = await page.evaluate(({ raceNum }) => {
-        const rows  = Array.from(document.querySelectorAll('tbody tr'));
-        const row   = rows[parseInt(raceNum) - 1];
-        if (row) {
-            const target = row.querySelector('div.tanpuku a');
-            if (target) { target.click(); return true; }
+    // ── 多重起動チェック（スタールロック考慮）────────────────
+    if (existsSync(lockFile)) {
+        const storedPid = parseInt(readFileSync(lockFile, 'utf8'), 10);
+        if (!isNaN(storedPid) && isProcessAlive(storedPid)) {
+            log(`[LOCK] 既に同じ引数で起動中のため終了します: ${lockKey} (PID=${storedPid})`);
+            console.log(JSON.stringify([]));
+            logStream.end();
+            process.exit(0);
         }
-        return false;
-    }, { raceNum });
-    if (!clicked5) {
-        log(`[Step 5] WARNING: ${raceNum}R の単複リンクが見つかりませんでした。`);
-        console.log(JSON.stringify([]));
-        await browser.close();
-        return;
+        log(`[LOCK] 古いロックファイルを削除します (PID=${storedPid} は存在しない)`);
+        unlinkSync(lockFile);
     }
-    log(`[Step 5] クリック完了。単複オッズページへの遷移を待機中...`);
-    await page.waitForSelector('table.tanpuku', { timeout: 15000 }).catch(() => {});
-    await sleep(500);
-    log(`[Step 5] ${kaisuu}回${bashoName} ${raceNum}R 単複オッズページへ遷移完了。`);
+    writeFileSync(lockFile, String(process.pid));
+    log(`[LOCK] ロックファイル作成: ${lockFile}`);
 
-    // ── Step 6: オッズテーブルをスクレイピング ───────────────────
-    log('[Step 6] オッズテーブル（table.tanpuku）をスクレイピング中...');
-    const odds = await page.evaluate(() => {
-        const table = document.querySelector('table.tanpuku');
-        if (!table) return [];
+    let browser = null;
 
-        const result = [];
-        table.querySelectorAll('tbody tr').forEach(row => {
-            const num     = row.querySelector('td.num')?.textContent.trim()           ?? '';
-            const tan     = row.querySelector('td.odds_tan')?.textContent.trim()      ?? '';
-            const fukuMin = row.querySelector('td.odds_fuku span.min')?.textContent.trim() ?? '';
-            const fukuMax = row.querySelector('td.odds_fuku span.max')?.textContent.trim() ?? '';
-            if (num && tan) {
-                result.push({ num, tan, fuku_min: fukuMin, fuku_max: fukuMax });
+    try {
+        log('================================================================');
+        log('keibaOddsGetTanpuku 開始');
+        log(`  date   : ${date}`);
+        log(`  kaisuu : ${kaisuu}回`);
+        log(`  basho  : ${basho} (${bashoName})`);
+        log(`  race   : ${raceNum}R`);
+        log('================================================================');
+
+        log('[Step 1] ブラウザ（Playwright / Chromium）を起動中...');
+        browser = await chromium.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        });
+        const page = await browser.newPage();
+        await page.setViewportSize({ width: 1280, height: 800 });
+        log('[Step 1] ブラウザ起動完了。');
+
+        log('[Step 2] JRA トップページにアクセス中...');
+        await page.goto('https://www.jra.go.jp/', { waitUntil: 'networkidle', timeout: 60000 });
+        log('[Step 2] JRA トップページ ロード完了。');
+
+        log('[Step 3] 「オッズ」リンクをクリック中...');
+        await page.evaluate(() => {
+            const links = Array.from(document.querySelectorAll('a'));
+            const target = links.find(a => a.textContent.trim() === 'オッズ');
+            if (target) target.click();
+        });
+        await page.waitForSelector('a', { timeout: 15000 }).catch(() => {});
+        await sleep(2000);
+        log('[Step 3] オッズ開催選択ページへ遷移完了。');
+
+        log(`[Step 4] 開催「${kaisuu}回${bashoName}」のリンクを探してクリック中...`);
+        const clicked4 = await page.evaluate(({ kaisuu, bashoName }) => {
+            const links = Array.from(document.querySelectorAll('a'));
+            const target = links.find(a => a.textContent.includes(`${kaisuu}回${bashoName}`));
+            if (target) { target.click(); return true; }
+            return false;
+        }, { kaisuu, bashoName });
+        if (!clicked4) {
+            log(`[Step 4] WARNING: 「${kaisuu}回${bashoName}」のリンクが見つかりませんでした。`);
+            console.log(JSON.stringify([]));
+            return;
+        }
+        await page.waitForSelector('tbody tr', { timeout: 15000 }).catch(() => {});
+        await sleep(1000);
+        log(`[Step 4] ${kaisuu}回${bashoName} レース一覧ページへ遷移完了。`);
+
+        log(`[Step 5] ${raceNum}R の単複リンクをクリック中...`);
+        const clicked5 = await page.evaluate(({ targetRace }) => {
+            const rows = Array.from(document.querySelectorAll('tbody tr'));
+            for (const row of rows) {
+                const link = row.querySelector('div.tanpuku a');
+                if (!link) continue;
+                const attr = link.getAttribute('onclick') ?? link.getAttribute('href') ?? '';
+                const patterns = [
+                    new RegExp(`\\/0*${targetRace}\\/`),
+                    new RegExp(`[,']\\s*0*${targetRace}\\s*[,'"]`),
+                ];
+                if (patterns.some(p => p.test(attr))) {
+                    link.click();
+                    return { ok: true, method: 'attr' };
+                }
             }
-        });
-        return result;
-    });
+            const row = rows[parseInt(targetRace) - 1];
+            if (row) {
+                const target = row.querySelector('div.tanpuku a');
+                if (target) { target.click(); return { ok: true, method: 'index' }; }
+            }
+            return { ok: false, method: 'none' };
+        }, { targetRace: parseInt(raceNum) });
 
-    log(`[Step 6] スクレイピング完了 ── ${odds.length} 頭分のオッズを取得しました。`);
+        log(`[Step 5] クリック結果: ok=${clicked5.ok} method=${clicked5.method}`);
+        if (!clicked5.ok) {
+            log(`[Step 5] WARNING: ${raceNum}R の単複リンクが見つかりませんでした。`);
+            console.log(JSON.stringify([]));
+            return;
+        }
+        await page.waitForSelector('table.tanpuku', { timeout: 15000 }).catch(() => {});
+        await sleep(500);
+        log(`[Step 5] ${kaisuu}回${bashoName} ${raceNum}R 単複オッズページへ遷移完了。`);
 
-    if (odds.length === 0) {
-        log('[Step 6] WARNING: オッズが0件です。テーブルが見つからなかった可能性があります。');
-    } else {
-        log('');
-        log('  馬番  単勝オッズ  複勝オッズ（最小〜最大）');
-        log('  ----  ----------  -----------------------');
-        odds.forEach(h => {
-            const num     = String(h.num).padStart(3, ' ');
-            const tan     = String(h.tan).padStart(8, ' ');
-            const fukuRange = h.fuku_min && h.fuku_max
-                ? `${h.fuku_min} 〜 ${h.fuku_max}`
-                : '（取得不可）';
-            log(`  ${num}  ${tan}  ${fukuRange}`);
+        log('[Step 6] オッズテーブルをスクレイピング中...');
+        const odds = await page.evaluate(() => {
+            const table = document.querySelector('table.tanpuku');
+            if (!table) return [];
+            const result = [];
+            table.querySelectorAll('tbody tr').forEach(row => {
+                const num     = row.querySelector('td.num')?.textContent.trim()           ?? '';
+                const tan     = row.querySelector('td.odds_tan')?.textContent.trim()      ?? '';
+                const fukuMin = row.querySelector('td.odds_fuku span.min')?.textContent.trim() ?? '';
+                const fukuMax = row.querySelector('td.odds_fuku span.max')?.textContent.trim() ?? '';
+                if (num && tan) {
+                    result.push({ num, tan, fuku_min: fukuMin, fuku_max: fukuMax });
+                }
+            });
+            return result;
         });
-        log('');
+
+        log(`[Step 6] スクレイピング完了 ── ${odds.length} 頭分のオッズを取得しました。`);
+
+        log('================================================================');
+        log('keibaOddsGetTanpuku 完了');
+        log(`  ${kaisuu}回${bashoName} ${raceNum}R  取得頭数: ${odds.length}`);
+        log('================================================================');
+
+        console.log(JSON.stringify(odds));
+
+    } catch (err) {
+        log(`致命的エラー: ${err.message}`);
+        log(err.stack ?? '');
+        console.log(JSON.stringify([]));
+        process.exitCode = 1;
+
+    } finally {
+        // ── 必ずブラウザを閉じ、ロックを解除する ────────────
+        if (browser) {
+            await browser.close();
+            log('[FINALLY] ブラウザをクローズしました。');
+        }
+        if (existsSync(lockFile)) {
+            unlinkSync(lockFile);
+            log('[FINALLY] ロックファイルを削除しました。');
+        }
+        logStream.end();
     }
 
-    // ── 完了 ────────────────────────────────────────────────────
-    log('================================================================');
-    log('keibaOddsGetTanpuku 完了');
-    log(`  ${kaisuu}回${bashoName} ${raceNum}R  取得頭数: ${odds.length}`);
-    log('================================================================');
-
-    logStream.end();
-
-    // JSON を stdout に出力（Laravel コマンドが受け取る）
-    // ※ ここ以外で console.log を使わないこと（JSON が壊れる）
-    console.log(JSON.stringify(odds));
-
-    await browser.close();
-
-})().catch(async (err) => {
-    log(`致命的エラー: ${err.message}`);
-    log(err.stack ?? '');
-    logStream.end();
-    process.exit(1);
-});
+})();

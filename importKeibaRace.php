@@ -25,6 +25,15 @@ class ImportKeibaRace extends Command
 
     public function handle()
     {
+        // ── 多重起動防止 ─────────────────────────────────────────────
+        $lockFile = sys_get_temp_dir() . '/keiba_importRace.lock';
+        if (file_exists($lockFile)) {
+            $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
+            return;
+        }
+        file_put_contents($lockFile, getmypid());
+        register_shutdown_function(fn() => @unlink($lockFile));
+
         // スケジュールに登録されている日付一覧を取得
         $sql   = "SELECT date FROM t_horse_odds_finder_schedules GROUP BY date";
         $dates = DB::select($sql);
@@ -105,7 +114,8 @@ class ImportKeibaRace extends Command
     {
         $nodeBin    = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
         $scriptPath = base_path('scripts/keibaOddsGetRaceList.mjs');
-        $command    = $nodeBin . ' ' . escapeshellarg($scriptPath) . ' all 2>/dev/null';
+        // timeout 120: Node.js が無応答でもPHPプロセスが永久ブロックしないようにする
+        $command    = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($scriptPath) . ' all 2>/dev/null';
         $output     = shell_exec($command);
 
         if (!$output || !str_contains($output, '=== RESULT JSON ===')) {

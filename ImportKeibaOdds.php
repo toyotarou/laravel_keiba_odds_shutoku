@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
+use App\Constants\Constants;
+
 /**
  * cronで毎分実行される。
  * $ary に合致する発走前分数のレースのみオッズを取得してDBに保存する。
@@ -19,6 +21,15 @@ class ImportKeibaOdds extends Command
 
     public function handle(): void
     {
+        // ── 多重起動防止 ─────────────────────────────────────────────
+        $lockFile = sys_get_temp_dir() . '/keiba_importOdds.lock';
+        if (file_exists($lockFile)) {
+            $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
+            return;
+        }
+        file_put_contents($lockFile, getmypid());
+        register_shutdown_function(fn() => @unlink($lockFile));
+
         $date    = date('Y-m-d');
         $now     = time();
 
@@ -45,16 +56,16 @@ class ImportKeibaOdds extends Command
 
         // オッズを取得するタイミング（発走X分前）の定義。
         // cronが毎分動くため、$diff がこの配列に含まれる分のみ処理する。
-        $ary = [24, 21, 18, 15, 12, 9, 6, 3, 0];
-
+        $ary = Constants::ODDS_GET_TIMING;
+        
         // ── レースごとの処理 ──────────────────────────────────────────
         foreach ($races as $race) {
 
             $targetTime  = strtotime("{$race->date} {$race->start_time}");
             $diffSeconds = $targetTime - $now;
 
-            // 発走までの残り分数（切り捨て）
-            $diff = (int) floor($diffSeconds / 60);
+            // 発走までの残り分数（四捨五入）
+            $diff = (int) round($diffSeconds / 60);
 
             // 発走済みは処理しない（$diff=0 が最後のタイミング）
             if ($diff < 0) {
@@ -72,9 +83,12 @@ class ImportKeibaOdds extends Command
 
             $this->info("  → 取得タイミング合致 (残り{$diff}分) : オッズ取得を開始します。");
 
+            $raceStart = microtime(true);
+
             // ── Node.js でオッズをスクレイピング ─────────────────────
             // stderrはlogFileへリダイレクトし、stdoutのJSONに混入させない。
-            $command = $nodeBin . ' ' . escapeshellarg($script)
+            // timeout 120: Node.js が無応答でもPHPプロセスが永久ブロックしないようにする
+            $command = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($script)
                 . ' ' . escapeshellarg($race->date)
                 . ' ' . escapeshellarg($race->kaisuu)
                 . ' ' . escapeshellarg($race->basho)
@@ -83,8 +97,8 @@ class ImportKeibaOdds extends Command
 
             $this->info("  実行コマンド: {$command}");
 
-            $odds    = null;
-            $output  = '';
+            $odds     = null;
+            $output   = '';
             $maxRetry = 2;
             for ($retry = 1; $retry <= $maxRetry; $retry++) {
                 $output = shell_exec($command);
@@ -96,14 +110,16 @@ class ImportKeibaOdds extends Command
                 }
             }
 
+            $fetchMs = round((microtime(true) - $raceStart) * 1000);
+
             if (!$odds) {
-                $this->error("  オッズ取得失敗。このレースをスキップします。");
+                $this->error("  オッズ取得失敗。このレースをスキップします。({$fetchMs}ms)");
                 $this->error("  Node.js 出力: " . $output);
                 continue;
             }
 
             $horseCount = count($odds);
-            $this->info("  オッズ取得成功 → {$horseCount} 頭分");
+            $this->info("  Node.js 取得完了 → {$horseCount} 頭分 ({$fetchMs}ms)");
 
             // ── 各馬のオッズをDBに保存 ───────────────────────────────
             $saved = 0;
@@ -167,7 +183,8 @@ class ImportKeibaOdds extends Command
                 }
             });
 
-            $this->info("  DB保存完了 → {$saved} 頭分");
+            $totalMs = round((microtime(true) - $raceStart) * 1000);
+            $this->info("  DB保存完了 → {$saved} 頭分  (合計 {$totalMs}ms)");
         }
 
         $this->info('');
