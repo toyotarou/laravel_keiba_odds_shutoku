@@ -72,6 +72,7 @@ class ImportKeibaBaseOdds extends Command
                 . ' ' . escapeshellarg($race->kaisuu)
                 . ' ' . escapeshellarg($race->basho)
                 . ' ' . escapeshellarg($race->race)
+                . ' ' . escapeshellarg($race->day)
                 . ' 2>>' . escapeshellarg($logFile);
 
             $this->info("  実行コマンド: {$command}");

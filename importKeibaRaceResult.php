@@ -186,13 +186,12 @@ class ImportKeibaRaceResult extends Command
             'num'    => $num,
         ];
 
-        $insert = [
-            ...$key,
+        $insert = array_merge($key, [
             'odds'                 => $oddsValue,
             'fuku_min'             => $fukuMin,
             'fuku_max'             => $fukuMax,
             'minutes_before_start' => $minutesBefore,
-        ];
+        ]);
 
         $update = [
             'odds'     => $oddsValue,

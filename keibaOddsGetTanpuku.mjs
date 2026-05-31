@@ -8,6 +8,7 @@ const date    = args[0] ?? '2026-05-17';
 const kaisuu  = args[1] ?? '2';
 const basho   = args[2] ?? '05';
 const raceNum = args[3] ?? '1';
+const day     = args[4] ?? null;
 
 const kaisaiMap = {
     '01': '札幌', '02': '函館', '03': '福島', '04': '新潟',
@@ -61,6 +62,7 @@ function isProcessAlive(pid) {
         log(`  kaisuu : ${kaisuu}回`);
         log(`  basho  : ${basho} (${bashoName})`);
         log(`  race   : ${raceNum}R`);
+        log(`  day    : ${day ?? '(未指定)'}日目`);
         log('================================================================');
 
         log('[Step 1] ブラウザ（Playwright / Chromium）を起動中...');
@@ -86,21 +88,24 @@ function isProcessAlive(pid) {
         await sleep(2000);
         log('[Step 3] オッズ開催選択ページへ遷移完了。');
 
-        log(`[Step 4] 開催「${kaisuu}回${bashoName}」のリンクを探してクリック中...`);
-        const clicked4 = await page.evaluate(({ kaisuu, bashoName }) => {
+        // day が渡されている場合は「X回場所Y日」で完全一致検索し、土日を区別する
+        const step4Label = day ? `${kaisuu}回${bashoName}${day}日` : `${kaisuu}回${bashoName}`;
+        log(`[Step 4] 開催「${step4Label}」のリンクを探してクリック中...`);
+        const clicked4 = await page.evaluate(({ kaisuu, bashoName, day }) => {
             const links = Array.from(document.querySelectorAll('a'));
-            const target = links.find(a => a.textContent.includes(`${kaisuu}回${bashoName}`));
+            const searchText = day ? `${kaisuu}回${bashoName}${day}日` : `${kaisuu}回${bashoName}`;
+            const target = links.find(a => a.textContent.includes(searchText));
             if (target) { target.click(); return true; }
             return false;
-        }, { kaisuu, bashoName });
+        }, { kaisuu, bashoName, day });
         if (!clicked4) {
-            log(`[Step 4] WARNING: 「${kaisuu}回${bashoName}」のリンクが見つかりませんでした。`);
+            log(`[Step 4] WARNING: 「${step4Label}」のリンクが見つかりませんでした。`);
             console.log(JSON.stringify([]));
             return;
         }
         await page.waitForSelector('tbody tr', { timeout: 15000 }).catch(() => {});
         await sleep(1000);
-        log(`[Step 4] ${kaisuu}回${bashoName} レース一覧ページへ遷移完了。`);
+        log(`[Step 4] ${step4Label} レース一覧ページへ遷移完了。`);
 
         log(`[Step 5] ${raceNum}R の単複リンクをクリック中...`);
         const clicked5 = await page.evaluate(({ targetRace }) => {
@@ -134,7 +139,7 @@ function isProcessAlive(pid) {
         }
         await page.waitForSelector('table.tanpuku', { timeout: 15000 }).catch(() => {});
         await sleep(500);
-        log(`[Step 5] ${kaisuu}回${bashoName} ${raceNum}R 単複オッズページへ遷移完了。`);
+        log(`[Step 5] ${step4Label} ${raceNum}R 単複オッズページへ遷移完了。`);
 
         log('[Step 6] オッズテーブルをスクレイピング中...');
         const odds = await page.evaluate(() => {
@@ -157,7 +162,7 @@ function isProcessAlive(pid) {
 
         log('================================================================');
         log('keibaOddsGetTanpuku 完了');
-        log(`  ${kaisuu}回${bashoName} ${raceNum}R  取得頭数: ${odds.length}`);
+        log(`  ${step4Label} ${raceNum}R  取得頭数: ${odds.length}`);
         log('================================================================');
 
         console.log(JSON.stringify(odds));

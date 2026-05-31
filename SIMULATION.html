@@ -291,7 +291,7 @@
 
 <header>
   <h1>競馬オッズ取得システム<br>動作解説</h1>
-  <div class="meta">最終更新: 2026-05-30　／　メモリ危機対応・安全診断追記版</div>
+  <div class="meta">最終更新: 2026-05-31　／　日曜オッズ取得バグ修正・netkeibaオッズ未取得バグ修正版</div>
 </header>
 
 <div class="toc">
@@ -1054,7 +1054,64 @@ if ($minutesBefore === -999) {
 <section id="fixes">
   <h2><span class="h2-icon">🔧</span>修正・変更の記録</h2>
 
-  <h3>2026-05-30 の変更 <span class="badge badge-new">最新</span></h3>
+  <h3>2026-05-31 の変更 <span class="badge badge-new">最新</span></h3>
+  <p style="font-size:13px;color:#718096;margin-bottom:8px;">日曜日のJRAオッズが土曜日分を取得していたバグ、およびnetkeibaオッズが一切保存されていなかったバグの修正。</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>対象</th><th>バグ内容</th><th>修正内容</th><th>状態</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>keibaOddsGetTanpuku.mjs</code><br><code>ImportKeibaOdds.php</code><br><code>ImportKeibaBaseOdds.php</code></td>
+          <td><span class="badge badge-ng">致命的</span> 日曜日に「3回東京」で検索すると「3回東京4日（土曜）」と「3回東京5日（日曜）」の両方にヒットし、常に先にヒットする土曜リンクをクリックしていた。URLはJavaScriptのonclickで遷移するため、URLを見ても判別できない。</td>
+          <td>PHPから <code>$race->day</code>（何日目か）を5番目の引数としてNode.jsに渡すよう修正。Node.js側では <code>"3回東京"</code> → <code>"3回東京5日"</code> のように日付込みで検索し、土日を正確に区別するよう変更。</td>
+          <td><span class="ok">✅ 修正済み</span></td>
+        </tr>
+        <tr>
+          <td><code>keibaOddsGetRaceResult.mjs</code></td>
+          <td><span class="badge badge-ng">致命的</span> <strong>バグ①</strong>: スクリプトがまずレース結果ページ（result.html）を開き <code>#All_Result_Table</code> が現れるまで30秒待つ設計だった。発走前はこのテーブルが存在しないため毎回タイムアウト → catchで <code>data:[]</code> を返して終了。出馬表オッズページ（shutuba.html）には一度も到達できなかった。<br><br><strong>バグ②</strong>: Node.jsの出力フィールド名が <code>tan_odds</code> なのに、PHPは <code>$horse['odds']</code> で読んでいた（名前の不一致）。バグ①が修正されても値がnullになる状態だった。</td>
+          <td>結果ページ取得をtry-catchでオプション化（失敗しても続行）し待機タイムアウトを30秒→10秒に短縮。発走前（results空）の場合はoddsMapから直接データを構築するよう変更。フィールド名を <code>tan_odds</code> → <code>odds</code> に統一してPHPと一致させた。</td>
+          <td><span class="ok">✅ 修正済み</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="checklist" style="border:1px solid #e8e8e8;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+
+    <div class="check-item">
+      <div class="check-time" style="color:#276749;font-size:12px;">Node.js</div>
+      <div class="check-body">
+        <strong>keibaOddsGetTanpuku.mjs</strong>（2026-05-31修正）
+        <div class="check-sql">args[4]: <code>const day = args[4] ?? null</code> — dayパラメータ追加</div>
+        <div class="check-sql">Step 4: <code>const searchText = day ? `${kaisuu}回${bashoName}${day}日` : `${kaisuu}回${bashoName}`</code></div>
+        <div class="check-expect">✅ 土日区別検索・ログにday追記 確認済み</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#2b6cb0;font-size:12px;">PHP</div>
+      <div class="check-body">
+        <strong>ImportKeibaOdds.php / ImportKeibaBaseOdds.php</strong>（2026-05-31修正）
+        <div class="check-sql"><code>escapeshellarg($race->day)</code> を5番目の引数としてNode.js呼び出しコマンドに追加</div>
+        <div class="check-expect">✅ dayが正しくNode.jsに渡されることを確認済み</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time" style="color:#276749;font-size:12px;">Node.js</div>
+      <div class="check-body">
+        <strong>keibaOddsGetRaceResult.mjs</strong>（2026-05-31修正）
+        <div class="check-sql">Step 1: <code>waitForSelector("#All_Result_Table", { timeout: 10000 })</code> → 失敗してもcatch、<code>results=[]</code>で続行</div>
+        <div class="check-sql">Step 2: 結果ページの成否に関わらず必ず shutuba.html を開いてオッズ取得</div>
+        <div class="check-sql">Step 3: <code>results.length > 0</code> なら結果とオッズ結合、空なら <code>Object.entries(oddsMap)</code> から構築</div>
+        <div class="check-sql">フィールド名: <code>tan_odds</code> → <code>odds</code> に変更（PHPの <code>$horse['odds']</code> と一致）</div>
+        <div class="check-expect">✅ 発走前オッズ取得・フィールド名統一 確認済み</div>
+      </div>
+    </div>
+
+  </div>
+
+  <h3>2026-05-30 の変更</h3>
   <p style="font-size:13px;color:#718096;margin-bottom:8px;">サーバーダウン障害を受けた緊急対応。メモリリーク・プロセス多重起動の根本修正。</p>
   <div class="table-wrap">
     <table>
