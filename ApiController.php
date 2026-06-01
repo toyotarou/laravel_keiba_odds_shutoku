@@ -76,7 +76,7 @@ class ApiController extends Controller
         if (!file_exists($script)) {
             return response()->json(['error' => 'スクリプトが見つかりません: ' . $script], 500);
         }
-        $output = shell_exec('node ' . escapeshellarg($script) . ' ' . escapeshellarg($cname) . ' 2>/dev/null');
+        $output = shell_exec('/usr/local/bin/node ' . escapeshellarg($script) . ' ' . escapeshellarg($cname) . ' 2>/dev/null');
         if (!$output) {
             return response()->json(['error' => 'スクレイピング失敗（出力なし）'], 500);
         }
