@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>競馬オッズ取得システム 利用ガイド</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+      font-size: 15px;
+      line-height: 1.8;
+      color: #1a1a1a;
+      background: #f5f5f0;
+    }
+
+    /* ヘッダー */
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+      padding: 32px 20px 28px;
+    }
+    .header-label {
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      color: #a0aec0;
+      margin-bottom: 8px;
+    }
+    .header h1 {
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+    .header-sub {
+      font-size: 13px;
+      color: #a0aec0;
+      line-height: 1.7;
+    }
+
+    /* 目次 */
+    .toc {
+      background: #fff;
+      padding: 20px 16px;
+      margin: 0;
+      border-bottom: 1px solid #e8e8e8;
+    }
+    .toc-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: #888;
+      margin-bottom: 12px;
+    }
+    .toc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      list-style: none;
+      padding: 0;
+    }
+    .toc-list a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #1a1a2e;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 14px;
+      background: #f8f8f5;
+      border-radius: 8px;
+    }
+    .toc-list a .toc-icon {
+      font-size: 18px;
+      width: 28px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    /* セクション共通 */
+    main { padding: 16px; }
+
+    section {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: #888;
+      margin-bottom: 6px;
+    }
+    h2 {
+      font-size: 19px;
+      font-weight: 800;
+      color: #1a1a2e;
+      line-height: 1.4;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin: 22px 0 10px;
+    }
+    h3:first-child { margin-top: 0; }
+    p { margin-bottom: 12px; color: #333; }
+    p:last-child { margin-bottom: 0; }
+    strong { color: #1a1a2e; }
+
+    /* ボックス */
+    .box {
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin: 14px 0;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+    .box-blue  { background: #eff6ff; border-left: 4px solid #3b82f6; }
+    .box-green { background: #f0fdf4; border-left: 4px solid #22c55e; }
+    .box-red   { background: #fff5f5; border-left: 4px solid #ef4444; }
+    .box-amber { background: #fffbeb; border-left: 4px solid #f59e0b; }
+
+    /* タイムライン */
+    .timeline { position: relative; padding-left: 20px; margin: 16px 0; }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 7px; top: 10px; bottom: 10px;
+      width: 2px;
+      background: #e2e8f0;
+    }
+    .tl-item { position: relative; margin-bottom: 20px; }
+    .tl-item:last-child { margin-bottom: 0; }
+    .tl-dot {
+      position: absolute;
+      left: -16px; top: 3px;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: #3b82f6;
+      border: 3px solid #fff;
+      box-shadow: 0 0 0 2px #3b82f6;
+      flex-shrink: 0;
+    }
+    .tl-dot.red    { background: #ef4444; box-shadow: 0 0 0 2px #ef4444; }
+    .tl-dot.green  { background: #22c55e; box-shadow: 0 0 0 2px #22c55e; }
+    .tl-dot.orange { background: #f97316; box-shadow: 0 0 0 2px #f97316; }
+    .tl-dot.gray   { background: #94a3b8; box-shadow: 0 0 0 2px #94a3b8; }
+
+    .tl-time {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+    .tl-time.blue   { color: #3b82f6; }
+    .tl-time.red    { color: #ef4444; }
+    .tl-time.green  { color: #22c55e; }
+    .tl-time.orange { color: #f97316; }
+    .tl-time.gray   { color: #94a3b8; }
+
+    .tl-card {
+      background: #f8faff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .tl-card.red    { background: #fff5f5; border-color: #fecaca; }
+    .tl-card.green  { background: #f0fdf4; border-color: #bbf7d0; }
+    .tl-card.orange { background: #fff7ed; border-color: #fed7aa; }
+    .tl-card.gray   { background: #f8fafc; border-color: #e2e8f0; }
+
+    .tl-card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+    }
+    .tl-card p {
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 0;
+      line-height: 1.7;
+    }
+    .tl-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-bottom: 6px;
+    }
+    .badge-critical { background: #fee2e2; color: #b91c1c; }
+    .badge-important { background: #fef3c7; color: #92400e; }
+    .badge-normal { background: #dbeafe; color: #1d4ed8; }
+
+    /* スケジュール表 */
+    .schedule-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 14px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+    }
+    .schedule-table thead th {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .schedule-table tbody td {
+      padding: 11px 12px;
+      border-bottom: 1px solid #f0f0f0;
+      vertical-align: top;
+    }
+    .schedule-table tbody tr:last-child td { border-bottom: none; }
+    .schedule-table tbody tr:nth-child(even) td { background: #fafafa; }
+    .time-chip {
+      display: inline-block;
+      background: #1a1a2e;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .time-chip.red    { background: #ef4444; }
+    .time-chip.blue   { background: #3b82f6; }
+    .time-chip.orange { background: #f97316; }
+    .time-chip.green  { background: #22c55e; }
+
+    /* オッズ説明カード */
+    .odds-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 12px 0;
+    }
+    .odds-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .odds-card-head {
+      padding: 9px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .odds-card-head.blue   { background: #3b82f6; }
+    .odds-card-head.orange { background: #f97316; }
+    .odds-card-head.gray   { background: #64748b; }
+    .odds-card-body {
+      padding: 11px 14px;
+      font-size: 13px;
+      color: #333;
+      line-height: 1.7;
+      background: #fff;
+    }
+
+    /* チェックリスト */
+    .checklist {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 12px 0;
+    }
+    .check-item {
+      display: flex;
+      gap: 14px;
+      padding: 14px 16px;
+      border-bottom: 1px solid #f0f0f0;
+      align-items: flex-start;
+    }
+    .check-item:last-child { border-bottom: none; }
+    .check-time {
+      font-size: 13px;
+      font-weight: 700;
+      color: #3b82f6;
+      white-space: nowrap;
+      padding-top: 1px;
+      min-width: 44px;
+    }
+    .check-time.orange { color: #f97316; }
+    .check-time.green  { color: #22c55e; }
+    .check-body {
+      flex: 1;
+    }
+    .check-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 4px;
+    }
+    .check-desc {
+      font-size: 13px;
+      color: #555;
+      line-height: 1.7;
+    }
+    .check-ok {
+      font-size: 12px;
+      color: #16a34a;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    .check-ng {
+      font-size: 12px;
+      color: #dc2626;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    /* トラブル対応 */
+    .trouble-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .trouble-card:last-child { margin-bottom: 0; }
+    .trouble-head {
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .trouble-head.red    { background: #ef4444; }
+    .trouble-head.orange { background: #f97316; }
+    .trouble-body {
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #333;
+      line-height: 1.8;
+      background: #fff;
+    }
+    .trouble-body p { font-size: 13px; }
+
+    /* まとめカード */
+    .summary-card {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border-radius: 16px;
+      padding: 24px 18px;
+      color: #fff;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .summary-card h2 { color: #fff; justify-content: center; }
+    .summary-card p { color: #cbd5e1; font-size: 14px; }
+
+    /* データ量表示 */
+    .data-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .data-pill {
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      color: #166534;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* 区切り */
+    hr { border: none; border-top: 1px solid #f0f0f0; margin: 18px 0; }
+
+    /* 注意強調 */
+    .important-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid #f5f5f5;
+      font-size: 14px;
+    }
+    .important-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .important-row .icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+    .important-row .text { line-height: 1.7; color: #333; }
+    .important-row .text strong { color: #1a1a2e; }
+
+    /* フッター */
+    footer {
+      text-align: center;
+      padding: 32px 20px;
+      color: #999;
+      font-size: 12px;
+      line-height: 1.9;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ヘッダー -->
+<div class="header">
+  <div class="header-label">SYSTEM MANUAL</div>
+  <h1>競馬オッズ取得<br>システム ガイド</h1>
+  <div class="header-sub">このシステムが何をするのか、<br>いつ何が起きるのかをまとめた説明書です。</div>
+</div>
+
+<!-- 目次 -->
+<div class="toc">
+  <div class="toc-title">もくじ</div>
+  <ul class="toc-list">
+    <li><a href="#overview"><span class="toc-icon">📋</span>このシステムでできること</a></li>
+    <li><a href="#sat"><span class="toc-icon">🗓️</span>土曜日のスケジュール</a></li>
+    <li><a href="#sun"><span class="toc-icon">🗓️</span>日曜日のスケジュール</a></li>
+    <li><a href="#odds"><span class="toc-icon">📊</span>どんなデータが集まるか</a></li>
+    <li><a href="#check"><span class="toc-icon">✅</span>確認するポイント</a></li>
+    <li><a href="#trouble"><span class="toc-icon">🚨</span>うまく動いていないときは</a></li>
+  </ul>
+</div>
+
+<main>
+
+<!-- ① このシステムでできること -->
+<section id="overview">
+  <div class="section-label">OVERVIEW</div>
+  <h2>📋 このシステムでできること</h2>
+
+  <p>JRA（中央競馬）の開催日（土曜・日曜）に、<strong>レースが始まる前のオッズを時系列で自動的に記録</strong>するシステムです。</p>
+
+  <div class="box box-blue">
+    <strong>たとえばこんなデータが集まります：</strong><br>
+    「東京1Rが10:00に発走する場合、<br>
+    24分前・21分前・18分前 … 3分前・0分前（確定直前）<br>
+    の計9回、各馬のオッズを記録する」
+  </div>
+
+  <p>これをすべてのレースについて、<strong>毎週自動で</strong>行います。人が手動で操作する必要はありません。</p>
+
+  <h3>2つのルートで取得</h3>
+  <p>オッズは信頼性を高めるために、<strong>JRA公式サイト</strong>と<strong>ネットケイバ</strong>の2つのサイトから同時に取得しています。</p>
+
+  <div class="odds-grid">
+    <div class="odds-card">
+      <div class="odds-card-head blue">JRAルート</div>
+      <div class="odds-card-body">JRAの公式サイトからオッズを取得。</div>
+    </div>
+    <div class="odds-card">
+      <div class="odds-card-head orange">ネットケイバルート</div>
+      <div class="odds-card-body">ネットケイバからオッズを取得。JRAと並行して動く。</div>
+    </div>
+  </div>
+
+  <p style="font-size:13px;color:#666;">片方が失敗しても、もう片方のデータには影響しません。</p>
+</section>
+
+<!-- ② 土曜日のスケジュール -->
+<section id="sat">
+  <div class="section-label">SATURDAY</div>
+  <h2>🗓️ 土曜日のスケジュール</h2>
+
+  <div class="box box-amber">
+    土曜日は「週の始まり」です。前の週のデータを消去して、今週の準備をすべて行います。
+  </div>
+
+  <div class="timeline">
+
+    <div class="tl-item">
+      <div class="tl-dot red"></div>
+      <div class="tl-time red">5:50　前の週のデータを消去</div>
+      <div class="tl-card red">
+        <div class="tl-badge badge-normal">自動実行</div>
+        <div class="tl-card-title">週のリセット</div>
+        <p>前の週に集めたオッズデータをすべて削除します。毎週土曜5:50に自動で実行され、この瞬間から新しい週が始まります。</p>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot blue"></div>
+      <div class="tl-time blue">6:00　今週のレース一覧を取得</div>
+      <div class="tl-card">
+        <div class="tl-badge badge-critical">最重要</div>
+        <div class="tl-card-title">土日のレース・出走馬情報を保存</div>
+        <p>土曜・日曜 両日分のレース情報（レース名・発走時刻・出走馬・騎手など）をJRAサイトから取得して保存します。</p>
+        <p style="margin-top:8px;font-size:13px;color:#dc2626;font-weight:600;">⚠️ ここが失敗すると、その日のオッズ収集がすべて止まります。6:05頃に確認してください（後述）。</p>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot blue"></div>
+      <div class="tl-time blue">6:20　ネットケイバ用のレース情報を取得</div>
+      <div class="tl-card">
+        <div class="tl-badge badge-normal">自動実行</div>
+        <div class="tl-card-title">ネットケイバ用に追加情報を取得</div>
+        <p>ネットケイバからオッズを取得するために必要な「レースID」情報を取得して保存します。</p>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot orange"></div>
+      <div class="tl-time orange">7:00　土日全レースのオッズを一括取得</div>
+      <div class="tl-card orange">
+        <div class="tl-badge badge-normal">自動実行</div>
+        <div class="tl-card-title">ベースラインオッズの記録</div>
+        <p>今週の土日全レース（約60レース・約900頭分）のオッズをまとめて取得し、「7時時点のベースライン」として保存します。</p>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot green"></div>
+      <div class="tl-time green">9:00〜17:59　定点オッズ収集スタート</div>
+      <div class="tl-card green">
+        <div class="tl-badge badge-normal">自動実行（毎分）</div>
+        <div class="tl-card-title">各レースの発走前オッズを記録</div>
+        <p>毎分システムが動き、「発走まで24分・21分・18分・15分・12分・9分・6分・3分・0分」のタイミングに合致したレースのオッズを取得します。</p>
+        <p style="margin-top:6px;">対象タイミング以外の分はスキップして何もしません。</p>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot gray"></div>
+      <div class="tl-time gray">18:00以降　今日の収集終了</div>
+      <div class="tl-card gray">
+        <div class="tl-card-title">土曜分の収集完了</div>
+        <p>18時以降は自動処理は動きません。土曜分のデータは翌日以降も保存されたままです。</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ③ 日曜日のスケジュール -->
+<section id="sun">
+  <div class="section-label">SUNDAY</div>
+  <h2>🗓️ 日曜日のスケジュール</h2>
+
+  <div class="box box-blue">
+    日曜日は「5:50のリセットなし」で始まります。土曜のデータはそのまま残ります。
+  </div>
+
+  <div class="timeline">
+
+    <div class="tl-item">
+      <div class="tl-dot blue"></div>
+      <div class="tl-time blue">6:00　日曜分のレース情報を更新</div>
+      <div class="tl-card">
+        <div class="tl-badge badge-critical">最重要</div>
+        <div class="tl-card-title">日曜分のみ更新（土曜データは消えない）</div>
+        <p>日曜分のレース・出走馬情報を最新の状態に更新します。土曜のデータはそのまま保持されます。</p>
+        <p style="margin-top:8px;font-size:13px;color:#dc2626;font-weight:600;">⚠️ 土曜と同様、ここの失敗は致命的です。6:05頃に確認してください。</p>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot blue"></div>
+      <div class="tl-time blue">6:20　ネットケイバ用のレース情報を更新</div>
+      <div class="tl-card">
+        <div class="tl-badge badge-normal">自動実行</div>
+        <div class="tl-card-title">日曜分を追加・更新</div>
+        <p>土曜分に重複がなければそのまま、日曜分を追加します。</p>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot green"></div>
+      <div class="tl-time green">9:00〜17:59　定点オッズ収集スタート</div>
+      <div class="tl-card green">
+        <div class="tl-badge badge-normal">自動実行（毎分）</div>
+        <div class="tl-card-title">土曜と全く同じ動き</div>
+        <p>各レースの発走24分前から順に、9回のタイミングでオッズを記録します。土曜7時の「一括取得」はないため、日曜は発走24分前の記録が最初のデータになります。</p>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot gray"></div>
+      <div class="tl-time gray">18:00以降　週の収集完了</div>
+      <div class="tl-card gray">
+        <div class="tl-card-title">土日分すべてのデータが揃う</div>
+        <p>土日の全レース×全出走馬×9タイミング分のオッズがデータベースに保存された状態になります。</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ④ どんなデータが集まるか -->
+<section id="odds">
+  <div class="section-label">DATA</div>
+  <h2>📊 どんなデータが集まるか</h2>
+
+  <h3>1レースあたりの記録回数</h3>
+  <p>各レースにつき、発走前の9タイミングでオッズを記録します。</p>
+
+  <table class="schedule-table">
+    <thead>
+      <tr>
+        <th>タイミング</th>
+        <th>いつ取得するか</th>
+        <th>データの種類</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="time-chip orange">999</span></td>
+        <td>7時（ベースライン）<br><small style="color:#888;">土曜のみ。日曜は次の行から</small></td>
+        <td>ベースライン</td>
+      </tr>
+      <tr>
+        <td><span class="time-chip blue">24分前</span></td>
+        <td>発走24分前</td>
+        <td>スナップショット</td>
+      </tr>
+      <tr>
+        <td><span class="time-chip blue">21分前</span></td>
+        <td>発走21分前</td>
+        <td>スナップショット</td>
+      </tr>
+      <tr>
+        <td><span class="time-chip blue">18分前</span></td>
+        <td>発走18分前</td>
+        <td>スナップショット</td>
+      </tr>
+      <tr>
+        <td><span class="time-chip blue">15分前</span></td>
+        <td>発走15分前</td>
+        <td>スナップショット</td>
+      </tr>
+      <tr>
+        <td><span class="time-chip blue">12分前</span></td>
+        <td>発走12分前</td>
+        <td>スナップショット</td>
+      </tr>
+      <tr>
+        <td><span class="time-chip blue">9分前</span></td>
+        <td>発走9分前</td>
+        <td>スナップショット</td>
+      </tr>
+      <tr>
+        <td><span class="time-chip blue">6分前</span></td>
+        <td>発走6分前</td>
+        <td>スナップショット</td>
+      </tr>
+      <tr>
+        <td><span class="time-chip blue">3分前</span></td>
+        <td>発走3分前</td>
+        <td>スナップショット</td>
+      </tr>
+      <tr>
+        <td><span class="time-chip green">0分前</span></td>
+        <td>発走直前（確定）</td>
+        <td>最終確定オッズ</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>週末が終わったときのデータ量（目安）</h3>
+  <div class="data-pills">
+    <span class="data-pill">土日合計 約120レース</span>
+    <span class="data-pill">1レース約15頭 × 9タイミング</span>
+    <span class="data-pill">JRA・ネットケイバ 各約1,600行</span>
+  </div>
+
+  <div class="box box-green">
+    <strong>このデータでわかること：</strong><br>
+    ・発走前の各時点での単勝・複勝オッズの変化<br>
+    ・オッズが直前に大きく動いたレースはどれか<br>
+    ・人気順の変動履歴
+  </div>
+</section>
+
+<!-- ⑤ 確認するポイント -->
+<section id="check">
+  <div class="section-label">CHECKLIST</div>
+  <h2>✅ 確認するポイント</h2>
+
+  <p>毎週、以下のタイミングで確認しておくと安心です。</p>
+
+  <h3>土曜日</h3>
+  <div class="checklist">
+
+    <div class="check-item">
+      <div class="check-time">6:05頃</div>
+      <div class="check-body">
+        <div class="check-title">レース情報が取れているか <span style="font-size:11px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:10px;font-weight:700;margin-left:4px;">最重要</span></div>
+        <div class="check-desc">6:00に動いたプログラムが正常に終わったか確認します。ログファイルに「正常終了」と出ていればOKです。</div>
+        <div class="check-ok">✅ 正常：「正常終了」の文字がある</div>
+        <div class="check-ng">❌ 異常：何も出ていない、エラー文字がある → すぐに手動で再実行</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time check-time orange">7:10頃</div>
+      <div class="check-body">
+        <div class="check-title">ベースラインオッズが取れているか</div>
+        <div class="check-desc">7:00の一括取得ログに「失敗レース数 : 0 件」と出ていればOKです。</div>
+        <div class="check-ok">✅ 正常：「失敗レース数 : 0 件」</div>
+        <div class="check-ng">❌ 異常：失敗レース数が1以上 → JRAサイトが不調な可能性</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time check-time green">9:40頃</div>
+      <div class="check-body">
+        <div class="check-title">定点収集が始まっているか</div>
+        <div class="check-desc">9時過ぎに発走したレースのオッズが記録され始めているか確認します。データベースに行が増えていればOKです。</div>
+        <div class="check-ok">✅ 正常：取得ログに「JRA」または「netkeiba」の記録がある</div>
+      </div>
+    </div>
+
+  </div>
+
+  <h3 style="margin-top:20px;">日曜日</h3>
+  <div class="checklist">
+
+    <div class="check-item">
+      <div class="check-time">6:05頃</div>
+      <div class="check-body">
+        <div class="check-title">日曜のレース情報が更新されているか <span style="font-size:11px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:10px;font-weight:700;margin-left:4px;">最重要</span></div>
+        <div class="check-desc">土曜と同様に、ログの「正常終了」を確認します。</div>
+        <div class="check-ok">✅ 正常：「正常終了」の文字がある</div>
+        <div class="check-ng">❌ 異常：エラーあり → 手動再実行</div>
+      </div>
+    </div>
+
+    <div class="check-item">
+      <div class="check-time check-time green">9:40頃</div>
+      <div class="check-body">
+        <div class="check-title">日曜分の収集が始まっているか</div>
+        <div class="check-desc">日曜分のオッズデータが記録され始めているか確認します。</div>
+        <div class="check-ok">✅ 正常：日曜日付のデータが増えている</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ⑥ うまく動いていないときは -->
+<section id="trouble">
+  <div class="section-label">TROUBLESHOOTING</div>
+  <h2>🚨 うまく動いていないときは</h2>
+
+  <div class="trouble-card">
+    <div class="trouble-head red">🔴 朝6:00のレース取得に失敗した</div>
+    <div class="trouble-body">
+      <p><strong>症状：</strong>ログに「正常終了」が出ていない。または何も出ていない。</p>
+      <p><strong>影響：</strong>その日のオッズ収集がすべて止まります（最も深刻）。</p>
+      <p><strong>対処：</strong>コマンド <code style="background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:12px;">keiba:importSchedule</code> を手動で実行してください。その後、ログに「正常終了」が出るまで確認します。</p>
+    </div>
+  </div>
+
+  <div class="trouble-card">
+    <div class="trouble-head orange">🟠 オッズが一部取れていない</div>
+    <div class="trouble-body">
+      <p><strong>症状：</strong>特定のレースのオッズが途中から抜けている。</p>
+      <p><strong>原因：</strong>JRAまたはネットケイバのサイトが一時的に遅い・落ちていた可能性があります。</p>
+      <p><strong>影響：</strong>その取りこぼしたタイミングのデータだけが欠損します。次のタイミング（3分後）からは自動で再開します。<strong>自動的に回復するため基本的に対処不要です。</strong></p>
+    </div>
+  </div>
+
+  <div class="trouble-card">
+    <div class="trouble-head orange">🟠 サーバーの様子がおかしい</div>
+    <div class="trouble-body">
+      <p><strong>確認コマンド：</strong>サーバーにSSHログインして以下を実行します。</p>
+      <p><code style="background:#f0f0f0;padding:4px 8px;border-radius:4px;font-size:12px;display:block;margin:6px 0;">free -m</code>
+      → available が <strong>200MB以上</strong>あれば正常</p>
+      <p><code style="background:#f0f0f0;padding:4px 8px;border-radius:4px;font-size:12px;display:block;margin:6px 0;">ps aux | grep -c chrom</code>
+      → <strong>8以下</strong>であれば正常</p>
+      <p style="margin-top:8px;"><strong>ロックファイルが残っている場合：</strong><br>
+      サーバーが強制停止した後など、処理が止まったままになることがあります。<br>
+      <code style="background:#f0f0f0;padding:4px 8px;border-radius:4px;font-size:12px;display:block;margin:6px 0;">rm -f /tmp/keiba_*.lock</code>
+      を実行すると解消します。</p>
+    </div>
+  </div>
+
+</section>
+
+<!-- まとめ -->
+<div class="summary-card">
+  <h2>💡 まとめ</h2>
+  <div style="text-align:left;margin-top:16px;">
+    <div class="important-row">
+      <div class="icon">📅</div>
+      <div class="text"><strong>毎週土曜5:50に自動スタート</strong>し、日曜17:59まで動き続けます。</div>
+    </div>
+    <div class="important-row">
+      <div class="icon">⚠️</div>
+      <div class="text"><strong>土曜・日曜の6:05頃</strong>だけ、ログの「正常終了」を確認するのが習慣です。</div>
+    </div>
+    <div class="important-row">
+      <div class="icon">🔄</div>
+      <div class="text">多少のエラーは<strong>自動回復</strong>します。手動対応が必要なのは朝6時の取得失敗だけです。</div>
+    </div>
+    <div class="important-row">
+      <div class="icon">🗄️</div>
+      <div class="text">データは<strong>翌週の土曜5:50にリセット</strong>されます。それまでは残ります。</div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<footer>
+  競馬オッズ取得システム 利用ガイド<br>
+  最終更新: 2026-06-01<br>
+  （SIMULATION.html の内容をもとに作成）
+</footer>
+
+</body>
+</html>

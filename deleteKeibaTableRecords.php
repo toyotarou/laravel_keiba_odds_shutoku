@@ -41,7 +41,11 @@ class DeleteKeibaTableRecords extends Command
         // t_horse_odds_finder_odds_get_timing をtruncateする
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_odds_get_timing');
         $this->info('t_horse_odds_finder_odds_get_timing をtruncateしました。');
-
+        
+        // t_horse_odds_finder_odds_wide をtruncateする
+        DB::statement('TRUNCATE TABLE t_horse_odds_finder_odds_wide');
+        $this->info('t_horse_odds_finder_odds_wide をtruncateしました。');
+        
         $this->info('テーブルデータ削除処理 ── 完了');
 
 
@@ -53,7 +57,8 @@ class DeleteKeibaTableRecords extends Command
             '/var/www/horse_odds_finder/storage/logs/importRace.log',
             '/var/www/horse_odds_finder/storage/logs/importBaseOdds.log',
             '/var/www/horse_odds_finder/storage/logs/importOdds.log',
-            '/var/www/horse_odds_finder/storage/logs/importRaceResult.log'
+            '/var/www/horse_odds_finder/storage/logs/importRaceResult.log',
+            '/var/www/horse_odds_finder/storage/logs/importOddsWide.log'
         ];
         foreach ($logFiles as $logFile) {
             if (file_exists($logFile)) {

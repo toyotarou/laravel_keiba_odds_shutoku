@@ -186,10 +186,83 @@ class ImportKeibaOdds extends Command
 
             $totalMs = round((microtime(true) - $raceStart) * 1000);
             $this->info("  DB保存完了 → {$saved} 頭分  (合計 {$totalMs}ms)");
+
+            // ── ワイドオッズ取得 ──────────────────────────────────────
+            $wideOdds = $this->getWideOdds($race);
+
+            $this->info("  [Wide] {$race->race}R 取得組数: " . count($wideOdds));
+            
+            if ($wideOdds) {
+                $wideSaved     = 0;
+                $minutesBefore = ($diff === 24) ? 999 : (($diff === 0) ? -999 : $diff);
+                DB::transaction(function () use ($wideOdds, $race, $minutesBefore, &$wideSaved) {
+                    foreach ($wideOdds as $w) {
+                        DB::table('t_horse_odds_finder_odds_wide')->insert([
+                            'date'                 => $race->date,
+                            'kaisuu'               => $race->kaisuu,
+                            'basho'                => $race->basho,
+                            'day'                  => $race->day,
+                            'race'                 => $race->race,
+                            'uma1'                 => $w['uma1'],
+                            'uma2'                 => $w['uma2'],
+                            'odds_min'             => $w['odds_min'],
+                            'odds_max'             => $w['odds_max'],
+                            'minutes_before_start' => $minutesBefore,
+                        ]);
+                        $wideSaved++;
+                    }
+                });
+                $this->info("  [Wide] DB保存完了 → {$wideSaved} 組");
+            }
         }
 
         $this->info('');
         $this->info('========== keiba:importOdds 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
+    }
+
+    /**
+     * ワイドオッズを Node.js でスクレイピングして返す。
+     * DB 保存は呼び出し元で行う。
+     *
+     * @return array{uma1:string, uma2:string, odds_min:string, odds_max:string}[]
+     */
+    private function getWideOdds(object $race): array
+    {
+        $script  = base_path('scripts/keibaOddsGetWide.mjs');
+        $logFile = '/var/www/horse_odds_finder/storage/logs/importOddsWide.log';
+        $nodeBin = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
+
+        $command = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($script)
+            . ' ' . escapeshellarg($race->date)
+            . ' ' . escapeshellarg($race->kaisuu)
+            . ' ' . escapeshellarg($race->basho)
+            . ' ' . escapeshellarg($race->race)
+            . ' ' . escapeshellarg($race->day)
+            . ' 2>>' . escapeshellarg($logFile);
+
+        $this->info("  [Wide] 実行コマンド: {$command}");
+
+        $odds     = null;
+        $output   = '';
+        $maxRetry = 2;
+        for ($retry = 1; $retry <= $maxRetry; $retry++) {
+            $output = shell_exec($command);
+            $odds   = json_decode($output, true);
+            if ($odds) break;
+            if ($retry < $maxRetry) {
+                $this->warn("  [Wide][RETRY {$retry}/{$maxRetry}] オッズ取得失敗。3秒後にリトライします...");
+                sleep(3);
+            }
+        }
+
+        if (!$odds) {
+            $this->error("  [Wide] オッズ取得失敗。");
+            $this->error("  [Wide] Node.js 出力: " . $output);
+            return [];
+        }
+
+        $this->info("  [Wide] Node.js 取得完了 → " . count($odds) . " 組分");
+        return $odds;
     }
 }
