@@ -197,7 +197,7 @@ class ImportKeibaOdds extends Command
                 $minutesBefore = ($diff === 24) ? 999 : (($diff === 0) ? -999 : $diff);
                 DB::transaction(function () use ($wideOdds, $race, $minutesBefore, &$wideSaved) {
                     foreach ($wideOdds as $w) {
-                        DB::table('t_horse_odds_finder_odds_wide')->insert([
+                        $key = [
                             'date'                 => $race->date,
                             'kaisuu'               => $race->kaisuu,
                             'basho'                => $race->basho,
@@ -205,10 +205,18 @@ class ImportKeibaOdds extends Command
                             'race'                 => $race->race,
                             'uma1'                 => $w['uma1'],
                             'uma2'                 => $w['uma2'],
-                            'odds_min'             => $w['odds_min'],
-                            'odds_max'             => $w['odds_max'],
                             'minutes_before_start' => $minutesBefore,
-                        ]);
+                        ];
+                        $data = [
+                            'odds_min' => $w['odds_min'],
+                            'odds_max' => $w['odds_max'],
+                        ];
+                        $exists = DB::table('t_horse_odds_finder_odds_wide')->where($key)->exists();
+                        if ($exists) {
+                            DB::table('t_horse_odds_finder_odds_wide')->where($key)->update($data);
+                        } else {
+                            DB::table('t_horse_odds_finder_odds_wide')->insert(array_merge($key, $data));
+                        }
                         $wideSaved++;
                     }
                 });
