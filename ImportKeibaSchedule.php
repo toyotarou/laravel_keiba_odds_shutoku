@@ -97,7 +97,7 @@ use Illuminate\Support\Facades\DB;
  */
 class ImportKeibaSchedule extends Command
 {
-    protected $signature = 'keiba:importSchedule';
+    protected $signature = 'keiba:importSchedule {--debug : 木曜・金曜チェックをスキップして処理する}';
     protected $description = 'スケジュール・レース・馬情報を取得してDBに保存する';
 
     public function handle()
@@ -118,10 +118,16 @@ class ImportKeibaSchedule extends Command
         $this->info('実行日時: ' . date('Y-m-d H:i:s') . '  曜日番号: ' . date('w') . ' （0=日, 6=土）');
         $this->info('');
 
+        $isDebug = (bool) $this->option('debug');
+        if ($isDebug) {
+            $this->warn('【DEBUGモード】木曜・金曜チェックをスキップします。');
+            $this->info('');
+        }
+
         // ─────────────────────────────────────────────────────────────
         // 木曜日（4）・金曜日（5）はレース開催がないためスキップする
         // ─────────────────────────────────────────────────────────────
-        if (date('w') === '4' || date('w') === '5') {
+        if (!$isDebug && (date('w') === '4' || date('w') === '5')) {
             $this->warn('本日は木曜日または金曜日のため処理をスキップします。');
             $this->info('終了。');
             return 0;
@@ -230,7 +236,8 @@ class ImportKeibaSchedule extends Command
         $this->info('トランザクション開始 ── データを入れ替えます...');
 
         // 土曜日以外は当日分のみ INSERT（土曜日のデータには触れない）
-        if (date('w') !== '6') {
+        // DEBUGモード時は絞り込みをスキップして取得した全データを INSERT する
+        if (!$isDebug && date('w') !== '6') {
             $schedules = array_values(array_filter($schedules, fn($r) => $r['date'] === $today));
             $races      = array_values(array_filter($races,     fn($r) => $r['date'] === $today));
             $horses     = array_values(array_filter($horses,    fn($r) => $r['date'] === $today));

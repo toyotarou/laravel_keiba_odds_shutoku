@@ -16,7 +16,7 @@ use App\Constants\Constants;
  */
 class ImportKeibaRaceResult extends Command
 {
-    protected $signature = 'keiba:importRaceResult';
+    protected $signature = 'keiba:importRaceResult {--debug : タイミングチェックをスキップして全レース処理する}';
     protected $description = 'ネットケイバからレースの結果・オッズを取得する';
 
     public function handle(): void
@@ -33,16 +33,31 @@ class ImportKeibaRaceResult extends Command
         $now  = time();
         $date = date('Y-m-d');
 
+        $isDebug = (bool) $this->option('debug');
+
         $this->info('');
         $this->info('========== keiba:importRaceResult 開始 ' . date('Y-m-d H:i:s', $now) . ' ==========');
         $this->info('対象日付: ' . $date);
+        if ($isDebug) {
+            $this->warn('【DEBUGモード】タイミングチェックをスキップします。');
+        }
 
         // オッズを取得するタイミング（発走X分前）の定義。
         // cronが毎分動くため、$diff がこの配列に含まれる分のみ処理する。
         $ary = Constants::ODDS_GET_TIMING;
 
+        if ($isDebug) {
+            // テーブルに存在する最も近い未来（または当日）の日付を対象にする
+            $nearestDate = DB::table('t_horse_odds_finder_netkeiba_races')
+                ->where('date', '>=', $date)
+                ->min('date');
+            $targetDate = $nearestDate ?? $date;
+        } else {
+            $targetDate = $date;
+        }
+
         $races = DB::table('t_horse_odds_finder_netkeiba_races')
-            ->where('date', $date)
+            ->where('date', $targetDate)
             ->orderBy('start_time')
             ->get();
 
@@ -72,8 +87,8 @@ class ImportKeibaRaceResult extends Command
             $this->info("--------------------------------------------------");
             $this->info("[{$raceIndex}/{$totalRaces}] race_id={$race->race_id} 発走: {$race->start_time}  (残り {$diff} 分)");
 
-            // $ary に合致しない分数はスキップ
-            if (!in_array($diff, $ary)) {
+            // $ary に合致しない分数はスキップ（DEBUGモード時はスキップしない）
+            if (!$isDebug && !in_array($diff, $ary)) {
                 $this->info("  → スキップ (残り{$diff}分は取得タイミング外)");
                 continue;
             }

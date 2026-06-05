@@ -19,7 +19,7 @@ class ApiController extends Controller
             ->orderBy('basho')
             ->orderBy('day')
             ->get();
-            
+
         return response()->json(['data' => $result]);
     }
 
@@ -32,7 +32,7 @@ class ApiController extends Controller
             ->orderBy('day')
             ->orderBy('race')
             ->get();
-            
+
         return response()->json(['data' => $result]);
     }
 
@@ -62,7 +62,7 @@ class ApiController extends Controller
             ->orderBy('num')
             ->orderBy('minutes_before_start')
             ->get();
-            
+
         return response()->json(['data' => $result]);
     }
 
@@ -86,16 +86,16 @@ class ApiController extends Controller
         }
         return response()->json(['data' => $data]);
     }
-    
+
     public function getHorseOddsFinderConfigs()
     {
-        
+
         return response()->json(['data' => [
             "odds_get_timing" => implode("|", Constants::ODDS_GET_TIMING),
         ]]);
-        
+
     }
-    
+
     public function getHorseOddsFinderNetkeibaRaces()
     {
         $result = DB::table('t_horse_odds_finder_netkeiba_races')
@@ -105,10 +105,10 @@ class ApiController extends Controller
             ->orderBy('day')
             ->orderBy('race')
             ->get();
-            
+
         return response()->json(['data' => $result]);
     }
-    
+
     public function getHorseOddsFinderNetkeibaOdds()
     {
         $result = DB::table('t_horse_odds_finder_netkeiba_odds')
@@ -120,10 +120,10 @@ class ApiController extends Controller
             ->orderBy('num')
             ->orderBy('minutes_before_start')
             ->get();
-            
+
         return response()->json(['data' => $result]);
     }
-    
+
     public function getHorseOddsFinderOddsGetTiming()
     {
         $result = DB::table('t_horse_odds_finder_odds_get_timing')
@@ -134,8 +134,24 @@ class ApiController extends Controller
             ->orderBy('race')
             ->orderBy('timing')
             ->get();
-            
+
         return response()->json(['data' => $result]);
     }
-    
+
+    public function getHorseOddsFinderOddsWide()
+    {
+        $result = DB::table('t_horse_odds_finder_odds_wide')
+            ->orderBy('date')
+            ->orderBy('kaisuu')
+            ->orderBy('basho')
+            ->orderBy('day')
+            ->orderBy('race')
+            ->orderBy('minutes_before_start')
+            ->orderBy('uma1')
+            ->orderBy('uma2')
+            ->get();
+
+        return response()->json(['data' => $result]);
+    }
+
 }

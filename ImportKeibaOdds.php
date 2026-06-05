@@ -16,7 +16,7 @@ use App\Constants\Constants;
  */
 class ImportKeibaOdds extends Command
 {
-    protected $signature = 'keiba:importOdds';
+    protected $signature = 'keiba:importOdds {--debug : タイミングチェックをスキップして全レース処理する}';
     protected $description = 'オッズを取得してDBに保存する';
 
     public function handle(): void
@@ -37,12 +37,25 @@ class ImportKeibaOdds extends Command
         $logFile = base_path('scripts/keibaOddsGetTanpuku.log');
         $nodeBin = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
 
+        $isDebug = (bool) $this->option('debug');
+
         $this->info('');
         $this->info('========== keiba:importOdds 開始 ' . date('Y-m-d H:i:s', $now) . ' ==========');
+        if ($isDebug) {
+            $this->warn('【DEBUGモード】タイミングチェックをスキップします。');
+        }
 
-        // ── レース一覧を取得（当日分のみ） ───────────────────────────
-        $query = DB::table('t_horse_odds_finder_races')
-            ->where('date', $date);
+        // ── レース一覧を取得（通常は当日分のみ、DEBUGモードは直近日付分） ──
+        $query = DB::table('t_horse_odds_finder_races');
+        if ($isDebug) {
+            // テーブルに存在する最も近い未来（または当日）の日付を対象にする
+            $nearestDate = DB::table('t_horse_odds_finder_races')
+                ->where('date', '>=', $date)
+                ->min('date');
+            $query->where('date', $nearestDate ?? $date);
+        } else {
+            $query->where('date', $date);
+        }
 
         $races      = $query->orderBy('start_time')->get();
         $totalRaces = count($races);
@@ -75,8 +88,8 @@ class ImportKeibaOdds extends Command
             $this->info("--------------------------------------------------");
             $this->info("[{$race->basho_name}] {$race->race}R 「{$race->race_name}」 発走: {$race->start_time}  (残り {$diff} 分)");
 
-            // $ary に合致しない分数はスキップ
-            if (!in_array($diff, $ary)) {
+            // $ary に合致しない分数はスキップ（DEBUGモード時はスキップしない）
+            if (!$isDebug && !in_array($diff, $ary)) {
                 $this->info("  → スキップ (残り{$diff}分は取得タイミング外)");
                 continue;
             }
