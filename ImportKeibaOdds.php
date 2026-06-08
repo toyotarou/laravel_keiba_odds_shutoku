@@ -124,16 +124,17 @@ class ImportKeibaOdds extends Command
                 }
             }
 
-            $fetchMs = round((microtime(true) - $raceStart) * 1000);
+            $fetchMs  = round((microtime(true) - $raceStart) * 1000);
+            $fetchSec = number_format($fetchMs / 1000, 2);
 
             if (!$odds) {
-                $this->error("  オッズ取得失敗。このレースをスキップします。({$fetchMs}ms)");
+                $this->error("  [単複] オッズ取得失敗。このレースをスキップします。({$fetchSec}秒 / {$fetchMs}ms)");
                 $this->error("  Node.js 出力: " . $output);
                 continue;
             }
 
             $horseCount = count($odds);
-            $this->info("  Node.js 取得完了 → {$horseCount} 頭分 ({$fetchMs}ms)");
+            $this->info("  [単複] Node.js 取得完了 → {$horseCount} 頭分 ({$fetchSec}秒 / {$fetchMs}ms)");
 
             // ── 各馬のオッズをDBに保存 ───────────────────────────────
             $saved = 0;
@@ -197,11 +198,13 @@ class ImportKeibaOdds extends Command
                 }
             });
 
-            $totalMs = round((microtime(true) - $raceStart) * 1000);
-            $this->info("  DB保存完了 → {$saved} 頭分  (合計 {$totalMs}ms)");
+            $totalMs  = round((microtime(true) - $raceStart) * 1000);
+            $totalSec = number_format($totalMs / 1000, 2);
+            $this->info("  [単複] DB保存完了 → {$saved} 頭分 (合計 {$totalSec}秒 / {$totalMs}ms)");
 
             // ── ワイドオッズ取得 ──────────────────────────────────────
-            $wideOdds = $this->getWideOdds($race);
+            $wideStart = microtime(true);
+            $wideOdds  = $this->getWideOdds($race);
 
             $this->info("  [Wide] {$race->race}R 取得組数: " . count($wideOdds));
             
@@ -233,7 +236,9 @@ class ImportKeibaOdds extends Command
                         $wideSaved++;
                     }
                 });
-                $this->info("  [Wide] DB保存完了 → {$wideSaved} 組");
+                $wideTotalMs  = round((microtime(true) - $wideStart) * 1000);
+                $wideTotalSec = number_format($wideTotalMs / 1000, 2);
+                $this->info("  [Wide] DB保存完了 → {$wideSaved} 組 (合計 {$wideTotalSec}秒 / {$wideTotalMs}ms)");
             }
         }
 
@@ -264,9 +269,10 @@ class ImportKeibaOdds extends Command
 
         $this->info("  [Wide] 実行コマンド: {$command}");
 
-        $odds     = null;
-        $output   = '';
-        $maxRetry = 2;
+        $odds      = null;
+        $output    = '';
+        $maxRetry  = 2;
+        $nodeStart = microtime(true);
         for ($retry = 1; $retry <= $maxRetry; $retry++) {
             $output = shell_exec($command);
             $odds   = json_decode($output, true);
@@ -277,13 +283,16 @@ class ImportKeibaOdds extends Command
             }
         }
 
+        $nodeMs  = round((microtime(true) - $nodeStart) * 1000);
+        $nodeSec = number_format($nodeMs / 1000, 2);
+
         if (!$odds) {
-            $this->error("  [Wide] オッズ取得失敗。");
+            $this->error("  [Wide] オッズ取得失敗。({$nodeSec}秒 / {$nodeMs}ms)");
             $this->error("  [Wide] Node.js 出力: " . $output);
             return [];
         }
 
-        $this->info("  [Wide] Node.js 取得完了 → " . count($odds) . " 組分");
+        $this->info("  [Wide] Node.js 取得完了 → " . count($odds) . " 組分 ({$nodeSec}秒 / {$nodeMs}ms)");
         return $odds;
     }
 }

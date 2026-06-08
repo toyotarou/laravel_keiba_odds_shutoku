@@ -52,7 +52,6 @@ class DeleteKeibaTableRecords extends Command
 
         // ログファイルを削除する
         $logFiles = [
-            '/var/www/horse_odds_finder/storage/logs/deleteKeibaTableRecords.log',
             '/var/www/horse_odds_finder/storage/logs/importSchedule.log',
             '/var/www/horse_odds_finder/storage/logs/importRace.log',
             '/var/www/horse_odds_finder/storage/logs/importBaseOdds.log',
