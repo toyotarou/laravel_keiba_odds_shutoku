@@ -153,5 +153,19 @@ class ApiController extends Controller
 
         return response()->json(['data' => $result]);
     }
+    
+    public function getHorseOddsFinderSummary()
+    {
+        $result = DB::table('t_horse_odds_finder_summary')
+            ->orderBy('date')
+            ->orderBy('kaisuu')
+            ->orderBy('basho')
+            ->orderBy('day')
+            ->orderBy('race')
+            ->orderBy('num')
+            ->get();
 
+        return response()->json(['data' => $result]);
+    }
+    
 }
