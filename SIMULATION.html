@@ -27,6 +27,7 @@
   .day-header { text-align:center; padding:10px 16px; border-radius:8px; font-size:14px; font-weight:bold; margin:22px 0 12px; letter-spacing:1px; }
   .day-header.sat { background:#e8effe; color:#1a2a4a; border:2px solid #1a2a4a; }
   .day-header.sun { background:#fff3e0; color:#c0550a; border:2px solid #e67e22; }
+  .day-header.wday { background:#f0f3f7; color:#444; border:2px solid #c8d0dc; }
 
   /* タイムライン ── モバイルはカード積み上げ */
   .timeline { position:relative; padding-left:0; margin-bottom:8px; }
@@ -137,6 +138,8 @@
 </h1>
 
 <nav class="nav">
+  <a href="#weekly">週間概要</a>
+  <span class="sep">|</span>
   <a href="#dep">依存関係</a>
   <span class="sep">|</span>
   <span style="color:#8aa8d8;font-size:11px;padding:10px 4px;">土:</span>
@@ -150,13 +153,90 @@
   <span style="color:#f5a85a;font-size:11px;padding:10px 4px;">日:</span>
   <a href="#sun-overview">日曜概要</a>
   <a href="#sun-schedule">⑦Schedule</a>
-  <a href="#sun-odds">⑧Odds</a>
-  <a href="#sun-result">⑨Result</a>
+  <a href="#sun-race">⑧Race</a>
+  <a href="#sun-odds">⑨Odds</a>
+  <a href="#sun-result">⑩Result</a>
+  <span class="sep">|</span>
+  <a href="#daily-summary">毎日18:00</a>
+  <a href="#daily-jra-result">毎日18:30</a>
   <span class="sep">|</span>
   <a href="#summary">総評</a>
 </nav>
 
 <div class="wrap">
+
+<!-- ========== 曜日ごとの動き（週間概要） ========== -->
+<div id="weekly" class="section">
+  <div class="section-title">曜日ごとの動き（週間概要）<a class="back-link" href="#dep">↓ 依存関係へ</a></div>
+
+  <div class="day-header sat" style="margin:8px 0 6px;">土曜日</div>
+  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:16px;">
+    <li>05:50　<strong>deleteKeibaTableRecords</strong> — 全8テーブルTRUNCATE・ログ削除</li>
+    <li>06:00　<strong>importSchedule</strong> — 土日両日分を全件INSERT（date('w')==='6' のためフィルターなし）</li>
+    <li>06:20　<strong>importRace</strong> — ネットケイバから土日両日分の race_id をupsert</li>
+    <li>07:00　<strong>importBaseOdds</strong> — 土日全24レース分の999オッズを一括取得（<strong>日曜分も同時保存</strong>）</li>
+    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 土曜レースのみ・ODDS_GET_TIMINGに合致した分だけ取得・保存</li>
+    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 土曜レースのみ・ネットケイバから確定オッズ取得</li>
+    <li>18:00　<strong>summary</strong> — 当日レースのサマリを作成</li>
+    <li>18:30　<strong>importJraRaceResult</strong> — JRAから当日レース結果を取得・更新</li>
+  </ul>
+
+  <div class="day-header sun" style="margin:8px 0 6px;">日曜日</div>
+  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:16px;">
+    <li>06:00　<strong>importSchedule</strong> — 日曜分のみ最新化（出走取消・枠順変更に対応）。土曜保存の日曜999オッズは一旦削除→importOddsで再取得</li>
+    <li>06:20　<strong>importRace</strong> — 日曜分のrace_idを再upsert（<code>20 6 * * 0,6</code> 土日両日実行）</li>
+    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 日曜レースのみ処理（土曜レースは diff &lt; 0 でスキップ）</li>
+    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 日曜レースのみ処理</li>
+    <li>18:00　<strong>summary</strong> — 当日レースのサマリを作成</li>
+    <li>18:30　<strong>importJraRaceResult</strong> — JRAから当日レース結果を取得・更新</li>
+  </ul>
+
+  <div class="day-header wday" style="margin:8px 0 6px;">月曜日</div>
+  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:16px;">
+    <li>06:00　<strong>importSchedule</strong> — 当日（月）分のみ処理（競馬開催なし）</li>
+    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 対象レースなし・即終了</li>
+    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 対象レースなし・即終了</li>
+    <li>18:00　<strong>summary</strong> — 実行（競馬開催なし）</li>
+    <li>18:30　<strong>importJraRaceResult</strong> — 実行（競馬開催なし）</li>
+  </ul>
+
+  <div class="day-header wday" style="margin:8px 0 6px;">火曜日</div>
+  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:16px;">
+    <li>06:00　<strong>importSchedule</strong> — 当日（火）分のみ処理（競馬開催なし）</li>
+    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 対象レースなし・即終了</li>
+    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 対象レースなし・即終了</li>
+    <li>18:00　<strong>summary</strong> — 実行（競馬開催なし）</li>
+    <li>18:30　<strong>importJraRaceResult</strong> — 実行（競馬開催なし）</li>
+  </ul>
+
+  <div class="day-header wday" style="margin:8px 0 6px;">水曜日</div>
+  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:16px;">
+    <li>06:00　<strong>importSchedule</strong> — 当日（水）分のみ処理（競馬開催なし）</li>
+    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 対象レースなし・即終了</li>
+    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 対象レースなし・即終了</li>
+    <li>18:00　<strong>summary</strong> — 実行（競馬開催なし）</li>
+    <li>18:30　<strong>importJraRaceResult</strong> — 実行（競馬開催なし）</li>
+  </ul>
+
+  <div class="day-header wday" style="margin:8px 0 6px;">木曜日</div>
+  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:16px;">
+    <li>06:00　<strong>importSchedule</strong> — date('w')==='4' により早期リターン（スキップ）</li>
+    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 対象レースなし・即終了</li>
+    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 対象レースなし・即終了</li>
+    <li>18:00　<strong>summary</strong> — 実行（競馬開催なし）</li>
+    <li>18:30　<strong>importJraRaceResult</strong> — 実行（競馬開催なし）</li>
+  </ul>
+
+  <div class="day-header wday" style="margin:8px 0 6px;">金曜日</div>
+  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:8px;">
+    <li>06:00　<strong>importSchedule</strong> — date('w')==='5' により早期リターン（スキップ）</li>
+    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 対象レースなし・即終了</li>
+    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 対象レースなし・即終了</li>
+    <li>18:00　<strong>summary</strong> — 実行（競馬開催なし）</li>
+    <li>18:30　<strong>importJraRaceResult</strong> — 実行（競馬開催なし）</li>
+  </ul>
+
+</div>
 
 <!-- ========== 依存関係 ========== -->
 <div id="dep" class="section">
@@ -202,10 +282,12 @@
     <span class="dep-reason">importBaseOddsは土日両日分の999オッズを土曜7時に一括取得。日曜のdiff=24 upsertはこのレコードを更新する。</span>
   </div>
   <div class="dep-box">
-    <a class="dep-label" href="#sat-race">土曜 importRace</a>
+    <a class="dep-label" href="#sat-race">土曜 importRace（06:20）</a>
+    <span class="dep-arrow">→</span>
+    <a class="dep-label" href="#sun-race">日曜 importRace（06:20）</a>
     <span class="dep-arrow">→</span>
     <a class="dep-label" href="#sun-result">日曜 importRaceResult</a>
-    <span class="dep-reason">netkeiba_racesの日曜分も土曜のimportRaceで登録済み。日曜のimportRaceResultはそれを使う。</span>
+    <span class="dep-reason">土曜importRaceで土日両日分を登録→日曜importRaceで日曜分を再upsert（最新化）→日曜importRaceResultはその最新データを使う。</span>
   </div>
 </div>
 
@@ -264,6 +346,24 @@
       <div class="tl-title">⑥ keiba:importRaceResult（毎分）</div>
       <div class="tl-sub">ネットケイバから土曜レースの確定オッズ等を取得。importOddsとは別ロックで<strong>並行動作</strong>。</div>
       <a class="tl-link" href="#sat-result">→ 詳細を見る</a>
+    </div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-time">18:00</div>
+    <div class="tl-dot"></div>
+    <div class="tl-box">
+      <div class="tl-title">⑦ keiba:summary</div>
+      <div class="tl-sub">毎日実行（<code>0 18 * * *</code>）。当日レースのサマリを作成。</div>
+      <a class="tl-link" href="#daily-summary">→ 詳細を見る</a>
+    </div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-time">18:30</div>
+    <div class="tl-dot"></div>
+    <div class="tl-box">
+      <div class="tl-title">⑧ keiba:importJraRaceResult</div>
+      <div class="tl-sub">毎日実行（<code>30 18 * * *</code>）。JRAから当日レース結果を取得・更新。</div>
+      <a class="tl-link" href="#daily-jra-result">→ 詳細を見る</a>
     </div>
   </div>
 </div>
@@ -656,7 +756,7 @@ timingの値:
 <div id="sun-overview" class="day-header sun">日曜日 2026-06-07　date('w') = '0'</div>
 
 <div class="section sun">
-  <div class="section-title sun">日曜の特徴 — 土曜より動くコマンドが少ない（importScheduleは動く）<a class="back-link" href="#timeline-sun">↓ TLへ</a></div>
+  <div class="section-title sun">日曜の特徴 — importSchedule・importRace が追加で動く（土曜より動くコマンドが少ない）<a class="back-link" href="#timeline-sun">↓ TLへ</a></div>
   <div class="diff-box">
     <div class="diff-box-title">土曜と日曜の違い（cron設定より）</div>
     <div class="table-wrap"><table class="eval-table">
@@ -675,9 +775,9 @@ timingの値:
       </tr>
       <tr>
         <td>importRace</td>
-        <td class="code">20 6 * * 6</td>
-        <td class="result-skip">実行されない</td>
-        <td>土曜のimportRaceで土日分upsert済みのため不要。</td>
+        <td class="code">20 6 * * 0,6</td>
+        <td class="result-ok">実行される ✓</td>
+        <td>土日両日で実行。日曜分の race_id を再upsert。出走取消などの当日変更に対応。</td>
       </tr>
       <tr>
         <td>importBaseOdds</td>
@@ -687,15 +787,27 @@ timingの値:
       </tr>
       <tr>
         <td>importOdds</td>
-        <td class="code">* 9-17 * * 6,0</td>
+        <td class="code">* 9-17 * * *</td>
         <td class="result-ok">実行される ✓</td>
-        <td>土日両日でcron動作。日曜は date='2026-06-07' のレースを処理。</td>
+        <td>毎日cron動作。日曜は date='2026-06-07' のレースを処理。</td>
       </tr>
       <tr>
         <td>importRaceResult</td>
-        <td class="code">* 9-17 * * 6,0</td>
+        <td class="code">* 9-17 * * *</td>
         <td class="result-ok">実行される ✓</td>
         <td>同上。</td>
+      </tr>
+      <tr>
+        <td>summary</td>
+        <td class="code">0 18 * * *</td>
+        <td class="result-ok">実行される ✓</td>
+        <td>毎日18:00。当日レースのサマリを作成。</td>
+      </tr>
+      <tr>
+        <td>importJraRaceResult</td>
+        <td class="code">30 18 * * *</td>
+        <td class="result-ok">実行される ✓</td>
+        <td>毎日18:30。JRAから当日レース結果を取得・更新。</td>
       </tr>
     </table></div>
   </div>
@@ -737,10 +849,19 @@ timingの値:
     </div>
   </div>
   <div class="tl-item">
+    <div class="tl-time sun">06:20</div>
+    <div class="tl-dot sun"></div>
+    <div class="tl-box">
+      <div class="tl-title">⑧ keiba:importRace（日曜分を再upsert）</div>
+      <div class="tl-sub">土日両日実行（<code>20 6 * * 0,6</code>）。ネットケイバから日曜分のrace_idを取得して再upsert。出走取消などの当日変更に対応。</div>
+      <a class="tl-link" href="#sun-race">→ 詳細を見る</a>
+    </div>
+  </div>
+  <div class="tl-item">
     <div class="tl-time sun">09:00〜<br>17:59</div>
     <div class="tl-dot sun"></div>
     <div class="tl-box">
-      <div class="tl-title">⑧ keiba:importOdds（毎分）</div>
+      <div class="tl-title">⑨ keiba:importOdds（毎分）</div>
       <div class="tl-sub">date='2026-06-07'の日曜レースのみ処理。土曜レースは<code>diff &lt; 0</code>で全スキップ。動作ロジックは土曜と全く同じ。</div>
       <a class="tl-link" href="#sun-odds">→ 詳細を見る</a>
     </div>
@@ -749,9 +870,27 @@ timingの値:
     <div class="tl-time sun">09:00〜<br>17:59</div>
     <div class="tl-dot sun"></div>
     <div class="tl-box">
-      <div class="tl-title">⑨ keiba:importRaceResult（毎分）</div>
+      <div class="tl-title">⑩ keiba:importRaceResult（毎分）</div>
       <div class="tl-sub">date='2026-06-07'の日曜netkeiba_racesのみ処理。土曜レースはスキップ。動作ロジックは土曜と全く同じ。</div>
       <a class="tl-link" href="#sun-result">→ 詳細を見る</a>
+    </div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-time sun">18:00</div>
+    <div class="tl-dot sun"></div>
+    <div class="tl-box">
+      <div class="tl-title">⑪ keiba:summary</div>
+      <div class="tl-sub">毎日実行（<code>0 18 * * *</code>）。当日レースのサマリを作成。</div>
+      <a class="tl-link" href="#daily-summary">→ 詳細を見る</a>
+    </div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-time sun">18:30</div>
+    <div class="tl-dot sun"></div>
+    <div class="tl-box">
+      <div class="tl-title">⑫ keiba:importJraRaceResult</div>
+      <div class="tl-sub">毎日実行（<code>30 18 * * *</code>）。JRAから当日レース結果を取得・更新。</div>
+      <a class="tl-link" href="#daily-jra-result">→ 詳細を見る</a>
     </div>
   </div>
 </div>
@@ -819,9 +958,31 @@ timingの値:
   <div class="info">土曜のimportBaseOddsで保存した日曜分の999オッズは一旦削除される。importOddsのdiff=24で「existsチェック→存在しない→INSERT」として再作成されるため問題なし。</div>
 </div>
 
-<!-- ========== ⑧ importOdds（日曜） ========== -->
+<!-- ========== ⑧ importRace（日曜） ========== -->
+<div id="sun-race" class="section sun">
+  <div class="section-title sun">⑧ 06:20 日曜 — <span class="cmd">keiba:importRace</span>（土日両日実行）<a class="back-link" href="#timeline-sun">↑ TLへ</a></div>
+  <div class="diff-box">
+    <div class="diff-box-title">土曜との差分</div>
+    <div class="table-wrap"><table class="eval-table">
+      <tr><th>項目</th><th>土曜</th><th>日曜</th></tr>
+      <tr>
+        <td>cron</td>
+        <td class="code">20 6 * * 0,6</td>
+        <td class="code">20 6 * * 0,6</td>
+      </tr>
+      <tr>
+        <td>動作</td>
+        <td>土日両日分のrace_idをupsert（初回登録）</td>
+        <td>日曜分のrace_idを再upsert（最新化）。土曜分は上書きされるがdiff&lt;0のため実害なし。</td>
+      </tr>
+    </table></div>
+  </div>
+  <div class="ok">土曜のimportRaceで土日両日分が登録済みのため、日曜のimportRaceは重複upsertになるが問題なし。出走取消などがあっても日曜06:20の再upsertで最新状態に更新される。</div>
+</div>
+
+<!-- ========== ⑨ importOdds（日曜） ========== -->
 <div id="sun-odds" class="section sun">
-  <div class="section-title sun">⑧ 09:00〜17:59 毎分 日曜 — <span class="cmd">keiba:importOdds</span><a class="back-link" href="#timeline-sun">↑ TLへ</a></div>
+  <div class="section-title sun">⑨ 09:00〜17:59 毎分 日曜 — <span class="cmd">keiba:importOdds</span><a class="back-link" href="#timeline-sun">↑ TLへ</a></div>
   <div class="diff-box">
     <div class="diff-box-title">土曜との差分（ここだけ読めばOK）</div>
     <div class="table-wrap"><table class="eval-table">
@@ -880,9 +1041,9 @@ timingの値:
   <div class="ok">土曜のデータはDBに残ったままだが、where句でdate='2026-06-07'に絞っているので土日混在しない。</div>
 </div>
 
-<!-- ========== ⑨ importRaceResult（日曜） ========== -->
+<!-- ========== ⑩ importRaceResult（日曜） ========== -->
 <div id="sun-result" class="section sun">
-  <div class="section-title sun">⑨ 09:00〜17:59 毎分 日曜 — <span class="cmd">keiba:importRaceResult</span><a class="back-link" href="#timeline-sun">↑ TLへ</a></div>
+  <div class="section-title sun">⑩ 09:00〜17:59 毎分 日曜 — <span class="cmd">keiba:importRaceResult</span><a class="back-link" href="#timeline-sun">↑ TLへ</a></div>
   <div class="diff-box">
     <div class="diff-box-title">土曜との差分</div>
     <div class="table-wrap"><table class="eval-table">
@@ -900,7 +1061,7 @@ timingの値:
       <tr>
         <td>netkeiba_racesの日曜分</td>
         <td>—</td>
-        <td class="result-ok">土曜のimportRaceで既にupsert済み ✓</td>
+        <td class="result-ok">土曜のimportRaceで登録済み、さらに日曜06:20のimportRaceで最新化済み ✓</td>
       </tr>
       <tr>
         <td>ロジック・コード</td>
@@ -913,7 +1074,19 @@ timingの値:
     <span class="table-badge upsert">t_horse_odds_finder_netkeiba_odds（日曜分を追加）</span>
     <span class="table-badge upsert">t_horse_odds_finder_odds_get_timing（日曜分を追加、odds_from='netkeiba'）</span>
   </div>
-  <div class="ok">日曜のnetkeiba_racesデータは土曜のimportRaceで既に登録済み。日曜のimportRaceResultは追加作業なしで即動作できる。</div>
+  <div class="ok">日曜のnetkeiba_racesデータは土曜のimportRaceで登録済みで、さらに日曜06:20のimportRaceで再upsert（最新化）されている。importRaceResultは即動作できる。</div>
+</div>
+
+<!-- ========== 毎日 summary ========== -->
+<div id="daily-summary" class="section">
+  <div class="section-title">⑪⑫ 18:00 毎日 — <span class="cmd">keiba:summary</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
+  <div class="info">毎日実行（<code>0 18 * * *</code>）。当日レースのサマリを作成する。競馬開催日（土日）も平日も実行される。</div>
+</div>
+
+<!-- ========== 毎日 importJraRaceResult ========== -->
+<div id="daily-jra-result" class="section">
+  <div class="section-title">⑫⑬ 18:30 毎日 — <span class="cmd">keiba:importJraRaceResult</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
+  <div class="info">毎日実行（<code>30 18 * * *</code>）。JRAから当日レース結果を取得・更新する。競馬開催日（土日）も平日も実行される。</div>
 </div>
 
 <!-- ========== 総評 ========== -->
