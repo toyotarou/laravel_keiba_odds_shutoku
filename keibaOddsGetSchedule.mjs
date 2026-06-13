@@ -61,12 +61,15 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     await page.goto('https://www.jra.go.jp/', { waitUntil: 'networkidle', timeout: 60000 });
 
     log('[Step 1] 「オッズ」リンクをクリック...');
-    await page.evaluate(() => {
-        [...document.querySelectorAll('a')]
-            .find(a => a.textContent.trim() === 'オッズ')
-            ?.click();
-    });
-    await sleep(3000);
+    await Promise.all([
+        page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 }),
+        page.evaluate(() => {
+            [...document.querySelectorAll('a')]
+                .find(a => a.textContent.trim() === 'オッズ')
+                ?.click();
+        }).catch(e => { if (!e.message.includes('closed')) throw e; }),
+    ]);
+    await sleep(1000);
 
     // ── Step 2: 開催情報取得 ──────────────────────────────────────
     log('[Step 2] 開催情報を取得中...');
@@ -125,12 +128,15 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
         // 開催リンクをクリック → レース一覧ページへ
         log(`  開催「${kaisai.label}」クリック...`);
-        await page.evaluate((onclick) => {
-            [...document.querySelectorAll('a')]
-                .find(a => a.getAttribute('onclick') === onclick)
-                ?.click();
-        }, kaisai.onclick);
-        await sleep(3000);
+        await Promise.all([
+            page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 }),
+            page.evaluate((onclick) => {
+                [...document.querySelectorAll('a')]
+                    .find(a => a.getAttribute('onclick') === onclick)
+                    ?.click();
+            }, kaisai.onclick).catch(e => { if (!e.message.includes('closed')) throw e; }),
+        ]);
+        await sleep(1000);
 
         // レース一覧を取得（発走時刻・レース名・単複リンク有無）
         const raceInfoList = await page.evaluate(() => {
@@ -196,17 +202,13 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
             log(`  [${raceLabel}] 単複ページへ遷移... (${ri.startTime} ${ri.raceName})`);
 
-            // 該当レース行の単複リンクをクリック
-            // rowIndex（0始まりの行位置）を使うことで、表示レースが途中から始まっても正しく動く
-            const clicked = await page.evaluate((idx) => {
-                const link = document.querySelectorAll('tbody tr')[idx]
+            // 単複リンクの存在確認（ナビゲーション前に済ませる）
+            const hasLink = await page.evaluate((idx) => {
+                return !!document.querySelectorAll('tbody tr')[idx]
                     ?.querySelector('div.tanpuku a');
-                if (!link) return false;
-                link.click();
-                return true;
             }, ri.rowIndex);
 
-            if (!clicked) {
+            if (!hasLink) {
                 log(`  [${raceLabel}] クリック失敗 → スキップ`);
                 result.races.push({
                     date:       kaisai.date,
@@ -221,7 +223,16 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                 continue;
             }
 
-            await sleep(3000);
+            // クリックとナビゲーション完了を同時に待つ
+            await Promise.all([
+                page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 }),
+                page.evaluate((idx) => {
+                    document.querySelectorAll('tbody tr')[idx]
+                        ?.querySelector('div.tanpuku a')
+                        ?.click();
+                }, ri.rowIndex).catch(e => { if (!e.message.includes('closed')) throw e; }),
+            ]);
+            await sleep(1000);
 
             // 馬名・騎手・調教師を取得
             const horses = await page.evaluate(() => {
@@ -307,12 +318,15 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
         // 開催選択ページへ戻る
         log(`  ${kaisai.label} 全レース完了 → 開催選択へ戻る`);
-        await page.evaluate(() => {
-            [...document.querySelectorAll('a')]
-                .find(a => a.textContent.includes('開催選択へ戻る'))
-                ?.click();
-        });
-        await sleep(3000);
+        await Promise.all([
+            page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 }),
+            page.evaluate(() => {
+                [...document.querySelectorAll('a')]
+                    .find(a => a.textContent.includes('開催選択へ戻る'))
+                    ?.click();
+            }).catch(e => { if (!e.message.includes('closed')) throw e; }),
+        ]);
+        await sleep(1000);
     }
 
     // ── 完了・結果出力 ────────────────────────────────────────────

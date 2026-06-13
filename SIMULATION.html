@@ -6,131 +6,128 @@
 <title>本番シミュレーション 2026-06-06(土)〜06-07(日)</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f4f6f9; color: #222; font-size: 14px; line-height: 1.6; }
+  body { font-family: -apple-system,'Helvetica Neue',Arial,sans-serif; background:#f4f6f9; color:#222; font-size:15px; line-height:1.65; }
 
   /* ヘッダー */
-  h1 { background: #1a2a4a; color: #fff; padding: 14px 16px; font-size: 17px; position: sticky; top: 0; z-index: 100; }
-  h1 span { display: block; font-size: 11px; font-weight: normal; opacity: 0.7; margin-top: 3px; }
+  h1 { background:#1a2a4a; color:#fff; padding:13px 15px; font-size:16px; position:sticky; top:0; z-index:100; }
+  h1 span { display:block; font-size:11px; font-weight:normal; opacity:0.7; margin-top:3px; }
 
-  /* ナビゲーションバー */
-  .nav { background: #253555; display: flex; gap: 2px; padding: 0 12px; position: sticky; top: 49px; z-index: 99; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
-  .nav a { color: #c8d8f8; text-decoration: none; font-size: 12px; padding: 8px 12px; display: inline-block; }
-  .nav a:hover, .nav a.active { background: #1a2a4a; color: #fff; }
-  .nav .sep { color: #556; padding: 8px 4px; font-size: 12px; }
+  /* ナビ */
+  .nav { background:#253555; display:flex; padding:0 6px; position:sticky; top:48px; z-index:99; overflow-x:auto; -webkit-overflow-scrolling:touch; white-space:nowrap; scrollbar-width:none; }
+  .nav::-webkit-scrollbar { display:none; }
+  .nav a { color:#c8d8f8; text-decoration:none; font-size:12px; padding:10px 10px; display:inline-block; }
+  .nav a:hover { background:#1a2a4a; color:#fff; }
+  .nav .sep { color:#556; padding:10px 3px; font-size:12px; }
 
-  h2 { font-size: 14px; color: #1a2a4a; border-left: 4px solid #1a2a4a; padding-left: 10px; margin: 20px 0 10px; }
-  h2.sun { border-left-color: #e67e22; color: #c0550a; }
-  h3 { font-size: 13px; color: #444; margin: 14px 0 6px; }
-  p { font-size: 13px; margin: 6px 0; }
-  .wrap { max-width: 1000px; margin: 16px auto; padding: 0 12px 80px; }
+  h3 { font-size:13px; color:#444; margin:16px 0 6px; }
+  p  { font-size:13px; margin:6px 0; }
+  .wrap { max-width:640px; margin:0 auto; padding:12px 12px 80px; }
 
-  /* 土曜・日曜 ラベル */
-  .day-header { text-align: center; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: bold; margin: 24px 0 12px; letter-spacing: 1px; }
-  .day-header.sat { background: #e8effe; color: #1a2a4a; border: 2px solid #1a2a4a; }
-  .day-header.sun { background: #fff3e0; color: #c0550a; border: 2px solid #e67e22; }
+  /* 土曜・日曜ラベル */
+  .day-header { text-align:center; padding:10px 16px; border-radius:8px; font-size:14px; font-weight:bold; margin:22px 0 12px; letter-spacing:1px; }
+  .day-header.sat { background:#e8effe; color:#1a2a4a; border:2px solid #1a2a4a; }
+  .day-header.sun { background:#fff3e0; color:#c0550a; border:2px solid #e67e22; }
 
-  /* タイムライン */
-  .timeline { position: relative; padding-left: 80px; }
-  .timeline::before { content: ''; position: absolute; left: 58px; top: 0; bottom: 0; width: 2px; background: #c8d0dc; }
-  .tl-item { position: relative; margin-bottom: 8px; }
-  .tl-time { position: absolute; left: -80px; width: 72px; text-align: right; font-weight: bold; font-size: 11px; padding-top: 10px; color: #1a2a4a; }
-  .tl-dot { position: absolute; left: -10px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: #1a2a4a; border: 2px solid #fff; box-shadow: 0 0 0 2px #1a2a4a; }
-  .tl-dot.sun { background: #e67e22; box-shadow: 0 0 0 2px #e67e22; }
-  .tl-box { background: #fff; border: 1px solid #dde2ea; border-radius: 6px; padding: 8px 12px; margin-left: 10px; }
-  .tl-title { font-weight: bold; font-size: 13px; margin-bottom: 2px; }
-  .tl-sub { font-size: 12px; color: #666; }
-  .tl-link { font-size: 11px; color: #3d7dd6; text-decoration: none; }
-  .tl-link:hover { text-decoration: underline; }
+  /* タイムライン ── モバイルはカード積み上げ */
+  .timeline { position:relative; padding-left:0; margin-bottom:8px; }
+  .timeline::before { display:none; }
+  .tl-item { margin-bottom:10px; }
+  .tl-time { display:inline-block; background:#e8effe; color:#1a2a4a; font-size:11px; font-weight:bold; padding:2px 8px; border-radius:4px; margin-bottom:5px; }
+  .tl-time.sun { background:#fff3e0; color:#c0550a; }
+  .tl-dot { display:none; }
+  .tl-box { background:#fff; border:1px solid #dde2ea; border-radius:8px; padding:11px 14px; }
+  .tl-title { font-weight:bold; font-size:14px; margin-bottom:4px; }
+  .tl-sub { font-size:13px; color:#555; }
+  .tl-link { font-size:12px; color:#3d7dd6; text-decoration:none; display:inline-block; margin-top:5px; }
+  .tl-link:hover { text-decoration:underline; }
+
+  /* デスクトップ: 元のタイムライン */
+  @media (min-width:640px) {
+    .timeline { padding-left:88px; }
+    .timeline::before { content:''; display:block; position:absolute; left:64px; top:0; bottom:0; width:2px; background:#c8d0dc; }
+    .tl-item { position:relative; margin-bottom:8px; }
+    .tl-time { display:block; position:absolute; left:-88px; width:80px; text-align:right; background:transparent; padding:0; padding-top:10px; border-radius:0; margin-bottom:0; font-size:11px; color:#1a2a4a; }
+    .tl-time.sun { background:transparent; color:#e67e22; }
+    .tl-dot { display:block; position:absolute; left:-10px; top:13px; width:10px; height:10px; border-radius:50%; background:#1a2a4a; border:2px solid #fff; box-shadow:0 0 0 2px #1a2a4a; }
+    .tl-dot.sun { background:#e67e22; box-shadow:0 0 0 2px #e67e22; }
+    .tl-box { margin-left:12px; border-radius:6px; }
+  }
 
   /* セクション */
-  .section { background: #fff; border: 1px solid #dde2ea; border-radius: 8px; padding: 16px; margin-bottom: 16px; scroll-margin-top: 110px; }
-  .section.sun { border-color: #f5c082; }
-  .section-title { font-size: 13px; font-weight: bold; color: #fff; background: #1a2a4a; margin: -16px -16px 14px; padding: 10px 14px; border-radius: 7px 7px 0 0; line-height: 1.5; }
-  .section-title.sun { background: #c0550a; }
-  .section-title .cmd { display: block; font-family: monospace; font-size: 12px; opacity: 0.85; margin-top: 2px; word-break: break-all; }
-  .section-title .back-link { float: right; font-size: 11px; opacity: 0.85; font-family: sans-serif; font-weight: normal; text-decoration: none; color: #c8d8f8; }
-  .section-title .back-link:hover { text-decoration: underline; }
+  .section { background:#fff; border:1px solid #dde2ea; border-radius:10px; padding:14px; margin-bottom:14px; scroll-margin-top:110px; overflow:hidden; }
+  .section.sun { border-color:#f5c082; }
+  .section-title { font-size:13px; font-weight:bold; color:#fff; background:#1a2a4a; margin:-14px -14px 14px; padding:11px 14px; border-radius:8px 8px 0 0; line-height:1.5; display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+  .section-title.sun { background:#c0550a; }
+  .section-title .cmd { display:block; font-family:monospace; font-size:12px; opacity:0.85; margin-top:2px; word-break:break-all; }
+  .section-title .back-link { flex-shrink:0; font-size:11px; opacity:0.85; font-weight:normal; text-decoration:none; color:#c8d8f8; white-space:nowrap; }
+  .section-title .back-link:hover { text-decoration:underline; }
 
-  /* 条件評価テーブル */
-  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 14px; }
-  .eval-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 480px; }
-  .eval-table th { background: #f0f3f7; padding: 6px 8px; text-align: left; border: 1px solid #dde; font-weight: bold; }
-  .eval-table td { padding: 6px 8px; border: 1px solid #dde; vertical-align: top; }
-  .eval-table td.code { font-family: monospace; font-size: 11px; background: #f8f8f8; word-break: break-all; }
-  .eval-table td.result-ok { color: #27ae60; font-weight: bold; }
-  .eval-table td.result-ng { color: #c0392b; font-weight: bold; }
-  .eval-table td.result-warn { color: #e67e22; font-weight: bold; }
-  .eval-table td.result-skip { color: #888; }
+  /* 評価テーブル */
+  .table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:14px; }
+  .eval-table { width:100%; border-collapse:collapse; font-size:12px; min-width:480px; }
+  .eval-table th { background:#f0f3f7; padding:7px 8px; text-align:left; border:1px solid #dde; font-weight:bold; }
+  .eval-table td { padding:7px 8px; border:1px solid #dde; vertical-align:top; line-height:1.5; }
+  .eval-table td.code { font-family:monospace; font-size:11px; background:#f8f8f8; word-break:break-all; }
+  .eval-table td.result-ok   { color:#27ae60; font-weight:bold; }
+  .eval-table td.result-ng   { color:#c0392b; font-weight:bold; }
+  .eval-table td.result-warn { color:#e67e22; font-weight:bold; }
+  .eval-table td.result-skip { color:#888; }
 
-  /* テーブルバッジ */
-  .table-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
-  .table-badge { font-size: 11px; font-family: monospace; padding: 3px 8px; border-radius: 4px; border: 1px solid; word-break: break-all; }
-  .table-badge.truncate { background: #fde8e8; color: #c0392b; border-color: #f5c6c6; font-weight: bold; }
-  .table-badge.insert   { background: #e8fde8; color: #27ae60; border-color: #c6f5c6; }
-  .table-badge.upsert   { background: #fff8e1; color: #e67e22; border-color: #ffe0b2; }
-  .table-badge.none     { background: #f5f5f5; color: #888; border-color: #ddd; }
+  /* バッジ */
+  .table-list { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+  .table-badge { font-size:11px; font-family:monospace; padding:4px 8px; border-radius:4px; border:1px solid; word-break:break-all; }
+  .table-badge.truncate { background:#fde8e8; color:#c0392b; border-color:#f5c6c6; font-weight:bold; }
+  .table-badge.insert   { background:#e8fde8; color:#27ae60; border-color:#c6f5c6; }
+  .table-badge.upsert   { background:#fff8e1; color:#e67e22; border-color:#ffe0b2; }
 
   /* メッセージ */
-  .risk   { background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px; padding: 10px 12px; margin: 8px 0; font-size: 13px; }
-  .risk::before { content: '⚠ '; color: #e67e22; font-weight: bold; }
-  .ok     { background: #f0fff4; border: 1px solid #b2dfdb; border-radius: 6px; padding: 10px 12px; margin: 8px 0; font-size: 13px; }
-  .ok::before { content: '✓ '; color: #27ae60; font-weight: bold; }
-  .danger { background: #fde8e8; border: 1px solid #f5c6c6; border-radius: 6px; padding: 10px 12px; margin: 8px 0; font-size: 13px; }
-  .danger::before { content: '✗ '; color: #c0392b; font-weight: bold; }
-  .info   { background: #e8f0fe; border: 1px solid #b3c8f5; border-radius: 6px; padding: 10px 12px; margin: 8px 0; font-size: 13px; }
-  .info::before { content: 'ℹ '; color: #1a6ac8; font-weight: bold; }
+  .risk   { background:#fff8e1; border:1px solid #ffe082; border-radius:6px; padding:10px 12px; margin:8px 0; font-size:13px; }
+  .risk::before   { content:'⚠ '; color:#e67e22; font-weight:bold; }
+  .ok     { background:#f0fff4; border:1px solid #b2dfdb; border-radius:6px; padding:10px 12px; margin:8px 0; font-size:13px; }
+  .ok::before     { content:'✓ '; color:#27ae60; font-weight:bold; }
+  .danger { background:#fde8e8; border:1px solid #f5c6c6; border-radius:6px; padding:10px 12px; margin:8px 0; font-size:13px; }
+  .danger::before { content:'✗ '; color:#c0392b; font-weight:bold; }
+  .info   { background:#e8f0fe; border:1px solid #b3c8f5; border-radius:6px; padding:10px 12px; margin:8px 0; font-size:13px; }
+  .info::before   { content:'ℹ '; color:#1a6ac8; font-weight:bold; }
 
   /* コードブロック */
-  pre { background: #1e1e2e; color: #cdd6f4; padding: 10px 12px; border-radius: 6px; font-size: 11px; overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 10px 0; line-height: 1.5; }
-  pre .hl { color: #a6e3a1; font-weight: bold; }
-  pre .warn { color: #f9e2af; }
-  pre .err { color: #f38ba8; }
+  pre { background:#1e1e2e; color:#cdd6f4; padding:12px 14px; border-radius:8px; font-size:11px; overflow-x:auto; -webkit-overflow-scrolling:touch; margin:10px 0; line-height:1.6; }
+  pre .hl   { color:#a6e3a1; font-weight:bold; }
+  pre .warn { color:#f9e2af; }
+  pre .err  { color:#f38ba8; }
 
   /* タイミング表 */
-  .timing-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .timing-table { border-collapse: collapse; font-size: 11px; margin: 10px 0; min-width: 480px; }
-  .timing-table th { background: #1a2a4a; color: #fff; padding: 6px 8px; text-align: center; }
-  .timing-table td { padding: 5px 8px; border: 1px solid #dde; text-align: center; }
-  .timing-table .hit  { background: #e8fde8; color: #27ae60; font-weight: bold; }
-  .timing-table .miss { background: #f5f5f5; color: #aaa; }
+  .timing-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .timing-table { border-collapse:collapse; font-size:11px; margin:10px 0; min-width:520px; }
+  .timing-table th { background:#1a2a4a; color:#fff; padding:7px 8px; text-align:center; }
+  .timing-table td { padding:6px 8px; border:1px solid #dde; text-align:center; }
+  .timing-table .hit  { background:#e8fde8; color:#27ae60; font-weight:bold; }
+  .timing-table .miss { background:#f5f5f5; color:#aaa; }
 
   /* 依存関係 */
-  .dep-box { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; font-size: 13px; }
-  .dep-arrow { color: #888; font-size: 16px; }
-  .dep-label { background: #e8f0fe; padding: 4px 10px; border-radius: 4px; font-family: monospace; font-size: 11px; word-break: break-all; text-decoration: none; color: #1a2a4a; }
-  .dep-label:hover { background: #c8d8f8; }
-  .dep-label.no-link { cursor: default; }
-  .dep-reason { color: #666; font-size: 12px; width: 100%; padding-left: 4px; }
+  .dep-box { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:8px 0; font-size:13px; }
+  .dep-arrow { color:#888; font-size:16px; }
+  .dep-label { background:#e8f0fe; padding:6px 12px; border-radius:6px; font-family:monospace; font-size:11px; word-break:break-all; text-decoration:none; color:#1a2a4a; display:inline-block; }
+  .dep-label:hover { background:#c8d8f8; }
+  .dep-reason { color:#666; font-size:12px; width:100%; padding-left:4px; }
 
-  /* DB状態サマリー */
-  .db-state { background: #f8f9fa; border: 1px solid #e0e4ea; border-radius: 6px; padding: 10px 12px; margin: 10px 0; }
-  .db-state-title { font-size: 12px; font-weight: bold; color: #444; margin-bottom: 6px; }
-  .db-row { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
-  .db-row span { font-family: monospace; }
-  .db-ok  { color: #27ae60; }
-  .db-new { color: #e67e22; font-weight: bold; }
-  .db-empty { color: #aaa; }
+  /* DB状態 */
+  .db-state { background:#f8f9fa; border:1px solid #e0e4ea; border-radius:8px; padding:12px 14px; margin:10px 0; }
+  .db-state-title { font-size:12px; font-weight:bold; color:#444; margin-bottom:8px; }
+  .db-row { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12px; }
+  .db-row span { font-family:monospace; }
+  .db-ok    { color:#27ae60; }
+  .db-new   { color:#e67e22; font-weight:bold; }
+  .db-empty { color:#aaa; }
 
-  /* リンク */
-  a.anchor-link { color: #3d7dd6; text-decoration: none; font-size: 12px; }
-  a.anchor-link:hover { text-decoration: underline; }
+  a.anchor-link { color:#3d7dd6; text-decoration:none; font-size:12px; }
+  a.anchor-link:hover { text-decoration:underline; }
+  .note { font-size:12px; color:#666; margin-top:6px; }
 
-  .note { font-size: 12px; color: #666; margin-top: 6px; }
+  .diff-box { border:2px solid #e67e22; border-radius:8px; padding:12px 14px; margin:10px 0; background:#fff9f0; }
+  .diff-box-title { font-size:12px; font-weight:bold; color:#c0550a; margin-bottom:8px; }
 
-  /* 土日差分ハイライト */
-  .diff-box { border: 2px solid #e67e22; border-radius: 6px; padding: 10px 12px; margin: 10px 0; background: #fff9f0; }
-  .diff-box-title { font-size: 12px; font-weight: bold; color: #c0550a; margin-bottom: 6px; }
-
-  @media (max-width: 480px) {
-    h1 { font-size: 15px; padding: 12px 14px; }
-    .wrap { padding: 0 8px 80px; }
-    .section { padding: 14px 12px; }
-    .section-title { margin: -14px -12px 12px; padding: 10px 12px; }
-    .tl-time { font-size: 10px; width: 62px; left: -72px; }
-    .timeline { padding-left: 74px; }
-    .timeline::before { left: 50px; }
-    .nav a { padding: 8px 10px; font-size: 11px; }
-  }
+  code { font-family:monospace; font-size:12px; background:#f0f3f7; padding:1px 5px; border-radius:3px; }
 </style>
 </head>
 <body>
@@ -142,7 +139,7 @@
 <nav class="nav">
   <a href="#dep">依存関係</a>
   <span class="sep">|</span>
-  <span style="color:#8aa8d8;font-size:11px;padding:8px 6px;">土曜:</span>
+  <span style="color:#8aa8d8;font-size:11px;padding:10px 4px;">土:</span>
   <a href="#sat-delete">①削除</a>
   <a href="#sat-schedule">②スケジュール</a>
   <a href="#sat-race">③レース</a>
@@ -150,10 +147,11 @@
   <a href="#sat-odds">⑤Odds</a>
   <a href="#sat-result">⑥Result</a>
   <span class="sep">|</span>
-  <span style="color:#f5a85a;font-size:11px;padding:8px 6px;">日曜:</span>
+  <span style="color:#f5a85a;font-size:11px;padding:10px 4px;">日:</span>
   <a href="#sun-overview">日曜概要</a>
-  <a href="#sun-odds">⑦Odds</a>
-  <a href="#sun-result">⑧Result</a>
+  <a href="#sun-schedule">⑦Schedule</a>
+  <a href="#sun-odds">⑧Odds</a>
+  <a href="#sun-result">⑨Result</a>
   <span class="sep">|</span>
   <a href="#summary">総評</a>
 </nav>
@@ -172,13 +170,13 @@
     <span class="dep-reason">TRUNCATEしてからINSERT。逆だとせっかく入れたデータが消える。</span>
   </div>
   <div class="dep-box">
-    <a class="dep-label" href="#sat-schedule">06:00 importSchedule</a>
+    <a class="dep-label" href="#sat-schedule">06:00 importSchedule（土）</a>
     <span class="dep-arrow">→</span>
     <a class="dep-label" href="#sat-race">06:20 importRace</a>
     <span class="dep-reason">importRaceはt_horse_odds_finder_schedulesの日付一覧を読む。空だと即終了。</span>
   </div>
   <div class="dep-box">
-    <a class="dep-label" href="#sat-schedule">06:00 importSchedule</a>
+    <a class="dep-label" href="#sat-schedule">06:00 importSchedule（土）</a>
     <span class="dep-arrow">→</span>
     <a class="dep-label" href="#sat-baseodds">07:00 importBaseOdds</a>
     <span class="dep-reason">importBaseOddsはt_horse_odds_finder_racesを読む。空だと0件で終了。</span>
@@ -192,8 +190,10 @@
   <div class="dep-box">
     <a class="dep-label" href="#sat-schedule">土曜 importSchedule</a>
     <span class="dep-arrow">→</span>
+    <a class="dep-label" href="#sun-schedule">日曜 importSchedule</a>
+    <span class="dep-arrow">→</span>
     <a class="dep-label" href="#sun-odds">日曜 importOdds</a>
-    <span class="dep-reason">日曜はimportScheduleが動かない。土曜に入れたracesテーブルの日曜分を日曜のimportOddsが使う。</span>
+    <span class="dep-reason">土曜に土日両日分を登録→日曜6:00に日曜分を最新化→importOddsが使用。</span>
   </div>
   <div class="dep-box">
     <a class="dep-label" href="#sat-baseodds">土曜 importBaseOdds</a>
@@ -272,7 +272,7 @@
 
 <!-- ========== ① deleteKeibaTableRecords ========== -->
 <div id="sat-delete" class="section">
-  <div class="section-title">① 05:50 土曜 — <span class="cmd">keiba:deleteKeibaTableRecords</span><a class="back-link" href="#timeline-sat">↑ タイムラインへ</a></div>
+  <div class="section-title">① 05:50 土曜 — <span class="cmd">keiba:deleteKeibaTableRecords</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
   <h3>実行内容</h3>
   <p>条件分岐なし。無条件で全テーブルをTRUNCATEしてログファイルを削除する。実行時間は数秒。</p>
   <h3>TRUNCATEされるテーブル（全8テーブル）</h3>
@@ -286,7 +286,7 @@
     <span class="table-badge truncate">t_horse_odds_finder_odds_get_timing</span>
     <span class="table-badge truncate">t_horse_odds_finder_odds_wide</span>
   </div>
-  <h3>削除されるログファイル</h3>
+  <h3>削除されるログファイル（10個）</h3>
   <pre>/var/www/horse_odds_finder/storage/logs/cron_odds.log
 /var/www/horse_odds_finder/storage/logs/importRaceResult.log
 /var/www/horse_odds_finder/storage/logs/importBaseOdds.log
@@ -310,7 +310,7 @@
 
 <!-- ========== ② importSchedule ========== -->
 <div id="sat-schedule" class="section">
-  <div class="section-title">② 06:00 土曜 — <span class="cmd">keiba:importSchedule</span>（--debugなし）<a class="back-link" href="#timeline-sat">↑ タイムラインへ</a></div>
+  <div class="section-title">② 06:00 土曜 — <span class="cmd">keiba:importSchedule</span>（--debugなし）<a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
   <h3>コード条件の評価（土曜: date('w') = '6'）</h3>
   <div class="table-wrap"><table class="eval-table">
     <tr><th>条件</th><th>コード</th><th>評価結果</th><th>動作</th></tr>
@@ -322,13 +322,13 @@
     </tr>
     <tr>
       <td>木曜・金曜チェック</td>
-      <td class="code">!$isDebug &amp;&amp; (date('w')==='4' || date('w')==='5')<br>= true &amp;&amp; ('6'==='4' || '6'==='5')<br>= true &amp;&amp; false = <strong>false</strong></td>
+      <td class="code">!$isDebug &amp;&amp; (date('w')==='4' || date('w')==='5')<br>= true &amp;&amp; ('6'==='4' || '6'==='5') = <strong>false</strong></td>
       <td class="result-ok">false → スキップしない</td>
       <td>処理続行 ✓</td>
     </tr>
     <tr>
       <td>日付フィルター</td>
-      <td class="code">!$isDebug &amp;&amp; date('w') !== '6'<br>= true &amp;&amp; '6' !== '6'<br>= true &amp;&amp; false = <strong>false</strong></td>
+      <td class="code">!$isDebug &amp;&amp; date('w') !== '6'<br>= true &amp;&amp; '6' !== '6' = <strong>false</strong></td>
       <td class="result-ok">false → フィルターしない</td>
       <td><strong>土日両日分を全件INSERT ✓</strong></td>
     </tr>
@@ -371,7 +371,7 @@
 
 <!-- ========== ③ importRace ========== -->
 <div id="sat-race" class="section">
-  <div class="section-title">③ 06:20 土曜 — <span class="cmd">keiba:importRace</span><a class="back-link" href="#timeline-sat">↑ タイムラインへ</a></div>
+  <div class="section-title">③ 06:20 土曜 — <span class="cmd">keiba:importRace</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
   <h3>コード条件の評価</h3>
   <div class="table-wrap"><table class="eval-table">
     <tr><th>条件</th><th>コード</th><th>評価</th><th>動作</th></tr>
@@ -423,7 +423,7 @@
 
 <!-- ========== ④ importBaseOdds ========== -->
 <div id="sat-baseodds" class="section">
-  <div class="section-title">④ 07:00 土曜 — <span class="cmd">keiba:importBaseOdds</span><a class="back-link" href="#timeline-sat">↑ タイムラインへ</a></div>
+  <div class="section-title">④ 07:00 土曜 — <span class="cmd">keiba:importBaseOdds</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
   <h3>コード条件の評価</h3>
   <div class="table-wrap"><table class="eval-table">
     <tr><th>条件</th><th>コード</th><th>評価</th><th>動作</th></tr>
@@ -458,7 +458,7 @@
 
 処理時間の目安:
   通常: 1レース 10〜15秒 × 24レース = 4〜6分
-  最悪: 1レース timeout+retry = (120+5)×3 = 375秒 × 24 = 150分（現実的ではない）</pre>
+  最悪: 1レース timeout+retry = (120+5)×3 = 375秒 × 24 ＝ 150分（現実的ではない）</pre>
   <h3>影響テーブル</h3>
   <div class="table-list">
     <span class="table-badge upsert">t_horse_odds_finder_odds（土日全レース分 minutes_before_start=999 でUPSERT）</span>
@@ -482,7 +482,7 @@
 
 <!-- ========== ⑤ importOdds（土曜） ========== -->
 <div id="sat-odds" class="section">
-  <div class="section-title">⑤ 09:00〜17:59 毎分 土曜 — <span class="cmd">keiba:importOdds</span><a class="back-link" href="#timeline-sat">↑ タイムラインへ</a></div>
+  <div class="section-title">⑤ 09:00〜17:59 毎分 土曜 — <span class="cmd">keiba:importOdds</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
   <h3>コード条件の評価（土曜: date('Y-m-d') = '2026-06-06'）</h3>
   <div class="table-wrap"><table class="eval-table">
     <tr><th>条件</th><th>コード</th><th>評価</th><th>動作</th></tr>
@@ -521,20 +521,20 @@
   <h3>ODDS_GET_TIMING 動作シミュレーション（阪神1R 09:50発走を例に）</h3>
   <div class="timing-wrap"><table class="timing-table">
     <tr>
-      <th>cron起動時刻</th><th>残り分数(diff)</th><th>in_array チェック</th><th>動作</th><th>minutes_before_start</th><th>保存方法</th>
+      <th>cron起動時刻</th><th>残り分(diff)</th><th>in_array</th><th>動作</th><th>minutes_before_start</th><th>保存方法</th>
     </tr>
     <tr class="miss"><td>09:00〜09:25</td><td>50〜25</td><td>× 非該当</td><td>スキップ</td><td>—</td><td>—</td></tr>
-    <tr class="hit"><td>09:26</td><td>24</td><td>✓ 合致</td><td><strong>取得・保存</strong></td><td>999</td><td>upsert（importBaseOddsを上書き）</td></tr>
+    <tr class="hit"><td>09:26</td><td>24</td><td>✓</td><td><strong>取得・保存</strong></td><td>999</td><td>upsert（importBaseOddsを上書き）</td></tr>
     <tr class="miss"><td>09:27〜09:28</td><td>23〜22</td><td>× 非該当</td><td>スキップ</td><td>—</td><td>—</td></tr>
-    <tr class="hit"><td>09:29</td><td>21</td><td>✓ 合致</td><td><strong>取得・保存</strong></td><td>21</td><td>insert</td></tr>
-    <tr class="hit"><td>09:32</td><td>18</td><td>✓ 合致</td><td><strong>取得・保存</strong></td><td>18</td><td>insert</td></tr>
-    <tr class="hit"><td>09:35</td><td>15</td><td>✓ 合致</td><td><strong>取得・保存</strong></td><td>15</td><td>insert</td></tr>
-    <tr class="hit"><td>09:38</td><td>12</td><td>✓ 合致</td><td><strong>取得・保存</strong></td><td>12</td><td>insert</td></tr>
-    <tr class="hit"><td>09:41</td><td>9</td><td>✓ 合致</td><td><strong>取得・保存</strong></td><td>9</td><td>insert</td></tr>
-    <tr class="hit"><td>09:44</td><td>6</td><td>✓ 合致</td><td><strong>取得・保存</strong></td><td>6</td><td>insert</td></tr>
-    <tr class="hit"><td>09:47</td><td>3</td><td>✓ 合致</td><td><strong>取得・保存</strong></td><td>3</td><td>insert</td></tr>
-    <tr class="hit"><td>09:50</td><td>0</td><td>✓ 合致</td><td><strong>取得・保存</strong></td><td>-999</td><td>insert（確定オッズ）</td></tr>
-    <tr class="miss"><td>09:51〜</td><td>-1以下</td><td>発走済み判定</td><td>スキップ</td><td>—</td><td>—</td></tr>
+    <tr class="hit"><td>09:29</td><td>21</td><td>✓</td><td><strong>取得・保存</strong></td><td>21</td><td>insert</td></tr>
+    <tr class="hit"><td>09:32</td><td>18</td><td>✓</td><td><strong>取得・保存</strong></td><td>18</td><td>insert</td></tr>
+    <tr class="hit"><td>09:35</td><td>15</td><td>✓</td><td><strong>取得・保存</strong></td><td>15</td><td>insert</td></tr>
+    <tr class="hit"><td>09:38</td><td>12</td><td>✓</td><td><strong>取得・保存</strong></td><td>12</td><td>insert</td></tr>
+    <tr class="hit"><td>09:41</td><td>9</td><td>✓</td><td><strong>取得・保存</strong></td><td>9</td><td>insert</td></tr>
+    <tr class="hit"><td>09:44</td><td>6</td><td>✓</td><td><strong>取得・保存</strong></td><td>6</td><td>insert</td></tr>
+    <tr class="hit"><td>09:47</td><td>3</td><td>✓</td><td><strong>取得・保存</strong></td><td>3</td><td>insert</td></tr>
+    <tr class="hit"><td>09:50</td><td>0</td><td>✓</td><td><strong>取得・保存</strong></td><td>-999</td><td>insert（確定オッズ）</td></tr>
+    <tr class="miss"><td>09:51〜</td><td>-1以下</td><td>発走済み</td><td>スキップ</td><td>—</td><td>—</td></tr>
   </table></div>
   <p class="note">→ 1レースにつきtimingスナップショットは最大9回（importBaseOddsの999を含めると計10回）保存される。</p>
 
@@ -586,7 +586,7 @@ timingの値:
 
 <!-- ========== ⑥ importRaceResult（土曜） ========== -->
 <div id="sat-result" class="section">
-  <div class="section-title">⑥ 09:00〜17:59 毎分 土曜 — <span class="cmd">keiba:importRaceResult</span><a class="back-link" href="#timeline-sat">↑ タイムラインへ</a></div>
+  <div class="section-title">⑥ 09:00〜17:59 毎分 土曜 — <span class="cmd">keiba:importRaceResult</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
   <h3>コード条件の評価（土曜: date('Y-m-d') = '2026-06-06'）</h3>
   <div class="table-wrap"><table class="eval-table">
     <tr><th>条件</th><th>コード</th><th>評価</th><th>動作</th></tr>
@@ -639,7 +639,7 @@ timingの値:
   <h3>odds_get_timing の上書き関係</h3>
   <pre>
 同じtimingに対してimportOddsとimportRaceResultが両方書く:
-  importOdds     → odds_from='JRA'     で先に書く（多くの場合）
+  importOdds       → odds_from='JRA'      で先に書く（多くの場合）
   importRaceResult → odds_from='netkeiba' で後から上書き
 
 → 最終的に odds_get_timing の odds_from は 'netkeiba' になることが多い
@@ -649,18 +649,18 @@ timingの値:
     <span class="table-badge upsert">t_horse_odds_finder_netkeiba_odds（999はupsert、-999は条件付きinsert、他insert）</span>
     <span class="table-badge upsert">t_horse_odds_finder_odds_get_timing（upsert、odds_from='netkeiba'）</span>
   </div>
-  <div class="risk">netkeibaがレースデータを未公開の場合「JSONパース失敗」でそのレースをスキップする。当日レースは公開済みのため通常は問題なし（デバッグ実行で前日に一部失敗したのはネットケイバが未公開だったため、正常動作）。</div>
+  <div class="risk">netkeibaがレースデータを未公開の場合「JSONパース失敗」でそのレースをスキップする。当日レースは公開済みのため通常は問題なし。</div>
 </div>
 
 <!-- ========== 日曜 ========== -->
 <div id="sun-overview" class="day-header sun">日曜日 2026-06-07　date('w') = '0'</div>
 
 <div class="section sun">
-  <div class="section-title sun">日曜の最大の特徴 — 土曜に動いた4コマンドは全て動かない<a class="back-link" href="#timeline-sun">↓ タイムラインへ</a></div>
+  <div class="section-title sun">日曜の特徴 — 土曜より動くコマンドが少ない（importScheduleは動く）<a class="back-link" href="#timeline-sun">↓ TLへ</a></div>
   <div class="diff-box">
     <div class="diff-box-title">土曜と日曜の違い（cron設定より）</div>
     <div class="table-wrap"><table class="eval-table">
-      <tr><th>コマンド</th><th>土曜のcron</th><th>日曜</th><th>理由</th></tr>
+      <tr><th>コマンド</th><th>cron</th><th>日曜</th><th>理由</th></tr>
       <tr>
         <td>deleteKeibaTableRecords</td>
         <td class="code">50 5 * * 6</td>
@@ -669,9 +669,9 @@ timingの値:
       </tr>
       <tr>
         <td>importSchedule</td>
-        <td class="code">0 6 * * 6</td>
-        <td class="result-skip">実行されない</td>
-        <td>土曜のimportScheduleで土日分INSERT済みのため不要。</td>
+        <td class="code">0 6 * * *</td>
+        <td class="result-ok">実行される ✓</td>
+        <td>毎日実行。日曜は当日分（日曜）のみフィルターして再INSERT。最新化。</td>
       </tr>
       <tr>
         <td>importRace</td>
@@ -701,46 +701,55 @@ timingの値:
   </div>
   <h3>日曜朝9:00時点でのDB状態（土曜のコマンドが全て正常終了した前提）</h3>
   <div class="db-state">
-    <div class="db-state-title">日曜 09:00時点のDB（土曜分のデータが残っている）</div>
+    <div class="db-state-title">日曜 09:00時点のDB</div>
     <div class="db-row">
-      <span class="db-ok">schedules: 土日2日分（土曜insertしたまま）</span>
-      <span class="db-ok">races: 土日24レース（土曜insertしたまま）</span>
-      <span class="db-ok">horses: 土日全馬分（土曜insertしたまま）</span>
+      <span class="db-ok">schedules: 日曜分（06:00のimportScheduleで最新化済み）</span>
+      <span class="db-ok">races: 土日24レース（土曜+06:00で日曜分更新）</span>
+      <span class="db-ok">horses: 土日全馬分（同上）</span>
       <span class="db-ok">odds: 土日全馬分999 + 土曜分スナップショット多数</span>
-      <span class="db-ok">netkeiba_races: 土日両日分（土曜upsertしたまま）</span>
+      <span class="db-ok">netkeiba_races: 土日両日分</span>
       <span class="db-ok">netkeiba_odds: 土曜分のスナップショット多数</span>
       <span class="db-ok">odds_wide: 土曜分のワイドオッズ多数</span>
       <span class="db-ok">odds_get_timing: 土曜分の記録多数</span>
     </div>
   </div>
-  <div class="ok">日曜の999オッズは土曜朝7時のimportBaseOddsで取得済み。日曜のimportOddsがdiff=24に合致したタイミングでその999レコードをupsert（上書き更新）する。</div>
+  <div class="ok">日曜の999オッズは土曜朝7時のimportBaseOddsで取得済み。日曜のimportOddsがdiff=24に合致したタイミングでupsert（上書き更新）する。</div>
 </div>
 
 <!-- ========== 日曜タイムライン ========== -->
 <div id="timeline-sun" class="day-header sun">日曜日 2026-06-07　実行タイムライン</div>
 <div class="timeline">
   <div class="tl-item">
-    <div class="tl-time">00:00〜<br>08:59</div>
+    <div class="tl-time sun">00:00〜<br>05:59</div>
     <div class="tl-dot sun"></div>
     <div class="tl-box">
       <div class="tl-title">何も実行されない</div>
-      <div class="tl-sub">土曜夜〜日曜朝9時前はcronが何も動かない。DB内に土曜のデータが蓄積されたまま残っている。</div>
+      <div class="tl-sub">土曜夜〜日曜深夜はcronが何も動かない。DBに土曜のデータが蓄積されたまま残っている。</div>
     </div>
   </div>
   <div class="tl-item">
-    <div class="tl-time">09:00〜<br>17:59</div>
+    <div class="tl-time sun">06:00</div>
     <div class="tl-dot sun"></div>
     <div class="tl-box">
-      <div class="tl-title">⑦ keiba:importOdds（毎分）</div>
+      <div class="tl-title">⑦ keiba:importSchedule（日曜分を最新化）</div>
+      <div class="tl-sub">毎日実行（<code>0 6 * * *</code>）。日曜は date('w') !== '6' → 当日分フィルター。日曜のスケジュール・レース・馬情報を最新状態に更新する。</div>
+      <a class="tl-link" href="#sun-schedule">→ 詳細を見る</a>
+    </div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-time sun">09:00〜<br>17:59</div>
+    <div class="tl-dot sun"></div>
+    <div class="tl-box">
+      <div class="tl-title">⑧ keiba:importOdds（毎分）</div>
       <div class="tl-sub">date='2026-06-07'の日曜レースのみ処理。土曜レースは<code>diff &lt; 0</code>で全スキップ。動作ロジックは土曜と全く同じ。</div>
       <a class="tl-link" href="#sun-odds">→ 詳細を見る</a>
     </div>
   </div>
   <div class="tl-item">
-    <div class="tl-time">09:00〜<br>17:59</div>
+    <div class="tl-time sun">09:00〜<br>17:59</div>
     <div class="tl-dot sun"></div>
     <div class="tl-box">
-      <div class="tl-title">⑧ keiba:importRaceResult（毎分）</div>
+      <div class="tl-title">⑨ keiba:importRaceResult（毎分）</div>
       <div class="tl-sub">date='2026-06-07'の日曜netkeiba_racesのみ処理。土曜レースはスキップ。動作ロジックは土曜と全く同じ。</div>
       <a class="tl-link" href="#sun-result">→ 詳細を見る</a>
     </div>
@@ -749,9 +758,70 @@ timingの値:
 
 <br>
 
-<!-- ========== ⑦ importOdds（日曜） ========== -->
+<!-- ========== ⑦ importSchedule（日曜） ========== -->
+<div id="sun-schedule" class="section sun">
+  <div class="section-title sun">⑦ 06:00 日曜 — <span class="cmd">keiba:importSchedule</span>（毎日実行・当日分のみ）<a class="back-link" href="#timeline-sun">↑ TLへ</a></div>
+  <div class="diff-box">
+    <div class="diff-box-title">土曜との差分</div>
+    <div class="table-wrap"><table class="eval-table">
+      <tr><th>項目</th><th>土曜</th><th>日曜</th></tr>
+      <tr>
+        <td>date('w')</td>
+        <td class="code">'6'</td>
+        <td class="code">'0'</td>
+      </tr>
+      <tr>
+        <td>日付フィルター</td>
+        <td>date('w') === '6' → <strong>フィルターなし</strong>（土日両日分）</td>
+        <td>date('w') !== '6' → <strong>当日分のみ</strong>（日曜分のみ）</td>
+      </tr>
+      <tr>
+        <td>INSERT対象</td>
+        <td>土日両日分のschedules/races/horses</td>
+        <td>日曜分のみ再INSERT（最新化）</td>
+      </tr>
+      <tr>
+        <td>odds DELETE</td>
+        <td>TRUNCATE済みなので0件</td>
+        <td>日曜分のoddsをDELETE（999含む）→ importOddsが再取得</td>
+      </tr>
+    </table></div>
+  </div>
+  <h3>コード条件の評価（日曜: date('w') = '0'）</h3>
+  <div class="table-wrap"><table class="eval-table">
+    <tr><th>条件</th><th>コード</th><th>評価</th><th>動作</th></tr>
+    <tr>
+      <td>木曜・金曜チェック</td>
+      <td class="code">date('w')==='4' || date('w')==='5'<br>= '0'==='4' || '0'==='5' = <strong>false</strong></td>
+      <td class="result-ok">false → スキップしない</td>
+      <td>処理続行 ✓</td>
+    </tr>
+    <tr>
+      <td>日付フィルター</td>
+      <td class="code">date('w') !== '6'<br>= '0' !== '6' = <strong>true</strong></td>
+      <td class="result-ok">true → 当日（日曜）分のみ</td>
+      <td>日曜分のみ処理 ✓</td>
+    </tr>
+  </table></div>
+  <h3>処理フロー</h3>
+  <pre>
+1. Node.js (keibaOddsGetSchedule.mjs) を timeout 300s で実行
+   └─ JRAサイトをスクレイピング → 当日（日曜）の開催情報を取得
+2. datesToDelete = ['2026-06-07']（日曜のみ）
+3. トランザクション開始
+   ├─ date='2026-06-07' のschedules/races/horses をDELETE → INSERT（最新化）
+   └─ date='2026-06-07' の odds をDELETE
+        ※ 土曜importBaseOddsが入れた日曜999オッズも消える
+4. コミット
+
+→ importOddsがdiff=24のタイミングで999オッズを再取得（INSERT）する</pre>
+  <div class="ok">出走取消・枠順変更など当日の変更を反映できる。</div>
+  <div class="info">土曜のimportBaseOddsで保存した日曜分の999オッズは一旦削除される。importOddsのdiff=24で「existsチェック→存在しない→INSERT」として再作成されるため問題なし。</div>
+</div>
+
+<!-- ========== ⑧ importOdds（日曜） ========== -->
 <div id="sun-odds" class="section sun">
-  <div class="section-title sun">⑦ 09:00〜17:59 毎分 日曜 — <span class="cmd">keiba:importOdds</span><a class="back-link" href="#timeline-sun">↑ タイムラインへ</a></div>
+  <div class="section-title sun">⑧ 09:00〜17:59 毎分 日曜 — <span class="cmd">keiba:importOdds</span><a class="back-link" href="#timeline-sun">↑ TLへ</a></div>
   <div class="diff-box">
     <div class="diff-box-title">土曜との差分（ここだけ読めばOK）</div>
     <div class="table-wrap"><table class="eval-table">
@@ -763,18 +833,18 @@ timingの値:
       </tr>
       <tr>
         <td>取得対象レース</td>
-        <td>土曜12レース×2会場（最大24件）</td>
-        <td>日曜12レース×2会場（最大24件）</td>
+        <td>土曜12レース×2会場</td>
+        <td>日曜12レース×2会場</td>
       </tr>
       <tr>
         <td>土曜レースの扱い</td>
-        <td>where('date','2026-06-06')に合致</td>
+        <td>where句に合致</td>
         <td class="result-skip">where句に合致しないので取得されない</td>
       </tr>
       <tr>
         <td>diff=24 のupsert先</td>
-        <td>importBaseOddsが土曜分を999でinsert済み → それをupsert</td>
-        <td>importBaseOddsが<strong>日曜分も</strong>999でinsert済み → それをupsert</td>
+        <td>importBaseOddsが土曜分999でinsert済み → upsert</td>
+        <td>06:00のimportScheduleでoddsが削除済み → <strong>INSERT</strong>として実行</td>
       </tr>
       <tr>
         <td>ロジック・コード</td>
@@ -782,71 +852,37 @@ timingの値:
       </tr>
     </table></div>
   </div>
-  <h3>コード条件の評価（日曜: date('w') = '0'）</h3>
-  <div class="table-wrap"><table class="eval-table">
-    <tr><th>条件</th><th>コード</th><th>評価</th><th>動作</th></tr>
-    <tr>
-      <td>ロックファイル</td>
-      <td class="code">file_exists('/tmp/keiba_importOdds.lock')</td>
-      <td class="result-ok">前回プロセスが終わっていれば存在しない</td>
-      <td>正常 ✓</td>
-    </tr>
-    <tr>
-      <td>DEBUGフラグ</td>
-      <td class="code">$isDebug = false</td>
-      <td>—</td>
-      <td>通常モード</td>
-    </tr>
-    <tr>
-      <td>対象日付</td>
-      <td class="code">where('date', date('Y-m-d'))<br>= where('date', '2026-06-07')</td>
-      <td class="result-ok">日曜レースのみ取得。土曜分は出てこない ✓</td>
-      <td>正常 ✓</td>
-    </tr>
-    <tr>
-      <td>土曜レースの扱い</td>
-      <td class="code">土曜レースはwhere('date','2026-06-07')に合致しないため<br>そもそもSELECTされない</td>
-      <td class="result-ok">土曜レースは完全無視 ✓</td>
-      <td>正常（土日混在の心配なし）</td>
-    </tr>
-    <tr>
-      <td>日曜レースの999オッズ存在確認</td>
-      <td class="code">diff=24 → upsert（exists check）</td>
-      <td class="result-ok">土曜importBaseOddsで日曜分も999insert済み → UPDATE ✓</td>
-      <td>重複INSERT起きない ✓</td>
-    </tr>
-  </table></div>
   <h3>日曜の1レースが辿るパス（例: 阪神1R 09:50発走）</h3>
   <pre>
 土曜07:05 importBaseOdds:
   → t_horse_odds_finder_odds に INSERT (date='2026-06-07', race=1, <span class="hl">minutes_before_start=999</span>)
 
+日曜06:00 importSchedule:
+  → date='2026-06-07' の odds をDELETE（上記の999レコードが消える）
+
 日曜09:26 importOdds (diff=24):
-  → t_horse_odds_finder_odds の999レコードを <span class="hl">UPDATE</span>（最新のオッズで上書き）
+  → exists check → 存在しない → <span class="hl">INSERT</span> (minutes_before_start=999)
   → t_horse_odds_finder_odds_get_timing に INSERT (timing=999, odds_from='JRA')
 
 日曜09:29 importOdds (diff=21):
   → t_horse_odds_finder_odds に <span class="hl">INSERT</span> (minutes_before_start=21)
-  → t_horse_odds_finder_odds_get_timing に INSERT (timing=21)
 
   ... 中略（18, 15, 12, 9, 6, 3 も同様）...
 
 日曜09:50 importOdds (diff=0):
-  → t_horse_odds_finder_odds に <span class="hl">INSERT</span> (minutes_before_start=-999)
-  → t_horse_odds_finder_odds_get_timing に INSERT (timing=-999)</pre>
+  → t_horse_odds_finder_odds に <span class="hl">INSERT</span> (minutes_before_start=-999)</pre>
   <h3>影響テーブル（土曜と同じ）</h3>
   <div class="table-list">
     <span class="table-badge upsert">t_horse_odds_finder_odds（日曜分を追加）</span>
     <span class="table-badge upsert">t_horse_odds_finder_odds_wide（日曜分を追加）</span>
     <span class="table-badge upsert">t_horse_odds_finder_odds_get_timing（日曜分を追加）</span>
   </div>
-  <div class="ok">日曜分の999オッズは土曜importBaseOddsで準備済みなので、diff=24のupsertは重複なく正常に動く。</div>
   <div class="ok">土曜のデータはDBに残ったままだが、where句でdate='2026-06-07'に絞っているので土日混在しない。</div>
 </div>
 
-<!-- ========== ⑧ importRaceResult（日曜） ========== -->
+<!-- ========== ⑨ importRaceResult（日曜） ========== -->
 <div id="sun-result" class="section sun">
-  <div class="section-title sun">⑧ 09:00〜17:59 毎分 日曜 — <span class="cmd">keiba:importRaceResult</span><a class="back-link" href="#timeline-sun">↑ タイムラインへ</a></div>
+  <div class="section-title sun">⑨ 09:00〜17:59 毎分 日曜 — <span class="cmd">keiba:importRaceResult</span><a class="back-link" href="#timeline-sun">↑ TLへ</a></div>
   <div class="diff-box">
     <div class="diff-box-title">土曜との差分</div>
     <div class="table-wrap"><table class="eval-table">
@@ -858,8 +894,8 @@ timingの値:
       </tr>
       <tr>
         <td>取得元テーブル</td>
-        <td>t_horse_odds_finder_netkeiba_races<br>where date='2026-06-06'</td>
-        <td>t_horse_odds_finder_netkeiba_races<br>where date='2026-06-07'</td>
+        <td>netkeiba_races where date='2026-06-06'</td>
+        <td>netkeiba_races where date='2026-06-07'</td>
       </tr>
       <tr>
         <td>netkeiba_racesの日曜分</td>
@@ -872,40 +908,6 @@ timingの値:
       </tr>
     </table></div>
   </div>
-  <h3>コード条件の評価（日曜: date('Y-m-d') = '2026-06-07'）</h3>
-  <div class="table-wrap"><table class="eval-table">
-    <tr><th>条件</th><th>コード</th><th>評価</th><th>動作</th></tr>
-    <tr>
-      <td>ロックファイル</td>
-      <td class="code">file_exists('/tmp/keiba_importRaceResult.lock')</td>
-      <td class="result-ok">importOddsとは別ロック</td>
-      <td>正常 ✓</td>
-    </tr>
-    <tr>
-      <td>DEBUGフラグ</td>
-      <td class="code">$isDebug = false</td>
-      <td>—</td>
-      <td>通常モード</td>
-    </tr>
-    <tr>
-      <td>対象日付</td>
-      <td class="code">where('date', '2026-06-07')<br>→ t_horse_odds_finder_netkeiba_races</td>
-      <td class="result-ok">日曜分のnetkeiba_races取得 ✓</td>
-      <td>正常 ✓</td>
-    </tr>
-    <tr>
-      <td>netkeiba_racesに日曜分があるか</td>
-      <td class="code">土曜のimportRaceでupsert済み</td>
-      <td class="result-ok">取得できる ✓</td>
-      <td>正常 ✓</td>
-    </tr>
-    <tr>
-      <td>JSONパース失敗</td>
-      <td class="code">empty($data['data']) → スキップ</td>
-      <td class="result-ok">日曜当日はnetkeiba公開済み → 通常OK</td>
-      <td>正常 ✓</td>
-    </tr>
-  </table></div>
   <h3>影響テーブル（土曜と同じ）</h3>
   <div class="table-list">
     <span class="table-badge upsert">t_horse_odds_finder_netkeiba_odds（日曜分を追加）</span>
@@ -923,7 +925,7 @@ timingの値:
       <td><a class="anchor-link" href="#sat-delete">05:50 TRUNCATE → 06:00 INSERT</a></td>
       <td>cronの順番通り。削除してから入れる。</td>
       <td class="result-ok">✓</td>
-      <td class="result-skip">N/A（土曜のみ実行）</td>
+      <td class="result-skip">N/A（土曜のみ）</td>
     </tr>
     <tr>
       <td><a class="anchor-link" href="#sat-schedule">importScheduleの日付フィルター（土曜）</a></td>
@@ -932,10 +934,16 @@ timingの値:
       <td class="result-skip">N/A</td>
     </tr>
     <tr>
+      <td><a class="anchor-link" href="#sun-schedule">importSchedule（日曜）が当日分を最新化</a></td>
+      <td>毎日実行（0 6 * * *）。日曜は当日分のみフィルター。出走取消・枠順変更に対応。</td>
+      <td class="result-skip">N/A</td>
+      <td class="result-ok">✓</td>
+    </tr>
+    <tr>
       <td><a class="anchor-link" href="#sat-schedule">importScheduleの完了タイミング</a></td>
       <td>timeout 300s=最大5分。06:05完了。06:20まで余裕あり。</td>
       <td class="result-ok">✓</td>
-      <td class="result-skip">N/A</td>
+      <td class="result-skip">N/A（importRace不要）</td>
     </tr>
     <tr>
       <td><a class="anchor-link" href="#sat-baseodds">importBaseOddsが土日両日分取得</a></td>
@@ -944,8 +952,8 @@ timingの値:
       <td class="result-ok">土曜に対応済み ✓</td>
     </tr>
     <tr>
-      <td><a class="anchor-link" href="#sat-odds">diff=24 upsert（importBaseOddsと衝突しない）</a></td>
-      <td>importOddsのdiff=24は既存999レコードをUPDATE。重複INSERTなし。土日共通。</td>
+      <td><a class="anchor-link" href="#sat-odds">diff=24 upsert（重複しない）</a></td>
+      <td>土曜は999レコードUPDATE。日曜はimportScheduleが削除済みのためINSERT。いずれも正常。</td>
       <td class="result-ok">✓</td>
       <td class="result-ok">✓</td>
     </tr>
@@ -959,18 +967,6 @@ timingの値:
       <td><a class="anchor-link" href="#sat-odds">早朝レースのtiming取りこぼし</a></td>
       <td>最初の発走が09:50なのでtiming=24は09:26。cron（9:00〜）で全て捕捉可能。</td>
       <td class="result-ok">✓</td>
-      <td class="result-ok">✓（日曜も同じ発走時間帯）</td>
-    </tr>
-    <tr>
-      <td><a class="anchor-link" href="#sun-overview">日曜にimportSchedule/importRaceが不要</a></td>
-      <td>土曜のimportScheduleで土日両日分を登録済み。日曜は追加作業なし。</td>
-      <td class="result-skip">N/A</td>
-      <td class="result-ok">✓</td>
-    </tr>
-    <tr>
-      <td><a class="anchor-link" href="#sun-odds">日曜のimportOddsがdiff=24をupsertできる</a></td>
-      <td>土曜importBaseOddsで日曜分の999レコードも作成済み。</td>
-      <td class="result-skip">N/A</td>
       <td class="result-ok">✓</td>
     </tr>
     <tr>
@@ -987,14 +983,14 @@ timingの値:
     </tr>
     <tr>
       <td>odds_get_timing の設計</td>
-      <td>キー={date,kaisuu,basho,day,race,timing}。JRA→netkeiba順で後勝ちupsert。timingはキーに残す。</td>
+      <td>キー={date,kaisuu,basho,day,race,timing}。JRA→netkeiba順で後勝ちupsert。</td>
       <td class="result-ok">✓</td>
       <td class="result-ok">✓</td>
     </tr>
   </table></div>
   <br>
   <div class="ok">土曜・日曜ともに現状のコードで本番は問題なく動作する見込み。</div>
-  <div class="info">土曜のimportSchedule・importRace・importBaseOddsは土日両日分のデータを一括取得するため、日曜は追加セットアップが不要。これが設計上のポイント。</div>
+  <div class="info">日曜 06:00 に importSchedule が動き、当日分のデータを最新化する。出走取消などの変更が反映される。</div>
   <div class="risk">唯一のリスクはネットワーク障害・JRA/ネットケイバのサイト障害。各コマンドにリトライ機構があり、importOdds / importRaceResultはcronが毎分再起動するため自己回復する。土曜朝6時前後の障害だけは特に注意（importScheduleが失敗すると日曜分のデータも取れなくなる）。</div>
 </div>
 
