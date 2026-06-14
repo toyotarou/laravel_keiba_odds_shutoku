@@ -5,7 +5,7 @@
  *
  * 処理フロー:
  *   Step A: JRAトップ → 「レース結果」メニュークリック → 開催一覧ページへ
- *   Step B: 直近の開催（最大4件）を対象に「全てのレースを表示」をクリック
+ *   Step B: 直近の開催（最大6件）を対象に「全てのレースを表示」をクリック
  *   Step C: 1ページに全レースの着順が並ぶので解析して取得
  *           ※ 印刷用ページリンクはDIV内にあり tr には存在しない
  *           ※ レース区切りは「印刷用ページ」のonclickを全ページから先に収集して使う
@@ -71,7 +71,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         await page.waitForLoadState('networkidle', { timeout: 30000 });
         await sleep(3000);
 
-        // Step B: 開催リンク取得（先頭4件のみ）
+        // Step B: 開催リンク取得（先頭6件のみ）
         const kaisaiLinks = await page.evaluate(() => {
             const links = [];
             document.querySelectorAll('a').forEach(a => {
@@ -88,7 +88,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             return links;
         });
 
-        const targetKaisai = kaisaiLinks.slice(0, 4);
+        const targetKaisai = kaisaiLinks.slice(0, 6);
         log(`[Step B] 開催リンク総数: ${kaisaiLinks.length} 件 → 先頭 ${targetKaisai.length} 件を対象`);
         targetKaisai.forEach(k => log(`  → ${k.label}`));
 
@@ -147,14 +147,6 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             await page.waitForLoadState('networkidle', { timeout: 30000 });
             await sleep(2000);
 
-            // 「印刷用ページ」リンクはDIV内にある（trには存在しない）
-            // → 全ページから印刷用CNAMEを収集し、レース番号→TBODY内の位置を対応付ける
-            //
-            // 戦略:
-            //   1. 「印刷用ページ」onclickからレース番号リストを順番に収集
-            //   2. TBODYの各trを走査し、着順=1が出るたびにレース番号を進める
-            //   3. 着順・馬番・馬名・騎手を取得
-
             const raceData = await page.evaluate(({ kaisuu, basho, day }) => {
                 const results = [];
 
@@ -169,9 +161,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
                 if (raceNums.length === 0) return [];
 
-                let raceIdx   = 0;       // raceNums のインデックス
+                let raceIdx   = 0;
                 let currentRace = raceNums[0];
-                let firstOfRace = true;  // そのレースの最初の行かどうか
+                let firstOfRace = true;
 
                 const rows = [...document.querySelectorAll('tbody tr')];
 
