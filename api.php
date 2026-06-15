@@ -21,3 +21,5 @@ Route::get('getHorseOddsFinderOddsWide', [ApiController::class, 'getHorseOddsFin
 Route::get('getHorseOddsFinderSummary', [ApiController::class, 'getHorseOddsFinderSummary']);
 
 Route::get('getHorseOddsFinderSummaryOneRace', [ApiController::class, 'getHorseOddsFinderSummaryOneRace']);
+
+Route::get('getHorseOddsFinderRaceOneResult', [ApiController::class, 'getHorseOddsFinderRaceOneResult']);
