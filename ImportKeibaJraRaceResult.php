@@ -112,7 +112,7 @@ class ImportKeibaJraRaceResult extends Command
             return null;
         }
 
-        // timeout 300: 4開催×ページ遷移があるため余裕を持たせる
+        // timeout 300: 6開催×ページ遷移があるため余裕を持たせる
         $command = 'timeout 300 ' . $nodeBin . ' ' . escapeshellarg($scriptPath) . ' 2>/dev/null';
         $output  = shell_exec($command);
 
