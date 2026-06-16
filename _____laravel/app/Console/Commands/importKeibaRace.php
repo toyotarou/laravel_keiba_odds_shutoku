@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
+use App\Services\LineService;
+
 class ImportKeibaRace extends Command
 {
     protected $signature = 'keiba:importRace';
@@ -108,6 +110,17 @@ class ImportKeibaRace extends Command
         }
 
         $this->info('全日程の取り込み完了');
+        
+
+
+        try {
+            app(LineService::class)->send('ImportKeibaRace::handle');
+        } catch (\Exception $e) {
+            \Log::warning('LINE送信失敗: ' . $e->getMessage());
+        }
+        
+
+
     }
 
     private function fetchRaceListAll(): ?string

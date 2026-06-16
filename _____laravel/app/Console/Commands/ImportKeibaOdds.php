@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\DB;
 
 use App\Constants\Constants;
 
+use App\Services\LineService;
+
 /**
  * cronで毎分実行される。
  * $ary に合致する発走前分数のレースのみオッズを取得してDBに保存する。
@@ -240,6 +242,17 @@ class ImportKeibaOdds extends Command
                 $wideTotalSec = number_format($wideTotalMs / 1000, 2);
                 $this->info("  [Wide] DB保存完了 → {$wideSaved} 組 (合計 {$wideTotalSec}秒 / {$wideTotalMs}ms)");
             }
+            
+
+
+            try {
+                app(LineService::class)->send('ImportKeibaOdds::handle');
+            } catch (\Exception $e) {
+                \Log::warning('LINE送信失敗: ' . $e->getMessage());
+            }
+            
+
+
         }
 
         $this->info('');
@@ -296,3 +309,9 @@ class ImportKeibaOdds extends Command
         return $odds;
     }
 }
+
+
+
+
+
+

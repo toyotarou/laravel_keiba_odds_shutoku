@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
+use App\Services\LineService;
+
 /**
  * cronで実行される。
  * t_horse_odds_finder_netkeiba_odds のデータをもとに
@@ -194,5 +196,16 @@ class SummaryKeibaInfo extends Command
         $this->info('');
         $this->info('========== keiba:summary 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
+        
+
+
+        try {
+            app(LineService::class)->send('SummaryKeibaInfo::handle');
+        } catch (\Exception $e) {
+            \Log::warning('LINE送信失敗: ' . $e->getMessage());
+        }
+        
+
+
     }
 }
