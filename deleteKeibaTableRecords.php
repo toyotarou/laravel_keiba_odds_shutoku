@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
+use App\Services\LineService;
+
 class DeleteKeibaTableRecords extends Command
 {
     protected $signature = 'keiba:deleteKeibaTableRecords';
@@ -73,6 +75,12 @@ class DeleteKeibaTableRecords extends Command
                 unlink($logFile);
                 $this->info("{$logFile} を削除しました。");
             }
+        }
+        
+        try {
+            app(LineService::class)->send('DeleteKeibaTableRecords::handle');
+        } catch (\Exception $e) {
+            \Log::warning('LINE送信失敗: ' . $e->getMessage());
         }
         
         return 0;

@@ -8,6 +8,8 @@ use DB;
 
 use App\Constants\Constants;
 
+use App\Services\LineService;
+
 class ApiController extends Controller
 {
 
@@ -192,6 +194,12 @@ class ApiController extends Controller
             ->orderBy('result')
             ->get();
             
+        try {
+            app(LineService::class)->send('getHorseOddsFinderRaceOneResultが呼ばれました。');
+        } catch (\Exception $e) {
+            \Log::warning('LINE送信失敗: ' . $e->getMessage());
+        }
+        
         return response()->json(['data' => $result]);
     }
     
