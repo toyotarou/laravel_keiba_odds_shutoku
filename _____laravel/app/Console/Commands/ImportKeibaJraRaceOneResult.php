@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
+use App\Services\LineService;
+
 /**
  * 発走時刻から一定時間後（10〜30分）に1レース分の結果を取得し、
  * t_horse_odds_finder_race_results にINSERTする。
@@ -171,6 +173,17 @@ class ImportKeibaJraRaceOneResult extends Command
                     }
                 }
             }
+            
+
+
+            try {
+                app(LineService::class)->send('ImportKeibaJraRaceOneResult::handle');
+            } catch (\Exception $e) {
+                \Log::warning('LINE送信失敗: ' . $e->getMessage());
+            }
+            
+
+
         }
 
         $this->info("INSERT完了 → 登録: {$inserted} 件 / スキップ: {$skipped} 件");
@@ -207,3 +220,11 @@ class ImportKeibaJraRaceOneResult extends Command
         return null;
     }
 }
+
+
+
+
+
+
+
+

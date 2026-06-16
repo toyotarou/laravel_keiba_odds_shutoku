@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
+use App\Services\LineService;
+
 /**
  * ImportKeibaSchedule
  *
@@ -365,7 +367,15 @@ class ImportKeibaSchedule extends Command
         $this->info('');
         $this->info('=== 競馬スケジュール取得処理 ── 正常終了 ===');
         $this->info('');
+        
 
+
+        try {
+            app(LineService::class)->send('ImportKeibaSchedule::handle');
+        } catch (\Exception $e) {
+            \Log::warning('LINE送信失敗: ' . $e->getMessage());
+        }
+        
 
 
         return 0;
