@@ -113,8 +113,8 @@ $body = <<<HTML
 body {min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0f0f0f; font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif; color: #e0e0e0; padding: 20px;}
 .card {background: #1c1c1e; border-radius: 16px; padding: 48px 40px; max-width: 480px; width: 100%; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.4); border: 1px solid #2c2c2e;}
 .icon { font-size: 64px; margin-bottom: 24px; }
-h1 { font-size: 22px; font-weight: 700; color: {COLOR}; margin-bottom: 12px; }
-p  { font-size: 15px; color: #9e9e9e; line-height: 1.6; }
+h1 { font-size: 18px; font-weight: 700; color: {COLOR}; margin-bottom: 12px; }
+p  { font-size: 12px; color: #9e9e9e; line-height: 1.6; }
 .app-name {margin-top: 40px; font-size: 12px; color: #555; letter-spacing: 0.05em; text-transform: uppercase;}
 </style>
 
