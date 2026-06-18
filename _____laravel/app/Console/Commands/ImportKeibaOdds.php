@@ -235,7 +235,7 @@ class ImportKeibaOdds extends Command
             if ($changeRecords) {
                 try {
                     app(LineService::class)->send(
-                        $this->buildOddsChangeMessage($race, $changeRecords, $horseNames)
+                        $this->buildOddsChangeMessage($race, $changeRecords, $horseNames, $diff)
                     );
                     $this->info('  [LINE] オッズ変動通知を送信しました。(' . count($changeRecords) . '頭)');
                 } catch (\Exception $e) {
@@ -340,13 +340,14 @@ class ImportKeibaOdds extends Command
     /**
      * LINE通知用のオッズ変動メッセージを組み立てる。
      */
-    private function buildOddsChangeMessage(object $race, array $changeRecords, array $horseNames): string
+    private function buildOddsChangeMessage(object $race, array $changeRecords, array $horseNames, int $diffMinutes): string
     {
         $lines   = [];
         $lines[] = 'オッズ変更がありました。';
         $lines[] = '';
         $lines[] = "{$race->date}　{$race->kaisuu}回{$race->basho_name}{$race->day}日";
         $lines[] = "R{$race->race}　{$race->race_name}";
+        $lines[] = "出走まであと {$diffMinutes} 分";
 
         foreach ($changeRecords as $change) {
             $name    = $horseNames[$change['num']] ?? '不明';

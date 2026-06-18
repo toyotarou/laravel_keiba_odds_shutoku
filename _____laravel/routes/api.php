@@ -6,6 +6,9 @@ use App\Http\Controllers\Api\ApiController;
 use App\Http\Controllers\Api\LineWebhookController;
 Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
 
+Route::post('signup', [ApiController::class, 'signup']);
+Route::post('signin', [ApiController::class, 'signin']);
+
 Route::get('getHorseOddsFinderConfigs', [ApiController::class, 'getHorseOddsFinderConfigs']);
 
 Route::get('getHorseOddsFinderSchedules', [ApiController::class, 'getHorseOddsFinderSchedules']);
