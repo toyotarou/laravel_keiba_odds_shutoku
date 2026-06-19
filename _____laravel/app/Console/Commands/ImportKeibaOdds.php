@@ -64,6 +64,8 @@ class ImportKeibaOdds extends Command
             return;
         }
 
+        $totalInserted = 0;
+
         // ── レースごとの処理 ──────────────────────────────────────────
         foreach ($races as $race) {
 
@@ -226,6 +228,7 @@ class ImportKeibaOdds extends Command
             $totalMs  = round((microtime(true) - $raceStart) * 1000);
             $totalSec = number_format($totalMs / 1000, 2);
             $this->info("  [単複] DB保存完了 → {$saved} 頭分 (合計 {$totalSec}秒 / {$totalMs}ms)");
+            $totalInserted += $saved;
 
             // ── オッズ変動のログ出力・LINE通知 ────────────────────────────
             foreach ($changeRecords as $change) {
@@ -234,7 +237,7 @@ class ImportKeibaOdds extends Command
 
             if ($changeRecords) {
                 try {
-                    app(LineService::class)->send(
+                    app(LineService::class)->sendLineOddsNews(
                         $this->buildOddsChangeMessage($race, $changeRecords, $horseNames, $diff)
                     );
                     $this->info('  [LINE] オッズ変動通知を送信しました。(' . count($changeRecords) . '頭)');
@@ -282,7 +285,22 @@ class ImportKeibaOdds extends Command
                 $this->info("  [Wide] DB保存完了 → {$wideSaved} 組 (合計 {$wideTotalSec}秒 / {$wideTotalMs}ms)");
             }
         }
+        
 
+
+        if ($totalInserted > 0) {
+            try {
+                app(LineService::class)->sendLineDevelopperNews(
+                    "ImportKeibaOdds::handle\n" .
+                    "インサート: {$totalInserted} 件"
+                );
+            } catch (\Exception $e) {
+                \Log::warning('LINE送信失敗: ' . $e->getMessage());
+            }
+        }
+        
+
+        
         $this->info('');
         $this->info('========== keiba:importOdds 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
@@ -343,8 +361,9 @@ class ImportKeibaOdds extends Command
     private function buildOddsChangeMessage(object $race, array $changeRecords, array $horseNames, int $diffMinutes): string
     {
         $lines   = [];
-        $lines[] = 'オッズ変更がありました。';
+        $lines[] = '馬眼力OddsFinder News';
         $lines[] = '';
+        $lines[] = 'オッズ変更がありました。';
         $lines[] = "{$race->date}　{$race->kaisuu}回{$race->basho_name}{$race->day}日";
         $lines[] = "R{$race->race}　{$race->race_name}";
         $lines[] = "出走まであと {$diffMinutes} 分";

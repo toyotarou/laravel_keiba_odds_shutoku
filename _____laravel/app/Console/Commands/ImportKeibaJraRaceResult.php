@@ -103,13 +103,17 @@ class ImportKeibaJraRaceResult extends Command
 
 
         try {
-            app(LineService::class)->send('ImportKeibaJraRaceResult::handle');
+            app(LineService::class)->sendLineDevelopperNews(
+                "ImportKeibaJraRaceResult::handle\n" .
+                "更新: {$updated} 件\n" .
+                "スキップ: {$skipped} 件"
+            );
         } catch (\Exception $e) {
             \Log::warning('LINE送信失敗: ' . $e->getMessage());
         }
         
 
-
+        
     }
 
     /**

@@ -9,7 +9,25 @@ use LINE\LINEBot\MessageBuilder\TextMessageBuilder;
 
 class LineService
 {
-    public function send(string $message, array $userIds = []): void
+    public function sendLineDevelopperNews(string $message): void
+    {
+        $token  = config('services.line.channel_access_token');
+        $secret = config('services.line.channel_secret');
+
+        $httpClient = new CurlHTTPClient($token);
+        $bot        = new LINEBot($httpClient, ['channelSecret' => $secret]);
+
+        $messageBuilder = new TextMessageBuilder($message);
+        $response = $bot->multicast(['Ue36f9e60c721d0f54c335b4b4f273399'], $messageBuilder);
+
+        if (!$response->isSucceeded()) {
+            throw new \Exception('LINE送信失敗: ' . $response->getRawBody());
+        }
+    }
+    
+
+
+    public function sendLineOddsNews(string $message, array $userIds = []): void
     {
         $token  = config('services.line.channel_access_token');
         $secret = config('services.line.channel_secret');
@@ -31,16 +49,11 @@ class LineService
         $bot        = new LINEBot($httpClient, ['channelSecret' => $secret]);
 
         $messageBuilder = new TextMessageBuilder($message);
-
-
+        $response = $bot->multicast(array_values($userIds), $messageBuilder);
         
-//        $response = $bot->multicast(array_values($userIds), $messageBuilder);
-        $response = $bot->multicast(['Ue36f9e60c721d0f54c335b4b4f273399'], $messageBuilder);
-
-
-
         if (!$response->isSucceeded()) {
             throw new \Exception('LINE送信失敗: ' . $response->getRawBody());
         }
     }
+    
 }

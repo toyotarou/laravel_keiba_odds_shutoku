@@ -71,7 +71,8 @@ class ImportKeibaRaceResult extends Command
             return;
         }
 
-        $raceIndex = 0;
+        $totalSaved = 0;
+        $raceIndex  = 0;
         foreach ($races as $race) {
             $raceIndex++;
 
@@ -181,18 +182,24 @@ class ImportKeibaRaceResult extends Command
             });
             $totalMs = round((microtime(true) - $raceStart) * 1000);
             $this->info("  DB保存完了 → {$saved} 頭分  (合計 {$totalMs}ms)");
+            $totalSaved += $saved;
             
+        }
+        
 
 
+        if ($totalSaved > 0) {
             try {
-                app(LineService::class)->send('ImportKeibaRaceResult::handle');
+                app(LineService::class)->sendLineDevelopperNews(
+                    "ImportKeibaRaceResult::handle\n" .
+                    "DB保存完了 → {$totalSaved} 頭分"
+                );
             } catch (\Exception $e) {
                 \Log::warning('LINE送信失敗: ' . $e->getMessage());
             }
-            
-
-
         }
+        
+
 
         $this->info('');
         $this->info('========== keiba:importRaceResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');

@@ -173,19 +173,23 @@ class ImportKeibaJraRaceOneResult extends Command
                     }
                 }
             }
-            
+        }
 
 
+        if ($inserted > 0) {
             try {
-                app(LineService::class)->send('ImportKeibaJraRaceOneResult::handle');
+                app(LineService::class)->sendLineDevelopperNews(
+                    "ImportKeibaJraRaceOneResult::handle\n" .
+                    "登録: {$inserted} 件\n" .
+                    "スキップ: {$skipped} 件"
+                );
             } catch (\Exception $e) {
                 \Log::warning('LINE送信失敗: ' . $e->getMessage());
             }
-            
-
-
         }
+        
 
+        
         $this->info("INSERT完了 → 登録: {$inserted} 件 / スキップ: {$skipped} 件");
         $this->info('========== keiba:importJraRaceOneResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
