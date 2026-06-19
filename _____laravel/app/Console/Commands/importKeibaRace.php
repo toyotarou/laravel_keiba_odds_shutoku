@@ -118,7 +118,8 @@ class ImportKeibaRace extends Command
         try {
             app(LineService::class)->sendLineDevelopperNews(
                 "ImportKeibaRace::handle\n" .
-                "{$totalInsertCount} 件 upsert"
+                "{$totalInsertCount} 件 upsert\n" .
+                "完了日時: " . date('Y-m-d H:i:s')
             );
         } catch (\Exception $e) {
             \Log::warning('LINE送信失敗: ' . $e->getMessage());

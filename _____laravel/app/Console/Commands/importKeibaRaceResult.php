@@ -192,7 +192,8 @@ class ImportKeibaRaceResult extends Command
             try {
                 app(LineService::class)->sendLineDevelopperNews(
                     "ImportKeibaRaceResult::handle\n" .
-                    "DB保存完了 → {$totalSaved} 頭分"
+                    "DB保存完了 → {$totalSaved} 頭分\n" .
+                    "完了日時: " . date('Y-m-d H:i:s')
                 );
             } catch (\Exception $e) {
                 \Log::warning('LINE送信失敗: ' . $e->getMessage());

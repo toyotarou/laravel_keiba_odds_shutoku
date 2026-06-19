@@ -292,7 +292,8 @@ class ImportKeibaOdds extends Command
             try {
                 app(LineService::class)->sendLineDevelopperNews(
                     "ImportKeibaOdds::handle\n" .
-                    "インサート: {$totalInserted} 件"
+                    "インサート: {$totalInserted} 件\n" .
+                    "完了日時: " . date('Y-m-d H:i:s')
                 );
             } catch (\Exception $e) {
                 \Log::warning('LINE送信失敗: ' . $e->getMessage());
