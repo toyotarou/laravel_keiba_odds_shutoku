@@ -48,6 +48,7 @@ class ApiController extends Controller
             'password'         => Hash::make($password),
             'is_delete'        => 0,
             'is_verified'      => 0,
+            'is_admin'         => 0,
             'verify_token'     => $token,
             'token_expires_at' => now()->addHours(24),
         ]);
@@ -155,6 +156,26 @@ DB::table('t_horse_odds_finder_login_users')
 
 return $html('✅', 'メール認証が完了しました', 'アプリに戻ってログインしてください。', '#69db7c', 200);
 }
+
+    public function changeAdmin(Request $request)
+    {
+        $id      = $request->input('id');
+        $isAdmin = $request->input('is_admin');
+
+        DB::table('t_horse_odds_finder_login_users')->where('', $id)->update(['is_admin' => $isAdmin]);
+    }
+    
+    public function changeDelete(Request $request)
+    {
+        $id       = $request->input('id');
+        $isDelete = $request->input('is_delete');
+        
+        DB::table('t_horse_odds_finder_login_users')->where('', $id)->update(['is_delete' => $isDelete]);
+    }
+    
+
+
+
 
 
 
@@ -345,14 +366,15 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
             ->orderBy('race')
             ->orderBy('result')
             ->get();
-            
-        // try {
-        //     app(LineService::class)->send('getHorseOddsFinderRaceOneResultが呼ばれました。');
-        // } catch (\Exception $e) {
-        //     \Log::warning('LINE送信失敗: ' . $e->getMessage());
-        // }
-        
         return response()->json(['data' => $result]);
     }
     
+
+
+    public function getHorseOddsFinderLoginUsers()
+    {
+        $result = DB::table('t_horse_odds_finder_login_users')->select('id', 'user_id', 'is_admin', 'is_delete')->get();
+        return response()->json(['data' => $result]);
+    }
+
 }
