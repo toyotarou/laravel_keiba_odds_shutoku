@@ -156,7 +156,8 @@ class ImportKeibaBaseOdds extends Command
                 "ImportKeibaBaseOdds::handle\n" .
                 "処理レース数 : {$totalRaces} 件\n" .
                 "保存頭数合計 : {$totalSaved} 頭\n" .
-                "失敗レース数 : {$failedCount} 件"
+                "失敗レース数 : {$failedCount} 件\n" .
+                "完了日時: " . date('Y-m-d H:i:s')
             );
         } catch (\Exception $e) {
             \Log::warning('LINE送信失敗: ' . $e->getMessage());

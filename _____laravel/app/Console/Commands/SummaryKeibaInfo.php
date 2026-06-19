@@ -204,7 +204,8 @@ class SummaryKeibaInfo extends Command
                 "SummaryKeibaInfo::handle\n" .
                 "INSERT完了: {$inserted} 件\n" .
                 "スキップ（既存）: {$skipped} 件\n" .
-                "エラー（データ不備）: {$errors} 件"
+                "エラー（データ不備）: {$errors} 件\n" .
+                "完了日時: " . date('Y-m-d H:i:s')
             );
         } catch (\Exception $e) {
             \Log::warning('LINE送信失敗: ' . $e->getMessage());

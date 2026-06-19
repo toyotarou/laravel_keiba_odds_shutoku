@@ -131,6 +131,7 @@ class ImportKeibaJraRaceOneResult extends Command
 
             // JRAのレース結果と照合し、合致した馬をINSERT
             // basho_name（例: 東京）と JRA側の basho（例: 東京）で照合する
+            $raceInsertedHorses = [];
             foreach ($results as $v) {
                 if (
                     trim($race->kaisuu)     == trim($v['kaisuu']) and
@@ -167,21 +168,54 @@ class ImportKeibaJraRaceOneResult extends Command
 
                         $this->info("    INSERT: {$v['horse_name']} ({$v['horse_num']}番) → {$v['rank']}着");
                         $inserted++;
+
+                        $raceInsertedHorses[] = [
+                            'rank' => $v['rank'],
+                            'num'  => $v['horse_num'],
+                            'name' => $v['horse_name'],
+                        ];
                     } else {
                         $this->warn("    SKIP (登録済み): {$v['horse_name']} ({$v['horse_num']}番)");
                         $skipped++;
                     }
                 }
             }
-        }
+            
 
+
+            if (!empty($raceInsertedHorses)) {
+                try {
+                    usort($raceInsertedHorses, fn($a, $b) => (int)$a['rank'] <=> (int)$b['rank']);
+
+                    $lines   = [];
+                    $lines[] = '===========================';
+                    $lines[] = '馬眼力OddsFinder News';
+                    $lines[] = '';
+                    $lines[] = 'レース結果が確定しました。';
+                    $lines[] = "{$race->date}　{$race->kaisuu}回{$race->basho_name}{$race->day}日";
+                    $lines[] = "R{$race->race}　{$race->race_name}";
+                    $lines[] = '';
+                    foreach ($raceInsertedHorses as $h) {
+                        $lines[] = $h['rank'] . '着　' . $h['num'] . '　' . $h['name'];
+                    }
+                    $lines[] = '===========================';
+
+                    app(LineService::class)->sendLineOddsNews(implode("\n", $lines));
+
+                } catch (\Exception $e) {
+                    \Log::warning('LINE送信失敗: ' . $e->getMessage());
+                }
+            }
+
+        }
 
         if ($inserted > 0) {
             try {
                 app(LineService::class)->sendLineDevelopperNews(
                     "ImportKeibaJraRaceOneResult::handle\n" .
                     "登録: {$inserted} 件\n" .
-                    "スキップ: {$skipped} 件"
+                    "スキップ: {$skipped} 件\n" .
+                    "完了日時: " . date('Y-m-d H:i:s')
                 );
             } catch (\Exception $e) {
                 \Log::warning('LINE送信失敗: ' . $e->getMessage());
@@ -224,11 +258,3 @@ class ImportKeibaJraRaceOneResult extends Command
         return null;
     }
 }
-
-
-
-
-
-
-
-

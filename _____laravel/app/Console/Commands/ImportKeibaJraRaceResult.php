@@ -106,7 +106,8 @@ class ImportKeibaJraRaceResult extends Command
             app(LineService::class)->sendLineDevelopperNews(
                 "ImportKeibaJraRaceResult::handle\n" .
                 "更新: {$updated} 件\n" .
-                "スキップ: {$skipped} 件"
+                "スキップ: {$skipped} 件\n" .
+                "完了日時: " . date('Y-m-d H:i:s')
             );
         } catch (\Exception $e) {
             \Log::warning('LINE送信失敗: ' . $e->getMessage());
