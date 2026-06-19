@@ -62,6 +62,7 @@ class ImportKeibaRace extends Command
         }
 
         // スケジュール登録済みの日付分だけ処理
+        $totalInsertCount = 0;
         foreach ($dates as $row) {
             $date    = $row->date;
             $dateKey = str_replace('-', '', $date);
@@ -107,6 +108,7 @@ class ImportKeibaRace extends Command
             }
 
             $this->info("  → {$insertCount} 件 upsert 完了");
+            $totalInsertCount += $insertCount;
         }
 
         $this->info('全日程の取り込み完了');
@@ -114,13 +116,16 @@ class ImportKeibaRace extends Command
 
 
         try {
-            app(LineService::class)->send('ImportKeibaRace::handle');
+            app(LineService::class)->sendLineDevelopperNews(
+                "ImportKeibaRace::handle\n" .
+                "{$totalInsertCount} 件 upsert"
+            );
         } catch (\Exception $e) {
             \Log::warning('LINE送信失敗: ' . $e->getMessage());
         }
         
 
-
+        
     }
 
     private function fetchRaceListAll(): ?string

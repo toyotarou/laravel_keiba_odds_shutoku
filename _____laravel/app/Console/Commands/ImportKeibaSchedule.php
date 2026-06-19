@@ -371,13 +371,19 @@ class ImportKeibaSchedule extends Command
 
 
         try {
-            app(LineService::class)->send('ImportKeibaSchedule::handle');
+            app(LineService::class)->sendLineDevelopperNews(
+                "ImportKeibaSchedule::handle\n" .
+                "スケジュール: " . count($schedules) . " 件\n" .
+                "レース : " . count($races) . " 件\n" .
+                "馬情報 : " . count($horses) . " 件\n" .
+                "完了日時 : " . date('Y-m-d H:i:s')
+            );
         } catch (\Exception $e) {
             \Log::warning('LINE送信失敗: ' . $e->getMessage());
         }
         
 
-
+        
         return 0;
     }
 }

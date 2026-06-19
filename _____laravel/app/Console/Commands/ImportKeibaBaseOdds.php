@@ -152,7 +152,12 @@ class ImportKeibaBaseOdds extends Command
 
 
         try {
-            app(LineService::class)->send('ImportKeibaBaseOdds::handle');
+            app(LineService::class)->sendLineDevelopperNews(
+                "ImportKeibaBaseOdds::handle\n" .
+                "処理レース数 : {$totalRaces} 件\n" .
+                "保存頭数合計 : {$totalSaved} 頭\n" .
+                "失敗レース数 : {$failedCount} 件"
+            );
         } catch (\Exception $e) {
             \Log::warning('LINE送信失敗: ' . $e->getMessage());
         }

@@ -200,12 +200,17 @@ class SummaryKeibaInfo extends Command
 
 
         try {
-            app(LineService::class)->send('SummaryKeibaInfo::handle');
+            app(LineService::class)->sendLineDevelopperNews(
+                "SummaryKeibaInfo::handle\n" .
+                "INSERT完了: {$inserted} 件\n" .
+                "スキップ（既存）: {$skipped} 件\n" .
+                "エラー（データ不備）: {$errors} 件"
+            );
         } catch (\Exception $e) {
             \Log::warning('LINE送信失敗: ' . $e->getMessage());
         }
         
 
-
+        
     }
 }

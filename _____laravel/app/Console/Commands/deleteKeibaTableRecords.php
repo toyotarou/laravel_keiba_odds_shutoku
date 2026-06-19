@@ -78,7 +78,11 @@ class DeleteKeibaTableRecords extends Command
         }
         
         try {
-            app(LineService::class)->send('DeleteKeibaTableRecords::handle');
+            app(LineService::class)->sendLineDevelopperNews(
+                "DeleteKeibaTableRecords::handle\n" .
+                "テーブル TRUNCATE: 9 件\n" .
+                "完了日時: " . date('Y-m-d H:i:s')
+            );
         } catch (\Exception $e) {
             \Log::warning('LINE送信失敗: ' . $e->getMessage());
         }
