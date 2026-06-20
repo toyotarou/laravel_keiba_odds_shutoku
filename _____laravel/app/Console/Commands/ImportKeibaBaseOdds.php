@@ -5,8 +5,6 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
-use App\Services\LineService;
-
 /**
  * 土曜7時に1回だけ実行する。
  * 土日両日分の全レースのオッズを取得し、minutes_before_start=999 でDBに保存する。
@@ -148,22 +146,5 @@ class ImportKeibaBaseOdds extends Command
         }
         $this->info("処理時間     : {$totalElapsed} 秒");
         $this->info('');
-        
-
-
-        try {
-            app(LineService::class)->sendLineDevelopperNews(
-                "ImportKeibaBaseOdds::handle\n" .
-                "処理レース数 : {$totalRaces} 件\n" .
-                "保存頭数合計 : {$totalSaved} 頭\n" .
-                "失敗レース数 : {$failedCount} 件\n" .
-                "完了日時: " . date('Y-m-d H:i:s')
-            );
-        } catch (\Exception $e) {
-            \Log::warning('LINE送信失敗: ' . $e->getMessage());
-        }
-        
-
-
     }
 }

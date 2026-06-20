@@ -5,8 +5,6 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
-use App\Services\LineService;
-
 class DeleteKeibaTableRecords extends Command
 {
     protected $signature = 'keiba:deleteKeibaTableRecords';
@@ -15,11 +13,11 @@ class DeleteKeibaTableRecords extends Command
     public function handle()
     {
         $this->info('テーブルデータ削除処理 ── 開始');
-        
+
         // t_horse_odds_finder_horses をtruncateする
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_horses');
         $this->info('t_horse_odds_finder_horses をtruncateしました。');
-        
+
         // t_horse_odds_finder_netkeiba_odds をtruncateする
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_netkeiba_odds');
         $this->info('t_horse_odds_finder_netkeiba_odds をtruncateしました。');
@@ -27,34 +25,32 @@ class DeleteKeibaTableRecords extends Command
         // t_horse_odds_finder_netkeiba_races をtruncateする
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_netkeiba_races');
         $this->info('t_horse_odds_finder_netkeiba_races をtruncateしました。');
-        
+
         // t_horse_odds_finder_odds をtruncateする
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_odds');
         $this->info('t_horse_odds_finder_odds をtruncateしました。');
-        
+
         // t_horse_odds_finder_odds_get_timing をtruncateする
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_odds_get_timing');
         $this->info('t_horse_odds_finder_odds_get_timing をtruncateしました。');
-        
+
         // t_horse_odds_finder_odds_wide をtruncateする
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_odds_wide');
         $this->info('t_horse_odds_finder_odds_wide をtruncateしました。');
-        
+
         // t_horse_odds_finder_race_results をtruncateする
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_race_results');
         $this->info('t_horse_odds_finder_race_results をtruncateしました。');
-        
+
         // t_horse_odds_finder_races をtruncateする
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_races');
         $this->info('t_horse_odds_finder_races をtruncateしました。');
-        
+
         // t_horse_odds_finder_schedules をtruncateする
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_schedules');
         $this->info('t_horse_odds_finder_schedules をtruncateしました。');
-        
+
         $this->info('テーブルデータ削除処理 ── 完了');
-
-
 
         // ログファイルを削除する
         $logFiles = [
@@ -76,17 +72,7 @@ class DeleteKeibaTableRecords extends Command
                 $this->info("{$logFile} を削除しました。");
             }
         }
-        
-        try {
-            app(LineService::class)->sendLineDevelopperNews(
-                "DeleteKeibaTableRecords::handle\n" .
-                "テーブル TRUNCATE: 9 件\n" .
-                "完了日時: " . date('Y-m-d H:i:s')
-            );
-        } catch (\Exception $e) {
-            \Log::warning('LINE送信失敗: ' . $e->getMessage());
-        }
-        
+
         return 0;
     }
 }

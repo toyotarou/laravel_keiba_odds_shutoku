@@ -5,8 +5,6 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
-use App\Services\LineService;
-
 /**
  * JRA公式サイトからレース結果（着順）を取得し、
  * t_horse_odds_finder_summary の result カラムを更新する。
@@ -99,22 +97,6 @@ class ImportKeibaJraRaceResult extends Command
         $this->info("UPDATE完了 → 更新: {$updated} 件 / スキップ: {$skipped} 件");
         $this->info('========== keiba:importJraRaceResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
-        
-
-
-        try {
-            app(LineService::class)->sendLineDevelopperNews(
-                "ImportKeibaJraRaceResult::handle\n" .
-                "更新: {$updated} 件\n" .
-                "スキップ: {$skipped} 件\n" .
-                "完了日時: " . date('Y-m-d H:i:s')
-            );
-        } catch (\Exception $e) {
-            \Log::warning('LINE送信失敗: ' . $e->getMessage());
-        }
-        
-
-        
     }
 
     /**
@@ -146,9 +128,3 @@ class ImportKeibaJraRaceResult extends Command
         return null;
     }
 }
-
-
-
-
-
-
