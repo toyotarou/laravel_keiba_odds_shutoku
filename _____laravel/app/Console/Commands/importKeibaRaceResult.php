@@ -7,8 +7,6 @@ use Illuminate\Support\Facades\DB;
 
 use App\Constants\Constants;
 
-use App\Services\LineService;
-
 /**
  * cronで毎分実行される。
  * $ary に合致する発走前分数のレースのみ結果・オッズを取得してDBに保存する。
@@ -183,24 +181,7 @@ class ImportKeibaRaceResult extends Command
             $totalMs = round((microtime(true) - $raceStart) * 1000);
             $this->info("  DB保存完了 → {$saved} 頭分  (合計 {$totalMs}ms)");
             $totalSaved += $saved;
-            
         }
-        
-
-
-        if ($totalSaved > 0) {
-            try {
-                app(LineService::class)->sendLineDevelopperNews(
-                    "ImportKeibaRaceResult::handle\n" .
-                    "DB保存完了 → {$totalSaved} 頭分\n" .
-                    "完了日時: " . date('Y-m-d H:i:s')
-                );
-            } catch (\Exception $e) {
-                \Log::warning('LINE送信失敗: ' . $e->getMessage());
-            }
-        }
-        
-
 
         $this->info('');
         $this->info('========== keiba:importRaceResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
@@ -287,9 +268,3 @@ class ImportKeibaRaceResult extends Command
         return null;
     }
 }
-
-
-
-
-
-

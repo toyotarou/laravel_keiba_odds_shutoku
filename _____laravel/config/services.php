@@ -30,10 +30,4 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
     
-    'line' => [
-        'channel_access_token' => env('LINE_BOT_CHANNEL_ACCESS_TOKEN'),
-        'channel_secret' => env('LINE_BOT_CHANNEL_SECRET'),
-        'my_user_id' => env('LINE_MY_USER_ID'),
-    ],
-    
 ];

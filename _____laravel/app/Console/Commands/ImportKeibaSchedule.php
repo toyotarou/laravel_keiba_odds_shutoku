@@ -5,8 +5,6 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
-use App\Services\LineService;
-
 /**
  * ImportKeibaSchedule
  *
@@ -175,8 +173,6 @@ class ImportKeibaSchedule extends Command
         $this->info('JSON パース成功。');
         $this->info('');
 
-
-
         // ─────────────────────────────────────────────────────────────
         // JSON の各キーを取り出す（キーが存在しない場合は空配列にフォールバック）
         // ─────────────────────────────────────────────────────────────
@@ -184,8 +180,6 @@ class ImportKeibaSchedule extends Command
         $schedules = $data['schedules'] ?? [];
         $races     = $data['races']     ?? [];
         $horses    = $data['horses']    ?? [];
-
-        
 
         // ─────────────────────────────────────────────────────────────
         // 出走済みチェック
@@ -215,9 +209,7 @@ class ImportKeibaSchedule extends Command
         $this->info('  races     : ' . count($races)     . ' 件');
         $this->info('  horses    : ' . count($horses)    . ' 件');
         $this->info('');
-        
 
-        
         // ─────────────────────────────────────────────────────────────
         // トランザクション内でデータを入れ替え（DELETE → INSERT）
         //
@@ -263,8 +255,6 @@ class ImportKeibaSchedule extends Command
                 $this->info("  {$date} 分を全テーブルから削除完了。");
             }
 
-            
-
             $this->info('');
 
             // ── スケジュールを INSERT ──
@@ -288,19 +278,17 @@ class ImportKeibaSchedule extends Command
             $this->info("  schedules INSERT 完了 ── 合計 {$count} 件。");
             $this->info('');
 
-            
-
             // ── レース一覧を INSERT ──
             // 発走時刻・頭数など importOdds が参照する情報を記録する
             $this->info('レース一覧を INSERT 中...');
             $count = 0;
             foreach ($races as $row) {
-                
+
                 // 発走済みレース（start_time === 'XXX'）は INSERT をスキップ
                 if ($row['start_time'] === 'XXX') {
                     continue;
                 }
-                
+
                 DB::table('t_horse_odds_finder_races')->insert([
                     'date'       => $row['date'],
                     'kaisuu'     => $row['kaisuu'],
@@ -314,12 +302,9 @@ class ImportKeibaSchedule extends Command
                 ]);
                 $count++;
                 $this->line("  races: [{$row['basho_name']}] R{$row['race']} {$row['race_name']} ({$row['start_time']}) 挿入...");
-                
             }
             $this->info("  races INSERT 完了 ── 合計 {$count} 件。");
             $this->info('');
-            
-
 
             // ── 出走馬情報を INSERT ──
             // 馬番・馬名・騎手・調教師・馬 URL などを記録する
@@ -349,12 +334,8 @@ class ImportKeibaSchedule extends Command
             $this->info("  horses INSERT 完了 ── 合計 {$count} 件。");
         });
 
-
-
         $this->info('トランザクション コミット成功。');
         $this->info('');
-
-        
 
         // ── 最終サマリー ──
         $this->info('╔══════════════════════════════════════════════════╗');
@@ -367,22 +348,6 @@ class ImportKeibaSchedule extends Command
         $this->info('');
         $this->info('=== 競馬スケジュール取得処理 ── 正常終了 ===');
         $this->info('');
-        
-
-
-        try {
-            app(LineService::class)->sendLineDevelopperNews(
-                "ImportKeibaSchedule::handle\n" .
-                "スケジュール: " . count($schedules) . " 件\n" .
-                "レース : " . count($races) . " 件\n" .
-                "馬情報 : " . count($horses) . " 件\n" .
-                "完了日時 : " . date('Y-m-d H:i:s')
-            );
-        } catch (\Exception $e) {
-            \Log::warning('LINE送信失敗: ' . $e->getMessage());
-        }
-        
-
         
         return 0;
     }

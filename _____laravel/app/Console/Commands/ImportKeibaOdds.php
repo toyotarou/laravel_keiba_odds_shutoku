@@ -6,7 +6,6 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 use App\Constants\Constants;
-use App\Services\LineService;
 
 /**
  * cronで毎分実行される。
@@ -87,7 +86,7 @@ class ImportKeibaOdds extends Command
 
             $this->info("  → 取得タイミング合致 (残り{$diff}分) : オッズ取得を開始します。");
 
-            // ── 変動検出・LINE通知のための事前データ取得 ─────────────────
+            // ── 変動検出のための事前データ取得 ─────────────────────────
             // 24分前（999）のオッズ: [馬番 => 単勝オッズ]（変動検出用）
             // 24分前タイミング自身は比較対象がないため空のまま
             $prevOddsMap = [];
@@ -102,16 +101,6 @@ class ImportKeibaOdds extends Command
                     ->pluck('odds', 'num')
                     ->all();
             }
-
-            // 馬名マップ: [馬番 => 馬名]（LINE通知メッセージ用）
-            $horseNames = DB::table('t_horse_odds_finder_horses')
-                ->where('date',   $race->date)
-                ->where('kaisuu', $race->kaisuu)
-                ->where('basho',  $race->basho)
-                ->where('day',    $race->day)
-                ->where('race',   $race->race)
-                ->pluck('name', 'num')
-                ->all();
 
             // ── 単複オッズのスクレイピング ──────────────────────────────
             // stderrはlogFileへリダイレクトし、stdoutのJSONに混入させない。
@@ -228,21 +217,9 @@ class ImportKeibaOdds extends Command
             $this->info("  [単複] DB保存完了 → {$saved} 頭分 (合計 {$totalSec}秒 / {$totalMs}ms)");
             $totalInserted += $saved;
 
-            // ── オッズ変動のログ出力・LINE通知 ────────────────────────────
+            // ── オッズ変動のログ出力 ──────────────────────────────────────
             foreach ($changeRecords as $change) {
                 $this->info("  [オッズ変動] {$change['num']}番: {$change['prev_odds']} → {$change['curr_odds']}");
-            }
-
-            if ($changeRecords) {
-                try {
-                    app(LineService::class)->sendLineOddsNews(
-                        $this->buildOddsChangeMessage($race, $changeRecords, $horseNames, $diff)
-                    );
-                    $this->info('  [LINE] オッズ変動通知を送信しました。(' . count($changeRecords) . '頭)');
-                } catch (\Exception $e) {
-                    \Log::warning('LINE送信失敗: ' . $e->getMessage());
-                    $this->warn('  [LINE] 送信失敗: ' . $e->getMessage());
-                }
             }
 
             // ── ワイドオッズのスクレイピング・DB保存 ──────────────────────
@@ -283,22 +260,6 @@ class ImportKeibaOdds extends Command
                 $this->info("  [Wide] DB保存完了 → {$wideSaved} 組 (合計 {$wideTotalSec}秒 / {$wideTotalMs}ms)");
             }
         }
-        
-
-
-        if ($totalInserted > 0) {
-            try {
-                app(LineService::class)->sendLineDevelopperNews(
-                    "ImportKeibaOdds::handle\n" .
-                    "インサート: {$totalInserted} 件\n" .
-                    "完了日時: " . date('Y-m-d H:i:s')
-                );
-            } catch (\Exception $e) {
-                \Log::warning('LINE送信失敗: ' . $e->getMessage());
-            }
-        }
-        
-
         
         $this->info('');
         $this->info('========== keiba:importOdds 終了 ' . date('Y-m-d H:i:s') . ' ==========');
@@ -352,28 +313,5 @@ class ImportKeibaOdds extends Command
 
         $this->info("  [Wide] Node.js 取得完了 → " . count($odds) . " 組分 ({$nodeSec}秒 / {$nodeMs}ms)");
         return $odds;
-    }
-
-    /**
-     * LINE通知用のオッズ変動メッセージを組み立てる。
-     */
-    private function buildOddsChangeMessage(object $race, array $changeRecords, array $horseNames, int $diffMinutes): string
-    {
-        $lines   = [];
-        $lines[] = '馬眼力OddsFinder News';
-        $lines[] = '';
-        $lines[] = '開始時と比較して、オッズが変動しています。';
-        $lines[] = "{$race->date}　{$race->kaisuu}回{$race->basho_name}{$race->day}日";
-        $lines[] = "R{$race->race}　{$race->race_name}";
-        $lines[] = "出走まであと {$diffMinutes} 分";
-
-        foreach ($changeRecords as $change) {
-            $name    = $horseNames[$change['num']] ?? '不明';
-            $lines[] = '';
-            $lines[] = "{$change['num']}番　{$name}";
-            $lines[] = "{$change['prev_odds']} → {$change['curr_odds']}";
-        }
-
-        return implode("\n", $lines);
     }
 }
