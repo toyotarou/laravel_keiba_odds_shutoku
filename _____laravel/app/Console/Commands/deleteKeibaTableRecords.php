@@ -19,12 +19,12 @@ class DeleteKeibaTableRecords extends Command
         $this->info('t_horse_odds_finder_horses をtruncateしました。');
 
         // t_horse_odds_finder_netkeiba_odds をtruncateする
-        DB::statement('TRUNCATE TABLE t_horse_odds_finder_netkeiba_odds');
-        $this->info('t_horse_odds_finder_netkeiba_odds をtruncateしました。');
+        // DB::statement('TRUNCATE TABLE t_horse_odds_finder_netkeiba_odds');
+        // $this->info('t_horse_odds_finder_netkeiba_odds をtruncateしました。');
 
         // t_horse_odds_finder_netkeiba_races をtruncateする
-        DB::statement('TRUNCATE TABLE t_horse_odds_finder_netkeiba_races');
-        $this->info('t_horse_odds_finder_netkeiba_races をtruncateしました。');
+        // DB::statement('TRUNCATE TABLE t_horse_odds_finder_netkeiba_races');
+        // $this->info('t_horse_odds_finder_netkeiba_races をtruncateしました。');
 
         // t_horse_odds_finder_odds をtruncateする
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_odds');

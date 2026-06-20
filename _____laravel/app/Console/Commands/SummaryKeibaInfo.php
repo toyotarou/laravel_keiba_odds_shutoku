@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * cronで実行される。
- * t_horse_odds_finder_netkeiba_odds のデータをもとに
+ * t_horse_odds_finder_odds のデータをもとに
  * t_horse_odds_finder_summary に馬ごとのサマリーを生成・保存する。
  * 同一キー（date/kaisuu/basho/day/race/num）が既に存在する場合はINSERTしない。
  *
@@ -95,7 +95,7 @@ class SummaryKeibaInfo extends Command
         // ── JRAオッズを取得 ──────────────────────────────────────────
         // 1馬につき minutes_before_start の数だけ行が存在する
         $this->info('JRAオッズを取得中...');
-        $result = DB::table('t_horse_odds_finder_netkeiba_odds')
+        $result = DB::table('t_horse_odds_finder_odds')
             ->orderBy('date')
             ->orderBy('kaisuu')
             ->orderBy('basho')
