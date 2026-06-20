@@ -88,19 +88,17 @@ class ImportKeibaOdds extends Command
             $this->info("  → 取得タイミング合致 (残り{$diff}分) : オッズ取得を開始します。");
 
             // ── 変動検出・LINE通知のための事前データ取得 ─────────────────
-            $timingIndex = array_search($diff, $timings); // 24→0, 21→1, ..., 0→8
-
-            // 前タイミングのオッズ: [馬番 => 単勝オッズ]（変動検出用）
-            // 最初のタイミング(index=0)は比較対象がないため空のまま
+            // 24分前（999）のオッズ: [馬番 => 単勝オッズ]（変動検出用）
+            // 24分前タイミング自身は比較対象がないため空のまま
             $prevOddsMap = [];
-            if ($timingIndex > 0) {
+            if ($diff !== 24) {
                 $prevOddsMap = DB::table('t_horse_odds_finder_odds')
                     ->where('date',                 $race->date)
                     ->where('kaisuu',               $race->kaisuu)
                     ->where('basho',                $race->basho)
                     ->where('day',                  $race->day)
                     ->where('race',                 $race->race)
-                    ->where('minutes_before_start', $timings[$timingIndex - 1])
+                    ->where('minutes_before_start', 999)
                     ->pluck('odds', 'num')
                     ->all();
             }
@@ -364,7 +362,7 @@ class ImportKeibaOdds extends Command
         $lines   = [];
         $lines[] = '馬眼力OddsFinder News';
         $lines[] = '';
-        $lines[] = 'オッズ変更がありました。';
+        $lines[] = '開始時と比較して、オッズが変動しています。';
         $lines[] = "{$race->date}　{$race->kaisuu}回{$race->basho_name}{$race->day}日";
         $lines[] = "R{$race->race}　{$race->race_name}";
         $lines[] = "出走まであと {$diffMinutes} 分";
