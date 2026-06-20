@@ -84,23 +84,23 @@ class ImportKeibaRace extends Command
                 }
 
                 foreach ($place['races'] as $race) {
-                    DB::table('t_horse_odds_finder_netkeiba_races')->updateOrInsert(
-                        [
-                            'race_id' => $race['race_id'],
-                        ],
-                        [
-                            'date'       => $date,
-                            'kaisuu'     => $place['kai'],
-                            'basho'      => $basho,
-                            'basho_name' => $bashoName,
-                            'day'        => $place['nichime'],
-                            'race_id'    => $race['race_id'],
-                            'race'       => $race['race_num'],
-                            'race_name'  => $race['race_name'],
-                            'start_time' => $race['start_time'],
-                            'num_horses' => $race['horse_count'],
-                        ]
-                    );
+                    // DB::table('t_horse_odds_finder_netkeiba_races')->updateOrInsert(
+                    //     [
+                    //         'race_id' => $race['race_id'],
+                    //     ],
+                    //     [
+                    //         'date'       => $date,
+                    //         'kaisuu'     => $place['kai'],
+                    //         'basho'      => $basho,
+                    //         'basho_name' => $bashoName,
+                    //         'day'        => $place['nichime'],
+                    //         'race_id'    => $race['race_id'],
+                    //         'race'       => $race['race_num'],
+                    //         'race_name'  => $race['race_name'],
+                    //         'start_time' => $race['start_time'],
+                    //         'num_horses' => $race['horse_count'],
+                    //     ]
+                    // );
                     $insertCount++;
                 }
             }

@@ -48,18 +48,20 @@ class ImportKeibaRaceResult extends Command
 
         if ($isDebug) {
             // テーブルに存在する最も近い未来（または当日）の日付を対象にする
-            $nearestDate = DB::table('t_horse_odds_finder_netkeiba_races')
-                ->where('date', '>=', $date)
-                ->min('date');
-            $targetDate = $nearestDate ?? $date;
+            // $nearestDate = DB::table('t_horse_odds_finder_netkeiba_races')
+            //     ->where('date', '>=', $date)
+            //     ->min('date');
+            // $targetDate = $nearestDate ?? $date;
+            $targetDate = $date;
         } else {
             $targetDate = $date;
         }
 
-        $races = DB::table('t_horse_odds_finder_netkeiba_races')
-            ->where('date', $targetDate)
-            ->orderBy('start_time')
-            ->get();
+        // $races = DB::table('t_horse_odds_finder_netkeiba_races')
+        //     ->where('date', $targetDate)
+        //     ->orderBy('start_time')
+        //     ->get();
+        $races = collect();
 
         $totalRaces = count($races);
         $this->info("対象レース数: {$totalRaces} 件");
@@ -106,20 +108,20 @@ class ImportKeibaRaceResult extends Command
             }
 
             // 発走済みで確定オッズが保存済みならスクレイピング不要
-            if ($diffMinutes === -999) {
-                $alreadySaved = DB::table('t_horse_odds_finder_netkeiba_odds')
-                    ->where('date',   $race->date)
-                    ->where('kaisuu', $race->kaisuu)
-                    ->where('basho',  $race->basho)
-                    ->where('race',   $race->race)
-                    ->where('minutes_before_start', -999)
-                    ->exists();
-
-                if ($alreadySaved) {
-                    $this->info("  確定オッズ保存済み → スキップ");
-                    continue;
-                }
-            }
+            // if ($diffMinutes === -999) {
+            //     $alreadySaved = DB::table('t_horse_odds_finder_netkeiba_odds')
+            //         ->where('date',   $race->date)
+            //         ->where('kaisuu', $race->kaisuu)
+            //         ->where('basho',  $race->basho)
+            //         ->where('race',   $race->race)
+            //         ->where('minutes_before_start', -999)
+            //         ->exists();
+            //
+            //     if ($alreadySaved) {
+            //         $this->info("  確定オッズ保存済み → スキップ");
+            //         continue;
+            //     }
+            // }
 
             // Node.js でオッズをスクレイピング
             $raceStart = microtime(true);
@@ -216,36 +218,36 @@ class ImportKeibaRaceResult extends Command
             'fuku_max' => $fukuMax,
         ];
 
-        if ($minutesBefore === 999) {
-            $exists = DB::table('t_horse_odds_finder_netkeiba_odds')
-                ->where($key)
-                ->where('minutes_before_start', 999)
-                ->exists();
-
-            if ($exists) {
-                DB::table('t_horse_odds_finder_netkeiba_odds')
-                    ->where($key)
-                    ->where('minutes_before_start', 999)
-                    ->update($update);
-            } else {
-                DB::table('t_horse_odds_finder_netkeiba_odds')->insert($insert);
-            }
-            return;
-        }
-
-        if ($minutesBefore === -999) {
-            $alreadySaved = DB::table('t_horse_odds_finder_netkeiba_odds')
-                ->where($key)
-                ->where('minutes_before_start', -999)
-                ->exists();
-
-            if (!$alreadySaved) {
-                DB::table('t_horse_odds_finder_netkeiba_odds')->insert($insert);
-            }
-            return;
-        }
-
-        DB::table('t_horse_odds_finder_netkeiba_odds')->insert($insert);
+        // if ($minutesBefore === 999) {
+        //     $exists = DB::table('t_horse_odds_finder_netkeiba_odds')
+        //         ->where($key)
+        //         ->where('minutes_before_start', 999)
+        //         ->exists();
+        //
+        //     if ($exists) {
+        //         DB::table('t_horse_odds_finder_netkeiba_odds')
+        //             ->where($key)
+        //             ->where('minutes_before_start', 999)
+        //             ->update($update);
+        //     } else {
+        //         DB::table('t_horse_odds_finder_netkeiba_odds')->insert($insert);
+        //     }
+        //     return;
+        // }
+        //
+        // if ($minutesBefore === -999) {
+        //     $alreadySaved = DB::table('t_horse_odds_finder_netkeiba_odds')
+        //         ->where($key)
+        //         ->where('minutes_before_start', -999)
+        //         ->exists();
+        //
+        //     if (!$alreadySaved) {
+        //         DB::table('t_horse_odds_finder_netkeiba_odds')->insert($insert);
+        //     }
+        //     return;
+        // }
+        //
+        // DB::table('t_horse_odds_finder_netkeiba_odds')->insert($insert);
     }
 
     private function fetchRaceDetail(string $race_id): ?string
