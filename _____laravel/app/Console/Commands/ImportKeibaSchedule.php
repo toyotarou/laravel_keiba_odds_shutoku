@@ -112,247 +112,255 @@ class ImportKeibaSchedule extends Command
         file_put_contents($lockFile, getmypid());
         register_shutdown_function(fn() => @unlink($lockFile));
 
-        $this->info('');
-        $this->info('╔══════════════════════════════════════════════════╗');
-        $this->info('║     競馬スケジュール取得処理 ── 開始              ║');
-        $this->info('╚══════════════════════════════════════════════════╝');
-        $this->info('実行日時: ' . date('Y-m-d H:i:s') . '  曜日番号: ' . date('w') . ' （0=日, 6=土）');
-        $this->info('');
+        $schedules = [];
+        $races     = [];
+        $horses    = [];
 
-        $isDebug = (bool) $this->option('debug');
-        if ($isDebug) {
-            $this->warn('【DEBUGモード】木曜・金曜チェックをスキップします。');
-            $this->info('');
-        }
-
-        // ─────────────────────────────────────────────────────────────
-        // 木曜日（4）・金曜日（5）はレース開催がないためスキップする
-        // ─────────────────────────────────────────────────────────────
-        if (!$isDebug && (date('w') === '4' || date('w') === '5')) {
-            $this->warn('本日は木曜日または金曜日のため処理をスキップします。');
-            $this->info('終了。');
-            return 0;
-        }
-
-        $this->info('曜日チェック OK ── 本日は処理対象の曜日です。');
-        $this->info('');
-
-        // ─────────────────────────────────────────────────────────────
-        // Node.js スクリプトを実行してスケジュール JSON を取得
-        // stderr はログファイルへリダイレクトし、stdout の JSON には混入させない
-        // ─────────────────────────────────────────────────────────────
-        $script  = base_path('scripts/keibaOddsGetSchedule.mjs');
-        $logFile = base_path('scripts/keibaOddsGetSchedule.log');
-        $this->info('Node.js スクリプトのパス: ' . $script);
-        $this->info('Node.js ログファイル    : ' . $logFile);
-        $this->info('Node.js を実行してスクレイピング開始...');
-        $this->info('  （ネットワーク状況によっては数秒〜数十秒かかることがあります）');
-
-        $nodeBin = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
-        $this->info('node パス: ' . $nodeBin);
-        // timeout 300: 2開催×12R×4秒 + ページ遷移 = 最大約250秒かかりうるため180では不足
-        $output = shell_exec('timeout 300 ' . $nodeBin . ' ' . escapeshellarg($script) . ' 2>>' . escapeshellarg($logFile));
-
-        $this->info('Node.js スクリプト完了。出力を受け取りました。');
-        $this->info('出力文字数: ' . mb_strlen($output ?? '') . ' 文字');
-        $this->info('');
-
-        // ─────────────────────────────────────────────────────────────
-        // Node.js の出力を連想配列にパース
-        // ─────────────────────────────────────────────────────────────
-        $this->info('JSON をパース中...');
-        $data = json_decode($output, true);
-
-        // パース失敗（Node.js エラー・空レスポンスなど）は処理を中断
-        if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
-            $this->error('JSON パース失敗。Node.js の出力内容:');
-            $this->error($output);
-            $this->error('処理を中断します。');
-            return 1;
-        }
-
-        $this->info('JSON パース成功。');
-        $this->info('');
-
-        // ─────────────────────────────────────────────────────────────
-        // JSON の各キーを取り出す（キーが存在しない場合は空配列にフォールバック）
-        // ─────────────────────────────────────────────────────────────
-        $this->info('データを展開中...');
-        $schedules = $data['schedules'] ?? [];
-        $races     = $data['races']     ?? [];
-        $horses    = $data['horses']    ?? [];
-
-        // ─────────────────────────────────────────────────────────────
-        // 出走済みチェック
-        // start_time が 'XXX' のレースは既に発走済みであることを示す。
-        // 当日の全レースが発走済みの場合、データ再取得は不要として終了する。
-        // ─────────────────────────────────────────────────────────────
-        $today = date('Y-m-d');
-        $todayRaceCount = 0;
-        $finishedCount  = 0;
-        foreach ($races as $race) {
-            if ($race['date'] === $today) {
-                $todayRaceCount++;
-                if ($race['start_time'] === 'XXX') {
-                    $finishedCount++;
-                }
-            }
-        }
-
-        if ($todayRaceCount > 0 && $finishedCount === $todayRaceCount) {
-            $this->warn('当日の全レースが発走済みのため、終了します。');
-            $this->info('終了。');
-            return 0;
-        }
-
-        // 取得件数を表示（土曜日以外はこの後当日分に絞り込む）
-        $this->info('  schedules : ' . count($schedules) . ' 件');
-        $this->info('  races     : ' . count($races)     . ' 件');
-        $this->info('  horses    : ' . count($horses)    . ' 件');
-        $this->info('');
-
-        // ─────────────────────────────────────────────────────────────
-        // トランザクション内でデータを入れ替え（DELETE → INSERT）
-        //
-        // 土曜日:
-        //   deleteKeibaTableRecords（cron）が事前に全テーブルを TRUNCATE 済みのため
-        //   ここでは DELETE をスキップして INSERT だけ行う。
-        //
-        // 土曜日以外（主に日曜日）:
-        //   当日分のデータのみ DELETE してから INSERT する。
-        //   トランザクションで囲むことで、INSERT 途中に失敗しても
-        //   DELETE 前の状態にロールバックされる。
-        //
-        // odds テーブルも削除する理由:
-        //   スケジュールを入れ替える = 新しいレース日の始まり なので、
-        //   前回の odds データをリセットして当日分をゼロから記録できるようにする。
-        // ─────────────────────────────────────────────────────────────
-        $this->info('──────────────────────────────────────');
-        $this->info('トランザクション開始 ── データを入れ替えます...');
-
-        // 土曜日以外は当日分のみ INSERT（土曜日のデータには触れない）
-        // DEBUGモード時は絞り込みをスキップして取得した全データを INSERT する
-        if (!$isDebug && date('w') !== '6') {
-            $schedules = array_values(array_filter($schedules, fn($r) => $r['date'] === $today));
-            $races      = array_values(array_filter($races,     fn($r) => $r['date'] === $today));
-            $horses     = array_values(array_filter($horses,    fn($r) => $r['date'] === $today));
-        }
-
-        // INSERT する対象日付を収集（重複防止のため INSERT 前に必ず DELETE する）
-        $datesToDelete = array_unique(array_merge(
-            array_column($schedules, 'date'),
-            array_column($races,     'date'),
-            array_column($horses,    'date'),
-        ));
-
-        DB::transaction(function () use ($schedules, $races, $horses, $datesToDelete) {
-
-            // 挿入対象の日付ぶんを事前に全削除（何度実行しても重複しない）
-            foreach ($datesToDelete as $date) {
-                DB::table('t_horse_odds_finder_schedules')->where('date', $date)->delete();
-                DB::table('t_horse_odds_finder_races')    ->where('date', $date)->delete();
-                DB::table('t_horse_odds_finder_horses')   ->where('date', $date)->delete();
-                DB::table('t_horse_odds_finder_odds')     ->where('date', $date)->delete();
-                $this->info("  {$date} 分を全テーブルから削除完了。");
-            }
+        try {
 
             $this->info('');
-
-            // ── スケジュールを INSERT ──
-            // 開催日・開催回・場所・場所名・何日目かを記録する
-            $this->info('スケジュールを INSERT 中...');
-            $count = 0;
-            foreach ($schedules as $row) {
-                DB::table('t_horse_odds_finder_schedules')->insert([
-                    'date'       => $row['date'],
-                    'kaisuu'     => $row['kaisuu'],
-                    'basho'      => $row['basho'],
-                    'basho_name' => $row['basho_name'],
-                    'day'        => $row['day'],
-                ]);
-                $count++;
-                // 進捗を10件ごとに表示
-                if ($count % 10 === 0) {
-                    $this->line("  schedules: {$count} 件挿入済み...");
-                }
-            }
-            $this->info("  schedules INSERT 完了 ── 合計 {$count} 件。");
+            $this->info('╔══════════════════════════════════════════════════╗');
+            $this->info('║     競馬スケジュール取得処理 ── 開始              ║');
+            $this->info('╚══════════════════════════════════════════════════╝');
+            $this->info('実行日時: ' . date('Y-m-d H:i:s') . '  曜日番号: ' . date('w') . ' （0=日, 6=土）');
             $this->info('');
 
-            // ── レース一覧を INSERT ──
-            // 発走時刻・頭数など importOdds が参照する情報を記録する
-            $this->info('レース一覧を INSERT 中...');
-            $count = 0;
-            foreach ($races as $row) {
-
-                // 発走済みレース（start_time === 'XXX'）は INSERT をスキップ
-                if ($row['start_time'] === 'XXX') {
-                    continue;
-                }
-
-                DB::table('t_horse_odds_finder_races')->insert([
-                    'date'       => $row['date'],
-                    'kaisuu'     => $row['kaisuu'],
-                    'basho'      => $row['basho'],
-                    'basho_name' => $row['basho_name'],
-                    'day'        => $row['day'],
-                    'race'       => $row['race'],
-                    'race_name'  => $row['race_name'],
-                    'start_time' => $row['start_time'],
-                    'num_horses' => $row['num_horses'],
-                ]);
-                $count++;
-                $this->line("  races: [{$row['basho_name']}] R{$row['race']} {$row['race_name']} ({$row['start_time']}) 挿入...");
+            $isDebug = (bool) $this->option('debug');
+            if ($isDebug) {
+                $this->warn('【DEBUGモード】木曜・金曜チェックをスキップします。');
+                $this->info('');
             }
-            $this->info("  races INSERT 完了 ── 合計 {$count} 件。");
+
+            // ─────────────────────────────────────────────────────────────
+            // 木曜日（4）・金曜日（5）はレース開催がないためスキップする
+            // ─────────────────────────────────────────────────────────────
+            if (!$isDebug && (date('w') === '4' || date('w') === '5')) {
+                $this->warn('本日は木曜日または金曜日のため処理をスキップします。');
+                $this->info('終了。');
+                return 0;
+            }
+
+            $this->info('曜日チェック OK ── 本日は処理対象の曜日です。');
             $this->info('');
 
-            // ── 出走馬情報を INSERT ──
-            // 馬番・馬名・騎手・調教師・馬 URL などを記録する
-            $this->info('出走馬情報を INSERT 中...');
-            $count = 0;
-            foreach ($horses as $row) {
-                DB::table('t_horse_odds_finder_horses')->insert([
-                    'date'       => $row['date'],
-                    'kaisuu'     => $row['kaisuu'],
-                    'basho'      => $row['basho'],
-                    'race'       => $row['race'],
-                    'num'        => $row['num'],
-                    'basho_name' => $row['basho_name'],
-                    'day'        => $row['day'],
-                    'waku'       => $row['waku'],
-                    'name'       => $row['name'],
-                    'horse_url'  => $row['horse_url'],
-                    'jockey'     => $row['jockey'],
-                    'trainer'    => $row['trainer'],
-                ]);
-                $count++;
-                // 進捗を10件ごとに表示
-                if ($count % 10 === 0) {
-                    $this->line("  horses: {$count} 件挿入済み...");
+            // ─────────────────────────────────────────────────────────────
+            // Node.js スクリプトを実行してスケジュール JSON を取得
+            // stderr はログファイルへリダイレクトし、stdout の JSON には混入させない
+            // ─────────────────────────────────────────────────────────────
+            $script  = base_path('scripts/keibaOddsGetSchedule.mjs');
+            $logFile = base_path('scripts/keibaOddsGetSchedule.log');
+            $this->info('Node.js スクリプトのパス: ' . $script);
+            $this->info('Node.js ログファイル    : ' . $logFile);
+            $this->info('Node.js を実行してスクレイピング開始...');
+            $this->info('  （ネットワーク状況によっては数秒〜数十秒かかることがあります）');
+
+            $nodeBin = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
+            $this->info('node パス: ' . $nodeBin);
+            // timeout 300: 2開催×12R×4秒 + ページ遷移 = 最大約250秒かかりうるため180では不足
+            $output = shell_exec('timeout 300 ' . $nodeBin . ' ' . escapeshellarg($script) . ' 2>>' . escapeshellarg($logFile));
+
+            $this->info('Node.js スクリプト完了。出力を受け取りました。');
+            $this->info('出力文字数: ' . mb_strlen($output ?? '') . ' 文字');
+            $this->info('');
+
+            // ─────────────────────────────────────────────────────────────
+            // Node.js の出力を連想配列にパース
+            // ─────────────────────────────────────────────────────────────
+            $this->info('JSON をパース中...');
+            $data = json_decode($output, true);
+
+            // パース失敗（Node.js エラー・空レスポンスなど）は処理を中断
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
+                $this->error('JSON パース失敗。Node.js の出力内容:');
+                $this->error($output);
+                $this->error('処理を中断します。');
+                return 1;
+            }
+
+            $this->info('JSON パース成功。');
+            $this->info('');
+
+            // ─────────────────────────────────────────────────────────────
+            // JSON の各キーを取り出す（キーが存在しない場合は空配列にフォールバック）
+            // ─────────────────────────────────────────────────────────────
+            $this->info('データを展開中...');
+            $schedules = $data['schedules'] ?? [];
+            $races     = $data['races']     ?? [];
+            $horses    = $data['horses']    ?? [];
+
+            // ─────────────────────────────────────────────────────────────
+            // 出走済みチェック
+            // start_time が 'XXX' のレースは既に発走済みであることを示す。
+            // 当日の全レースが発走済みの場合、データ再取得は不要として終了する。
+            // ─────────────────────────────────────────────────────────────
+            $today = date('Y-m-d');
+            $todayRaceCount = 0;
+            $finishedCount  = 0;
+            foreach ($races as $race) {
+                if ($race['date'] === $today) {
+                    $todayRaceCount++;
+                    if ($race['start_time'] === 'XXX') {
+                        $finishedCount++;
+                    }
                 }
             }
-            $this->info("  horses INSERT 完了 ── 合計 {$count} 件。");
-        });
 
-        $this->info('トランザクション コミット成功。');
-        $this->info('');
+            if ($todayRaceCount > 0 && $finishedCount === $todayRaceCount) {
+                $this->warn('当日の全レースが発走済みのため、終了します。');
+                $this->info('終了。');
+                return 0;
+            }
 
-        // ── 最終サマリー ──
-        $this->info('╔══════════════════════════════════════════════════╗');
-        $this->info('║     処理結果サマリー                              ║');
-        $this->info('╚══════════════════════════════════════════════════╝');
-        $this->info('スケジュール: ' . count($schedules) . ' 件');
-        $this->info('レース      : ' . count($races)     . ' 件');
-        $this->info('馬情報      : ' . count($horses)    . ' 件');
-        $this->info('完了日時    : ' . date('Y-m-d H:i:s'));
-        $this->info('');
-        $this->info('=== 競馬スケジュール取得処理 ── 正常終了 ===');
-        $this->info('');
-        
+            // 取得件数を表示（土曜日以外はこの後当日分に絞り込む）
+            $this->info('  schedules : ' . count($schedules) . ' 件');
+            $this->info('  races     : ' . count($races)     . ' 件');
+            $this->info('  horses    : ' . count($horses)    . ' 件');
+            $this->info('');
+
+            // ─────────────────────────────────────────────────────────────
+            // トランザクション内でデータを入れ替え（DELETE → INSERT）
+            //
+            // 土曜日:
+            //   deleteKeibaTableRecords（cron）が事前に全テーブルを TRUNCATE 済みのため
+            //   ここでは DELETE をスキップして INSERT だけ行う。
+            //
+            // 土曜日以外（主に日曜日）:
+            //   当日分のデータのみ DELETE してから INSERT する。
+            //   トランザクションで囲むことで、INSERT 途中に失敗しても
+            //   DELETE 前の状態にロールバックされる。
+            //
+            // odds テーブルも削除する理由:
+            //   スケジュールを入れ替える = 新しいレース日の始まり なので、
+            //   前回の odds データをリセットして当日分をゼロから記録できるようにする。
+            // ─────────────────────────────────────────────────────────────
+            $this->info('──────────────────────────────────────');
+            $this->info('トランザクション開始 ── データを入れ替えます...');
+
+            // 土曜日以外は当日分のみ INSERT（土曜日のデータには触れない）
+            // DEBUGモード時は絞り込みをスキップして取得した全データを INSERT する
+            if (!$isDebug && date('w') !== '6') {
+                $schedules = array_values(array_filter($schedules, fn($r) => $r['date'] === $today));
+                $races      = array_values(array_filter($races,     fn($r) => $r['date'] === $today));
+                $horses     = array_values(array_filter($horses,    fn($r) => $r['date'] === $today));
+            }
+
+            // INSERT する対象日付を収集（重複防止のため INSERT 前に必ず DELETE する）
+            $datesToDelete = array_unique(array_merge(
+                array_column($schedules, 'date'),
+                array_column($races,     'date'),
+                array_column($horses,    'date'),
+            ));
+
+            DB::transaction(function () use ($schedules, $races, $horses, $datesToDelete) {
+
+                // 挿入対象の日付ぶんを事前に全削除（何度実行しても重複しない）
+                foreach ($datesToDelete as $date) {
+                    DB::table('t_horse_odds_finder_schedules')->where('date', $date)->delete();
+                    DB::table('t_horse_odds_finder_races')    ->where('date', $date)->delete();
+                    DB::table('t_horse_odds_finder_horses')   ->where('date', $date)->delete();
+                    DB::table('t_horse_odds_finder_odds')     ->where('date', $date)->delete();
+                    $this->info("  {$date} 分を全テーブルから削除完了。");
+                }
+
+                $this->info('');
+
+                // ── スケジュールを INSERT ──
+                // 開催日・開催回・場所・場所名・何日目かを記録する
+                $this->info('スケジュールを INSERT 中...');
+                $count = 0;
+                foreach ($schedules as $row) {
+                    DB::table('t_horse_odds_finder_schedules')->insert([
+                        'date'       => $row['date'],
+                        'kaisuu'     => $row['kaisuu'],
+                        'basho'      => $row['basho'],
+                        'basho_name' => $row['basho_name'],
+                        'day'        => $row['day'],
+                    ]);
+                    $count++;
+                    // 進捗を10件ごとに表示
+                    if ($count % 10 === 0) {
+                        $this->line("  schedules: {$count} 件挿入済み...");
+                    }
+                }
+                $this->info("  schedules INSERT 完了 ── 合計 {$count} 件。");
+                $this->info('');
+
+                // ── レース一覧を INSERT ──
+                // 発走時刻・頭数など importOdds が参照する情報を記録する
+                $this->info('レース一覧を INSERT 中...');
+                $count = 0;
+                foreach ($races as $row) {
+
+                    // 発走済みレース（start_time === 'XXX'）は INSERT をスキップ
+                    if ($row['start_time'] === 'XXX') {
+                        continue;
+                    }
+
+                    DB::table('t_horse_odds_finder_races')->insert([
+                        'date'       => $row['date'],
+                        'kaisuu'     => $row['kaisuu'],
+                        'basho'      => $row['basho'],
+                        'basho_name' => $row['basho_name'],
+                        'day'        => $row['day'],
+                        'race'       => $row['race'],
+                        'race_name'  => $row['race_name'],
+                        'start_time' => $row['start_time'],
+                        'num_horses' => $row['num_horses'],
+                    ]);
+                    $count++;
+                    $this->line("  races: [{$row['basho_name']}] R{$row['race']} {$row['race_name']} ({$row['start_time']}) 挿入...");
+                }
+                $this->info("  races INSERT 完了 ── 合計 {$count} 件。");
+                $this->info('');
+
+                // ── 出走馬情報を INSERT ──
+                // 馬番・馬名・騎手・調教師・馬 URL などを記録する
+                $this->info('出走馬情報を INSERT 中...');
+                $count = 0;
+                foreach ($horses as $row) {
+                    DB::table('t_horse_odds_finder_horses')->insert([
+                        'date'       => $row['date'],
+                        'kaisuu'     => $row['kaisuu'],
+                        'basho'      => $row['basho'],
+                        'race'       => $row['race'],
+                        'num'        => $row['num'],
+                        'basho_name' => $row['basho_name'],
+                        'day'        => $row['day'],
+                        'waku'       => $row['waku'],
+                        'name'       => $row['name'],
+                        'horse_url'  => $row['horse_url'],
+                        'jockey'     => $row['jockey'],
+                        'trainer'    => $row['trainer'],
+                    ]);
+                    $count++;
+                    // 進捗を10件ごとに表示
+                    if ($count % 10 === 0) {
+                        $this->line("  horses: {$count} 件挿入済み...");
+                    }
+                }
+                $this->info("  horses INSERT 完了 ── 合計 {$count} 件。");
+            });
+
+            $this->info('トランザクション コミット成功。');
+            $this->info('');
+
+            // ── 最終サマリー ──
+            $this->info('╔══════════════════════════════════════════════════╗');
+            $this->info('║     処理結果サマリー                              ║');
+            $this->info('╚══════════════════════════════════════════════════╝');
+            $this->info('スケジュール: ' . count($schedules) . ' 件');
+            $this->info('レース      : ' . count($races)     . ' 件');
+            $this->info('馬情報      : ' . count($horses)    . ' 件');
+            $this->info('完了日時    : ' . date('Y-m-d H:i:s'));
+            $this->info('');
+            $this->info('=== 競馬スケジュール取得処理 ── 正常終了 ===');
+            $this->info('');
+            
 
 
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaSchedule::handle' . "\n" . date('Y-m-d H:i:s') . '　S:' . count($schedules) . '、R:' . count($races) . '、H:' . count($horses));
+        } finally {
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaSchedule::handle' . "\n" . date('Y-m-d H:i:s') . '　S:' . count($schedules) . '、R:' . count($races) . '、H:' . count($horses));
+        }
         
 
         

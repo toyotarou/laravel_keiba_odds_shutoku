@@ -39,6 +39,7 @@ class WebPushService
     public function sendPushNotifierOddsNews(string $title, string $body): void
     {
         $subscriptions = DB::table('t_horse_odds_finder_push_subscriptions')
+            ->where('is_delete', '0')
             ->get();
 
         $this->sendToSubscriptions($subscriptions, $title, $body);
