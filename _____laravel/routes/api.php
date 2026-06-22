@@ -2,16 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ApiController;
-use App\Http\Controllers\Api\LineWebhookController;
 use App\Http\Controllers\Api\WebPushController;
-
-Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
 
 Route::post('signup', [ApiController::class, 'signup']);
 Route::post('signin', [ApiController::class, 'signin']);
-
-Route::post('changeAdmin', [ApiController::class, 'changeAdmin']);
-Route::post('changeDelete', [ApiController::class, 'changeDelete']);
 
 Route::get('getHorseOddsFinderConfigs', [ApiController::class, 'getHorseOddsFinderConfigs']);
 
@@ -35,6 +29,11 @@ Route::get('getHorseOddsFinderSummaryOneRace', [ApiController::class, 'getHorseO
 Route::get('getHorseOddsFinderRaceOneResult', [ApiController::class, 'getHorseOddsFinderRaceOneResult']);
 
 Route::get('getHorseOddsFinderLoginUsers', [ApiController::class, 'getHorseOddsFinderLoginUsers']);
+Route::post('changeAdmin', [ApiController::class, 'changeAdmin']);
+Route::post('changeDelete', [ApiController::class, 'changeDelete']);
 
 Route::get('vapid-public-key', [WebPushController::class, 'vapidPublicKey']);
 Route::post('web-push/subscribe', [WebPushController::class, 'subscribe']);
+
+Route::get('getHorseOddsFinderPushSubscriptions', [ApiController::class, 'getHorseOddsFinderPushSubscriptions']);
+Route::post('changePushNotifierUserDelete', [ApiController::class, 'changePushNotifierUserDelete']);
