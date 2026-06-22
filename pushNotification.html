@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Web Push通知 実装手順（決定版）</title>
+<style>
+  body { font-family: sans-serif; max-width: 900px; margin: 40px auto; line-height: 1.8; }
+  h1 { border-bottom: 3px solid #333; padding-bottom: 10px; }
+  h2 { border-left: 5px solid #666; padding-left: 10px; margin-top: 40px; }
+  h3 { color: #444; }
+  pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+  .note { background: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; }
+</style>
+</head>
+<body>
+
+<h1>Web Push通知 実装手順（決定版）</h1>
+
+<p>Firebaseを使わず、ブラウザ標準のWeb Push Protocol（VAPID方式）で実装する。<br>
+LaravelからVAPID認証でGoogleのプッシュサーバー経由でブラウザに通知を届ける。</p>
+
+<h2>全体構成</h2>
+<pre>
+① ユーザーがログイン
+② Flutter(fcm_service.dart) → LaravelにVAPID公開鍵をリクエスト
+③ ブラウザがpush-sw.jsをService Workerとして登録
+④ pushManager.subscribe() でSubscriptionを取得
+⑤ Subscription情報(endpoint, p256dh, auth)をLaravelへ送信・DB保存
+⑥ LaravelコマンドからWebPushService.sendXxx()を呼び出す
+⑦ minishlink/web-push がVAPID認証でプッシュサーバーへ送信
+⑧ ブラウザのpush-sw.jsがpushイベントを受信して通知表示
+</pre>
+
+<h2>Step 1: VPSにパッケージをインストール</h2>
+<pre>
+cd /var/www/horse_odds_finder
+composer require minishlink/web-push
+</pre>
+
+<h2>Step 2: VAPID Keyを生成</h2>
+<pre>
+php artisan tinker --execute="
+\$vapid = \Minishlink\WebPush\VAPID::createVapidKeys();
+echo 'PUBLIC: ' . \$vapid['publicKey'] . PHP_EOL;
+echo 'PRIVATE: ' . \$vapid['privateKey'] . PHP_EOL;
+"
+</pre>
+<p>生成されたキーを .env に追加：</p>
+<pre>
+VAPID_PUBLIC_KEY=（生成された公開鍵）
+VAPID_PRIVATE_KEY=（生成された秘密鍵）
+VAPID_SUBJECT=mailto:admin@baganriki.com
+</pre>
+
+<h2>Step 3: DBテーブルを作成</h2>
+<pre>
+php artisan tinker --execute="
+DB::statement('CREATE TABLE IF NOT EXISTS t_horse_odds_finder_push_subscriptions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(255) NOT NULL,
+  endpoint TEXT NOT NULL,
+  p256dh VARCHAR(512) NOT NULL,
+  auth VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_endpoint (endpoint(512))
+)');
+echo 'テーブル作成完了';
+"
+</pre>
+
+<h2>Step 4: config/services.php に追加</h2>
+<pre>
+'vapid' => [
+    'public_key'  => env('VAPID_PUBLIC_KEY'),
+    'private_key' => env('VAPID_PRIVATE_KEY'),
+    'subject'     => env('VAPID_SUBJECT'),
+],
+</pre>
+
+<h2>Step 5: WebPushService.php を作成</h2>
+<p>場所: app/Services/WebPushService.php</p>
+<pre>
+&lt;?php
+namespace App\Services;
+
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Minishlink\WebPush\Subscription;
+use Minishlink\WebPush\WebPush;
+
+class WebPushService
+{
+    private WebPush $webPush;
+
+    public function __construct()
+    {
+        $auth = [
+            'VAPID' => [
+                'subject'    => config('services.vapid.subject'),
+                'publicKey'  => config('services.vapid.public_key'),
+                'privateKey' => config('services.vapid.private_key'),
+            ],
+        ];
+        $this->webPush = new WebPush($auth);
+    }
+
+    // 開発者のみに送信
+    public function sendPushNotifierDeveloperNews(string $title, string $body): void
+    {
+        $developerUserIds = ['toyohide'];
+        $subscriptions = DB::table('t_horse_odds_finder_push_subscriptions')
+            ->whereIn('user_id', $developerUserIds)
+            ->get();
+        $this->sendToSubscriptions($subscriptions, $title, $body);
+    }
+
+    // 全ユーザーに送信
+    public function sendPushNotifierOddsNews(string $title, string $body): void
+    {
+        $subscriptions = DB::table('t_horse_odds_finder_push_subscriptions')->get();
+        $this->sendToSubscriptions($subscriptions, $title, $body);
+    }
+
+    private function sendToSubscriptions($subscriptions, string $title, string $body): void
+    {
+        foreach ($subscriptions as $row) {
+            $subscription = Subscription::create([
+                'endpoint' => $row->endpoint,
+                'keys'     => ['p256dh' => $row->p256dh, 'auth' => $row->auth],
+            ]);
+            $this->webPush->queueNotification(
+                $subscription,
+                json_encode([
+                    'title' => $title,
+                    'body'  => $body,
+                    'icon'  => '/horse_odds_finder/icons/Icon-192.png',
+                    'url'   => 'https://baganriki.com/horse_odds_finder/',
+                ])
+            );
+        }
+        foreach ($this->webPush->flush() as $report) {
+            if (!$report->isSuccess()) {
+                Log::warning('WebPush送信失敗: ' . $report->getReason());
+                DB::table('t_horse_odds_finder_push_subscriptions')
+                    ->where('endpoint', $report->getEndpoint())
+                    ->delete();
+            }
+        }
+    }
+}
+</pre>
+
+<h2>Step 6: WebPushController.php を作成</h2>
+<p>場所: app/Http/Controllers/Api/WebPushController.php</p>
+<pre>
+&lt;?php
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class WebPushController extends Controller
+{
+    public function subscribe(Request $request): JsonResponse
+    {
+        $request->validate([
+            'user_id'  => 'required|string',
+            'endpoint' => 'required|string',
+            'p256dh'   => 'required|string',
+            'auth'     => 'required|string',
+        ]);
+
+        DB::table('t_horse_odds_finder_push_subscriptions')->upsert(
+            [
+                'user_id'  => $request->input('user_id'),
+                'endpoint' => $request->input('endpoint'),
+                'p256dh'   => $request->input('p256dh'),
+                'auth'     => $request->input('auth'),
+            ],
+            ['endpoint'],
+            ['user_id', 'p256dh', 'auth']
+        );
+        return response()->json(['success' => true]);
+    }
+
+    public function vapidPublicKey(): JsonResponse
+    {
+        return response()->json(['public_key' => config('services.vapid.public_key')]);
+    }
+}
+</pre>
+
+<h2>Step 7: routes/api.php に追加</h2>
+<pre>
+use App\Http\Controllers\Api\WebPushController;
+Route::get('vapid-public-key', [WebPushController::class, 'vapidPublicKey']);
+Route::post('web-push/subscribe', [WebPushController::class, 'subscribe']);
+</pre>
+
+<h2>Step 8: web/push-sw.js を作成（Flutter webフォルダ）</h2>
+<pre>
+self.addEventListener('push', function(event) {
+  let data = {};
+  if (event.data) {
+    try { data = event.data.json(); }
+    catch (e) { data = { title: 'お知らせ', body: event.data.text() }; }
+  }
+  const title = data.title ?? 'お知らせ';
+  const options = {
+    body: data.body ?? '',
+    icon: '/horse_odds_finder/icons/Icon-192.png',
+    data: { url: data.url ?? 'https://baganriki.com/horse_odds_finder/' },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  const url = event.notification.data?.url ?? 'https://baganriki.com/horse_odds_finder/';
+  event.waitUntil(clients.openWindow(url));
+});
+</pre>
+
+<h2>Step 9: web/index.html に追加</h2>
+<p>headタグ内のscriptに以下を追加：</p>
+<pre>
+window.subscribeWebPush = async function(vapidPublicKey) {
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return null;
+
+    const registration = await navigator.serviceWorker.register(
+      '/horse_odds_finder/push-sw.js',
+      { scope: '/horse_odds_finder/' }
+    );
+
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) await existing.unsubscribe();
+
+    const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: applicationServerKey,
+    });
+    return JSON.stringify(subscription);
+  } catch (e) {
+    console.error('[WebPush] error:', e);
+    return null;
+  }
+};
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+</pre>
+
+<h2>Step 10: lib/services/fcm_service.dart を作成（Flutter）</h2>
+<pre>
+import 'dart:convert';
+import 'dart:js_interop';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+
+@JS('subscribeWebPush')
+external JSPromise&lt;JSAny?&gt; _subscribeWebPushJs(JSString vapidKey);
+
+class FcmService {
+  static Future&lt;void&gt; registerToken({required String userId}) async {
+    if (!kIsWeb) return;
+    try {
+      // VAPID公開鍵をLaravelから取得
+      final Uri keyUri = Uri.https('baganriki.com', '/api/vapid-public-key');
+      final http.Response keyResponse = await http.get(keyUri);
+      if (keyResponse.statusCode != 200) return;
+      final Map&lt;String, dynamic&gt; keyData = jsonDecode(keyResponse.body) as Map&lt;String, dynamic&gt;;
+      final String vapidPublicKey = keyData['public_key'] as String;
+
+      // ブラウザのWeb Push購読
+      final JSAny? jsResult = await _subscribeWebPushJs(vapidPublicKey.toJS).toDart;
+      if (jsResult == null) return;
+      final Map&lt;String, dynamic&gt; subscription = jsonDecode(jsResult.dartify() as String) as Map&lt;String, dynamic&gt;;
+
+      // LaravelにSubscription情報を送信
+      final Uri subUri = Uri.https('baganriki.com', '/api/web-push/subscribe');
+      await http.post(
+        subUri,
+        headers: &lt;String, String&gt;{'content-type': 'application/json', 'Accept': 'application/json'},
+        body: jsonEncode(&lt;String, String&gt;{
+          'user_id': userId,
+          'endpoint': subscription['endpoint'] as String,
+          'p256dh': (subscription['keys'] as Map&lt;String, dynamic&gt;)['p256dh'] as String,
+          'auth': (subscription['keys'] as Map&lt;String, dynamic&gt;)['auth'] as String,
+        }),
+      );
+    } catch (e) {
+      debugPrint('WebPush Error: \$e');
+    }
+  }
+}
+</pre>
+
+<h2>注意事項</h2>
+<ul>
+  <li>Macで受け取るには「集中モード」をOFF、システム設定→通知→Google ChromeをONにすること</li>
+  <li>ログインするたびにSubscriptionが更新・DB保存される</li>
+  <li>composer関連はVPS上でのみ更新（minishlink/web-push）</li>
+  <li>pubspec.yamlにfirebase関連パッケージは不要</li>
+</ul>
+
+<h2>テスト送信（tinker）</h2>
+<pre>
+ssh centos@49.212.166.123
+cd /var/www/horse_odds_finder
+php artisan tinker --execute="
+(new App\Services\WebPushService())->sendPushNotifierDeveloperNews('テスト', '届いた？');
+echo '完了';
+"
+</pre>
+
+</body>
+</html>

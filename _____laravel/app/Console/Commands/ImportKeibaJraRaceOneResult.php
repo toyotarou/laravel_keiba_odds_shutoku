@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -156,6 +157,13 @@ class ImportKeibaJraRaceOneResult extends Command
         $this->info("INSERT完了 → 登録: {$inserted} 件 / スキップ: {$skipped} 件");
         $this->info('========== keiba:importJraRaceOneResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
+        
+
+
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaJraRaceOneResult::handle' . "\n" . date('Y-m-d H:i:s') . '　登録:' . $inserted . '、飛:' . $skipped);
+        
+
+        
     }
 
     /**

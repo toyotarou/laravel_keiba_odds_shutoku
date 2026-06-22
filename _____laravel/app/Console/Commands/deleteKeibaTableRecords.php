@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -73,6 +74,12 @@ class DeleteKeibaTableRecords extends Command
             }
         }
 
+
+
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'DeleteKeibaTableRecords::handle' . "\n" . date('Y-m-d H:i:s'));
+
+        
+        
         return 0;
     }
 }
