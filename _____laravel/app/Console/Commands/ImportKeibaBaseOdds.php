@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -146,5 +147,12 @@ class ImportKeibaBaseOdds extends Command
         }
         $this->info("処理時間     : {$totalElapsed} 秒");
         $this->info('');
+        
+
+
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaBaseOdds::handle' . "\n" . date('Y-m-d H:i:s') . '　R:' . $totalRaces . '、H:' . $totalSaved);
+        
+
+        
     }
 }

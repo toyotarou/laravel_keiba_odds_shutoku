@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -221,7 +222,14 @@ class ImportKeibaOdds extends Command
             foreach ($changeRecords as $change) {
                 $this->info("  [オッズ変動] {$change['num']}番: {$change['prev_odds']} → {$change['curr_odds']}");
             }
+            
 
+
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaOdds::handle' . "\n" . date('Y-m-d H:i:s') . '　保存:' . $saved . '頭分 ('  . $totalMs . 'ms)');
+
+
+            
+/*
             // ── ワイドオッズのスクレイピング・DB保存 ──────────────────────
             $wideStart = microtime(true);
             $wideOdds  = $this->getWideOdds($race);
@@ -259,6 +267,7 @@ class ImportKeibaOdds extends Command
                 $wideTotalSec = number_format($wideTotalMs / 1000, 2);
                 $this->info("  [Wide] DB保存完了 → {$wideSaved} 組 (合計 {$wideTotalSec}秒 / {$wideTotalMs}ms)");
             }
+            */
         }
         
         $this->info('');

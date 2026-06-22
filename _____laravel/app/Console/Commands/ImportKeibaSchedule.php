@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -348,6 +349,12 @@ class ImportKeibaSchedule extends Command
         $this->info('');
         $this->info('=== 競馬スケジュール取得処理 ── 正常終了 ===');
         $this->info('');
+        
+
+
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaSchedule::handle' . "\n" . date('Y-m-d H:i:s') . '　S:' . count($schedules) . '、R:' . count($races) . '、H:' . count($horses));
+        
+
         
         return 0;
     }

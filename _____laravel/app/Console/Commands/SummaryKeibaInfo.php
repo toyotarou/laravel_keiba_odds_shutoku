@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -194,5 +195,12 @@ class SummaryKeibaInfo extends Command
         $this->info('');
         $this->info('========== keiba:summary 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
+        
+
+
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'SummaryKeibaInfo::handle' . "\n" . date('Y-m-d H:i:s') . '　投入:' . $inserted . '、飛:' . $skipped . '、エ:' . $errors);
+        
+
+        
     }
 }
