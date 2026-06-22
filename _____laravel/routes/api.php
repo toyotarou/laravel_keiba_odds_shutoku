@@ -2,8 +2,9 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ApiController;
-
 use App\Http\Controllers\Api\LineWebhookController;
+use App\Http\Controllers\Api\WebPushController;
+
 Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
 
 Route::post('signup', [ApiController::class, 'signup']);
@@ -34,3 +35,6 @@ Route::get('getHorseOddsFinderSummaryOneRace', [ApiController::class, 'getHorseO
 Route::get('getHorseOddsFinderRaceOneResult', [ApiController::class, 'getHorseOddsFinderRaceOneResult']);
 
 Route::get('getHorseOddsFinderLoginUsers', [ApiController::class, 'getHorseOddsFinderLoginUsers']);
+
+Route::get('vapid-public-key', [WebPushController::class, 'vapidPublicKey']);
+Route::post('web-push/subscribe', [WebPushController::class, 'subscribe']);
