@@ -21,13 +21,14 @@ class WebPushController extends Controller
 
         DB::table('t_horse_odds_finder_push_subscriptions')->upsert(
             [
-                'user_id'  => $request->input('user_id'),
-                'endpoint' => $request->input('endpoint'),
-                'p256dh'   => $request->input('p256dh'),
-                'auth'     => $request->input('auth'),
+                'user_id'   => $request->input('user_id'),
+                'endpoint'  => $request->input('endpoint'),
+                'p256dh'    => $request->input('p256dh'),
+                'auth'      => $request->input('auth'),
+                'is_delete' => 0,
             ],
             ['endpoint'],
-            ['user_id', 'p256dh', 'auth']
+            ['user_id', 'p256dh', 'auth', 'is_delete']
         );
 
         return response()->json(['success' => true]);

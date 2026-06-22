@@ -228,8 +228,16 @@ class ImportKeibaOdds extends Command
             (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaOdds::handle' . "\n" . date('Y-m-d H:i:s') . '　保存:' . $saved . '頭分 ('  . $totalMs . 'ms)');
 
 
+
+            if (in_array($diff, $timings) && !empty($changeRecords)) {
+                (new WebPushService())->sendPushNotifierOddsNews(
+                    'オッズ変更がありました',
+                    "{$race->date} {$race->kaisuu}回{$race->basho_name}{$race->day}日\nR{$race->race} {$race->race_name}"
+                );
+            }
             
-/*
+
+
             // ── ワイドオッズのスクレイピング・DB保存 ──────────────────────
             $wideStart = microtime(true);
             $wideOdds  = $this->getWideOdds($race);
@@ -267,7 +275,6 @@ class ImportKeibaOdds extends Command
                 $wideTotalSec = number_format($wideTotalMs / 1000, 2);
                 $this->info("  [Wide] DB保存完了 → {$wideSaved} 組 (合計 {$wideTotalSec}秒 / {$wideTotalMs}ms)");
             }
-            */
         }
         
         $this->info('');

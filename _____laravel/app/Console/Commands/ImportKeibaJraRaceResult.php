@@ -35,73 +35,74 @@ class ImportKeibaJraRaceResult extends Command
 
     public function handle(): void
     {
-        $this->info('');
-        $this->info('========== keiba:importJraRaceResult 開始 ' . date('Y-m-d H:i:s') . ' ==========');
-
-        // Node.js スクリプトを実行してJRAから結果取得
-        $start = microtime(true);
-        $json  = $this->fetchJraRaceResult();
-        $fetchMs = round((microtime(true) - $start) * 1000);
-
-        if (!$json) {
-            $this->error('Node.js スクリプトの実行失敗（出力なし）');
-            return;
-        }
-
-        $data = json_decode($json, true);
-        if (json_last_error() !== JSON_ERROR_NONE || !isset($data['results'])) {
-            $this->error('JSONパース失敗: ' . json_last_error_msg());
-            return;
-        }
-
-        $results = $data['results'];
-        $this->info("Node.js 取得完了 → {$fetchMs}ms / " . count($results) . " 件");
-
-        if (empty($results)) {
-            $this->warn('取得件数が0件です（レース未終了の可能性）。終了します。');
-            return;
-        }
-
-        // result ごとにupdateを実行
         $updated = 0;
         $skipped = 0;
 
-        DB::transaction(function () use ($results, &$updated, &$skipped) {
-            foreach ($results as $row) {
-                // basho名をコードに変換
-                $bashoCode = self::BASHO_MAP[$row['basho']] ?? null;
-                if ($bashoCode === null) {
-                    $this->warn("  未対応の開催場所: {$row['basho']} → スキップ");
-                    $skipped++;
-                    continue;
-                }
+        try {
+            $this->info('');
+            $this->info('========== keiba:importJraRaceResult 開始 ' . date('Y-m-d H:i:s') . ' ==========');
 
-                // summaryテーブルのresultを更新
-                // 照合キー: date, kaisuu, basho, day, race, num
-                $affected = DB::table('t_horse_odds_finder_summary')
-                    ->where('kaisuu', (string) $row['kaisuu'])
-                    ->where('basho',  $bashoCode)
-                    ->where('day',    (string) $row['day'])
-                    ->where('race',   $row['race'])
-                    ->where('num',    $row['horse_num'])
-                    ->whereNull('result')
-                    ->update(['result' => $row['rank']]);
+            // Node.js スクリプトを実行してJRAから結果取得
+            $start = microtime(true);
+            $json  = $this->fetchJraRaceResult();
+            $fetchMs = round((microtime(true) - $start) * 1000);
 
-                if ($affected > 0) {
-                    $updated++;
-                } else {
-                    $skipped++;
-                }
+            if (!$json) {
+                $this->error('Node.js スクリプトの実行失敗（出力なし）');
+                return;
             }
-        });
 
-        $this->info("UPDATE完了 → 更新: {$updated} 件 / スキップ: {$skipped} 件");
-        $this->info('========== keiba:importJraRaceResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
-        $this->info('');
-        
+            $data = json_decode($json, true);
+            if (json_last_error() !== JSON_ERROR_NONE || !isset($data['results'])) {
+                $this->error('JSONパース失敗: ' . json_last_error_msg());
+                return;
+            }
 
+            $results = $data['results'];
+            $this->info("Node.js 取得完了 → {$fetchMs}ms / " . count($results) . " 件");
 
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaJraRaceResult::handle' . "\n" . date('Y-m-d H:i:s') . '　更新:' . $updated . '、飛:' . $skipped);
+            if (empty($results)) {
+                $this->warn('取得件数が0件です（レース未終了の可能性）。終了します。');
+                return;
+            }
+
+            // result ごとにupdateを実行
+            DB::transaction(function () use ($results, &$updated, &$skipped) {
+                foreach ($results as $row) {
+                    // basho名をコードに変換
+                    $bashoCode = self::BASHO_MAP[$row['basho']] ?? null;
+                    if ($bashoCode === null) {
+                        $this->warn("  未対応の開催場所: {$row['basho']} → スキップ");
+                        $skipped++;
+                        continue;
+                    }
+
+                    // summaryテーブルのresultを更新
+                    // 照合キー: date, kaisuu, basho, day, race, num
+                    $affected = DB::table('t_horse_odds_finder_summary')
+                        ->where('kaisuu', (string) $row['kaisuu'])
+                        ->where('basho',  $bashoCode)
+                        ->where('day',    (string) $row['day'])
+                        ->where('race',   $row['race'])
+                        ->where('num',    $row['horse_num'])
+                        ->whereNull('result')
+                        ->update(['result' => $row['rank']]);
+
+                    if ($affected > 0) {
+                        $updated++;
+                    } else {
+                        $skipped++;
+                    }
+                }
+            });
+
+            $this->info("UPDATE完了 → 更新: {$updated} 件 / スキップ: {$skipped} 件");
+            $this->info('========== keiba:importJraRaceResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
+            $this->info('');
+
+        } finally {
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaJraRaceResult::handle' . "\n" . date('Y-m-d H:i:s') . '　更新:' . $updated . '、飛:' . $skipped);
+        }
         
 
         
