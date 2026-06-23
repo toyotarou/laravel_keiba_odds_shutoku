@@ -2,85 +2,300 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Web Push通知 実装手順（決定版）</title>
+<title>Web Push 通知 完全実装ガイド</title>
 <style>
-  body { font-family: sans-serif; max-width: 900px; margin: 40px auto; line-height: 1.8; }
-  h1 { border-bottom: 3px solid #333; padding-bottom: 10px; }
-  h2 { border-left: 5px solid #666; padding-left: 10px; margin-top: 40px; }
-  h3 { color: #444; }
-  pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
-  .note { background: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', sans-serif;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+    line-height: 1.85;
+    color: #1a1a1a;
+    background: #fff;
+  }
+  h1 { font-size: 26px; border-bottom: 3px solid #111; padding-bottom: 12px; margin-bottom: 6px; }
+  h2 {
+    font-size: 19px;
+    margin-top: 60px;
+    padding: 10px 16px;
+    background: #1a1a1a;
+    color: #fff;
+    border-radius: 4px;
+  }
+  h3 { font-size: 16px; margin-top: 28px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  pre {
+    background: #0d1117;
+    color: #c9d1d9;
+    padding: 18px 20px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.65;
+    margin: 0 0 18px;
+  }
+  /* 赤文字：暫定プロジェクト名（要置換）*/
+  .pj { color: #ff4444; font-weight: bold; }
+  /* pre の中の赤文字 */
+  pre .pj { color: #ff6b6b; font-weight: bold; background: rgba(255,68,68,0.15); border-radius: 2px; padding: 0 1px; }
+
+  .file-label {
+    display: inline-block;
+    background: #333;
+    color: #9cdcfe;
+    font-size: 12px;
+    font-family: monospace;
+    padding: 3px 10px;
+    border-radius: 3px 3px 0 0;
+    margin-top: 16px;
+    margin-bottom: 0;
+  }
+  .file-label + pre { border-radius: 0 6px 6px 6px; margin-top: 0; }
+  .warn   { background: #fff3cd; border-left: 5px solid #e09800; padding: 12px 16px; margin: 14px 0; border-radius: 0 4px 4px 0; }
+  .danger { background: #fde8e8; border-left: 5px solid #d00;    padding: 12px 16px; margin: 14px 0; border-radius: 0 4px 4px 0; }
+  .ok     { background: #e6f4ea; border-left: 5px solid #2a7a2a; padding: 12px 16px; margin: 14px 0; border-radius: 0 4px 4px 0; }
+  .info   { background: #e8f0fe; border-left: 5px solid #1a73e8; padding: 12px 16px; margin: 14px 0; border-radius: 0 4px 4px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0 20px; font-size: 14px; }
+  th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #f5f5f5; font-weight: bold; }
+  .step-num {
+    display: inline-block;
+    background: #1a1a1a;
+    color: #fff;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 26px;
+    font-size: 13px;
+    font-weight: bold;
+    margin-right: 8px;
+  }
+  hr { border: none; border-top: 1px solid #e0e0e0; margin: 40px 0; }
+  .arch-box {
+    background: #f4f4f4;
+    border: 1px solid #ccc;
+    padding: 20px;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 13px;
+    white-space: pre;
+    line-height: 1.7;
+    overflow-x: auto;
+  }
+  .claude-note {
+    background: #f0f0ff;
+    border: 2px dashed #6666cc;
+    padding: 18px 20px;
+    margin: 30px 0;
+    border-radius: 6px;
+  }
+  .claude-note h3 { border: none; color: #333; margin-top: 0; }
+  .naming-table td:first-child { font-family: monospace; font-weight: bold; }
+  .red-legend {
+    display: inline-block;
+    background: #fde8e8;
+    border: 1px solid #ffaaaa;
+    color: #cc0000;
+    font-size: 13px;
+    padding: 4px 12px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+  }
 </style>
 </head>
 <body>
 
-<h1>Web Push通知 実装手順（決定版）</h1>
+<div class="claude-note">
+<h3>Claude Code へ — このドキュメントについて</h3>
+<p>
+  これは Web Push 通知機能の<strong>汎用実装ガイド</strong>です。<br>
+  <span style="color:#cc0000; font-weight:bold;">赤文字</span>の部分が「プロジェクト固有の名前（要置換）」です。<br>
+  次のプロジェクトで実装するときは、赤文字を実際のプロジェクト名に置き換えてください。<br><br>
+  このガイドは Flutter web（Dart）＋ Laravel で動作確認済みの構成です。<br>
+  Firebase は一切使いません。Web Push Protocol（VAPID 方式）のみです。
+</p>
+</div>
 
-<p>Firebaseを使わず、ブラウザ標準のWeb Push Protocol（VAPID方式）で実装する。<br>
-LaravelからVAPID認証でGoogleのプッシュサーバー経由でブラウザに通知を届ける。</p>
+<h1>Web Push 通知 完全実装ガイド</h1>
 
-<h2>全体構成</h2>
+<div class="red-legend">
+  ★ <span style="color:#cc0000; font-weight:bold;">赤文字</span> = 暫定プロジェクト名「BlueSky」。実際のプロジェクト名に置き換えること。
+</div>
+
+<p>
+  Firebase を一切使わず、ブラウザ標準の <strong>Web Push Protocol（VAPID 方式）</strong> で実装する。<br>
+  Laravel バックエンドが VAPID 認証で FCM（Chrome）/ Apple Push（Safari）サーバー経由でブラウザに通知を届ける。<br>
+  フロントエンドは Flutter web（Dart）。Service Worker で push イベントを受信して通知を表示する。
+</p>
+
+<h3>命名規則（暫定プロジェクト名「BlueSky」の場合）</h3>
+
+<div class="info">
+  このガイドでは暫定プロジェクト名として <strong>「BlueSky」</strong> を使用しています（実際のプロジェクト名ではありません）。<br>
+  実装時は下表の規則に従って、すべての <span class="pj">赤文字</span> を実際のプロジェクト名に置き換えてください。
+</div>
+
+<table class="naming-table">
+  <tr><th>ケース</th><th>表記例</th><th>使う場所</th></tr>
+  <tr><td><span class="pj">BlueSky</span></td><td>PascalCase</td><td>PHP クラス名、Dart クラス名</td></tr>
+  <tr><td><span class="pj">blueSky</span></td><td>camelCase</td><td>Dart 変数名、JS 関数名</td></tr>
+  <tr><td><span class="pj">blue_sky</span></td><td>snake_case</td><td>DB テーブル名、ファイル名、URL パス</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>1. 全体アーキテクチャ</h2>
+
+<div class="arch-box">【通知登録フロー】
+
+  ブラウザ（スマホ / PC）
+  ┌──────────────────────────────────────────────────────────┐
+  │  アプリ起動 or ログイン成功                                  │
+  │  ↓                                                        │
+  │  FcmService.registerToken(userId)                          │
+  │  ↓                                                        │
+  │  GET https://（ドメイン）/api/vapid-public-key             │
+  │  ↓ 公開鍵を受け取る                                        │
+  │  index.html: subscribeWebPush(vapidPublicKey)              │
+  │  ↓                                                        │
+  │  push-sw.js を scope=/blue_sky/push/ で Service Worker 登録 │
+  │  ↓ SW が activated になるまで待機                           │
+  │  pushManager.subscribe() → Subscription 取得              │
+  │    { endpoint, keys: { p256dh, auth } }                    │
+  │  ↓                                                        │
+  │  POST https://（ドメイン）/api/web-push/subscribe          │
+  │  ↓ DB に upsert 保存（endpoint をキーに重複防止）           │
+  └──────────────────────────────────────────────────────────┘
+
+【通知送信フロー】
+
+  Laravel（cron / artisan コマンド）
+  ↓
+  BlueSkyWebPushService::sendPushDeveloperNews()  ← 開発者宛のみ
+  BlueSkyWebPushService::sendPushOddsNews()       ← 全ユーザー宛
+  ↓
+  DB から subscription レコードを取得
+  ↓
+  minishlink/web-push（VAPID 認証）
+  ↓
+  FCM サーバー（Chrome）/ Apple Push サーバー（Safari）
+  ↓
+  push-sw.js の push イベント → showNotification()
+  ↓
+  デバイスに通知表示</div>
+
+<h3>DB テーブル構成</h3>
+<table>
+  <tr><th>カラム</th><th>型</th><th>説明</th></tr>
+  <tr><td>id</td><td>INT AUTO_INCREMENT PK</td><td>自動採番</td></tr>
+  <tr><td>user_id</td><td>VARCHAR(255)</td><td>ログインユーザーID</td></tr>
+  <tr><td>endpoint</td><td>TEXT / UNIQUE</td><td>FCM / Apple の push エンドポイント URL（端末×ブラウザで一意）</td></tr>
+  <tr><td>p256dh</td><td>VARCHAR(512)</td><td>暗号化キー</td></tr>
+  <tr><td>auth</td><td>VARCHAR(255)</td><td>認証シークレット</td></tr>
+  <tr><td>is_delete</td><td>TINYINT(1) DEFAULT 0</td><td>論理削除フラグ（0=有効）</td></tr>
+  <tr><td>created_at</td><td>TIMESTAMP</td><td>登録日時</td></tr>
+</table>
+
+<div class="info">
+  <strong>endpoint の特性：</strong>
+  同じ端末のブラウザでキャッシュをクリアすると endpoint が変わり、新しいレコードが INSERT される。<br>
+  古い（無効な）レコードは次回の push 送信時に 410 Gone が返り、自動で DELETE される。<br>
+  1ユーザーが複数端末・複数ブラウザを使うと、その数だけレコードが存在するのが正常。
+</div>
+
+<!-- ============================================================ -->
+<h2>2. 最重要：Flutter SW との競合問題</h2>
+
+<div class="danger">
+  <strong>ここを理解せずに実装すると、スマホで通知が届かない。</strong>
+</div>
+
+<h3>何が起きるか</h3>
+<p>
+  Flutter web は <code>flutter_service_worker.js</code> を自動生成する。<br>
+  このファイルには <code>self.skipWaiting()</code> が含まれており、インストールされると即座に <code>active</code> になってスコープを支配する。
+</p>
+<p>push-sw.js を <strong>同じスコープ</strong>（例: <code>/<span class="pj">blue_sky</span>/</code>）に登録すると：</p>
+<ol>
+  <li>flutter_service_worker.js が <code>active</code>（支配者）</li>
+  <li>push-sw.js が登録される → <code>installing</code> → <code>waiting</code>（順番待ち）</li>
+  <li>push-sw.js は <strong>永遠に <code>activated</code> にならない</strong>（Flutter SW が居座るため）</li>
+  <li>push イベントは <code>active</code> な SW（= flutter_service_worker.js）に届く</li>
+  <li>flutter_service_worker.js には push ハンドラがない → <strong>通知が表示されない</strong></li>
+</ol>
+
+<div class="ok">
+  <strong>解決策：push-sw.js を Flutter SW とは別スコープに登録する。</strong><br>
+  <code>{ scope: '/<span class="pj">blue_sky</span>/push/' }</code> を指定することで Flutter SW と干渉しない独立した登録になり、
+  push-sw.js はすぐに <code>activated</code> になって push イベントを正常に受け取れる。
+</div>
+
 <pre>
-① ユーザーがログイン
-② Flutter(fcm_service.dart) → LaravelにVAPID公開鍵をリクエスト
-③ ブラウザがpush-sw.jsをService Workerとして登録
-④ pushManager.subscribe() でSubscriptionを取得
-⑤ Subscription情報(endpoint, p256dh, auth)をLaravelへ送信・DB保存
-⑥ LaravelコマンドからWebPushService.sendXxx()を呼び出す
-⑦ minishlink/web-push がVAPID認証でプッシュサーバーへ送信
-⑧ ブラウザのpush-sw.jsがpushイベントを受信して通知表示
-</pre>
+// ❌ NG: Flutter SW と同じスコープ
+navigator.serviceWorker.register('/<span class="pj">blue_sky</span>/push-sw.js', {
+  scope: '/<span class="pj">blue_sky</span>/'
+});
 
-<h2>Step 1: VPSにパッケージをインストール</h2>
+// ✅ OK: /push/ を付けた別スコープ
+navigator.serviceWorker.register('/<span class="pj">blue_sky</span>/push-sw.js', {
+  scope: '/<span class="pj">blue_sky</span>/push/'
+});</pre>
+
+<!-- ============================================================ -->
+<h2>3. VPS セットアップ</h2>
+
+<h3><span class="step-num">1</span> パッケージインストール（VPS 上で実行）</h3>
 <pre>
-cd /var/www/horse_odds_finder
-composer require minishlink/web-push
-</pre>
+cd /var/www/<span class="pj">blue_sky</span>
+composer require minishlink/web-push</pre>
 
-<h2>Step 2: VAPID Keyを生成</h2>
+<h3><span class="step-num">2</span> VAPID キーを生成</h3>
 <pre>
 php artisan tinker --execute="
 \$vapid = \Minishlink\WebPush\VAPID::createVapidKeys();
-echo 'PUBLIC: ' . \$vapid['publicKey'] . PHP_EOL;
+echo 'PUBLIC: '  . \$vapid['publicKey']  . PHP_EOL;
 echo 'PRIVATE: ' . \$vapid['privateKey'] . PHP_EOL;
-"
-</pre>
-<p>生成されたキーを .env に追加：</p>
+"</pre>
+
+<p>生成されたキーを <code>.env</code> に追記する：</p>
+<div class="file-label">.env</div>
 <pre>
 VAPID_PUBLIC_KEY=（生成された公開鍵）
 VAPID_PRIVATE_KEY=（生成された秘密鍵）
-VAPID_SUBJECT=mailto:admin@baganriki.com
-</pre>
+VAPID_SUBJECT=mailto:（管理者のメールアドレス）</pre>
 
-<h2>Step 3: DBテーブルを作成</h2>
+<h3><span class="step-num">3</span> DB テーブルを作成</h3>
 <pre>
 php artisan tinker --execute="
-DB::statement('CREATE TABLE IF NOT EXISTS t_horse_odds_finder_push_subscriptions (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id VARCHAR(255) NOT NULL,
-  endpoint TEXT NOT NULL,
-  p256dh VARCHAR(512) NOT NULL,
-  auth VARCHAR(255) NOT NULL,
+DB::statement('CREATE TABLE IF NOT EXISTS <span class="pj">t_blue_sky_push_subscriptions</span> (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  user_id    VARCHAR(255) NOT NULL,
+  endpoint   TEXT NOT NULL,
+  p256dh     VARCHAR(512) NOT NULL,
+  auth       VARCHAR(255) NOT NULL,
+  is_delete  TINYINT(1) NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY unique_endpoint (endpoint(512))
 )');
 echo 'テーブル作成完了';
-"
-</pre>
+"</pre>
 
-<h2>Step 4: config/services.php に追加</h2>
+<!-- ============================================================ -->
+<h2>4. Laravel 実装</h2>
+
+<h3><span class="step-num">4</span> config/services.php に VAPID 設定を追加</h3>
+<div class="file-label">config/services.php（配列の末尾に追加）</div>
 <pre>
 'vapid' => [
     'public_key'  => env('VAPID_PUBLIC_KEY'),
     'private_key' => env('VAPID_PRIVATE_KEY'),
     'subject'     => env('VAPID_SUBJECT'),
-],
-</pre>
+],</pre>
 
-<h2>Step 5: WebPushService.php を作成</h2>
-<p>場所: app/Services/WebPushService.php</p>
+<h3><span class="step-num">5</span> WebPushService を作成</h3>
+<div class="file-label">app/Services/<span class="pj">BlueSky</span>WebPushService.php</div>
 <pre>
 &lt;?php
+
 namespace App\Services;
 
 use Illuminate\Support\Facades\DB;
@@ -88,7 +303,7 @@ use Illuminate\Support\Facades\Log;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
 
-class WebPushService
+class <span class="pj">BlueSky</span>WebPushService
 {
     private WebPush $webPush;
 
@@ -104,20 +319,26 @@ class WebPushService
         $this->webPush = new WebPush($auth);
     }
 
-    // 開発者のみに送信
-    public function sendPushNotifierDeveloperNews(string $title, string $body): void
+    // 開発者向け通知（$developerUserIds に含まれるユーザーのみに送信）
+    // 各 artisan コマンドの finally ブロックで呼んで実行ログをスマホで受け取る用途
+    public function sendPushDeveloperNews(string $title, string $body): void
     {
-        $developerUserIds = ['toyohide'];
-        $subscriptions = DB::table('t_horse_odds_finder_push_subscriptions')
+        $developerUserIds = [<span class="pj">'your_user_id'</span>]; // ← 開発者のユーザーID
+
+        $subscriptions = DB::table('<span class="pj">t_blue_sky_push_subscriptions</span>')
             ->whereIn('user_id', $developerUserIds)
             ->get();
+
         $this->sendToSubscriptions($subscriptions, $title, $body);
     }
 
-    // 全ユーザーに送信
-    public function sendPushNotifierOddsNews(string $title, string $body): void
+    // 全ユーザー向け通知（is_delete = 0 の全 subscription に送信）
+    public function sendPushOddsNews(string $title, string $body): void
     {
-        $subscriptions = DB::table('t_horse_odds_finder_push_subscriptions')->get();
+        $subscriptions = DB::table('<span class="pj">t_blue_sky_push_subscriptions</span>')
+            ->where('is_delete', '0')
+            ->get();
+
         $this->sendToSubscriptions($subscriptions, $title, $body);
     }
 
@@ -126,34 +347,41 @@ class WebPushService
         foreach ($subscriptions as $row) {
             $subscription = Subscription::create([
                 'endpoint' => $row->endpoint,
-                'keys'     => ['p256dh' => $row->p256dh, 'auth' => $row->auth],
+                'keys'     => [
+                    'p256dh' => $row->p256dh,
+                    'auth'   => $row->auth,
+                ],
             ]);
+
             $this->webPush->queueNotification(
                 $subscription,
                 json_encode([
                     'title' => $title,
                     'body'  => $body,
-                    'icon'  => '/horse_odds_finder/icons/Icon-192.png',
-                    'url'   => 'https://baganriki.com/horse_odds_finder/',
+                    'icon'  => '/<span class="pj">blue_sky</span>/icons/Icon-192.png',
+                    'url'   => 'https://<span class="pj">（ドメイン）</span>/<span class="pj">blue_sky</span>/',
                 ])
             );
         }
+
+        // flush() で実際に送信し、結果を1件ずつ確認する
         foreach ($this->webPush->flush() as $report) {
             if (!$report->isSuccess()) {
-                Log::warning('WebPush送信失敗: ' . $report->getReason());
-                DB::table('t_horse_odds_finder_push_subscriptions')
+                Log::warning('WebPush送信失敗: ' . $report->getReason() . ' endpoint: ' . $report->getEndpoint());
+                // 410 Gone = subscription が無効 → 自動削除
+                DB::table('<span class="pj">t_blue_sky_push_subscriptions</span>')
                     ->where('endpoint', $report->getEndpoint())
                     ->delete();
             }
         }
     }
-}
-</pre>
+}</pre>
 
-<h2>Step 6: WebPushController.php を作成</h2>
-<p>場所: app/Http/Controllers/Api/WebPushController.php</p>
+<h3><span class="step-num">6</span> WebPushController を作成</h3>
+<div class="file-label">app/Http/Controllers/Api/<span class="pj">BlueSky</span>WebPushController.php</div>
 <pre>
 &lt;?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -161,8 +389,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-class WebPushController extends Controller
+class <span class="pj">BlueSky</span>WebPushController extends Controller
 {
+    // Flutter から subscription 情報を受け取り DB に保存する
+    // endpoint をキーにして upsert するので、同じ端末から何度登録しても重複しない
     public function subscribe(Request $request): JsonResponse
     {
         $request->validate([
@@ -172,104 +402,178 @@ class WebPushController extends Controller
             'auth'     => 'required|string',
         ]);
 
-        DB::table('t_horse_odds_finder_push_subscriptions')->upsert(
+        DB::table('<span class="pj">t_blue_sky_push_subscriptions</span>')->upsert(
             [
-                'user_id'  => $request->input('user_id'),
-                'endpoint' => $request->input('endpoint'),
-                'p256dh'   => $request->input('p256dh'),
-                'auth'     => $request->input('auth'),
+                'user_id'   => $request->input('user_id'),
+                'endpoint'  => $request->input('endpoint'),
+                'p256dh'    => $request->input('p256dh'),
+                'auth'      => $request->input('auth'),
+                'is_delete' => 0,
             ],
-            ['endpoint'],
-            ['user_id', 'p256dh', 'auth']
+            ['endpoint'],                               // 一意キー（このカラムで重複判定）
+            ['user_id', 'p256dh', 'auth', 'is_delete'] // 重複時に更新するカラム
         );
+
         return response()->json(['success' => true]);
     }
 
+    // Flutter が VAPID 公開鍵を取得するためのエンドポイント
     public function vapidPublicKey(): JsonResponse
     {
-        return response()->json(['public_key' => config('services.vapid.public_key')]);
+        return response()->json([
+            'public_key' => config('services.vapid.public_key'),
+        ]);
     }
-}
-</pre>
+}</pre>
 
-<h2>Step 7: routes/api.php に追加</h2>
+<h3><span class="step-num">7</span> routes/api.php に追加</h3>
+<div class="file-label">routes/api.php</div>
 <pre>
-use App\Http\Controllers\Api\WebPushController;
-Route::get('vapid-public-key', [WebPushController::class, 'vapidPublicKey']);
-Route::post('web-push/subscribe', [WebPushController::class, 'subscribe']);
-</pre>
+use App\Http\Controllers\Api\<span class="pj">BlueSky</span>WebPushController;
 
-<h2>Step 8: web/push-sw.js を作成（Flutter webフォルダ）</h2>
+Route::get('vapid-public-key',    [<span class="pj">BlueSky</span>WebPushController::class, 'vapidPublicKey']);
+Route::post('web-push/subscribe', [<span class="pj">BlueSky</span>WebPushController::class, 'subscribe']);</pre>
+
+<h3>artisan コマンドへの組み込み方</h3>
+<p>各コマンドの <code>finally</code> ブロックで <code>sendPushDeveloperNews</code> を呼ぶと、実行完了をスマホで受け取れる。</p>
+<div class="file-label">app/Console/Commands/（任意のコマンド）.php</div>
 <pre>
+use App\Services\<span class="pj">BlueSky</span>WebPushService;
+
+public function handle(): void
+{
+    try {
+        // ... 処理 ...
+    } finally {
+        (new <span class="pj">BlueSky</span>WebPushService())->sendPushDeveloperNews(
+            'コマンド名',
+            '完了 ' . date('Y-m-d H:i:s')
+        );
+    }
+}</pre>
+
+<!-- ============================================================ -->
+<h2>5. Flutter web 実装</h2>
+
+<h3><span class="step-num">8</span> push-sw.js を作成</h3>
+<div class="file-label">web/push-sw.js</div>
+<pre>
+// push イベント: バックグラウンドでも通知を表示する
 self.addEventListener('push', function(event) {
   let data = {};
   if (event.data) {
-    try { data = event.data.json(); }
-    catch (e) { data = { title: 'お知らせ', body: event.data.text() }; }
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: 'お知らせ', body: event.data.text() };
+    }
   }
-  const title = data.title ?? 'お知らせ';
+  const title   = data.title ?? 'お知らせ';
   const options = {
     body: data.body ?? '',
-    icon: '/horse_odds_finder/icons/Icon-192.png',
-    data: { url: data.url ?? 'https://baganriki.com/horse_odds_finder/' },
+    icon: '/<span class="pj">blue_sky</span>/icons/Icon-192.png',
+    data: { url: data.url ?? 'https://<span class="pj">（ドメイン）</span>/<span class="pj">blue_sky</span>/' },
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+// 通知タップ時にアプリを開く
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
-  const url = event.notification.data?.url ?? 'https://baganriki.com/horse_odds_finder/';
+  const url = event.notification.data?.url ?? 'https://<span class="pj">（ドメイン）</span>/<span class="pj">blue_sky</span>/';
   event.waitUntil(clients.openWindow(url));
-});
-</pre>
+});</pre>
 
-<h2>Step 9: web/index.html に追加</h2>
-<p>headタグ内のscriptに以下を追加：</p>
+<h3><span class="step-num">9</span> index.html に subscribeWebPush を追加</h3>
+<p><code>&lt;head&gt;</code> 内の <code>&lt;script&gt;</code> タグとして追加する（flutter_bootstrap.js の読み込みより前に書くこと）。</p>
+
+<div class="danger">
+  <strong>scope は必ず <code>/<span class="pj">blue_sky</span>/push/</code> にすること。</strong><br>
+  <code>/<span class="pj">blue_sky</span>/</code> にすると Flutter SW と競合して通知が届かなくなる（「2. 最重要」参照）。
+</div>
+
+<div class="file-label">web/index.html の &lt;head&gt; 内（&lt;script&gt; タグとして追加）</div>
 <pre>
-window.subscribeWebPush = async function(vapidPublicKey) {
-  try {
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return null;
+&lt;script&gt;
+  window.subscribeWebPush = async function(vapidPublicKey) {
+    try {
+      // 通知許可を求める
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return null;
 
-    const registration = await navigator.serviceWorker.register(
-      '/horse_odds_finder/push-sw.js',
-      { scope: '/horse_odds_finder/' }
-    );
+      // push-sw.js を Flutter SW（flutter_service_worker.js）とは別スコープで登録する。
+      // 同一スコープにすると Flutter SW の skipWaiting() に負けて
+      // push-sw.js が waiting のまま activated にならず push イベントが届かない。
+      const registration = await navigator.serviceWorker.register(
+        '/<span class="pj">blue_sky</span>/push-sw.js',
+        { scope: '/<span class="pj">blue_sky</span>/push/' }
+      );
 
-    const existing = await registration.pushManager.getSubscription();
-    if (existing) await existing.unsubscribe();
+      // 既存の Subscription があればそのまま再利用して返す。
+      // 毎回 unsubscribe すると再登録失敗時に DB 上に無効なエンドポイントが残る。
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        return JSON.stringify(existing);
+      }
 
-    const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: applicationServerKey,
-    });
-    return JSON.stringify(subscription);
-  } catch (e) {
-    console.error('[WebPush] error:', e);
-    return null;
+      // 新規登録時は SW が active になるまで待つ。
+      // 別スコープなので Flutter SW と競合せず、すぐに activated になる。
+      if (!registration.active) {
+        await new Promise(resolve => {
+          const sw = registration.installing || registration.waiting;
+          if (!sw) { resolve(); return; }
+          sw.addEventListener('statechange', function handler() {
+            if (sw.state === 'activated') {
+              sw.removeEventListener('statechange', handler);
+              resolve();
+            }
+          });
+        });
+      }
+
+      // 新規 Subscription を作成
+      const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey,
+      });
+
+      return JSON.stringify(subscription);
+    } catch (e) {
+      console.error('[WebPush] error:', e);
+      return null;
+    }
+  };
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding     = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64      = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData     = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i &lt; rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
   }
-};
+&lt;/script&gt;</pre>
 
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
-</pre>
+<h3><span class="step-num">10</span> fcm_service_stub.dart を作成（モバイル向け空実装）</h3>
+<div class="file-label">lib/services/fcm_service_stub.dart</div>
+<pre>
+class FcmService {
+  static Future&lt;void&gt; registerToken({required String userId}) async {}
+}</pre>
 
-<h2>Step 10: lib/services/fcm_service.dart を作成（Flutter）</h2>
+<h3><span class="step-num">11</span> fcm_service_web.dart を作成（Web 向け実装）</h3>
+<div class="file-label">lib/services/fcm_service_web.dart</div>
 <pre>
 import 'dart:convert';
 import 'dart:js_interop';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+// index.html で定義した window.subscribeWebPush() を Dart から呼び出す
 @JS('subscribeWebPush')
 external JSPromise&lt;JSAny?&gt; _subscribeWebPushJs(JSString vapidKey);
 
@@ -277,54 +581,213 @@ class FcmService {
   static Future&lt;void&gt; registerToken({required String userId}) async {
     if (!kIsWeb) return;
     try {
-      // VAPID公開鍵をLaravelから取得
-      final Uri keyUri = Uri.https('baganriki.com', '/api/vapid-public-key');
+      // ① Laravel から VAPID 公開鍵を取得
+      final Uri keyUri = Uri.https('<span class="pj">（ドメイン）</span>', '/api/vapid-public-key');
       final http.Response keyResponse = await http.get(keyUri);
       if (keyResponse.statusCode != 200) return;
-      final Map&lt;String, dynamic&gt; keyData = jsonDecode(keyResponse.body) as Map&lt;String, dynamic&gt;;
+
+      final Map&lt;String, dynamic&gt; keyData =
+          jsonDecode(keyResponse.body) as Map&lt;String, dynamic&gt;;
       final String vapidPublicKey = keyData['public_key'] as String;
 
-      // ブラウザのWeb Push購読
-      final JSAny? jsResult = await _subscribeWebPushJs(vapidPublicKey.toJS).toDart;
+      // ② ブラウザの Web Push を購読（index.html の JS 関数を呼ぶ）
+      final JSAny? jsResult =
+          await _subscribeWebPushJs(vapidPublicKey.toJS).toDart;
       if (jsResult == null) return;
-      final Map&lt;String, dynamic&gt; subscription = jsonDecode(jsResult.dartify() as String) as Map&lt;String, dynamic&gt;;
 
-      // LaravelにSubscription情報を送信
-      final Uri subUri = Uri.https('baganriki.com', '/api/web-push/subscribe');
+      final Map&lt;String, dynamic&gt; subscription =
+          jsonDecode(jsResult.dartify()! as String) as Map&lt;String, dynamic&gt;;
+      final String endpoint = subscription['endpoint'] as String;
+      final Map&lt;String, dynamic&gt; keys =
+          subscription['keys'] as Map&lt;String, dynamic&gt;;
+
+      // ③ Laravel に Subscription 情報を送信して DB に保存させる
+      final Uri subUri = Uri.https('<span class="pj">（ドメイン）</span>', '/api/web-push/subscribe');
       await http.post(
         subUri,
-        headers: &lt;String, String&gt;{'content-type': 'application/json', 'Accept': 'application/json'},
+        headers: &lt;String, String&gt;{
+          'content-type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: jsonEncode(&lt;String, String&gt;{
           'user_id': userId,
-          'endpoint': subscription['endpoint'] as String,
-          'p256dh': (subscription['keys'] as Map&lt;String, dynamic&gt;)['p256dh'] as String,
-          'auth': (subscription['keys'] as Map&lt;String, dynamic&gt;)['auth'] as String,
+          'endpoint': endpoint,
+          'p256dh': keys['p256dh'] as String,
+          'auth': keys['auth'] as String,
         }),
       );
     } catch (e) {
-      debugPrint('WebPush Error: \$e');
+      debugPrint('WebPush registerToken error: $e');
     }
   }
-}
-</pre>
+}</pre>
 
-<h2>注意事項</h2>
-<ul>
-  <li>Macで受け取るには「集中モード」をOFF、システム設定→通知→Google ChromeをONにすること</li>
-  <li>ログインするたびにSubscriptionが更新・DB保存される</li>
-  <li>composer関連はVPS上でのみ更新（minishlink/web-push）</li>
-  <li>pubspec.yamlにfirebase関連パッケージは不要</li>
-</ul>
-
-<h2>テスト送信（tinker）</h2>
+<h3><span class="step-num">12</span> fcm_service.dart を作成（条件付きエクスポート）</h3>
+<div class="file-label">lib/services/fcm_service.dart</div>
 <pre>
-ssh centos@49.212.166.123
-cd /var/www/horse_odds_finder
+export 'fcm_service_stub.dart'
+    if (dart.library.js_interop) 'fcm_service_web.dart';</pre>
+<p>Web ビルド時は <code>fcm_service_web.dart</code>、モバイル等では <code>fcm_service_stub.dart</code> が使われる。</p>
+
+<h3><span class="step-num">13</span> main.dart でアプリ起動時に登録する</h3>
+<p>ログイン済みのままアプリを再起動した場合も subscription を自動復旧させるために、起動時にも <code>registerToken</code> を呼ぶ。</p>
+<div class="file-label">lib/main.dart（関係する部分のみ）</div>
+<pre>
+import 'dart:async';
+import 'services/fcm_service.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final SharedPreferences prefs = await SharedPreferences.getInstance();
+  final String loggedInUserId = (prefs.getString('loggedInUserId') ?? '').trim();
+
+  // 起動時にログイン済みなら push subscription を再登録する。
+  // DB から subscription が消えていても（410 Gone 後など）自動で復旧する。
+  // unawaited で fire-and-forget にして起動を遅延させない。
+  if (loggedInUserId.isNotEmpty) {
+    unawaited(FcmService.registerToken(userId: loggedInUserId));
+  }
+
+  // ... 以降は通常の runApp など ...
+}</pre>
+
+<h3><span class="step-num">14</span> ログイン成功時にも登録する</h3>
+<div class="file-label">lib/screens/login_screen.dart（ログイン成功処理の部分）</div>
+<pre>
+// signin API が success:true を返したら
+if (data['success'] == true) {
+  final String loggedInUserId = data['user_id'] as String;
+  final SharedPreferences prefs = await SharedPreferences.getInstance();
+  await prefs.setString('loggedInUserId', loggedInUserId);
+
+  // ログイン成功時に push subscription を登録
+  unawaited(FcmService.registerToken(userId: loggedInUserId));
+
+  if (mounted) {
+    widget.onLoginSuccess(loggedInUserId);
+  }
+}</pre>
+
+<!-- ============================================================ -->
+<h2>6. デプロイ手順</h2>
+
+<pre>
+# Flutter web ビルド
+cd （Flutterプロジェクトのローカルパス）
+flutter build web --base-href /<span class="pj">blue_sky</span>/
+
+# VPS に転送
+rsync -avz build/web/ （VPSユーザー）@（VPSのIPアドレス）:/var/www/<span class="pj">blue_sky</span>/public/<span class="pj">blue_sky</span>/</pre>
+
+<div class="warn">
+  <strong>デプロイ後にスマホでキャッシュクリアが必要な場合</strong><br>
+  push-sw.js のスコープを変更した直後など、古い SW が残っていると新しいスコープが反映されない。<br>
+  Chrome の「設定 → プライバシーとセキュリティ → 閲覧履歴データの削除」でキャッシュをクリアしてからアプリを開く。<br>
+  アプリを開けば自動的に push-sw.js が新しいスコープで登録され、DB にも保存される。
+</div>
+
+<!-- ============================================================ -->
+<h2>7. 動作確認・テスト</h2>
+
+<h3>tinker でテスト送信</h3>
+<pre>
+cd /var/www/<span class="pj">blue_sky</span>
+
+# 開発者にのみ送信
 php artisan tinker --execute="
-(new App\Services\WebPushService())->sendPushNotifierDeveloperNews('テスト', '届いた？');
-echo '完了';
+(new App\Services\<span class="pj">BlueSky</span>WebPushService())->sendPushDeveloperNews('テスト', '届いた？ ' . date('H:i:s'));
+echo '完了' . PHP_EOL;
 "
-</pre>
+
+# 全ユーザーに送信
+php artisan tinker --execute="
+(new App\Services\<span class="pj">BlueSky</span>WebPushService())->sendPushOddsNews('お知らせ', 'テスト ' . date('H:i:s'));
+echo '完了' . PHP_EOL;
+"</pre>
+
+<h3>DB の subscription を確認</h3>
+<pre>
+php artisan tinker --execute="
+print_r(
+  DB::table('<span class="pj">t_blue_sky_push_subscriptions</span>')
+    ->get(['id', 'user_id', 'endpoint', 'is_delete', 'created_at'])
+    ->toArray()
+);
+"</pre>
+
+<h3>ログで送信結果を確認</h3>
+<pre>
+grep "WebPush" /var/www/<span class="pj">blue_sky</span>/storage/logs/laravel.log | tail -20</pre>
+
+<!-- ============================================================ -->
+<h2>8. トラブルシュート</h2>
+
+<table>
+  <tr><th>症状</th><th>原因</th><th>対処</th></tr>
+  <tr>
+    <td>スマホに届かない（PC には届く）</td>
+    <td>push-sw.js が Flutter SW と同じスコープで競合し、<code>waiting</code> のまま <code>activated</code> にならない</td>
+    <td>index.html の scope を <code>/<span class="pj">blue_sky</span>/push/</code> に変更してデプロイ。スマホでキャッシュクリア後にアプリ起動</td>
+  </tr>
+  <tr>
+    <td>ログインし直したら届かなくなった</td>
+    <td>毎回 unsubscribe→再登録 していたため、再登録失敗時に DB が無効なエンドポイントのまま</td>
+    <td>既存 subscription を unsubscribe せず再利用するコードになっているか確認</td>
+  </tr>
+  <tr>
+    <td>起動直後は届かない（ログインし直すと届く）</td>
+    <td>main.dart で起動時の <code>registerToken</code> が呼ばれていない</td>
+    <td><code>loggedInUserId.isNotEmpty</code> 時に <code>unawaited(FcmService.registerToken(...))</code> があるか確認</td>
+  </tr>
+  <tr>
+    <td>DB のレコードが増え続ける</td>
+    <td>キャッシュクリアのたびに endpoint が変わり新しいレコードが INSERT される</td>
+    <td>正常動作。古い endpoint は次回の push 送信時に 410 Gone → 自動 DELETE される</td>
+  </tr>
+  <tr>
+    <td>Mac の集中モード中に届かない</td>
+    <td>macOS の集中モードが通知をブロックしている</td>
+    <td>集中モードを OFF、またはシステム設定 → 通知 → Chrome → 通知を許可</td>
+  </tr>
+  <tr>
+    <td>iPhone Safari で届かない</td>
+    <td>Safari の Web Push は PWA（ホーム画面に追加）が必要</td>
+    <td>Safari でサイトを開き「共有 → ホーム画面に追加」してから通知を許可する</td>
+  </tr>
+</table>
+
+<hr>
+
+<div class="claude-note">
+<h3>Claude Code へ — 次回実装するときの注意点</h3>
+<ul>
+  <li>
+    <strong><span style="color:#cc0000;">赤文字</span>（BlueSky 系）を実際のプロジェクト名に置き換えること。</strong><br>
+    PascalCase（クラス名）・camelCase（変数・関数名）・snake_case（DB・URL・ファイル名）を使い分ける。
+  </li>
+  <li>
+    <strong>スコープ（<code>/blue_sky/push/</code>）を一度決めたら変更しないこと。</strong><br>
+    途中で変えると既存ユーザーの subscription が無効になり、全員にキャッシュクリアを促す必要が生じる。
+  </li>
+  <li>
+    <strong>既存 subscription を <code>unsubscribe()</code> しないこと。</strong><br>
+    <code>getSubscription()</code> で既存があればそのまま返す実装が正しい。
+  </li>
+  <li>
+    <strong>410 Gone は正常な自動削除のサイン。</strong><br>
+    WebPushService が自動で DELETE するので手動対応は不要。
+  </li>
+  <li>
+    <strong>Firebase を使わないこと。</strong><br>
+    パッケージは Composer の <code>minishlink/web-push</code> のみ。Flutter 側に firebase 系パッケージは一切不要。
+  </li>
+  <li>
+    <strong>push-sw.js は web/ フォルダ直下に置くこと。</strong><br>
+    Flutter のビルドで <code>build/web/push-sw.js</code> として出力され、VPS 上の公開パスに配置される。
+  </li>
+</ul>
+</div>
 
 </body>
 </html>
