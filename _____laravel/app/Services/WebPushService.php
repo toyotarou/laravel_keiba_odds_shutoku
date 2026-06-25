@@ -36,17 +36,17 @@ class WebPushService
     }
 
     // オッズ通知（全ユーザー向け）
-    public function sendPushNotifierOddsNews(string $title, string $body): void
+    public function sendPushNotifierOddsNews(string $title, string $body, string $url = 'https://baganriki.com/horse_odds_finder/'): void
     {
         $subscriptions = DB::table('t_horse_odds_finder_push_subscriptions')
             ->where('is_delete', '0')
             ->get();
 
-        $this->sendToSubscriptions($subscriptions, $title, $body);
+        $this->sendToSubscriptions($subscriptions, $title, $body, $url);
     }
 
     // 内部送信処理
-    private function sendToSubscriptions($subscriptions, string $title, string $body): void
+    private function sendToSubscriptions($subscriptions, string $title, string $body, string $url = 'https://baganriki.com/horse_odds_finder/'): void
     {
         foreach ($subscriptions as $row) {
             $subscription = Subscription::create([
@@ -63,7 +63,7 @@ class WebPushService
                     'title' => $title,
                     'body'  => $body,
                     'icon'  => '/horse_odds_finder/icons/Icon-192.png',
-                    'url'   => 'https://baganriki.com/horse_odds_finder/',
+                    'url'   => $url,
                 ])
             );
         }
