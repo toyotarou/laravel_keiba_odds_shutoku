@@ -757,6 +757,157 @@ grep "WebPush" /var/www/<span class="pj">blue_sky</span>/storage/logs/laravel.lo
   </tr>
 </table>
 
+<!-- ============================================================ -->
+<h2>9. ディープリンク（通知タップで特定画面を開く）</h2>
+
+<p>
+  通知の <code>url</code> フィールドにクエリパラメータを付与することで、
+  ユーザーが通知をタップしたとき、アプリが特定レース＋特定ダイアログの状態で起動する。
+</p>
+
+<h3>URL パラメータ仕様</h3>
+
+<table>
+  <tr><th>パラメータ</th><th>型</th><th>内容</th><th>例</th></tr>
+  <tr><td>date</td><td>String</td><td>開催日付</td><td>2024-06-25</td></tr>
+  <tr><td>kbd</td><td>String</td><td><code>{kaisuu}_{basho}_{day}</code> 形式の会場識別子</td><td>1_05_1</td></tr>
+  <tr><td>name</td><td>String</td><td>会場表示名（日本語可・URLエンコード）</td><td>1回東京1日</td></tr>
+  <tr><td>race</td><td>int</td><td>レース番号</td><td>3</td></tr>
+  <tr><td>ranking</td><td>'1' または省略</td><td>ランキングダイアログを自動で開く</td><td>1</td></tr>
+</table>
+
+<div class="info">
+  <code>http_build_query</code> が日本語を percent-encode し、Flutter の <code>uri.queryParameters</code> が自動 decode する。
+  明示的なエンコード・デコード処理は不要。
+</div>
+
+<h3>Laravel 側の変更（WebPushService.php）</h3>
+
+<p><code>sendPushNotifierOddsNews</code> と <code>sendToSubscriptions</code> に <code>$url</code> 引数を追加。デフォルト値を設定することで、既存の <code>sendPushNotifierDeveloperNews</code> の呼び出しは無変更のまま動く。</p>
+
+<div class="file-label">app/Services/<span class="pj">BlueSky</span>WebPushService.php（変更箇所）</div>
+<pre>
+// 変更前
+public function sendPushOddsNews(string $title, string $body): void
+
+// 変更後
+public function sendPushOddsNews(string $title, string $body, string $url = 'https://<span class="pj">（ドメイン）</span>/<span class="pj">blue_sky</span>/'): void
+{
+    $subscriptions = DB::table('<span class="pj">t_blue_sky_push_subscriptions</span>')
+        ->where('is_delete', '0')
+        ->get();
+
+    $this->sendToSubscriptions($subscriptions, $title, $body, $url); // ← $url を渡す
+}
+
+// sendToSubscriptions も同様に $url を第4引数に追加（デフォルト値あり）
+private function sendToSubscriptions($subscriptions, string $title, string $body, string $url = 'https://<span class="pj">（ドメイン）</span>/<span class="pj">blue_sky</span>/'): void
+{
+    // json_encode の 'url' に $url を使う（ハードコードを廃止）
+    $this->webPush->queueNotification($subscription, json_encode([
+        'title' => $title,
+        'body'  => $body,
+        'icon'  => '/<span class="pj">blue_sky</span>/icons/Icon-192.png',
+        'url'   => $url,  // ← ここ
+    ]));
+}</pre>
+
+<h3>Laravel 側の変更（コマンド内での URL 組み立て）</h3>
+
+<p>オッズ変動検知後、<code>http_build_query</code> でパラメータ付き URL を組み立てて渡す。</p>
+
+<div class="file-label">app/Console/Commands/ImportKeibaOdds.php（変更箇所）</div>
+<pre>
+if (in_array($diff, $timings) && !empty($changeRecords)) {
+
+    $deepLinkUrl = 'https://<span class="pj">（ドメイン）</span>/<span class="pj">blue_sky</span>/?' . http_build_query([
+        'date'    => $race->date,
+        'kbd'     => "{$race->kaisuu}_{$race->basho}_{$race->day}",
+        'name'    => "{$race->kaisuu}回{$race->basho_name}{$race->day}日",
+        'race'    => $race->race,
+        'ranking' => '1',
+    ]);
+
+    (new <span class="pj">BlueSky</span>WebPushService())->sendPushOddsNews(
+        'オッズ変更がありました',
+        "{$race->date} {$race->kaisuu}回{$race->basho_name}{$race->day}日\nR{$race->race} {$race->race_name}",
+        $deepLinkUrl,
+    );
+}</pre>
+
+<h3>Flutter 側（main.dart）— URL パラメータ読み取り</h3>
+
+<p>アプリ起動時に <code>Uri.base</code> からパラメータを読み取り、<code>AppRoot</code> に渡す。</p>
+
+<div class="file-label">lib/main.dart（main() 内）</div>
+<pre>
+String deepLinkDate    = '';
+String deepLinkKbd     = '';
+String deepLinkName    = '';
+int    deepLinkRace    = 0;
+bool   deepLinkRanking = false;
+
+if (kIsWeb) {
+  final Uri uri = Uri.base;
+  deepLinkDate    = uri.queryParameters['date']    ?? '';
+  deepLinkKbd     = uri.queryParameters['kbd']     ?? '';
+  deepLinkName    = uri.queryParameters['name']    ?? '';
+  deepLinkRace    = int.tryParse(uri.queryParameters['race'] ?? '') ?? 0;
+  deepLinkRanking = uri.queryParameters['ranking'] == '1';
+}
+
+runApp(ProviderScope(child: AppRoot(
+  deepLinkDate:    deepLinkDate,
+  deepLinkKbd:     deepLinkKbd,
+  deepLinkName:    deepLinkName,
+  deepLinkRace:    deepLinkRace,
+  deepLinkRanking: deepLinkRanking,
+  ...
+)));</pre>
+
+<h3>Flutter 側（AppRootState）— deepLink → reload 変換</h3>
+
+<p>deepLink パラメータを reload 系フィールドに代入することで、既存のリロード復元ロジックをそのまま流用できる。</p>
+
+<div class="file-label">lib/main.dart（AppRootState.initState）</div>
+<pre>
+if (widget.deepLinkDate.isNotEmpty) {
+  _reloadDate               = widget.deepLinkDate;
+  _reloadKbd                = widget.deepLinkKbd;
+  _reloadName               = widget.deepLinkName;
+  _reloadRace               = widget.deepLinkRace;
+  _reloadIsRankingDialogOpen = widget.deepLinkRanking;
+}</pre>
+
+<h3>Flutter 側（HomeScreen.initState）— ダイアログ自動起動</h3>
+
+<div class="file-label">lib/screens/home_screen.dart（initState 内）</div>
+<pre>
+if (widget.isRankingDialogOpen) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    appParamNotifier.setIsShowUpperBox2(flag: true);
+    OddsFinderDialog(context: context, widget: const HorseOddsRankingDisplayAlert())
+        .then((_) async {
+          final SharedPreferences prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('isRankingDialogOpen', false);
+        });
+  });
+}</pre>
+
+<h3>addPostFrameCallback の実行順序（重要）</h3>
+
+<div class="ok">
+  コールバックは登録順に実行される。MyApp（親）が HomeScreen（子）より先に initState を呼ぶため、
+  date/kbd/race が appParamState にセットされた後にダイアログが開く。データロード前でも
+  race/date 選択状態は正しく、オッズデータは非同期ロード完了後に Riverpod が自動リビルドする。
+</div>
+
+<pre>
+【実行順】
+A: MyApp.initState の callback    → appParamNotifier に date / kbd / race をセット
+B: HomeScreen.initState の callback → _syncAppParam()
+C: HomeScreen.initState の callback → ランキングダイアログを開く（A の後なので状態は確定済み）</pre>
+
 <hr>
 
 <div class="claude-note">
