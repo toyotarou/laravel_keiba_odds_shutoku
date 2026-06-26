@@ -109,6 +109,8 @@ class SummaryKeibaInfo extends Command
         // $oddsMap: [ horse_key => [ 'odds_tan_before_XX' => value, ... ] ]
         // minutes_before_start: 999=24分前相当, -999=発走直前(0分), それ以外=残り分数
         $oddsMap = [];
+
+        $lastFukuOdds = [];
         foreach ($result as $v) {
             $key = "{$v->date}_{$v->kaisuu}_{$v->basho}_{$v->day}_{$v->race}_{$v->num}";
 
@@ -118,6 +120,10 @@ class SummaryKeibaInfo extends Command
                     break;
                 case '-999':
                     $oddsMap[$key]['odds_tan_before_0'] = $v->odds;
+
+                    $lastFukuOdds[$key]['min'] = $v->fuku_min;
+                    $lastFukuOdds[$key]['max'] = $v->fuku_max;
+
                     break;
                 default:
                     $oddsMap[$key]["odds_tan_before_{$v->minutes_before_start}"] = $v->odds;
@@ -192,15 +198,93 @@ class SummaryKeibaInfo extends Command
         }
 
         $this->info("  INSERT完了: {$inserted} 件 / スキップ（既存）: {$skipped} 件 / エラー（データ不備）: {$errors} 件");
+
+        // ── レース結果履歴をUPSERT ─────────────────────────────────────────
+        
+        $this->info('レース結果履歴をUPSERT中...');
+
+        // SummaryHistoryPopularityRank で設定済みの popularity_rank を保護するため
+        // 既存レコードを先読みする
+        $existingPopularityRanks = [];
+        $rankedRaceGroups        = [];
+        DB::table('t_horse_odds_finder_race_result_history')
+            ->select('date', 'kaisuu', 'basho_code', 'day', 'race', 'num', 'popularity_rank')
+            ->get()
+            ->each(function ($r) use (&$existingPopularityRanks, &$rankedRaceGroups) {
+                $horseKey = "{$r->date}_{$r->kaisuu}_{$r->basho_code}_{$r->day}_{$r->race}_{$r->num}";
+                $raceKey  = "{$r->date}_{$r->kaisuu}_{$r->basho_code}_{$r->day}_{$r->race}";
+                $existingPopularityRanks[$horseKey] = $r->popularity_rank;
+                if (!isset($rankedRaceGroups[$raceKey]) && $r->popularity_rank > 0) {
+                    $rankedRaceGroups[$raceKey] = true;
+                }
+            });
+
+        // $oddsMap の全馬を対象にレコードを作成（summaryのスキップ対象も含む）
+        $historyRecords = [];
+        foreach ($oddsMap as $key => $odds) {
+            [$date, $kaisuu, $basho, $day, $race, $num] = explode('_', $key);
+            $raceKey = "{$date}_{$kaisuu}_{$basho}_{$day}_{$race}";
+
+            if (!isset($races[$raceKey]) || !isset($horses[$key])) {
+                continue;
+            }
+
+            $historyRecords[$key] = [
+                'date'            => $date,
+                'kaisuu'          => $kaisuu,
+                'basho'           => $races[$raceKey]['basho_name'],
+                'basho_code'      => $basho,
+                'day'             => $day,
+                'race'            => $race,
+                'race_name'       => $races[$raceKey]['race_name'],
+                'num'             => $num,
+                'name'            => $horses[$key]['name'],
+                'tan'             => $odds['odds_tan_before_0'] ?? null,
+                'fuku_min'        => $lastFukuOdds[$key]['min'] ?? null,
+                'fuku_max'        => $lastFukuOdds[$key]['max'] ?? null,
+                'popularity_rank' => $existingPopularityRanks[$key] ?? null,
+            ];
+        }
+
+        // レースごとに人気順を計算（発走直前の単勝オッズ昇順、1位=最低オッズ）
+        // グループ内に1頭でも popularity_rank > 0 の馬がいればスキップ（設定済み）
+        $raceGroups = [];
+        foreach ($historyRecords as $key => $record) {
+            $raceKey = "{$record['date']}_{$record['kaisuu']}_{$record['basho_code']}_{$record['day']}_{$record['race']}";
+            $raceGroups[$raceKey][] = $key;
+        }
+
+        foreach ($raceGroups as $raceKey => $keys) {
+            if (isset($rankedRaceGroups[$raceKey])) {
+                continue;
+            }
+            $withOdds = array_filter($keys, fn($k) => $historyRecords[$k]['tan'] !== null);
+            usort($withOdds, fn($a, $b) => (float)$historyRecords[$a]['tan'] <=> (float)$historyRecords[$b]['tan']);
+            $rank = 1;
+            foreach ($withOdds as $k) {
+                $historyRecords[$k]['popularity_rank'] = $rank++;
+            }
+        }
+
+        if (!empty($historyRecords)) {
+            DB::table('t_horse_odds_finder_race_result_history')->upsert(
+                array_values($historyRecords),
+                ['date', 'kaisuu', 'basho_code', 'day', 'race', 'num'],
+                ['basho', 'race_name', 'name', 'tan', 'fuku_min', 'fuku_max', 'popularity_rank']
+            );
+        }
+
+        $historyCount = count($historyRecords);
+        $this->info("  UPSERT完了: {$historyCount} 件");
         $this->info('');
         $this->info('========== keiba:summary 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
-        
 
 
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'SummaryKeibaInfo::handle' . "\n" . date('Y-m-d H:i:s') . '　投入:' . $inserted . '、飛:' . $skipped . '、エ:' . $errors);
         
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'SummaryKeibaInfo::handle' . "\n" . date('Y-m-d H:i:s') . '　投入:' . $inserted . '、飛:' . $skipped . '、エ:' . $errors . '、履歴:' . $historyCount);
 
-        
+
+
     }
 }
