@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -20,8 +21,8 @@ class ImportKeibaRaceResultHistory extends Command
     public function handle(): void
     {
         // ── 引数チェック ──────────────────────────────────────────────
-        $yearmonth = $this->option('yearmonth');
-        if (!$yearmonth || !preg_match('/^\d{4}-\d{2}$/', $yearmonth)) {
+        $yearmonth = $this->option('yearmonth') ?: date('Y-m');
+        if (!preg_match('/^\d{4}-\d{2}$/', $yearmonth)) {
             $this->error('--yearmonth=YYYY-MM の形式で指定してください。例: --yearmonth=2021-01');
             return;
         }
@@ -151,7 +152,7 @@ class ImportKeibaRaceResultHistory extends Command
                         'tan'       => $horse['tan'],
                         'fuku_min'  => $horse['fuku_min'],
                         'fuku_max'  => $horse['fuku_max'],
-                        'finish_rank'      => 0,
+                        'popularity_rank'      => 0,
                     ];
 
                     DB::table('t_horse_odds_finder_race_result_history')
@@ -184,5 +185,12 @@ class ImportKeibaRaceResultHistory extends Command
         }
         $this->info("処理時間     : {$totalElapsed} 秒");
         $this->info('');
+        
+
+
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaRaceResultHistory::handle' . "\n" . date('Y-m-d H:i:s') . '　対象年月:' . $yearmonth . '、処理開催数:' . $totalKaisai);
+
+
+        
     }
 }
