@@ -101,10 +101,8 @@ class ImportKeibaJraRaceResult extends Command
             $this->info('');
 
         } finally {
-            (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaJraRaceResult::handle' . "\n" . date('Y-m-d H:i:s') . '　更新:' . $updated . '、飛:' . $skipped);
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaJraRaceResult::handle\n更新:{$updated}、飛:{$skipped}");
         }
-        
-
         
     }
 

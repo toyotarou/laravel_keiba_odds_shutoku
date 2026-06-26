@@ -228,10 +228,8 @@ class SummaryPopularityRankAverage extends Command
         
         (new WebPushService())->sendPushNotifierDeveloperNews(
             'develop',
-            'SummaryPopularityRankAverage::handle' . "\n" . date('Y-m-d H:i:s') . '　new end_date:' . $newEndDate . '、更新ランク数:' . $updatedCount . '、処理時間:' . $elapsed
+            "SummaryPopularityRankAverage::handle\n最終日:{$newEndDate}、time:{$elapsed}"
         );
-
-
-
+        
     }
 }

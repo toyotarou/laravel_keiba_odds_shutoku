@@ -160,9 +160,7 @@ class ImportKeibaJraRaceOneResult extends Command
         
 
 
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaJraRaceOneResult::handle' . "\n" . date('Y-m-d H:i:s') . '　登録:' . $inserted . '、飛:' . $skipped);
-        
-
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaJraRaceOneResult::handle\n登録:{$inserted}、飛:{$skipped}");
         
     }
 

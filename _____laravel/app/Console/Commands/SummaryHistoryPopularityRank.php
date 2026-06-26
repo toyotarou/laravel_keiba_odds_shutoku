@@ -130,9 +130,7 @@ class SummaryHistoryPopularityRank extends Command
         
 
 
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'SummaryHistoryPopularityRank::handle' . "\n" . date('Y-m-d H:i:s') . '　処理レース数:' . $updatedRaces . '、処理時間:' . $elapsed);
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryHistoryPopularityRank::handle\nR:{$updatedRaces}、H:{$updatedHorses}、time:{$elapsed}");
 
-
-        
     }
 }

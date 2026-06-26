@@ -282,9 +282,7 @@ class SummaryKeibaInfo extends Command
 
 
         
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'SummaryKeibaInfo::handle' . "\n" . date('Y-m-d H:i:s') . '　投入:' . $inserted . '、飛:' . $skipped . '、エ:' . $errors . '、履歴:' . $historyCount);
-
-
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryKeibaInfo::handle\n投入:{$inserted}、飛:{$skipped}、履歴:{$historyCount}");
 
     }
 }

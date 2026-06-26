@@ -211,9 +211,7 @@ class ImportKeibaRaceResultHistory extends Command
         
 
 
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaRaceResultHistory::handle' . "\n" . date('Y-m-d H:i:s') . '　対象年月:' . $yearmonth . '、処理開催数:' . $totalKaisai);
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaRaceResultHistory::handle\n対象年月:{$yearmonth}、開催:{$totalKaisai}、頭数:{$totalSaved}");
 
-
-        
     }
 }

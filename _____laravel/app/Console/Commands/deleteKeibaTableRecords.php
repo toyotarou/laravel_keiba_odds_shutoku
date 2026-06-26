@@ -78,7 +78,7 @@ class DeleteKeibaTableRecords extends Command
 
 
 
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'DeleteKeibaTableRecords::handle' . "\n" . date('Y-m-d H:i:s'));
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "DeleteKeibaTableRecords::handle");
 
         
         

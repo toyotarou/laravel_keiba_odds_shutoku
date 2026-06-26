@@ -359,10 +359,13 @@ class ImportKeibaSchedule extends Command
 
 
         } finally {
-            (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaSchedule::handle' . "\n" . date('Y-m-d H:i:s') . '　S:' . count($schedules) . '、R:' . count($races) . '、H:' . count($horses));
+            
+            $cnt_schedule = count($schedules);
+            $cnt_race = count($races);
+            $cnt_horse = count($horses);
+            
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaSchedule::handle\nS:{$cnt_schedule}、R:{$cnt_race}、H:{$cnt_horse}");
         }
-        
-
         
         return 0;
     }
