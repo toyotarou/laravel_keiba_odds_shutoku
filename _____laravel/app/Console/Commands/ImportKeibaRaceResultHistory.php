@@ -73,6 +73,21 @@ class ImportKeibaRaceResultHistory extends Command
         $this->info("  → {$totalKaisai} 開催を検出: " . implode(', ', $kaisaiList));
         $this->info('');
 
+        // ── インポート済みkaisaiを先読み（スキップ判定用） ──────────
+        $this->info('[事前確認] インポート済みkaisaiを確認中...');
+        [$year, $month] = explode('-', $yearmonth);
+        $from = "{$year}-{$month}-01";
+        $to   = date('Y-m-t', strtotime($from));
+        $existingKaisaiKeys = DB::table('t_horse_odds_finder_race_result_history')
+            ->whereBetween('date', [$from, $to])
+            ->select('date', 'kaisuu', 'basho_code', 'day')
+            ->distinct()
+            ->get()
+            ->mapWithKeys(fn($r) => ["{$r->date}_{$r->kaisuu}_{$r->basho_code}_{$r->day}" => true])
+            ->toArray();
+        $this->info('  インポート済み開催: ' . count($existingKaisaiKeys) . ' 件');
+        $this->info('');
+
         // ── Step 2: 各開催を順番に処理 ───────────────────────────────
         $kaisaiIndex = 0;
         $totalSaved  = 0;
@@ -122,6 +137,14 @@ class ImportKeibaRaceResultHistory extends Command
             if (!$result || empty($result['races'])) {
                 $this->error("  [FAIL] {$kaisai} → 取得失敗 ({$elapsed}秒)");
                 $failedList[] = $kaisai;
+                $this->info('');
+                continue;
+            }
+
+            // インポート済みkaisaiはDBへの保存をスキップ
+            $kaisaiKey = "{$result['date']}_{$result['kaisuu']}_{$result['basho_code']}_{$result['day']}";
+            if (isset($existingKaisaiKeys[$kaisaiKey])) {
+                $this->info("  [SKIP] インポート済み: {$kaisaiKey} ({$elapsed}秒)");
                 $this->info('');
                 continue;
             }
