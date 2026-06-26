@@ -156,10 +156,8 @@ class ImportKeibaBaseOdds extends Command
 
             
         } finally {
-            (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaBaseOdds::handle' . "\n" . date('Y-m-d H:i:s') . '　R:' . $totalRaces . '、H:' . $totalSaved);
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaBaseOdds::handle\nR:{$totalRaces}、H:{$totalSaved}");
         }
         
-
-
     }
 }

@@ -225,10 +225,8 @@ class ImportKeibaOdds extends Command
             
 
 
-            (new WebPushService())->sendPushNotifierDeveloperNews('develop', 'ImportKeibaOdds::handle' . "\n" . date('Y-m-d H:i:s') . '　保存:' . $saved . '頭分 ('  . $totalMs . 'ms)');
-
-
-
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaOdds::handle\n保存:{$saved}頭分 ({$totalMs}ms)");
+            
             if (in_array($diff, $timings) && !empty($changeRecords)) {
                 $deepLinkUrl = 'https://baganriki.com/horse_odds_finder/?' . http_build_query([
                     'date'    => $race->date,
