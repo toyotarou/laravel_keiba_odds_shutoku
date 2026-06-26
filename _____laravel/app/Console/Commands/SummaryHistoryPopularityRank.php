@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -84,8 +85,15 @@ class SummaryHistoryPopularityRank extends Command
         $this->info('popularity_rank を更新中...');
         $updatedRaces  = 0;
         $updatedHorses = 0;
+        $skippedRaces  = 0;
 
         foreach ($groups as $raceKey => $horses) {
+            // 全馬がランク済みならスキップ
+            if (collect($horses)->every(fn($h) => $h->popularity_rank > 0)) {
+                $skippedRaces++;
+                continue;
+            }
+
             // tan を数値として昇順ソート（NULL・空・非数値は最後尾）
             usort($horses, function ($a, $b) {
                 $tanA = is_numeric($a->tan) ? (float) $a->tan : PHP_FLOAT_MAX;
@@ -115,6 +123,7 @@ class SummaryHistoryPopularityRank extends Command
         $this->info('========== keiba:summaryHistoryPopularityRank 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info("対象年月     : " . $yearmonth);
         $this->info("処理レース数 : {$updatedRaces} レース");
+        $this->info("スキップ     : {$skippedRaces} レース（ランク設定済み）");
         $this->info("更新頭数     : {$updatedHorses} 頭");
         $this->info("処理時間     : {$elapsed} 秒");
         $this->info('');

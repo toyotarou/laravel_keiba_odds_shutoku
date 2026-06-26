@@ -37,3 +37,6 @@ Route::post('web-push/subscribe', [WebPushController::class, 'subscribe']);
 
 Route::get('getHorseOddsFinderPushSubscriptions', [ApiController::class, 'getHorseOddsFinderPushSubscriptions']);
 Route::post('changePushNotifierUserDelete', [ApiController::class, 'changePushNotifierUserDelete']);
+
+Route::get('getHorseOddsFinderRaceResultHistory', [ApiController::class, 'getHorseOddsFinderRaceResultHistory']);
+Route::get('getHorseOddsFinderPopularityRankAverage', [ApiController::class, 'getHorseOddsFinderPopularityRankAverage']);
