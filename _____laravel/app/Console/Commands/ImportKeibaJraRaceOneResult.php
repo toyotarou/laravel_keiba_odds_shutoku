@@ -105,8 +105,9 @@ class ImportKeibaJraRaceOneResult extends Command
 
         $this->info("登録済み結果取得 → " . count($existingKeys) . " 件");
 
-        $inserted = 0;
-        $skipped  = 0;
+        $inserted     = 0;
+        $skipped      = 0;
+        $notifyRaces  = [];
 
         // ── 1回目: Node.js を1回実行して全ヒットレースを照合 ─────────────
         $this->info('');
@@ -125,7 +126,7 @@ class ImportKeibaJraRaceOneResult extends Command
         // 1回目の照合。マッチしなかったレースを $unmatchedRaces に積む。
         $unmatchedRaces = [];
         foreach ($hitRaces as $race) {
-            $found = $this->matchAndInsert($race, $results, $existingKeys, $inserted, $skipped);
+            $found = $this->matchAndInsert($race, $results, $existingKeys, $inserted, $skipped, $notifyRaces);
             if (!$found) {
                 $unmatchedRaces[] = $race;
                 $this->warn("  [1回目] マッチなし: {$race->basho_name} R{$race->race} → 2回目で再試行します");
@@ -145,7 +146,7 @@ class ImportKeibaJraRaceOneResult extends Command
             } else {
                 $this->info("  [2回目] 取得完了 → {$fetchMs}ms / " . count($results2) . " 件");
                 foreach ($unmatchedRaces as $race) {
-                    $found = $this->matchAndInsert($race, $results2, $existingKeys, $inserted, $skipped);
+                    $found = $this->matchAndInsert($race, $results2, $existingKeys, $inserted, $skipped, $notifyRaces);
                     if (!$found) {
                         $this->warn("  [2回目] マッチなし: {$race->basho_name} R{$race->race} → 次回cron実行時に再試行されます");
                     }
@@ -161,6 +162,25 @@ class ImportKeibaJraRaceOneResult extends Command
 
 
         (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaJraRaceOneResult::handle\n登録:{$inserted}、飛:{$skipped}");
+
+        foreach ($notifyRaces as $race) {
+            $deepLinkUrl = 'https://baganriki.com/horse_odds_finder/?' . http_build_query([
+                'date'    => $race->date,
+                'kbd'     => "{$race->kaisuu}_{$race->basho}_{$race->day}",
+                'name'    => "{$race->kaisuu}回{$race->basho_name}{$race->day}日",
+                'race'    => $race->race,
+                'ranking' => '1',
+                'zoomed'  => '0',
+            ]);
+
+            (new WebPushService())->sendPushNotifierOddsNews(
+                'レース結果が確定しました',
+                "{$race->date} {$race->kaisuu}回{$race->basho_name}{$race->day}日\nR{$race->race} {$race->race_name}",
+                $deepLinkUrl,
+            );
+        }
+
+
         
     }
 
@@ -174,7 +194,8 @@ class ImportKeibaJraRaceOneResult extends Command
         array  $results,
         array  &$existingKeys,
         int    &$inserted,
-        int    &$skipped
+        int    &$skipped,
+        array  &$notifyRaces
     ): bool {
         $found = false;
 
@@ -205,6 +226,9 @@ class ImportKeibaJraRaceOneResult extends Command
                     ]);
 
                     $existingKeys[$key] = true;
+
+                    $raceKey = "{$race->kaisuu}-{$race->basho}-{$race->day}-{$race->race}";
+                    $notifyRaces[$raceKey] = $race;
 
                     $this->info("    INSERT: {$v['horse_name']} ({$v['horse_num']}番) → {$v['rank']}着");
                     $inserted++;

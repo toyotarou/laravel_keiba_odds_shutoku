@@ -88,17 +88,19 @@ class ImportKeibaOdds extends Command
             $this->info("  → 取得タイミング合致 (残り{$diff}分) : オッズ取得を開始します。");
 
             // ── 変動検出のための事前データ取得 ─────────────────────────
-            // 24分前（999）のオッズ: [馬番 => 単勝オッズ]（変動検出用）
-            // 24分前タイミング自身は比較対象がないため空のまま
+            // 直前タイミングのオッズと比較する（24分前タイミング自身は比較対象がないため空のまま）
             $prevOddsMap = [];
-            if ($diff !== 24) {
+            $timingIndex = array_search($diff, $timings);
+            if ($diff !== 24 && $timingIndex !== false && $timingIndex > 0) {
+                $prevDiff          = $timings[$timingIndex - 1];
+                $prevMinutesBefore = ($prevDiff === 24) ? 999 : $prevDiff;
                 $prevOddsMap = DB::table('t_horse_odds_finder_odds')
                     ->where('date',                 $race->date)
                     ->where('kaisuu',               $race->kaisuu)
                     ->where('basho',                $race->basho)
                     ->where('day',                  $race->day)
                     ->where('race',                 $race->race)
-                    ->where('minutes_before_start', 999)
+                    ->where('minutes_before_start', $prevMinutesBefore)
                     ->pluck('odds', 'num')
                     ->all();
             }
@@ -225,7 +227,7 @@ class ImportKeibaOdds extends Command
             
 
 
-            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaOdds::handle\n保存:{$saved}頭分 ({$totalMs}ms)");
+//            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaOdds::handle\n保存:{$saved}頭分 ({$totalMs}ms)");
             
             if (in_array($diff, $timings) && !empty($changeRecords)) {
                 $deepLinkUrl = 'https://baganriki.com/horse_odds_finder/?' . http_build_query([
@@ -234,6 +236,7 @@ class ImportKeibaOdds extends Command
                     'name'    => "{$race->kaisuu}回{$race->basho_name}{$race->day}日",
                     'race'    => $race->race,
                     'ranking' => '1',
+                    'zoomed'  => '0',
                 ]);
 
                 (new WebPushService())->sendPushNotifierOddsNews(
