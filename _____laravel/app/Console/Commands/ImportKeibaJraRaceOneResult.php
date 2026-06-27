@@ -161,7 +161,7 @@ class ImportKeibaJraRaceOneResult extends Command
         
 
 
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaJraRaceOneResult::handle\n登録:{$inserted}、飛:{$skipped}");
+//        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaJraRaceOneResult::handle\n登録:{$inserted}、飛:{$skipped}");
 
         foreach ($notifyRaces as $race) {
             $deepLinkUrl = 'https://baganriki.com/horse_odds_finder/?' . http_build_query([
@@ -181,7 +181,7 @@ class ImportKeibaJraRaceOneResult extends Command
         }
 
 
-        
+
     }
 
     /**
