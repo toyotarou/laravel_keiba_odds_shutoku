@@ -88,8 +88,8 @@ class ImportKeibaOdds extends Command
             $this->info("  → 取得タイミング合致 (残り{$diff}分) : オッズ取得を開始します。");
 
             // ── 変動検出のための事前データ取得 ─────────────────────────
-            // 直前タイミングのオッズと比較する（24分前タイミング自身は比較対象がないため空のまま）
-            $prevOddsMap = [];
+            // 直前タイミングのオッズから人気順位を算出し、現タイミングと比較する
+            $prevRankMap = [];
             $timingIndex = array_search($diff, $timings);
             if ($diff !== 24 && $timingIndex !== false && $timingIndex > 0) {
                 $prevDiff          = $timings[$timingIndex - 1];
@@ -103,6 +103,12 @@ class ImportKeibaOdds extends Command
                     ->where('minutes_before_start', $prevMinutesBefore)
                     ->pluck('odds', 'num')
                     ->all();
+
+                asort($prevOddsMap); // オッズ昇順ソート → 人気順
+                $rank = 1;
+                foreach ($prevOddsMap as $num => $_) {
+                    $prevRankMap[$num] = $rank++;
+                }
             }
 
             // ── 単複オッズのスクレイピング ──────────────────────────────
@@ -143,11 +149,20 @@ class ImportKeibaOdds extends Command
 
             $this->info("  [単複] Node.js 取得完了 → " . count($odds) . " 頭分 ({$fetchSec}秒 / {$fetchMs}ms)");
 
+            // 現タイミングの人気順位を計算 [num => rank]
+            $currRankMap = [];
+            $sortedCurr  = $odds;
+            usort($sortedCurr, fn($a, $b) => (float) $a['tan'] <=> (float) $b['tan']);
+            $rank = 1;
+            foreach ($sortedCurr as $horse) {
+                $currRankMap[$horse['num']] = $rank++;
+            }
+
             // ── 単複オッズのDB保存 + 変動検出 ────────────────────────────
             $saved         = 0;
             $changeRecords = [];
 
-            DB::transaction(function () use ($odds, $race, $diff, $prevOddsMap, &$saved, &$changeRecords) {
+            DB::transaction(function () use ($odds, $race, $diff, $prevRankMap, $currRankMap, &$saved, &$changeRecords) {
 
                 foreach ($odds as $horse) {
                     $key = [
@@ -182,13 +197,14 @@ class ImportKeibaOdds extends Command
                     }
                     $saved++;
 
-                    // 前タイミングからオッズが変わった馬を記録
-                    $prevOdds = $prevOddsMap[$horse['num']] ?? null;
-                    if ($prevOdds !== null && (float) $prevOdds !== (float) $horse['tan']) {
+                    // 前タイミングから人気順位が変わった馬を記録
+                    $prevRank = $prevRankMap[$horse['num']] ?? null;
+                    $currRank = $currRankMap[$horse['num']] ?? null;
+                    if ($prevRank !== null && $currRank !== null && $prevRank !== $currRank) {
                         $changeRecords[] = [
                             'num'       => $horse['num'],
-                            'prev_odds' => $prevOdds,
-                            'curr_odds' => $horse['tan'],
+                            'prev_rank' => $prevRank,
+                            'curr_rank' => $currRank,
                         ];
                     }
                 }
@@ -222,7 +238,7 @@ class ImportKeibaOdds extends Command
 
             // ── オッズ変動のログ出力 ──────────────────────────────────────
             foreach ($changeRecords as $change) {
-                $this->info("  [オッズ変動] {$change['num']}番: {$change['prev_odds']} → {$change['curr_odds']}");
+                $this->info("  [人気順位変動] {$change['num']}番: {$change['prev_rank']}位 → {$change['curr_rank']}位");
             }
             
 
@@ -240,7 +256,7 @@ class ImportKeibaOdds extends Command
                 ]);
 
                 (new WebPushService())->sendPushNotifierOddsNews(
-                    'オッズ変更がありました',
+                    '人気順位の変更がありました',
                     "{$race->date} {$race->kaisuu}回{$race->basho_name}{$race->day}日\nR{$race->race} {$race->race_name}",
                     $deepLinkUrl,
                 );
