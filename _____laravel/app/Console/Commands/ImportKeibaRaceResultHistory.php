@@ -176,6 +176,7 @@ class ImportKeibaRaceResultHistory extends Command
                         'fuku_min'  => $horse['fuku_min'],
                         'fuku_max'  => $horse['fuku_max'],
                         'popularity_rank'      => 0,
+                        'finishing_position'   => 0,
                     ];
 
                     DB::table('t_horse_odds_finder_race_result_history')
