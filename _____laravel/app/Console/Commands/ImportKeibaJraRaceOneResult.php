@@ -24,14 +24,18 @@ class ImportKeibaJraRaceOneResult extends Command
 
     public function handle(): void
     {
-        // ── 多重起動防止 ─────────────────────────────────────────────
-        $lockFile = sys_get_temp_dir() . '/keiba_importJraRaceOneResult.lock';
-        if (file_exists($lockFile)) {
-            $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
-            return;
-        }
-        file_put_contents($lockFile, getmypid());
-        register_shutdown_function(fn() => @unlink($lockFile));
+        // // ── 多重起動防止 ─────────────────────────────────────────────
+        // $lockFile = sys_get_temp_dir() . '/keiba_importJraRaceOneResult.lock';
+        // if (file_exists($lockFile)) {
+        //     $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
+        //     return;
+        // }
+        // file_put_contents($lockFile, getmypid());
+        // register_shutdown_function(fn() => @unlink($lockFile));
+
+
+
+
 
         $isDebug = (bool) $this->option('debug');
 
