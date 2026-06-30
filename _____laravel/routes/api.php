@@ -40,3 +40,10 @@ Route::post('changePushNotifierUserDelete', [ApiController::class, 'changePushNo
 
 Route::get('getHorseOddsFinderRaceResultHistory', [ApiController::class, 'getHorseOddsFinderRaceResultHistory']);
 Route::get('getHorseOddsFinderPopularityRankAverage', [ApiController::class, 'getHorseOddsFinderPopularityRankAverage']);
+
+Route::get('getHorseOddsFinderRaceResultHistoryRaceList', [ApiController::class, 'getHorseOddsFinderRaceResultHistoryRaceList']);
+Route::get('getHorseOddsFinderRaceResultHistoryRaceContents', [ApiController::class, 'getHorseOddsFinderRaceResultHistoryRaceContents']);
+
+Route::get('getHorseOddsFinderHorseName', [ApiController::class, 'getHorseOddsFinderHorseName']);
+
+Route::get('getHorseOddsFinderHorseBattleRecord', [ApiController::class, 'getHorseOddsFinderHorseBattleRecord']);
