@@ -77,5 +77,15 @@ class WebPushService
                     ->delete();
             }
         }
+
+        // ── 送信ログを記録（この内容の通知が送られたはず、という履歴） ──
+        DB::table('t_horse_odds_finder_push_send_logs')->insert([
+            'title'      => $title,
+            'body'       => $body,
+            'url'        => $url,
+            'sent_count' => $subscriptions->count(),
+            'sent_at'    => now(),
+        ]);
     }
+    
 }

@@ -355,8 +355,21 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
     
     public function getHorseOddsFinderRaceResultHistory(Request $request)
     {
+        $year = (int) $request->query('year');
+        $popularityRank = (int) $request->query('popularity_rank');
+
+        // バリデーション（妥当な年の範囲に制限）
+        if ($year < 2000 || $year > 2100) {
+            return response()->json(['error' => 'year パラメータが不正です'], 400);
+        }
+
+        $start = sprintf('%04d-01-01', $year);       // '2021-01-01'
+        $end   = sprintf('%04d-01-01', $year + 1);   // '2022-01-01'
+
         $result = DB::table('t_horse_odds_finder_race_result_history')
-            ->where('popularity_rank', $request->query('rank'))
+            ->where('popularity_rank', $popularityRank)
+            ->where('date', '>=', $start)
+            ->where('date', '<', $end)
             ->whereNotNull('tan')
             ->orderBy('date')
             ->orderBy('kaisuu')
@@ -365,6 +378,97 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
             ->orderBy('race')
             ->orderBy('num')
             ->get();
+
+        return response()->json(['data' => $result]);
+    }
+    
+    public function getHorseOddsFinderRaceResultHistoryRaceList(Request $request)
+    {
+        $year = (int) $request->query('year');
+
+        if ($year < 2000 || $year > 2100) {
+            return response()->json(['error' => 'year パラメータが不正です'], 400);
+        }
+
+        $start = sprintf('%04d-01-01', $year);       // '2023-01-01'
+        $end   = sprintf('%04d-01-01', $year + 1);   // '2024-01-01'
+
+        $result = DB::table('t_horse_odds_finder_race_result_history')
+            ->select(
+                'date',
+                'kaisuu',
+                DB::raw('MIN(basho) AS basho'),
+                'basho_code',
+                'day',
+                'race',
+                DB::raw('MIN(race_name) AS race_name')
+            )
+            ->where('date', '>=', $start)
+            ->where('date', '<', $end)
+            ->groupBy('date', 'kaisuu', 'basho_code', 'day', 'race')
+            ->orderBy('date')
+            ->orderBy('kaisuu')
+            ->orderBy('basho')
+            ->orderBy('day')
+            ->orderBy('race')
+            ->get();
+
+        return response()->json(['data' => $result]);
+    }
+    
+    public function getHorseOddsFinderRaceResultHistoryRaceContents(Request $request)
+    {
+        $result = DB::table('t_horse_odds_finder_race_result_history')
+            ->where('date', $request->query('date'))
+            ->where('kaisuu', $request->query('kaisuu'))
+            ->where('basho_code', $request->query('basho_code'))
+            ->where('day', $request->query('day'))
+            ->where('race', $request->query('race'))
+            ->orderBy('num')
+            ->get();
+
+        return response()->json(['data' => $result]);
+    }
+    
+    public function getHorseOddsFinderHorseName(Request $request)
+    {
+        $initial = (string) $request->query('initial');
+
+        // 頭文字は1文字のみ
+        if (mb_strlen($initial, 'UTF-8') !== 1) {
+            return response()->json(['error' => 'initial は1文字で指定してください'], 400);
+        }
+
+        // LIKEのワイルドカード(% _ \)が来ても素直に1文字として扱う
+        $escaped = addcslashes($initial, '\\%_');
+
+        $result = DB::table('t_horse_odds_finder_race_result_history')
+            ->distinct()
+            ->selectRaw('name COLLATE utf8mb4_bin AS name')
+            ->whereRaw('name LIKE ? COLLATE utf8mb4_bin', [$escaped . '%'])
+            ->orderByRaw('name COLLATE utf8mb4_bin')
+            ->get();
+
+        return response()->json(['data' => $result]);
+    }
+    
+    public function getHorseOddsFinderHorseBattleRecord(Request $request)
+    {
+        $name = (string) $request->query('name');
+
+        if ($name === '') {
+            return response()->json(['error' => 'name パラメータが必要です'], 400);
+        }
+
+        $result = DB::table('t_horse_odds_finder_race_result_history')
+            ->whereRaw('name = ? COLLATE utf8mb4_bin', [$name])
+            ->orderBy('date')
+            ->orderBy('kaisuu')
+            ->orderBy('basho_code')
+            ->orderBy('day')
+            ->orderBy('race')
+            ->get();
+
         return response()->json(['data' => $result]);
     }
     
