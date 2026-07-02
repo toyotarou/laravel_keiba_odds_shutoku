@@ -176,11 +176,11 @@ class SummaryHistoryFinishingPosition extends Command
         }
 
         // ── 完了サマリー ─────────────────────────────────────────────
+        // バナー行が完全に末尾へ来るよう、明細（件数・失敗リスト・処理時間）を先に出す
         $totalElapsed = round(microtime(true) - $now, 1);
         $failedCount  = count($failedList);
 
         $this->info('');
-        $this->info('========== keiba:summaryHistoryFinishingPosition 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info("対象年月     : {$yearmonth}");
         $this->info("処理開催数   : {$totalKaisai} 開催");
         $this->info("更新頭数合計 : {$totalUpdated} 頭");
@@ -189,6 +189,8 @@ class SummaryHistoryFinishingPosition extends Command
             $this->error("  [FAIL] {$f}");
         }
         $this->info("処理時間     : {$totalElapsed} 秒");
+        $this->info('');
+        $this->info('========== keiba:summaryHistoryFinishingPosition 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
 
         (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryHistoryFinishingPosition::handle\n対象年月:{$yearmonth}、開催:{$totalKaisai}、頭数:{$totalUpdated}");

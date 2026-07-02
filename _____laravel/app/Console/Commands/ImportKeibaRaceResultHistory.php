@@ -41,178 +41,195 @@ class ImportKeibaRaceResultHistory extends Command
         $logFile = base_path('scripts/keibaOddsGetRaceResultHistory.log');
         $nodeBin = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
 
-        $this->info('');
-        $this->info('========== keiba:importRaceResultHistory 開始 ' . date('Y-m-d H:i:s') . ' ==========');
-        $this->info('対象年月     : ' . $yearmonth);
-        $this->info('スクリプト   : ' . $script);
-        $this->info('ログファイル : ' . $logFile);
-        $this->info('');
-
-        // ── Step 1: --list-only で開催一覧を取得 ─────────────────────
-        $this->info('[Step 1] 開催一覧を取得中...');
-
-        $listCommand = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($script)
-            . ' --yearmonth=' . escapeshellarg($yearmonth)
-            . ' --list-only'
-            . ' 2>>' . escapeshellarg($logFile);
-
-        $this->info('  実行: ' . $listCommand);
-
-        $listOutput = shell_exec($listCommand);
-        $listJson   = json_decode($listOutput, true);
-
-        if (!$listJson || empty($listJson['kaisaiList'])) {
-            $this->error('開催一覧の取得に失敗しました。');
-            $this->error('Node.js 出力: ' . $listOutput);
-            return;
-        }
-
-        $kaisaiList  = $listJson['kaisaiList'];
-        $totalKaisai = count($kaisaiList);
-
-        $this->info("  → {$totalKaisai} 開催を検出: " . implode(', ', $kaisaiList));
-        $this->info('');
-
-        // ── インポート済みkaisaiを先読み（スキップ判定用） ──────────
-        $this->info('[事前確認] インポート済みkaisaiを確認中...');
-        [$year, $month] = explode('-', $yearmonth);
-        $from = "{$year}-{$month}-01";
-        $to   = date('Y-m-t', strtotime($from));
-        $existingKaisaiKeys = DB::table('t_horse_odds_finder_race_result_history')
-            ->whereBetween('date', [$from, $to])
-            ->select('date', 'kaisuu', 'basho_code', 'day')
-            ->distinct()
-            ->get()
-            ->mapWithKeys(fn($r) => ["{$r->date}_{$r->kaisuu}_{$r->basho_code}_{$r->day}" => true])
-            ->toArray();
-        $this->info('  インポート済み開催: ' . count($existingKaisaiKeys) . ' 件');
-        $this->info('');
-
-        // ── Step 2: 各開催を順番に処理 ───────────────────────────────
-        $kaisaiIndex = 0;
+        $totalKaisai = 0;
         $totalSaved  = 0;
         $failedList  = [];
+        $status      = '不明な理由で終了';   // 終了理由（各経路で上書きする）
 
-        foreach ($kaisaiList as $kaisai) {
-            $kaisaiIndex++;
+        try {
+            $this->info('');
+            $this->info('========== keiba:importRaceResultHistory 開始 ' . date('Y-m-d H:i:s') . ' ==========');
+            $this->info('対象年月     : ' . $yearmonth);
+            $this->info('スクリプト   : ' . $script);
+            $this->info('ログファイル : ' . $logFile);
+            $this->info('');
 
-            $this->info('══════════════════════════════════════════════════════');
-            $this->info("[{$kaisaiIndex}/{$totalKaisai}] {$kaisai} 処理開始");
-            $this->info('══════════════════════════════════════════════════════');
+            // ── Step 1: --list-only で開催一覧を取得 ─────────────────────
+            $this->info('[Step 1] 開催一覧を取得中...');
 
-            $command = 'timeout 300 ' . $nodeBin . ' ' . escapeshellarg($script)
+            $listCommand = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($script)
                 . ' --yearmonth=' . escapeshellarg($yearmonth)
-                . ' --kaisai="' . $kaisai . '"'
+                . ' --list-only'
                 . ' 2>>' . escapeshellarg($logFile);
 
-            $this->info('  実行: ' . $command);
-            $this->info('');
+            $this->info('  実行: ' . $listCommand);
 
-            $kaisaiStart = microtime(true);
-            $result      = null;
-            $output      = '';
-            $maxRetry    = 3;
+            $listOutput = shell_exec($listCommand);
+            $listJson   = json_decode($listOutput, true);
 
-            for ($retry = 1; $retry <= $maxRetry; $retry++) {
-                $this->info("  [試行 {$retry}/{$maxRetry}] Node.js 実行中...");
-                $output = shell_exec($command);
-                $result = json_decode($output, true);
-
-                if ($result && !empty($result['races'])) {
-                    $this->info("  [試行 {$retry}/{$maxRetry}] 取得成功！");
-                    break;
-                }
-
-                $this->warn("  [試行 {$retry}/{$maxRetry}] 取得失敗。");
-                $this->warn('  Node.js 出力: ' . substr($output ?? '', 0, 500));
-
-                if ($retry < $maxRetry) {
-                    $this->warn("  5秒後にリトライします...");
-                    sleep(5);
-                }
+            // 本当の失敗（出力なし / JSON パース不能 / kaisaiList キー自体が無い）
+            if (!is_array($listJson) || !array_key_exists('kaisaiList', $listJson)) {
+                $this->error('開催一覧の取得に失敗しました（出力が不正です）。');
+                $this->error('Node.js 出力: ' . $listOutput);
+                $status = '開催一覧の取得失敗（出力不正）';
+                return;
             }
 
-            $elapsed = round(microtime(true) - $kaisaiStart, 1);
+            $kaisaiList  = $listJson['kaisaiList'];
+            $totalKaisai = count($kaisaiList);
 
-            if (!$result || empty($result['races'])) {
-                $this->error("  [FAIL] {$kaisai} → 取得失敗 ({$elapsed}秒)");
-                $failedList[] = $kaisai;
+            // 正常だが開催ゼロ（例: 当月の開催がまだ走っていない）
+            if (empty($kaisaiList)) {
+                $this->warn('対象開催なし（当月の結果確定済み開催がまだありません）。');
+                $status = '対象開催なし';
+                return;
+            }
+
+            $this->info("  → {$totalKaisai} 開催を検出: " . implode(', ', $kaisaiList));
+            $this->info('');
+
+            // ── インポート済みkaisaiを先読み（スキップ判定用） ──────────
+            $this->info('[事前確認] インポート済みkaisaiを確認中...');
+            [$year, $month] = explode('-', $yearmonth);
+            $from = "{$year}-{$month}-01";
+            $to   = date('Y-m-t', strtotime($from));
+            $existingKaisaiKeys = DB::table('t_horse_odds_finder_race_result_history')
+                ->whereBetween('date', [$from, $to])
+                ->select('date', 'kaisuu', 'basho_code', 'day')
+                ->distinct()
+                ->get()
+                ->mapWithKeys(fn($r) => ["{$r->date}_{$r->kaisuu}_{$r->basho_code}_{$r->day}" => true])
+                ->toArray();
+            $this->info('  インポート済み開催: ' . count($existingKaisaiKeys) . ' 件');
+            $this->info('');
+
+            // ── Step 2: 各開催を順番に処理 ───────────────────────────────
+            $kaisaiIndex = 0;
+
+            foreach ($kaisaiList as $kaisai) {
+                $kaisaiIndex++;
+
+                $this->info('══════════════════════════════════════════════════════');
+                $this->info("[{$kaisaiIndex}/{$totalKaisai}] {$kaisai} 処理開始");
+                $this->info('══════════════════════════════════════════════════════');
+
+                $command = 'timeout 300 ' . $nodeBin . ' ' . escapeshellarg($script)
+                    . ' --yearmonth=' . escapeshellarg($yearmonth)
+                    . ' --kaisai="' . $kaisai . '"'
+                    . ' 2>>' . escapeshellarg($logFile);
+
+                $this->info('  実行: ' . $command);
                 $this->info('');
-                continue;
-            }
 
-            // インポート済みkaisaiはDBへの保存をスキップ
-            $kaisaiKey = "{$result['date']}_{$result['kaisuu']}_{$result['basho_code']}_{$result['day']}";
-            if (isset($existingKaisaiKeys[$kaisaiKey])) {
-                $this->info("  [SKIP] インポート済み: {$kaisaiKey} ({$elapsed}秒)");
-                $this->info('');
-                continue;
-            }
+                $kaisaiStart = microtime(true);
+                $result      = null;
+                $output      = '';
+                $maxRetry    = 3;
 
-            $raceCount = count($result['races']);
-            $this->info("  取得完了: {$raceCount} レース / 日付: {$result['date']} ({$elapsed}秒)");
-            $this->info('');
+                for ($retry = 1; $retry <= $maxRetry; $retry++) {
+                    $this->info("  [試行 {$retry}/{$maxRetry}] Node.js 実行中...");
+                    $output = shell_exec($command);
+                    $result = json_decode($output, true);
 
-            // ── DB保存 ───────────────────────────────────────────────
-            $saved = 0;
-            foreach ($result['races'] as $raceData) {
-                $horseCount = count($raceData['horses']);
-                $this->info("    {$raceData['race']}R 「{$raceData['race_name']}」 → {$horseCount}頭 保存中...");
+                    if ($result && !empty($result['races'])) {
+                        $this->info("  [試行 {$retry}/{$maxRetry}] 取得成功！");
+                        break;
+                    }
 
-                foreach ($raceData['horses'] as $horse) {
-                    $key = [
-                        'date'       => $result['date'],
-                        'kaisuu'     => $result['kaisuu'],
-                        'basho_code' => $result['basho_code'],
-                        'day'        => $result['day'],
-                        'race'       => $raceData['race'],
-                        'num'        => $horse['num'],
-                    ];
-                    $data = [
-                        'basho'     => $result['basho'],
-                        'race_name' => $raceData['race_name'],
-                        'name'      => $horse['name'],
-                        'tan'       => $horse['tan'],
-                        'fuku_min'  => $horse['fuku_min'],
-                        'fuku_max'  => $horse['fuku_max'],
-                        'popularity_rank'      => 0,
-                        'finishing_position'   => 0,
-                    ];
+                    $this->warn("  [試行 {$retry}/{$maxRetry}] 取得失敗。");
+                    $this->warn('  Node.js 出力: ' . substr($output ?? '', 0, 500));
 
-                    DB::table('t_horse_odds_finder_race_result_history')
-                        ->updateOrInsert($key, $data);
-
-                    $saved++;
+                    if ($retry < $maxRetry) {
+                        $this->warn("  5秒後にリトライします...");
+                        sleep(5);
+                    }
                 }
 
-                $this->info("    {$raceData['race']}R → 保存完了");
+                $elapsed = round(microtime(true) - $kaisaiStart, 1);
+
+                if (!$result || empty($result['races'])) {
+                    $this->error("  [FAIL] {$kaisai} → 取得失敗 ({$elapsed}秒)");
+                    $failedList[] = $kaisai;
+                    $this->info('');
+                    continue;
+                }
+
+                // インポート済みkaisaiはDBへの保存をスキップ
+                $kaisaiKey = "{$result['date']}_{$result['kaisuu']}_{$result['basho_code']}_{$result['day']}";
+                if (isset($existingKaisaiKeys[$kaisaiKey])) {
+                    $this->info("  [SKIP] インポート済み: {$kaisaiKey} ({$elapsed}秒)");
+                    $this->info('');
+                    continue;
+                }
+
+                $raceCount = count($result['races']);
+                $this->info("  取得完了: {$raceCount} レース / 日付: {$result['date']} ({$elapsed}秒)");
+                $this->info('');
+
+                // ── DB保存 ───────────────────────────────────────────────
+                $saved = 0;
+                foreach ($result['races'] as $raceData) {
+                    $horseCount = count($raceData['horses']);
+                    $this->info("    {$raceData['race']}R 「{$raceData['race_name']}」 → {$horseCount}頭 保存中...");
+
+                    foreach ($raceData['horses'] as $horse) {
+                        $key = [
+                            'date'       => $result['date'],
+                            'kaisuu'     => $result['kaisuu'],
+                            'basho_code' => $result['basho_code'],
+                            'day'        => $result['day'],
+                            'race'       => $raceData['race'],
+                            'num'        => $horse['num'],
+                        ];
+                        $data = [
+                            'basho'     => $result['basho'],
+                            'race_name' => $raceData['race_name'],
+                            'name'      => $horse['name'],
+                            'tan'       => $horse['tan'],
+                            'fuku_min'  => $horse['fuku_min'],
+                            'fuku_max'  => $horse['fuku_max'],
+                            'popularity_rank'      => 0,
+                            'finishing_position'   => 0,
+                        ];
+
+                        DB::table('t_horse_odds_finder_race_result_history')
+                            ->updateOrInsert($key, $data);
+
+                        $saved++;
+                    }
+
+                    $this->info("    {$raceData['race']}R → 保存完了");
+                }
+
+                $totalSaved += $saved;
+                $this->info('');
+                $this->info("  [{$kaisaiIndex}/{$totalKaisai}] {$kaisai} 完了 → {$saved} 頭保存");
+                $this->info('');
             }
 
-            $totalSaved += $saved;
+            $status = (count($failedList) > 0) ? '正常終了（一部失敗あり）' : '正常終了';
+
+        } finally {
+            // ── 完了サマリー（どの経路でも必ず出力）─────────────────────
+            // バナー行が完全に末尾へ来るよう、明細（失敗リスト・処理時間）を先に出す
+            $totalElapsed = round(microtime(true) - $now, 1);
+            $failedCount  = count($failedList);
+
             $this->info('');
-            $this->info("  [{$kaisaiIndex}/{$totalKaisai}] {$kaisai} 完了 → {$saved} 頭保存");
+            $this->info("終了理由     : {$status}");
+            $this->info("対象年月     : {$yearmonth}");
+            $this->info("処理開催数   : {$totalKaisai} 開催");
+            $this->info("保存頭数合計 : {$totalSaved} 頭");
+            $this->info("失敗開催数   : {$failedCount} 件" . ($failedCount > 0 ? ' ← 要確認' : ''));
+            foreach ($failedList as $f) {
+                $this->error("  [FAIL] {$f}");
+            }
+            $this->info("処理時間     : {$totalElapsed} 秒");
             $this->info('');
+            $this->info('========== keiba:importRaceResultHistory 終了 ' . date('Y-m-d H:i:s') . ' ==========');
+            $this->info('');
+
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaRaceResultHistory::handle\n{$status}\n対象年月:{$yearmonth}、開催:{$totalKaisai}、頭数:{$totalSaved}");
         }
-
-        // ── 完了サマリー ─────────────────────────────────────────────
-        $totalElapsed = round(microtime(true) - $now, 1);
-        $failedCount  = count($failedList);
-
-        $this->info('');
-        $this->info('========== keiba:importRaceResultHistory 終了 ' . date('Y-m-d H:i:s') . ' ==========');
-        $this->info("対象年月     : {$yearmonth}");
-        $this->info("処理開催数   : {$totalKaisai} 開催");
-        $this->info("保存頭数合計 : {$totalSaved} 頭");
-        $this->info("失敗開催数   : {$failedCount} 件" . ($failedCount > 0 ? ' ← 要確認' : ''));
-        foreach ($failedList as $f) {
-            $this->error("  [FAIL] {$f}");
-        }
-        $this->info("処理時間     : {$totalElapsed} 秒");
-        $this->info('');
-        
-
-
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaRaceResultHistory::handle\n対象年月:{$yearmonth}、開催:{$totalKaisai}、頭数:{$totalSaved}");
-
     }
 }
