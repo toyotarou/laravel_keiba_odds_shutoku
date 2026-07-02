@@ -65,6 +65,9 @@ class ImportKeibaOdds extends Command
 
         if ($races->isEmpty()) {
             $this->info('対象レースが0件のため終了します。');
+            $this->info('');
+            $this->info('========== keiba:importOdds 終了 ' . date('Y-m-d H:i:s') . ' ==========');
+            $this->info('');
             return;
         }
 

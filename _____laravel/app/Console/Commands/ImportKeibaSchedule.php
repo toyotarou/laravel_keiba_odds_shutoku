@@ -92,9 +92,8 @@ use Illuminate\Support\Facades\DB;
  *   - トランザクションをコミットする（INSERT 途中で失敗した場合は自動でロールバックされる）
  *
  * 【終了処理】
- *   - 処理結果サマリー（schedules・races・horses の件数・完了日時）をログ出力する
- *   - 正常終了を示すメッセージをログ出力する
- *   - return 0 を返す
+ *   - どの経路（スキップ・全発走済み・パース失敗・正常終了）でも
+ *     finally ブロックで終了サマリーと WebPush 通知を必ず出力する
  */
 class ImportKeibaSchedule extends Command
 {
@@ -115,6 +114,7 @@ class ImportKeibaSchedule extends Command
         $schedules = [];
         $races     = [];
         $horses    = [];
+        $status    = '不明な理由で終了';   // 終了理由（各経路で上書きする）
 
         try {
 
@@ -136,7 +136,7 @@ class ImportKeibaSchedule extends Command
             // ─────────────────────────────────────────────────────────────
             if (!$isDebug && (date('w') === '4' || date('w') === '5')) {
                 $this->warn('本日は木曜日または金曜日のため処理をスキップします。');
-                $this->info('終了。');
+                $status = '木曜・金曜のためスキップ';
                 return 0;
             }
 
@@ -174,6 +174,7 @@ class ImportKeibaSchedule extends Command
                 $this->error('JSON パース失敗。Node.js の出力内容:');
                 $this->error($output);
                 $this->error('処理を中断します。');
+                $status = 'JSONパース失敗のため中断';
                 return 1;
             }
 
@@ -207,7 +208,7 @@ class ImportKeibaSchedule extends Command
 
             if ($todayRaceCount > 0 && $finishedCount === $todayRaceCount) {
                 $this->warn('当日の全レースが発走済みのため、終了します。');
-                $this->info('終了。');
+                $status = '全レース発走済みのため終了';
                 return 0;
             }
 
@@ -344,29 +345,30 @@ class ImportKeibaSchedule extends Command
             $this->info('トランザクション コミット成功。');
             $this->info('');
 
-            // ── 最終サマリー ──
+            $status = '正常終了';
+
+        } finally {
+
+            // ── 最終サマリー（どの経路でも必ず出力）──
+            $cnt_schedule = count($schedules);
+            $cnt_race     = count($races);
+            $cnt_horse    = count($horses);
+
+            $this->info('');
             $this->info('╔══════════════════════════════════════════════════╗');
             $this->info('║     処理結果サマリー                              ║');
             $this->info('╚══════════════════════════════════════════════════╝');
-            $this->info('スケジュール: ' . count($schedules) . ' 件');
-            $this->info('レース      : ' . count($races)     . ' 件');
-            $this->info('馬情報      : ' . count($horses)    . ' 件');
+            $this->info('終了理由    : ' . $status);
+            $this->info('スケジュール: ' . $cnt_schedule . ' 件');
+            $this->info('レース      : ' . $cnt_race     . ' 件');
+            $this->info('馬情報      : ' . $cnt_horse    . ' 件');
             $this->info('完了日時    : ' . date('Y-m-d H:i:s'));
+            $this->info('=== 競馬スケジュール取得処理 ── ' . $status . ' ===');
             $this->info('');
-            $this->info('=== 競馬スケジュール取得処理 ── 正常終了 ===');
-            $this->info('');
-            
 
-
-        } finally {
-            
-            $cnt_schedule = count($schedules);
-            $cnt_race = count($races);
-            $cnt_horse = count($horses);
-            
-            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaSchedule::handle\nS:{$cnt_schedule}、R:{$cnt_race}、H:{$cnt_horse}");
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaSchedule::handle\n{$status}\nS:{$cnt_schedule}、R:{$cnt_race}、H:{$cnt_horse}");
         }
-        
+
         return 0;
     }
 }
