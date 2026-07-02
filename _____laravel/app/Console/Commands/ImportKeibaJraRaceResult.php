@@ -37,6 +37,7 @@ class ImportKeibaJraRaceResult extends Command
     {
         $updated = 0;
         $skipped = 0;
+        $status  = '不明な理由で終了';   // 終了理由（各経路で上書きする）
 
         try {
             $this->info('');
@@ -49,12 +50,14 @@ class ImportKeibaJraRaceResult extends Command
 
             if (!$json) {
                 $this->error('Node.js スクリプトの実行失敗（出力なし）');
+                $status = 'Node.js実行失敗（出力なし）';
                 return;
             }
 
             $data = json_decode($json, true);
             if (json_last_error() !== JSON_ERROR_NONE || !isset($data['results'])) {
                 $this->error('JSONパース失敗: ' . json_last_error_msg());
+                $status = 'JSONパース失敗';
                 return;
             }
 
@@ -63,6 +66,7 @@ class ImportKeibaJraRaceResult extends Command
 
             if (empty($results)) {
                 $this->warn('取得件数が0件です（レース未終了の可能性）。終了します。');
+                $status = '取得0件（レース未終了の可能性）';
                 return;
             }
 
@@ -97,13 +101,15 @@ class ImportKeibaJraRaceResult extends Command
             });
 
             $this->info("UPDATE完了 → 更新: {$updated} 件 / スキップ: {$skipped} 件");
+            $status = '正常終了';
+
+        } finally {
+            $this->info("終了理由: {$status}");
             $this->info('========== keiba:importJraRaceResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
 
-        } finally {
-            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaJraRaceResult::handle\n更新:{$updated}、飛:{$skipped}");
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaJraRaceResult::handle\n{$status}\n更新:{$updated}、飛:{$skipped}");
         }
-        
     }
 
     /**

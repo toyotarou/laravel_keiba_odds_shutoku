@@ -67,114 +67,112 @@ class SummaryHistoryFinishingPosition extends Command
             ->orderBy('day')
             ->get();
 
-        if ($kaisaiRows->isEmpty()) {
-            $this->info('  対象開催なし（全て取得済み、またはデータなし）');
-            $this->info('');
-            return;
-        }
-
-        $totalKaisai = $kaisaiRows->count();
-        $this->info("  → {$totalKaisai} 開催を検出");
-        $this->info('');
-
-        // ── Step 2: 各開催を順番に処理 ───────────────────────────────
+        $totalKaisai  = $kaisaiRows->count();
         $kaisaiIndex  = 0;
         $totalUpdated = 0;
         $failedList   = [];
 
-        foreach ($kaisaiRows as $row) {
-            $kaisaiIndex++;
-
-            $kaisai = "{$row->kaisuu}回{$row->basho}{$row->day}日";
-
-            $this->info('══════════════════════════════════════════════════════');
-            $this->info("[{$kaisaiIndex}/{$totalKaisai}] {$kaisai} (date={$row->date}) 処理開始");
-            $this->info('══════════════════════════════════════════════════════');
-
-            $command = 'timeout 300 ' . $nodeBin . ' ' . escapeshellarg($script)
-                . ' --yearmonth=' . escapeshellarg($yearmonth)
-                . ' --kaisai="' . $kaisai . '"'
-                . ' 2>>' . escapeshellarg($logFile);
-
-            $this->info('  実行: ' . $command);
+        if ($kaisaiRows->isEmpty()) {
+            $this->info('  対象開催なし（全て取得済み、またはデータなし）');
+        } else {
+            $this->info("  → {$totalKaisai} 開催を検出");
             $this->info('');
 
-            $kaisaiStart = microtime(true);
-            $result      = null;
-            $output      = '';
-            $maxRetry    = 3;
+            // ── Step 2: 各開催を順番に処理 ───────────────────────────────
+            foreach ($kaisaiRows as $row) {
+                $kaisaiIndex++;
 
-            for ($retry = 1; $retry <= $maxRetry; $retry++) {
-                $this->info("  [試行 {$retry}/{$maxRetry}] Node.js 実行中...");
-                $output = shell_exec($command);
-                $result = json_decode($output, true);
+                $kaisai = "{$row->kaisuu}回{$row->basho}{$row->day}日";
 
-                if ($result && !empty($result['races'])) {
-                    $this->info("  [試行 {$retry}/{$maxRetry}] 取得成功！");
-                    break;
-                }
+                $this->info('══════════════════════════════════════════════════════');
+                $this->info("[{$kaisaiIndex}/{$totalKaisai}] {$kaisai} (date={$row->date}) 処理開始");
+                $this->info('══════════════════════════════════════════════════════');
 
-                $this->warn("  [試行 {$retry}/{$maxRetry}] 取得失敗。");
-                $this->warn('  Node.js 出力: ' . substr($output ?? '', 0, 500));
+                $command = 'timeout 300 ' . $nodeBin . ' ' . escapeshellarg($script)
+                    . ' --yearmonth=' . escapeshellarg($yearmonth)
+                    . ' --kaisai="' . $kaisai . '"'
+                    . ' 2>>' . escapeshellarg($logFile);
 
-                if ($retry < $maxRetry) {
-                    $this->warn('  5秒後にリトライします...');
-                    sleep(5);
-                }
-            }
-
-            $elapsed = round(microtime(true) - $kaisaiStart, 1);
-
-            if (!$result || empty($result['races'])) {
-                $this->error("  [FAIL] {$kaisai} → 取得失敗 ({$elapsed}秒)");
-                $failedList[] = $kaisai;
+                $this->info('  実行: ' . $command);
                 $this->info('');
-                continue;
-            }
 
-            $raceCount = count($result['races']);
+                $kaisaiStart = microtime(true);
+                $result      = null;
+                $output      = '';
+                $maxRetry    = 3;
 
-            // ── DB UPDATE（1開催 = 1クエリ CASE WHEN）───────────────
-            // CASE WHEN race = 1 AND num = 14 THEN 1
-            //      WHEN race = 1 AND num =  5 THEN 2
-            //      ...
-            //      WHEN race = 12 AND num = 1 THEN 1
-            // END
-            // 中止・除外等（数値以外）は -1 → 次回 cron の再処理対象外になる
-            $caseWhen    = 'CASE';
-            $raceGroups  = [];
-            $totalHorses = 0;
+                for ($retry = 1; $retry <= $maxRetry; $retry++) {
+                    $this->info("  [試行 {$retry}/{$maxRetry}] Node.js 実行中...");
+                    $output = shell_exec($command);
+                    $result = json_decode($output, true);
 
-            foreach ($result['races'] as $raceData) {
-                $raceNo = (int) $raceData['race'];
-                foreach ($raceData['horses'] as $horse) {
-                    $fp  = is_int($horse['chakujun']) ? $horse['chakujun'] : -1;
-                    $num = (int) $horse['num'];
-                    $caseWhen .= " WHEN race = {$raceNo} AND num = {$num} THEN {$fp}";
-                    $raceGroups[$raceNo][] = $num;
-                    $totalHorses++;
-                }
-            }
-            $caseWhen .= ' END';
-
-            $this->info("  取得完了: {$raceCount}レース / {$totalHorses}頭 ({$elapsed}秒)");
-            $this->info("  1クエリで一括更新中...");
-
-            $affected = DB::table('t_horse_odds_finder_race_result_history')
-                ->where('date',       $row->date)
-                ->where('kaisuu',     $row->kaisuu)
-                ->where('basho_code', $row->basho_code)
-                ->where('day',        $row->day)
-                ->where(function ($q) use ($raceGroups) {
-                    foreach ($raceGroups as $raceNo => $nums) {
-                        $q->orWhere(fn($q2) => $q2->where('race', $raceNo)->whereIn('num', $nums));
+                    if ($result && !empty($result['races'])) {
+                        $this->info("  [試行 {$retry}/{$maxRetry}] 取得成功！");
+                        break;
                     }
-                })
-                ->update(['finishing_position' => DB::raw($caseWhen)]);
 
-            $totalUpdated += $affected;
-            $this->info("  [{$kaisaiIndex}/{$totalKaisai}] {$kaisai} 完了 → {$affected} 頭更新");
-            $this->info('');
+                    $this->warn("  [試行 {$retry}/{$maxRetry}] 取得失敗。");
+                    $this->warn('  Node.js 出力: ' . substr($output ?? '', 0, 500));
+
+                    if ($retry < $maxRetry) {
+                        $this->warn('  5秒後にリトライします...');
+                        sleep(5);
+                    }
+                }
+
+                $elapsed = round(microtime(true) - $kaisaiStart, 1);
+
+                if (!$result || empty($result['races'])) {
+                    $this->error("  [FAIL] {$kaisai} → 取得失敗 ({$elapsed}秒)");
+                    $failedList[] = $kaisai;
+                    $this->info('');
+                    continue;
+                }
+
+                $raceCount = count($result['races']);
+
+                // ── DB UPDATE（1開催 = 1クエリ CASE WHEN）───────────────
+                // CASE WHEN race = 1 AND num = 14 THEN 1
+                //      WHEN race = 1 AND num =  5 THEN 2
+                //      ...
+                //      WHEN race = 12 AND num = 1 THEN 1
+                // END
+                // 中止・除外等（数値以外）は -1 → 次回 cron の再処理対象外になる
+                $caseWhen    = 'CASE';
+                $raceGroups  = [];
+                $totalHorses = 0;
+
+                foreach ($result['races'] as $raceData) {
+                    $raceNo = (int) $raceData['race'];
+                    foreach ($raceData['horses'] as $horse) {
+                        $fp  = is_int($horse['chakujun']) ? $horse['chakujun'] : -1;
+                        $num = (int) $horse['num'];
+                        $caseWhen .= " WHEN race = {$raceNo} AND num = {$num} THEN {$fp}";
+                        $raceGroups[$raceNo][] = $num;
+                        $totalHorses++;
+                    }
+                }
+                $caseWhen .= ' END';
+
+                $this->info("  取得完了: {$raceCount}レース / {$totalHorses}頭 ({$elapsed}秒)");
+                $this->info("  1クエリで一括更新中...");
+
+                $affected = DB::table('t_horse_odds_finder_race_result_history')
+                    ->where('date',       $row->date)
+                    ->where('kaisuu',     $row->kaisuu)
+                    ->where('basho_code', $row->basho_code)
+                    ->where('day',        $row->day)
+                    ->where(function ($q) use ($raceGroups) {
+                        foreach ($raceGroups as $raceNo => $nums) {
+                            $q->orWhere(fn($q2) => $q2->where('race', $raceNo)->whereIn('num', $nums));
+                        }
+                    })
+                    ->update(['finishing_position' => DB::raw($caseWhen)]);
+
+                $totalUpdated += $affected;
+                $this->info("  [{$kaisaiIndex}/{$totalKaisai}] {$kaisai} 完了 → {$affected} 頭更新");
+                $this->info('');
+            }
         }
 
         // ── 完了サマリー ─────────────────────────────────────────────
