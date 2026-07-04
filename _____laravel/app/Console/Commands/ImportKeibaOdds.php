@@ -252,7 +252,8 @@ class ImportKeibaOdds extends Command
 
 //            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaOdds::handle\n保存:{$saved}頭分 ({$totalMs}ms)");
             
-            if (in_array($diff, $timings) && !empty($changeRecords)) {
+            $significantChanges = array_filter($changeRecords, fn($c) => abs($c['prev_rank'] - $c['curr_rank']) >= 2);
+            if (in_array($diff, $timings) && !empty($significantChanges)) {
                 $deepLinkUrl = 'https://baganriki.com/horse_odds_finder/?' . http_build_query([
                     'date'    => $race->date,
                     'kbd'     => "{$race->kaisuu}_{$race->basho}_{$race->day}",
@@ -263,7 +264,7 @@ class ImportKeibaOdds extends Command
                 ]);
 
                 (new WebPushService())->sendPushNotifierOddsNews(
-                    '人気順位の変更がありました',
+                    '人気順位の変更がありました（2以上の変化）',
                     "{$race->date} {$race->kaisuu}回{$race->basho_name}{$race->day}日\nR{$race->race} {$race->race_name}",
                     $deepLinkUrl,
                 );

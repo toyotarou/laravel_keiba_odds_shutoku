@@ -94,6 +94,7 @@ use Illuminate\Support\Facades\DB;
  * 【終了処理】
  *   - どの経路（スキップ・全発走済み・パース失敗・正常終了）でも
  *     finally ブロックで終了サマリーと WebPush 通知を必ず出力する
+ *   - 終了バナー行は常に出力の完全な末尾に置く
  */
 class ImportKeibaSchedule extends Command
 {
@@ -350,6 +351,7 @@ class ImportKeibaSchedule extends Command
         } finally {
 
             // ── 最終サマリー（どの経路でも必ず出力）──
+            // バナー行が完全に末尾へ来るよう、明細（サマリー各行）を先に出す
             $cnt_schedule = count($schedules);
             $cnt_race     = count($races);
             $cnt_horse    = count($horses);
@@ -364,6 +366,8 @@ class ImportKeibaSchedule extends Command
             $this->info('馬情報      : ' . $cnt_horse    . ' 件');
             $this->info('完了日時    : ' . date('Y-m-d H:i:s'));
             $this->info('=== 競馬スケジュール取得処理 ── ' . $status . ' ===');
+            $this->info('');
+            $this->info('========== keiba:importSchedule 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
 
             (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaSchedule::handle\n{$status}\nS:{$cnt_schedule}、R:{$cnt_race}、H:{$cnt_horse}");

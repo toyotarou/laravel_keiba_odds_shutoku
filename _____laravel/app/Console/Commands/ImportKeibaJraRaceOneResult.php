@@ -33,10 +33,6 @@ class ImportKeibaJraRaceOneResult extends Command
         // file_put_contents($lockFile, getmypid());
         // register_shutdown_function(fn() => @unlink($lockFile));
 
-
-
-
-
         $isDebug = (bool) $this->option('debug');
 
         $this->info('');
@@ -109,6 +105,20 @@ class ImportKeibaJraRaceOneResult extends Command
 
         $this->info("登録済み結果取得 → " . count($existingKeys) . " 件");
 
+        // ── 通知済みレースキーセットをループ前に一括取得する ────────────
+        // キー形式: "{kaisuu}-{basho}-{day}-{race}"
+        // notified_at が設定済みのレースは通知をスキップする。
+        $notifiedRaceKeys = DB::table('t_horse_odds_finder_race_results')
+            ->where('date', $date)
+            ->whereNotNull('notified_at')
+            ->get(['kaisuu', 'basho', 'day', 'race'])
+            ->map(fn($r) => "{$r->kaisuu}-{$r->basho}-{$r->day}-{$r->race}")
+            ->unique()
+            ->flip()
+            ->all();
+
+        $this->info("通知済みレース取得 → " . count($notifiedRaceKeys) . " 件");
+
         $inserted     = 0;
         $skipped      = 0;
         $notifyRaces  = [];
@@ -122,6 +132,8 @@ class ImportKeibaJraRaceOneResult extends Command
 
         if ($results === null) {
             $this->error('Node.js スクリプトの実行失敗（出力なし）');
+            $this->info('========== keiba:importJraRaceOneResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
+            $this->info('');
             return;
         }
 
@@ -130,7 +142,7 @@ class ImportKeibaJraRaceOneResult extends Command
         // 1回目の照合。マッチしなかったレースを $unmatchedRaces に積む。
         $unmatchedRaces = [];
         foreach ($hitRaces as $race) {
-            $found = $this->matchAndInsert($race, $results, $existingKeys, $inserted, $skipped, $notifyRaces);
+            $found = $this->matchAndInsert($race, $results, $existingKeys, $notifiedRaceKeys, $inserted, $skipped, $notifyRaces);
             if (!$found) {
                 $unmatchedRaces[] = $race;
                 $this->warn("  [1回目] マッチなし: {$race->basho_name} R{$race->race} → 2回目で再試行します");
@@ -150,7 +162,7 @@ class ImportKeibaJraRaceOneResult extends Command
             } else {
                 $this->info("  [2回目] 取得完了 → {$fetchMs}ms / " . count($results2) . " 件");
                 foreach ($unmatchedRaces as $race) {
-                    $found = $this->matchAndInsert($race, $results2, $existingKeys, $inserted, $skipped, $notifyRaces);
+                    $found = $this->matchAndInsert($race, $results2, $existingKeys, $notifiedRaceKeys, $inserted, $skipped, $notifyRaces);
                     if (!$found) {
                         $this->warn("  [2回目] マッチなし: {$race->basho_name} R{$race->race} → 次回cron実行時に再試行されます");
                     }
@@ -160,14 +172,12 @@ class ImportKeibaJraRaceOneResult extends Command
 
         $this->info('');
         $this->info("INSERT完了 → 登録: {$inserted} 件 / スキップ: {$skipped} 件");
-        $this->info('========== keiba:importJraRaceOneResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
-        $this->info('');
-        
 
+        // ── プッシュ通知送信 & notified_at 更新 ───────────────────────────
+        $notifyCount = count($notifyRaces);
+        $this->info("通知対象レース → {$notifyCount} 件");
 
-//        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaJraRaceOneResult::handle\n登録:{$inserted}、飛:{$skipped}");
-
-        foreach ($notifyRaces as $race) {
+        foreach ($notifyRaces as $raceKey => $race) {
             $deepLinkUrl = 'https://baganriki.com/horse_odds_finder/?' . http_build_query([
                 'date'    => $race->date,
                 'kbd'     => "{$race->kaisuu}_{$race->basho}_{$race->day}",
@@ -182,21 +192,36 @@ class ImportKeibaJraRaceOneResult extends Command
                 "{$race->date} {$race->kaisuu}回{$race->basho_name}{$race->day}日\nR{$race->race} {$race->race_name}",
                 $deepLinkUrl,
             );
+
+            // 通知送信後に notified_at をセット（同レースの全馬をまとめて更新）
+            DB::table('t_horse_odds_finder_race_results')
+                ->where('date',    $race->date)
+                ->where('kaisuu',  $race->kaisuu)
+                ->where('basho',   $race->basho)
+                ->where('day',     $race->day)
+                ->where('race',    $race->race)
+                ->whereNull('notified_at')
+                ->update(['notified_at' => date('Y-m-d H:i:s')]);
+
+            $this->info("  通知送信済み & notified_at 更新: {$race->basho_name} R{$race->race}");
         }
 
-
-
+        $this->info('========== keiba:importJraRaceOneResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
+        $this->info('');
     }
 
     /**
      * レースの照合・INSERT を行う。
      * JRA結果の中に該当レースのエントリが1件でもあれば true を返す。
      * 1件もなければ false を返す（未掲載・照合ミス）。
+     *
+     * @param array $notifiedRaceKeys 通知済みレースキーのセット（参照渡し不要・読み取り専用）
      */
     private function matchAndInsert(
         object $race,
         array  $results,
         array  &$existingKeys,
+        array  $notifiedRaceKeys,
         int    &$inserted,
         int    &$skipped,
         array  &$notifyRaces
@@ -217,22 +242,26 @@ class ImportKeibaJraRaceOneResult extends Command
 
                 if (!$exists) {
                     DB::table('t_horse_odds_finder_race_results')->insert([
-                        'date'       => $race->date,
-                        'kaisuu'     => $race->kaisuu,
-                        'basho'      => $race->basho,
-                        'basho_name' => $race->basho_name,
-                        'day'        => $race->day,
-                        'race'       => $race->race,
-                        'race_name'  => $race->race_name,
-                        'num'        => $v['horse_num'],
-                        'horse_name' => $v['horse_name'],
-                        'result'     => $v['rank'],
+                        'date'        => $race->date,
+                        'kaisuu'      => $race->kaisuu,
+                        'basho'       => $race->basho,
+                        'basho_name'  => $race->basho_name,
+                        'day'         => $race->day,
+                        'race'        => $race->race,
+                        'race_name'   => $race->race_name,
+                        'num'         => $v['horse_num'],
+                        'horse_name'  => $v['horse_name'],
+                        'result'      => $v['rank'],
+                        'notified_at' => null,
                     ]);
 
                     $existingKeys[$key] = true;
 
+                    // 通知済みでないレースのみ通知対象に追加
                     $raceKey = "{$race->kaisuu}-{$race->basho}-{$race->day}-{$race->race}";
-                    $notifyRaces[$raceKey] = $race;
+                    if (!isset($notifiedRaceKeys[$raceKey])) {
+                        $notifyRaces[$raceKey] = $race;
+                    }
 
                     $this->info("    INSERT: {$v['horse_name']} ({$v['horse_num']}番) → {$v['rank']}着");
                     $inserted++;
