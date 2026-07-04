@@ -74,8 +74,8 @@ async function navigateToKaisaiList(page, year, month) {
     }, { y: year, m: month });
     await sleep(500);
     await page.evaluate(() => {
-        // getSelectData() を呼び出す検索リンクをクリック
-        const searchLink = Array.from(document.querySelectorAll('a')).find(a => a.getAttribute('onclick') === 'getSelectData();');
+        const searchLink = Array.from(document.querySelectorAll('a'))
+            .find(a => a.getAttribute('onclick') === 'getSelectData();');
         if (searchLink) { searchLink.click(); } else { getSelectData(); }
     });
     await page.waitForSelector('a', { timeout: 15000 }).catch(() => {});
@@ -83,7 +83,8 @@ async function navigateToKaisaiList(page, year, month) {
 }
 
 // ── オッズリンク収集 ─────────────────────────────────────────
-// code: pw151ou1(8) + 0(1) + basho(2) + year(4) + kaisuu(2) + race(2) + date(8) + Z
+// コード形式: pw151ou??(9) + basho(2) + year(4) + kaisuu(2) + day(2) + race(2) + date(8) + Z
+// ※ JRAのサイト改修でpw151ou以降の識別子が変わっても対応できるよう accessO.html で絞る
 // race番号 = substring(19, 21)
 // 日付     = substring(21, 29) → YYYYMMDD
 async function getOddsLinks(page) {
@@ -91,7 +92,7 @@ async function getOddsLinks(page) {
         const result = [];
         document.querySelectorAll('a').forEach(a => {
             const onclick = a.getAttribute('onclick') ?? '';
-            const m = onclick.match(/doAction\('\/JRADB\/accessO\.html',\s*'(pw151ou1\w+Z)\/[0-9A-F]+'\)/);
+            const m = onclick.match(/doAction\('\/JRADB\/accessO\.html',\s*'(pw151ou\w+Z)\/[0-9A-F]+'\)/);
             if (m) result.push({ code: m[1], onclick });
         });
         return result;
@@ -211,12 +212,16 @@ async function getOddsLinks(page) {
             }
             log(`  ${oddsLinks.length} レース: ${oddsLinks.map(o => o.raceNum).join(', ')}R`);
 
+            // 「全てのレースを表示」ページのURLを保持（goBack用）
+            const showAllUrl = page.url();
+
             const races = [];
 
             // ── 各レースのオッズを取得 ───────────────────────
-            for (const { code, raceNum } of oddsLinks) {
+            for (const { code, raceNum, date: raceDate } of oddsLinks) {
                 log(`    [Race ${raceNum}R] 取得中...`);
 
+                // codeを含むonclickのリンクをクリック
                 await page.evaluate(({ code }) => {
                     Array.from(document.querySelectorAll('a'))
                         .find(a => (a.getAttribute('onclick') ?? '').includes(code))?.click();
@@ -225,8 +230,8 @@ async function getOddsLinks(page) {
                 await page.waitForSelector('table.tanpuku', { timeout: 15000 }).catch(() => {});
                 await sleep(1000);
 
-                const { raceName, raceDate, horses } = await page.evaluate(() => {
-                    // レース名: h2の中で「検索ウィンドウ」「JRAからのお知らせ」以外の最初のもの
+                const { raceName, horses } = await page.evaluate(() => {
+                    // レース名
                     const h2s = Array.from(document.querySelectorAll('h2'));
                     const raceNameEl = h2s.find(el => {
                         const t = el.textContent.trim();
@@ -235,20 +240,6 @@ async function getOddsLinks(page) {
                     const raceName = raceNameEl
                         ? raceNameEl.textContent.replace(/\s+/g, ' ').trim()
                         : '';
-
-                    // 日付: h1から「2023年1月5日」を抽出
-                    let raceDate = null;
-                    const h1s = Array.from(document.querySelectorAll('h1'));
-                    for (const h1 of h1s) {
-                        const m = h1.textContent.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
-                        if (m) {
-                            const y  = m[1];
-                            const mo = m[2].padStart(2, '0');
-                            const d  = m[3].padStart(2, '0');
-                            raceDate = `${y}-${mo}-${d}`;
-                            break;
-                        }
-                    }
 
                     const horses = [];
                     const table = document.querySelector('table.tanpuku');
@@ -272,12 +263,12 @@ async function getOddsLinks(page) {
                         horses.push({
                             num:      parseInt(num),
                             name,
-                            tan:      parseFloat(tan)              || null,
-                            fuku_min: parseFloat(fukuParts[0])     || null,
+                            tan:      parseFloat(tan)                          || null,
+                            fuku_min: parseFloat(fukuParts[0])                 || null,
                             fuku_max: parseFloat(fukuParts[1] ?? fukuParts[0]) || null,
                         });
                     });
-                    return { raceName, raceDate, horses };
+                    return { raceName, horses };
                 });
 
                 if (horses.length > 0) {
@@ -287,11 +278,11 @@ async function getOddsLinks(page) {
                     log(`    [Race ${raceNum}R] WARNING: データなし`);
                 }
 
+                // 「全てのレースを表示」ページへ戻る
                 await page.goBack({ waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
                 await sleep(1000);
             }
 
-            // 開催単位でまとめてpush（dateはracesの最初のレースから取得）
             if (races.length > 0) {
                 const date = races[0].date;
                 allData.push({
@@ -307,7 +298,6 @@ async function getOddsLinks(page) {
 
         log(`\n完了 — 合計 ${allData.length} 開催 / ${allData.reduce((s, k) => s + k.races.length, 0)} レース取得`);
 
-        // kaisai指定時は開催が1つ → 開催情報を上位に展開
         let output;
         if (kaisaiFilter && allData.length === 1) {
             const { date, kaisuu, basho, basho_code, day, races } = allData[0];
