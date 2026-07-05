@@ -47,8 +47,10 @@ class ImportKeibaBaseOdds extends Command
             $this->info('ログファイル : ' . $logFile);
             $this->info('');
 
-            // 土日両日分の全レースを取得（日付フィルタなし）
+            // 実行日以降のレースのみ取得（土曜実行→土日両日、日曜実行→日曜のみ）
+            $today      = date('Y-m-d');
             $races      = DB::table('t_horse_odds_finder_races')
+                ->where('date', '>=', $today)
                 ->orderBy('date')
                 ->orderBy('start_time')
                 ->get();
