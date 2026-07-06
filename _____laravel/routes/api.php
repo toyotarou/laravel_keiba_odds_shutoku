@@ -20,8 +20,6 @@ Route::get('getHorseOddsFinderOddsGetTiming', [ApiController::class, 'getHorseOd
 
 Route::get('getHorseDetail', [ApiController::class, 'getHorseDetail']);
 
-Route::get('getHorseOddsFinderOddsWide', [ApiController::class, 'getHorseOddsFinderOddsWide']);
-
 Route::get('getHorseOddsFinderSummary', [ApiController::class, 'getHorseOddsFinderSummary']);
 
 Route::get('getHorseOddsFinderSummaryOneRace', [ApiController::class, 'getHorseOddsFinderSummaryOneRace']);
@@ -47,3 +45,7 @@ Route::get('getHorseOddsFinderRaceResultHistoryRaceContents', [ApiController::cl
 Route::get('getHorseOddsFinderHorseName', [ApiController::class, 'getHorseOddsFinderHorseName']);
 
 Route::get('getHorseOddsFinderHorseBattleRecord', [ApiController::class, 'getHorseOddsFinderHorseBattleRecord']);
+
+Route::get('getHorseOddsFinderRacesPopularityRatio', [ApiController::class, 'getHorseOddsFinderRacesPopularityRatio']);
+
+Route::get('getHorseOddsFinderRaceResultPayout', [ApiController::class, 'getHorseOddsFinderRaceResultPayout']);

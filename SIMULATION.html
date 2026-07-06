@@ -3,1170 +3,1633 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>本番シミュレーション 2026-06-06(土)〜06-07(日)</title>
+<title>競馬 cron シミュレーション</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system,'Helvetica Neue',Arial,sans-serif; background:#f4f6f9; color:#222; font-size:15px; line-height:1.65; }
+/* ── Reset ─────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+img,svg{display:block;max-width:100%}
+button{cursor:pointer;border:none;background:none;font:inherit}
 
-  /* ヘッダー */
-  h1 { background:#1a2a4a; color:#fff; padding:13px 15px; font-size:16px; position:sticky; top:0; z-index:100; }
-  h1 span { display:block; font-size:11px; font-weight:normal; opacity:0.7; margin-top:3px; }
+/* ── Tokens ─────────────────────────────────────────── */
+:root{
+  --bg:        #f0f4f9;
+  --surf:      #ffffff;
+  --surf2:     #f7f9fc;
+  --border:    #dce3ee;
+  --border2:   #c8d3e4;
+  --t1:        #0d1b2e;
+  --t2:        #4a5a72;
+  --t3:        #8a99b0;
+  --accent:    #1a56db;
+  --sat:       #c81c1c;
+  --sat-bg:    #fef2f2;
+  --sun:       #c26b00;
+  --sun-bg:    #fffbeb;
+  --rail:      #d0daea;
+  --dot-r:     #ef4444;
+  --dot-o:     #f97316;
+  --dot-g:     #22c55e;
+  --dot-b:     #3b82f6;
+  --dot-p:     #a855f7;
+  --dot-t:     #0d9488;
+  --dot-gr:    #64748b;
+  --act-trunc: #dc2626;
+  --act-del:   #ea580c;
+  --act-ins:   #16a34a;
+  --act-upd:   #1d4ed8;
+  --act-ups:   #7c3aed;
+  --tbl-sch:   #2563eb;
+  --tbl-rac:   #7c3aed;
+  --tbl-hor:   #16a34a;
+  --tbl-odd:   #d97706;
+  --tbl-wid:   #ea580c;
+  --tbl-tim:   #0891b2;
+  --tbl-res:   #dc2626;
+  --tbl-sum:   #0d9488;
+  --tbl-his:   #4338ca;
+  --tbl-avg:   #a21caf;
+  --tbl-rat:   #64748b;
+  --tbl-pay:   #92400e;
+  --note-bg:   #eff6ff;
+  --note-bd:   #3b82f6;
+  --note-t:    #1e40af;
+  --warn-bg:   #fffbeb;
+  --warn-bd:   #f59e0b;
+  --warn-t:    #78350f;
+  --skip-bg:   #f1f5f9;
+  --skip-t:    #64748b;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:        #0b1220;
+  --surf:      #111d30;
+  --surf2:     #162038;
+  --border:    #1e2f4a;
+  --border2:   #2a3f60;
+  --t1:        #e4ecf8;
+  --t2:        #8aaccc;
+  --t3:        #4a6080;
+  --accent:    #5b8ef5;
+  --sat:       #f87171;
+  --sat-bg:    #1f0d0d;
+  --sun:       #fbbf24;
+  --sun-bg:    #1f180a;
+  --rail:      #1e2f4a;
+  --note-bg:   #0d1f3c;
+  --note-bd:   #3b82f6;
+  --note-t:    #93c5fd;
+  --warn-bg:   #1f1500;
+  --warn-bd:   #f59e0b;
+  --warn-t:    #fde68a;
+  --skip-bg:   #162038;
+  --skip-t:    #8aaccc;
+}}
+:root[data-theme=light]{
+  --bg:#f0f4f9;--surf:#ffffff;--surf2:#f7f9fc;--border:#dce3ee;--border2:#c8d3e4;
+  --t1:#0d1b2e;--t2:#4a5a72;--t3:#8a99b0;--accent:#1a56db;
+  --sat:#c81c1c;--sat-bg:#fef2f2;--sun:#c26b00;--sun-bg:#fffbeb;
+  --rail:#d0daea;
+  --note-bg:#eff6ff;--note-bd:#3b82f6;--note-t:#1e40af;
+  --warn-bg:#fffbeb;--warn-bd:#f59e0b;--warn-t:#78350f;
+  --skip-bg:#f1f5f9;--skip-t:#64748b;
+}
+:root[data-theme=dark]{
+  --bg:#0b1220;--surf:#111d30;--surf2:#162038;--border:#1e2f4a;--border2:#2a3f60;
+  --t1:#e4ecf8;--t2:#8aaccc;--t3:#4a6080;--accent:#5b8ef5;
+  --sat:#f87171;--sat-bg:#1f0d0d;--sun:#fbbf24;--sun-bg:#1f180a;
+  --rail:#1e2f4a;
+  --note-bg:#0d1f3c;--note-bd:#3b82f6;--note-t:#93c5fd;
+  --warn-bg:#1f1500;--warn-bd:#f59e0b;--warn-t:#fde68a;
+  --skip-bg:#162038;--skip-t:#8aaccc;
+}
 
-  /* ナビ */
-  .nav { background:#253555; display:flex; padding:0 6px; position:sticky; top:48px; z-index:99; overflow-x:auto; -webkit-overflow-scrolling:touch; white-space:nowrap; scrollbar-width:none; }
-  .nav::-webkit-scrollbar { display:none; }
-  .nav a { color:#c8d8f8; text-decoration:none; font-size:12px; padding:10px 10px; display:inline-block; }
-  .nav a:hover { background:#1a2a4a; color:#fff; }
-  .nav .sep { color:#556; padding:10px 3px; font-size:12px; }
+/* ── Base ─────────────────────────────────────────── */
+html{font-size:14px;-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  background:var(--bg);color:var(--t1);
+  max-width:480px;margin:0 auto;
+  line-height:1.5;
+}
+code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-size:.85em}
 
-  h3 { font-size:13px; color:#444; margin:16px 0 6px; }
-  p  { font-size:13px; margin:6px 0; }
-  .wrap { max-width:640px; margin:0 auto; padding:12px 12px 80px; }
+/* ── Header ─────────────────────────────────────────── */
+.hdr{
+  position:sticky;top:0;z-index:200;
+  background:#0d1b2e;color:#e4ecf8;
+  padding:10px 14px 8px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.hdr-left{display:flex;flex-direction:column;gap:1px}
+.hdr-eyebrow{font-size:10px;opacity:.55;letter-spacing:.08em;text-transform:uppercase}
+.hdr-title{font-size:17px;font-weight:800;letter-spacing:-.02em}
+.hdr-sys{font-size:10px;opacity:.45;font-family:ui-monospace,monospace;margin-left:auto;align-self:flex-end;padding-bottom:1px}
 
-  /* 土曜・日曜ラベル */
-  .day-header { text-align:center; padding:10px 16px; border-radius:8px; font-size:14px; font-weight:bold; margin:22px 0 12px; letter-spacing:1px; }
-  .day-header.sat { background:#e8effe; color:#1a2a4a; border:2px solid #1a2a4a; }
-  .day-header.sun { background:#fff3e0; color:#c0550a; border:2px solid #e67e22; }
-  .day-header.wday { background:#f0f3f7; color:#444; border:2px solid #c8d0dc; }
+/* ── Tabs ─────────────────────────────────────────── */
+.tabs-wrap{
+  position:sticky;top:48px;z-index:190;
+  background:var(--surf);
+  border-bottom:1px solid var(--border);
+  display:flex;overflow-x:auto;
+  scrollbar-width:none;
+}
+.tabs-wrap::-webkit-scrollbar{display:none}
+.tab{
+  flex:0 0 auto;padding:10px 14px;
+  font-size:13px;font-weight:600;
+  color:var(--t3);
+  border-bottom:2px solid transparent;
+  margin-bottom:-1px;
+  transition:color .15s,border-color .15s;
+  white-space:nowrap;
+}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab.t-sat{color:var(--sat)}
+.tab.t-sat.active{border-bottom-color:var(--sat)}
+.tab.t-sun{color:var(--sun)}
+.tab.t-sun.active{border-bottom-color:var(--sun)}
 
-  /* タイムライン ── モバイルはカード積み上げ */
-  .timeline { position:relative; padding-left:0; margin-bottom:8px; }
-  .timeline::before { display:none; }
-  .tl-item { margin-bottom:10px; }
-  .tl-time { display:inline-block; background:#e8effe; color:#1a2a4a; font-size:11px; font-weight:bold; padding:2px 8px; border-radius:4px; margin-bottom:5px; }
-  .tl-time.sun { background:#fff3e0; color:#c0550a; }
-  .tl-dot { display:none; }
-  .tl-box { background:#fff; border:1px solid #dde2ea; border-radius:8px; padding:11px 14px; }
-  .tl-title { font-weight:bold; font-size:14px; margin-bottom:4px; }
-  .tl-sub { font-size:13px; color:#555; }
-  .tl-link { font-size:12px; color:#3d7dd6; text-decoration:none; display:inline-block; margin-top:5px; }
-  .tl-link:hover { text-decoration:underline; }
+/* ── Panels ─────────────────────────────────────────── */
+.panel{display:none;padding:14px 14px 60px}
+.panel.active{display:block}
 
-  /* デスクトップ: 元のタイムライン */
-  @media (min-width:640px) {
-    .timeline { padding-left:88px; }
-    .timeline::before { content:''; display:block; position:absolute; left:64px; top:0; bottom:0; width:2px; background:#c8d0dc; }
-    .tl-item { position:relative; margin-bottom:8px; }
-    .tl-time { display:block; position:absolute; left:-88px; width:80px; text-align:right; background:transparent; padding:0; padding-top:10px; border-radius:0; margin-bottom:0; font-size:11px; color:#1a2a4a; }
-    .tl-time.sun { background:transparent; color:#e67e22; }
-    .tl-dot { display:block; position:absolute; left:-10px; top:13px; width:10px; height:10px; border-radius:50%; background:#1a2a4a; border:2px solid #fff; box-shadow:0 0 0 2px #1a2a4a; }
-    .tl-dot.sun { background:#e67e22; box-shadow:0 0 0 2px #e67e22; }
-    .tl-box { margin-left:12px; border-radius:6px; }
-  }
+/* ── Day Banner ─────────────────────────────────────── */
+.day-banner{
+  border-radius:8px;padding:12px 14px;margin-bottom:18px;
+  border:1px solid;
+}
+.day-banner.sat{background:var(--sat-bg);border-color:var(--sat);color:var(--sat)}
+.day-banner.sun{background:var(--sun-bg);border-color:var(--sun);color:var(--sun)}
+.day-banner.wd{background:var(--surf2);border-color:var(--border);color:var(--t2)}
+.day-banner-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.day-banner-dot{width:10px;height:10px;border-radius:50%;background:currentColor;flex-shrink:0}
+.day-banner-name{font-size:18px;font-weight:800}
+.day-banner-sub{font-size:12px;opacity:.75;margin-left:18px}
+.day-banner-body{font-size:12px;color:var(--t2);line-height:1.6;margin-top:6px}
 
-  /* セクション */
-  .section { background:#fff; border:1px solid #dde2ea; border-radius:10px; padding:14px; margin-bottom:14px; scroll-margin-top:110px; overflow:hidden; }
-  .section.sun { border-color:#f5c082; }
-  .section-title { font-size:13px; font-weight:bold; color:#fff; background:#1a2a4a; margin:-14px -14px 14px; padding:11px 14px; border-radius:8px 8px 0 0; line-height:1.5; display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
-  .section-title.sun { background:#c0550a; }
-  .section-title .cmd { display:block; font-family:monospace; font-size:12px; opacity:0.85; margin-top:2px; word-break:break-all; }
-  .section-title .back-link { flex-shrink:0; font-size:11px; opacity:0.85; font-weight:normal; text-decoration:none; color:#c8d8f8; white-space:nowrap; }
-  .section-title .back-link:hover { text-decoration:underline; }
+/* ── Timeline ─────────────────────────────────────── */
+.tl{position:relative;padding-left:68px}
+.tl::before{
+  content:'';position:absolute;left:54px;top:0;bottom:0;
+  width:1px;background:var(--rail);
+}
 
-  /* 評価テーブル */
-  .table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:14px; }
-  .eval-table { width:100%; border-collapse:collapse; font-size:12px; min-width:480px; }
-  .eval-table th { background:#f0f3f7; padding:7px 8px; text-align:left; border:1px solid #dde; font-weight:bold; }
-  .eval-table td { padding:7px 8px; border:1px solid #dde; vertical-align:top; line-height:1.5; }
-  .eval-table td.code { font-family:monospace; font-size:11px; background:#f8f8f8; word-break:break-all; }
-  .eval-table td.result-ok   { color:#27ae60; font-weight:bold; }
-  .eval-table td.result-ng   { color:#c0392b; font-weight:bold; }
-  .eval-table td.result-warn { color:#e67e22; font-weight:bold; }
-  .eval-table td.result-skip { color:#888; }
+/* ── TL Item ─────────────────────────────────────── */
+.tl-item{position:relative;margin-bottom:14px}
+.tl-time{
+  position:absolute;left:-68px;width:48px;
+  text-align:right;top:14px;
+  font-family:ui-monospace,monospace;
+  font-size:10px;font-weight:600;
+  color:var(--t3);letter-spacing:.03em;
+  line-height:1;
+}
+.tl-dot{
+  position:absolute;left:-20px;top:14px;
+  width:10px;height:10px;border-radius:50%;
+  border:2px solid var(--surf);
+  transform:translateX(-4px);
+  z-index:1;
+}
+.tl-dot.red{background:var(--dot-r)}
+.tl-dot.orange{background:var(--dot-o)}
+.tl-dot.green{background:var(--dot-g)}
+.tl-dot.blue{background:var(--dot-b)}
+.tl-dot.purple{background:var(--dot-p)}
+.tl-dot.teal{background:var(--dot-t)}
+.tl-dot.gray{background:var(--dot-gr)}
 
-  /* バッジ */
-  .table-list { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
-  .table-badge { font-size:11px; font-family:monospace; padding:4px 8px; border-radius:4px; border:1px solid; word-break:break-all; }
-  .table-badge.truncate { background:#fde8e8; color:#c0392b; border-color:#f5c6c6; font-weight:bold; }
-  .table-badge.insert   { background:#e8fde8; color:#27ae60; border-color:#c6f5c6; }
-  .table-badge.upsert   { background:#fff8e1; color:#e67e22; border-color:#ffe0b2; }
+/* ── Card ─────────────────────────────────────────── */
+.card{
+  background:var(--surf);border:1px solid var(--border);
+  border-radius:8px;padding:12px 12px 10px;
+  position:relative;
+}
+.card-head{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px}
+.card-ico{font-size:18px;line-height:1.1;flex-shrink:0;margin-top:1px}
+.card-titles{flex:1;min-width:0}
+.card-name{font-size:13px;font-weight:700;line-height:1.3}
+.card-cmd{
+  display:inline-block;margin-top:3px;
+  font-family:ui-monospace,monospace;font-size:10px;
+  color:var(--t3);background:var(--surf2);
+  padding:1px 6px;border-radius:3px;
+  border:1px solid var(--border);
+}
+.card-freq{
+  display:inline-block;margin-top:3px;margin-left:4px;
+  font-size:10px;font-weight:600;
+  color:#fff;background:var(--accent);
+  padding:1px 6px;border-radius:10px;
+}
+.card-desc{
+  font-size:12px;color:var(--t2);
+  line-height:1.55;margin-bottom:10px;
+}
 
-  /* メッセージ */
-  .risk   { background:#fff8e1; border:1px solid #ffe082; border-radius:6px; padding:10px 12px; margin:8px 0; font-size:13px; }
-  .risk::before   { content:'⚠ '; color:#e67e22; font-weight:bold; }
-  .ok     { background:#f0fff4; border:1px solid #b2dfdb; border-radius:6px; padding:10px 12px; margin:8px 0; font-size:13px; }
-  .ok::before     { content:'✓ '; color:#27ae60; font-weight:bold; }
-  .danger { background:#fde8e8; border:1px solid #f5c6c6; border-radius:6px; padding:10px 12px; margin:8px 0; font-size:13px; }
-  .danger::before { content:'✗ '; color:#c0392b; font-weight:bold; }
-  .info   { background:#e8f0fe; border:1px solid #b3c8f5; border-radius:6px; padding:10px 12px; margin:8px 0; font-size:13px; }
-  .info::before   { content:'ℹ '; color:#1a6ac8; font-weight:bold; }
+/* ── Ops (table operations) ─────────────────────── */
+.ops{display:flex;flex-direction:column;gap:5px;margin-bottom:8px}
+.ops-label{
+  font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em;
+  color:var(--t3);margin-bottom:2px;
+}
+.op-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.act{
+  font-size:9px;font-weight:700;
+  padding:2px 6px;border-radius:3px;
+  color:#fff;letter-spacing:.04em;
+  flex-shrink:0;min-width:56px;text-align:center;
+}
+.act-trunc{background:var(--act-trunc)}
+.act-del  {background:var(--act-del)}
+.act-ins  {background:var(--act-ins)}
+.act-upd  {background:var(--act-upd)}
+.act-ups  {background:var(--act-ups)}
 
-  /* コードブロック */
-  pre { background:#1e1e2e; color:#cdd6f4; padding:12px 14px; border-radius:8px; font-size:11px; overflow-x:auto; -webkit-overflow-scrolling:touch; margin:10px 0; line-height:1.6; }
-  pre .hl   { color:#a6e3a1; font-weight:bold; }
-  pre .warn { color:#f9e2af; }
-  pre .err  { color:#f38ba8; }
+.tbl{
+  font-size:10px;font-weight:600;
+  padding:2px 7px;border-radius:10px;
+  color:#fff;line-height:1.4;
+}
+.tbl-sch{background:var(--tbl-sch)}
+.tbl-rac{background:var(--tbl-rac)}
+.tbl-hor{background:var(--tbl-hor)}
+.tbl-odd{background:var(--tbl-odd)}
+.tbl-wid{background:var(--tbl-wid)}
+.tbl-tim{background:var(--tbl-tim)}
+.tbl-res{background:var(--tbl-res)}
+.tbl-sum{background:var(--tbl-sum)}
+.tbl-his{background:var(--tbl-his)}
+.tbl-avg{background:var(--tbl-avg)}
+.tbl-rat{background:var(--tbl-rat)}
+.tbl-pay{background:var(--tbl-pay)}
 
-  /* タイミング表 */
-  .timing-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  .timing-table { border-collapse:collapse; font-size:11px; margin:10px 0; min-width:520px; }
-  .timing-table th { background:#1a2a4a; color:#fff; padding:7px 8px; text-align:center; }
-  .timing-table td { padding:6px 8px; border:1px solid #dde; text-align:center; }
-  .timing-table .hit  { background:#e8fde8; color:#27ae60; font-weight:bold; }
-  .timing-table .miss { background:#f5f5f5; color:#aaa; }
+/* ── Notes / Skips ─────────────────────────────── */
+.note{
+  background:var(--note-bg);border-left:3px solid var(--note-bd);
+  border-radius:0 4px 4px 0;
+  padding:7px 9px;font-size:11px;
+  color:var(--note-t);line-height:1.5;
+  margin-top:8px;
+}
+.warn{
+  background:var(--warn-bg);border-left:3px solid var(--warn-bd);
+  border-radius:0 4px 4px 0;
+  padding:7px 9px;font-size:11px;
+  color:var(--warn-t);line-height:1.5;
+  margin-top:8px;
+}
+.skip-card{
+  background:var(--skip-bg);border:1px dashed var(--border);
+  border-radius:8px;padding:10px 12px;
+  display:flex;align-items:center;gap:8px;
+}
+.skip-icon{font-size:16px;flex-shrink:0;opacity:.5}
+.skip-text{font-size:12px;color:var(--skip-t)}
+.skip-text strong{display:block;font-weight:700;font-size:12px}
 
-  /* 依存関係 */
-  .dep-box { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:8px 0; font-size:13px; }
-  .dep-arrow { color:#888; font-size:16px; }
-  .dep-label { background:#e8f0fe; padding:6px 12px; border-radius:6px; font-family:monospace; font-size:11px; word-break:break-all; text-decoration:none; color:#1a2a4a; display:inline-block; }
-  .dep-label:hover { background:#c8d8f8; }
-  .dep-reason { color:#666; font-size:12px; width:100%; padding-left:4px; }
+/* ── Timing table ─────────────────────────────── */
+.timing-grid{
+  display:grid;grid-template-columns:repeat(9,1fr);
+  gap:3px;margin-top:8px;
+}
+.timing-cell{
+  text-align:center;padding:4px 2px;
+  border-radius:4px;font-size:9px;font-weight:700;
+  background:var(--surf2);border:1px solid var(--border);
+  font-family:ui-monospace,monospace;
+}
+.timing-cell.special{background:#dbeafe;color:#1e40af;border-color:#3b82f6}
+.timing-cell.last{background:#fce7f3;color:#9d174d;border-color:#ec4899}
+@media(prefers-color-scheme:dark){
+  .timing-cell.special{background:#1e3a5f;color:#93c5fd;border-color:#3b82f6}
+  .timing-cell.last{background:#4a0d2c;color:#f9a8d4;border-color:#ec4899}
+}
+:root[data-theme=dark] .timing-cell.special{background:#1e3a5f;color:#93c5fd;border-color:#3b82f6}
+:root[data-theme=dark] .timing-cell.last{background:#4a0d2c;color:#f9a8d4;border-color:#ec4899}
+:root[data-theme=light] .timing-cell.special{background:#dbeafe;color:#1e40af;border-color:#3b82f6}
+:root[data-theme=light] .timing-cell.last{background:#fce7f3;color:#9d174d;border-color:#ec4899}
 
-  /* DB状態 */
-  .db-state { background:#f8f9fa; border:1px solid #e0e4ea; border-radius:8px; padding:12px 14px; margin:10px 0; }
-  .db-state-title { font-size:12px; font-weight:bold; color:#444; margin-bottom:8px; }
-  .db-row { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12px; }
-  .db-row span { font-family:monospace; }
-  .db-ok    { color:#27ae60; }
-  .db-new   { color:#e67e22; font-weight:bold; }
-  .db-empty { color:#aaa; }
+/* ── Legend ───────────────────────────────────── */
+.legend{
+  border-top:1px solid var(--border);
+  padding:16px 14px 40px;
+  background:var(--surf);
+}
+.legend-title{
+  font-size:13px;font-weight:800;
+  color:var(--t2);letter-spacing:.03em;
+  text-transform:uppercase;margin-bottom:14px;
+}
+.legend-sec{margin-bottom:16px}
+.legend-sec-title{
+  font-size:10px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--t3);margin-bottom:8px;
+}
+.legend-chips{display:flex;flex-wrap:wrap;gap:6px}
+.legend-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.legend-name{font-size:11px;color:var(--t2)}
+.legend-full{font-family:ui-monospace,monospace;font-size:10px;color:var(--t3)}
 
-  a.anchor-link { color:#3d7dd6; text-decoration:none; font-size:12px; }
-  a.anchor-link:hover { text-decoration:underline; }
-  .note { font-size:12px; color:#666; margin-top:6px; }
+/* ── Detail list ─────────────────────────────── */
+.detail-list{
+  font-size:11px;color:var(--t2);
+  padding-left:14px;margin-top:6px;line-height:1.7;
+}
+.detail-list li::marker{color:var(--t3)}
 
-  .diff-box { border:2px solid #e67e22; border-radius:8px; padding:12px 14px; margin:10px 0; background:#fff9f0; }
-  .diff-box-title { font-size:12px; font-weight:bold; color:#c0550a; margin-bottom:8px; }
+/* ── Section divider ─────────────────────────── */
+.sec-div{
+  font-size:10px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--t3);
+  margin:18px 0 10px;
+  display:flex;align-items:center;gap:8px;
+}
+.sec-div::after{content:'';flex:1;height:1px;background:var(--border)}
 
-  code { font-family:monospace; font-size:12px; background:#f0f3f7; padding:1px 5px; border-radius:3px; }
+/* ── Flock note ─────────────────────────────── */
+.flock{
+  display:inline-block;font-size:10px;font-weight:600;
+  color:var(--t3);background:var(--surf2);
+  border:1px solid var(--border);
+  padding:1px 6px;border-radius:3px;margin-top:3px;
+}
+
+/* ── Day Summary ─────────────────────────────── */
+.day-sum{
+  background:var(--surf);border:1px solid var(--border);
+  border-radius:8px;padding:6px 12px;margin-bottom:18px;
+}
+.ds-row{
+  display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;
+  padding:4px 0;border-bottom:1px solid var(--border);
+}
+.ds-row:last-child{border-bottom:none}
+.ds-time{
+  font-family:ui-monospace,monospace;font-size:10px;
+  color:var(--t3);min-width:90px;flex-shrink:0;
+}
+.ds-cmd{font-family:ui-monospace,monospace;font-size:11px;color:var(--t1)}
+.ds-row.skip .ds-cmd{text-decoration:line-through;color:var(--t3)}
+.ds-note{font-size:10px;color:var(--t3)}
+.ds-every{
+  font-size:9px;font-weight:700;color:#fff;
+  background:var(--accent);padding:1px 5px;border-radius:8px;
+}
+.op-full{
+  font-family:ui-monospace,monospace;
+  font-size:9px;color:var(--t3);
+  padding-left:62px;
+  margin-top:1px;margin-bottom:3px;
+  white-space:pre-line;line-height:1.5;
+}
 </style>
 </head>
 <body>
 
-<h1>本番シミュレーション
-  <span>2026-06-06（土）date('w')='6' ／ 2026-06-07（日）date('w')='0'</span>
-</h1>
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-left">
+    <span class="hdr-eyebrow">horse_odds_finder</span>
+    <span class="hdr-title">cron シミュレーション</span>
+  </div>
+  <span class="hdr-sys">2026-07 更新</span>
+</header>
 
-<nav class="nav">
-  <a href="#weekly">週間概要</a>
-  <span class="sep">|</span>
-  <a href="#dep">依存関係</a>
-  <span class="sep">|</span>
-  <span style="color:#8aa8d8;font-size:11px;padding:10px 4px;">土:</span>
-  <a href="#sat-delete">①削除</a>
-  <a href="#sat-schedule">②スケジュール</a>
-  <a href="#sat-race">③レース</a>
-  <a href="#sat-baseodds">④ベースOdds</a>
-  <a href="#sat-odds">⑤Odds</a>
-  <a href="#sat-result">⑥Result</a>
-  <span class="sep">|</span>
-  <span style="color:#f5a85a;font-size:11px;padding:10px 4px;">日:</span>
-  <a href="#sun-overview">日曜概要</a>
-  <a href="#sun-schedule">⑦Schedule</a>
-  <a href="#sun-race">⑧Race</a>
-  <a href="#sun-odds">⑨Odds</a>
-  <a href="#sun-result">⑩Result</a>
-  <span class="sep">|</span>
-  <a href="#daily-summary">毎日18:00</a>
-  <a href="#daily-jra-result">毎日18:30</a>
-  <span class="sep">|</span>
-  <a href="#summary">総評</a>
+<!-- TABS -->
+<nav class="tabs-wrap" id="tabs">
+  <button class="tab t-sat active" onclick="show('sat')">土曜</button>
+  <button class="tab t-sun"        onclick="show('sun')">日曜</button>
+  <button class="tab"              onclick="show('wd')">月〜水</button>
+  <button class="tab"              onclick="show('thu')">木曜</button>
+  <button class="tab"              onclick="show('fri')">金曜</button>
 </nav>
 
-<div class="wrap">
+<!-- ═══════════════════════════════════════════════════════ -->
+<!--  土曜                                                  -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="panel active" id="panel-sat">
 
-<!-- ========== 曜日ごとの動き（週間概要） ========== -->
-<div id="weekly" class="section">
-  <div class="section-title">曜日ごとの動き（週間概要）<a class="back-link" href="#dep">↓ 依存関係へ</a></div>
+  <div class="day-banner sat">
+    <div class="day-banner-row">
+      <div class="day-banner-dot"></div>
+      <span class="day-banner-name">土曜日</span>
+    </div>
+    <div class="day-banner-sub">週の起点。全テーブルリセット → 土日両日分の初回データ取得</div>
+    <div class="day-banner-body">
+      土曜5:00に過去レース人気比率マスタ（popularity_ratio_ratio テーブル）を集計。5:50に全テーブルをTRUNCATEし、6:00に土日両日分のスケジュール・馬情報を取得。7:00にベースオッズ（土日両日）を一括取得。8:00に当週レースと過去マスタのユークリッド類似度比較を実行。9時以降はレース当日のリアルタイム処理が始まる。
+    </div>
+  </div>
 
-  <div class="day-header sat" style="margin:8px 0 6px;">土曜日</div>
-  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:16px;">
-    <li>05:50　<strong>deleteKeibaTableRecords</strong> — 全8テーブルTRUNCATE・ログ削除</li>
-    <li>06:00　<strong>importSchedule</strong> — 土日両日分を全件INSERT（date('w')==='6' のためフィルターなし）</li>
-    <li>06:20　<strong>importRace</strong> — ネットケイバから土日両日分の race_id をupsert</li>
-    <li>07:00　<strong>importBaseOdds</strong> — 土日全24レース分の999オッズを一括取得（<strong>日曜分も同時保存</strong>）</li>
-    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 土曜レースのみ・ODDS_GET_TIMINGに合致した分だけ取得・保存</li>
-    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 土曜レースのみ・ネットケイバから確定オッズ取得</li>
-    <li>18:00　<strong>summary</strong> — 当日レースのサマリを作成</li>
-    <li>18:30　<strong>importJraRaceResult</strong> — JRAから当日レース結果を取得・更新</li>
-  </ul>
+  <div class="day-sum">
+    <div class="ds-row"><span class="ds-time">05:00</span><span class="ds-cmd">summaryRacesPopularityRatio</span></div>
+    <div class="ds-row"><span class="ds-time">05:50</span><span class="ds-cmd">deleteKeibaTableRecords</span></div>
+    <div class="ds-row"><span class="ds-time">06:00</span><span class="ds-cmd">importSchedule</span></div>
+    <div class="ds-row"><span class="ds-time">07:00</span><span class="ds-cmd">importBaseOdds</span></div>
+    <div class="ds-row"><span class="ds-time">08:00</span><span class="ds-cmd">ImportRacesPopularityRatio</span></div>
+    <div class="ds-row"><span class="ds-time">09:00〜17:59</span><span class="ds-cmd">importOdds</span><span class="ds-every">毎分</span></div>
+    <div class="ds-row"><span class="ds-time">09:00〜18:59</span><span class="ds-cmd">importJraRaceOneResult</span><span class="ds-every">毎分</span></div>
+    <div class="ds-row"><span class="ds-time">18:00</span><span class="ds-cmd">summary</span></div>
+    <div class="ds-row"><span class="ds-time">18:30</span><span class="ds-cmd">importJraRaceResult</span></div>
+    <div class="ds-row"><span class="ds-time">19:00</span><span class="ds-cmd">importRaceResultHistory</span></div>
+    <div class="ds-row"><span class="ds-time">20:00</span><span class="ds-cmd">summaryHistoryPopularityRank</span></div>
+    <div class="ds-row skip"><span class="ds-time">20:30</span><span class="ds-cmd">summaryPopularityRankAverage</span><span class="ds-note">土曜スキップ</span></div>
+    <div class="ds-row"><span class="ds-time">21:00</span><span class="ds-cmd">summaryHistoryFinishingPosition</span></div>
+  </div>
 
-  <div class="day-header sun" style="margin:8px 0 6px;">日曜日</div>
-  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:16px;">
-    <li>06:00　<strong>importSchedule</strong> — 日曜分のみ最新化（出走取消・枠順変更に対応）。土曜保存の日曜999オッズは一旦削除→importOddsで再取得</li>
-    <li>06:20　<strong>importRace</strong> — 日曜分のrace_idを再upsert（<code>20 6 * * 0,6</code> 土日両日実行）</li>
-    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 日曜レースのみ処理（土曜レースは diff &lt; 0 でスキップ）</li>
-    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 日曜レースのみ処理</li>
-    <li>18:00　<strong>summary</strong> — 当日レースのサマリを作成</li>
-    <li>18:30　<strong>importJraRaceResult</strong> — JRAから当日レース結果を取得・更新</li>
-  </ul>
+  <div class="tl">
 
-  <div class="day-header wday" style="margin:8px 0 6px;">月曜日</div>
-  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:16px;">
-    <li>06:00　<strong>importSchedule</strong> — 当日（月）分のみ処理（競馬開催なし）</li>
-    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 対象レースなし・即終了</li>
-    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 対象レースなし・即終了</li>
-    <li>18:00　<strong>summary</strong> — 実行（競馬開催なし）</li>
-    <li>18:30　<strong>importJraRaceResult</strong> — 実行（競馬開催なし）</li>
-  </ul>
+    <!-- 05:00 summaryRacesPopularityRatio -->
+    <div class="tl-item">
+      <div class="tl-time">05:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📊</span>
+          <div class="card-titles">
+            <div class="card-name">過去レース 人気比率マスタ 集計</div>
+            <span class="card-cmd">keiba:summaryRacesPopularityRatio</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          race_result_history から全過去レースを集計し、人気順（tan昇順）のオッズ比率を計算してマスタテーブルへINSERT。既に集計済みのレースはSKIP。8:00の類似度比較処理の<strong>比較元マスタ</strong>を作成するための前段処理。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-rat">ratio</span><span style="font-size:11px;color:var(--t2)">popularity_ratio（人気比率 | 区切り）</span></div>
+        </div>
+        <div class="note">ℹ️ popularity_ratio = 2位オッズ÷1位オッズ | 3位÷2位 | … の連続比率を | で連結したもの。同頭数レース同士の類似度比較に使用。</div>
+      </div>
+    </div>
 
-  <div class="day-header wday" style="margin:8px 0 6px;">火曜日</div>
-  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:16px;">
-    <li>06:00　<strong>importSchedule</strong> — 当日（火）分のみ処理（競馬開催なし）</li>
-    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 対象レースなし・即終了</li>
-    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 対象レースなし・即終了</li>
-    <li>18:00　<strong>summary</strong> — 実行（競馬開催なし）</li>
-    <li>18:30　<strong>importJraRaceResult</strong> — 実行（競馬開催なし）</li>
-  </ul>
+    <!-- 05:50 deleteKeibaTableRecords -->
+    <div class="tl-item">
+      <div class="tl-time">05:50</div>
+      <div class="tl-dot red"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🗑️</span>
+          <div class="card-titles">
+            <div class="card-name">全テーブル消去 + ログ削除</div>
+            <span class="card-cmd">keiba:deleteKeibaTableRecords</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          週に一度（土曜のみ）、当週データ用の全テーブルをTRUNCATEして白紙に戻す。ログファイルも全削除。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-trunc">TRUNCATE</span><span class="tbl tbl-sch">schedules</span></div>
+          <div class="op-row"><span class="act act-trunc">TRUNCATE</span><span class="tbl tbl-rac">races</span></div>
+          <div class="op-row"><span class="act act-trunc">TRUNCATE</span><span class="tbl tbl-hor">horses</span></div>
+          <div class="op-row"><span class="act act-trunc">TRUNCATE</span><span class="tbl tbl-odd">odds</span></div>
+          <div class="op-row"><span class="act act-trunc">TRUNCATE</span><span class="tbl tbl-wid">odds_wide</span></div>
+          <div class="op-row"><span class="act act-trunc">TRUNCATE</span><span class="tbl tbl-tim">odds_timing</span></div>
+          <div class="op-row"><span class="act act-trunc">TRUNCATE</span><span class="tbl tbl-res">race_results</span></div>
+        </div>
+        <div class="warn">⚠️ schedules / races / horses / odds 系 / race_results の計7テーブルをTRUNCATEする。<br>summary・history・rank_avg 等の累積テーブルは対象外。</div>
+      </div>
+    </div>
 
-  <div class="day-header wday" style="margin:8px 0 6px;">水曜日</div>
-  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:16px;">
-    <li>06:00　<strong>importSchedule</strong> — 当日（水）分のみ処理（競馬開催なし）</li>
-    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 対象レースなし・即終了</li>
-    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 対象レースなし・即終了</li>
-    <li>18:00　<strong>summary</strong> — 実行（競馬開催なし）</li>
-    <li>18:30　<strong>importJraRaceResult</strong> — 実行（競馬開催なし）</li>
-  </ul>
+    <!-- 06:00 importSchedule (土) -->
+    <div class="tl-item">
+      <div class="tl-time">06:00</div>
+      <div class="tl-dot blue"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📅</span>
+          <div class="card-titles">
+            <div class="card-name">スケジュール・レース・馬情報 取得（土日両日）</div>
+            <span class="card-cmd">keiba:importSchedule</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          JRAサイトをPlaywright でスクレイピング。<strong>土日両日分</strong>の開催情報・レース・出走馬をすべて取得してINSERT。土曜は直前のTRUNCATEでテーブルが空なのでDELETEは行わずINSERT のみ。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-sch">schedules</span><span style="font-size:11px;color:var(--t2)">開催日・場所・何日目</span></div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-rac">races</span><span style="font-size:11px;color:var(--t2)">発走時刻・頭数・レース名</span></div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-hor">horses</span><span style="font-size:11px;color:var(--t2)">馬番・馬名・騎手・調教師</span></div>
+        </div>
+        <div class="note">ℹ️ 発走済み（start_time='XXX'）のレースはINSERTをスキップ。土日両日分のデータが取り込まれ、日曜のレース情報もここで入る。</div>
+      </div>
+    </div>
 
-  <div class="day-header wday" style="margin:8px 0 6px;">木曜日</div>
-  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:16px;">
-    <li>06:00　<strong>importSchedule</strong> — date('w')==='4' により早期リターン（スキップ）</li>
-    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 対象レースなし・即終了</li>
-    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 対象レースなし・即終了</li>
-    <li>18:00　<strong>summary</strong> — 実行（競馬開催なし）</li>
-    <li>18:30　<strong>importJraRaceResult</strong> — 実行（競馬開催なし）</li>
-  </ul>
+    <!-- 07:00 importBaseOdds (土) -->
+    <div class="tl-item">
+      <div class="tl-time">07:00</div>
+      <div class="tl-dot orange"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📊</span>
+          <div class="card-titles">
+            <div class="card-name">ベースオッズ 初回一括取得（土日両日）</div>
+            <span class="card-cmd">keiba:importBaseOdds</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          races テーブルの「実行日以降」全レースを対象にオッズ取得。<strong>土曜実行→土日両日分</strong>。各レースに対して keibaOddsGetTanpuku.mjs を実行（3回リトライ）。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-odd">odds</span><span style="font-size:11px;color:var(--t2)">minutes_before_start = <code>999</code>（ベース値）</span></div>
+          <div class="op-row" style="margin-top:2px"><span class="act act-upd">UPDATE</span><span class="tbl tbl-odd">odds</span><span style="font-size:11px;color:var(--t2)">既存レコードはオッズ値を上書き</span></div>
+        </div>
+        <div class="note">ℹ️ 日曜のレースも <code>$race-&gt;day</code>（DBの実際の日目の値）を引数に渡し「X回場所名N日」を正確に特定してオッズを取得。このデータが「日曜分の中途半端なデータ」の実体。日曜6:00のimportScheduleで後から全削除される。</div>
+      </div>
+    </div>
 
-  <div class="day-header wday" style="margin:8px 0 6px;">金曜日</div>
-  <ul style="padding-left:20px;font-size:13px;line-height:2.1;margin-bottom:8px;">
-    <li>06:00　<strong>importSchedule</strong> — date('w')==='5' により早期リターン（スキップ）</li>
-    <li>09:00〜17:59　<strong>importOdds</strong>（毎分）— 対象レースなし・即終了</li>
-    <li>09:00〜17:59　<strong>importRaceResult</strong>（毎分）— 対象レースなし・即終了</li>
-    <li>18:00　<strong>summary</strong> — 実行（競馬開催なし）</li>
-    <li>18:30　<strong>importJraRaceResult</strong> — 実行（競馬開催なし）</li>
-  </ul>
+    <!-- 08:00 ImportRacesPopularityRatio (土) -->
+    <div class="tl-item">
+      <div class="tl-time">08:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🔍</span>
+          <div class="card-titles">
+            <div class="card-name">当週レース × 過去マスタ ユークリッド類似度比較</div>
+            <span class="card-cmd">keiba:ImportRacesPopularityRatio</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          当週レース（races）の人気比率を計算し、過去マスタ（ratio）と同頭数でユークリッド類似度（RMSE方式）を比較。<strong>70%以上</strong>の合致レースのIDと合致率を | 区切りで保存。比較元マスタは12,000件超をメモリ展開して高速処理。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-rac">races</span><span style="font-size:11px;color:var(--t2)">popularity_ratio（当週オッズから計算）</span></div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-rac">races</span><span style="font-size:11px;color:var(--t2)">popularity_ratio_table_ids（合致マスタID）</span></div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-rac">races</span><span style="font-size:11px;color:var(--t2)">popularity_ratio_match_percent（合致率 % 降順）</span></div>
+        </div>
+        <div class="note">ℹ️ match% = max(0, 1 - RMSE) × 100。オッズは text 型のため orderByRaw('odds + 0') で数値ソート。999→21→18…のフォールバックで取得タイミングを自動選択。</div>
+      </div>
+    </div>
+
+    <!-- 09:00-17:59 importOdds -->
+    <div class="sec-div">レースタイム帯</div>
+    <div class="tl-item">
+      <div class="tl-time">09:00<br>〜<br>17:59</div>
+      <div class="tl-dot orange"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">⏱️</span>
+          <div class="card-titles">
+            <div class="card-name">リアルタイム オッズ取得</div>
+            <span class="card-cmd">keiba:importOdds</span>
+            <span class="card-freq">毎分実行</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          毎分起動し、当日レースの残り時間を計算。<strong>取得タイミング</strong>に合致したレースのみ処理。タイミング外は即終了（flock で多重起動防止）。
+        </div>
+        <div style="margin-bottom:10px">
+          <div class="ops-label" style="margin-bottom:4px">取得タイミング（発走N分前）</div>
+          <div class="timing-grid">
+            <div class="timing-cell special">24分前<br><small>→999</small></div>
+            <div class="timing-cell">21分前<br><small>→21</small></div>
+            <div class="timing-cell">18分前<br><small>→18</small></div>
+            <div class="timing-cell">15分前<br><small>→15</small></div>
+            <div class="timing-cell">12分前<br><small>→12</small></div>
+            <div class="timing-cell">9分前<br><small>→9</small></div>
+            <div class="timing-cell">6分前<br><small>→6</small></div>
+            <div class="timing-cell">3分前<br><small>→3</small></div>
+            <div class="timing-cell last">0分前<br><small>→-999</small></div>
+          </div>
+          <div style="font-size:10px;color:var(--t3);margin-top:4px">→ は minutes_before_start の保存値。<span style="color:#1e40af">■</span>=24分前はimportBaseOddsと同じ999に upsert。<span style="color:#9d174d">■</span>=0分前は発走直前の-999。</div>
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ups">UPSERT</span><span class="tbl tbl-odd">odds</span><span style="font-size:11px;color:var(--t2)">単勝・複勝オッズ（タイミングごと）</span></div>
+          <div class="op-row"><span class="act act-ups">UPSERT</span><span class="tbl tbl-wid">odds_wide</span><span style="font-size:11px;color:var(--t2)">ワイドオッズ（組み合わせ）</span></div>
+          <div class="op-row"><span class="act act-ups">UPSERT</span><span class="tbl tbl-tim">odds_timing</span><span style="font-size:11px;color:var(--t2)">取得実施日時・取得元</span></div>
+        </div>
+        <div class="note">ℹ️ 人気順位が2以上変動した馬がいればWebPush通知を送信。keibaOddsGetTanpuku.mjs（単複）＋ keibaOddsGetWide.mjs（ワイド）の2スクリプトを各レースに実行。</div>
+        <div style="margin-top:6px"><span class="flock">flock /tmp/keiba_importOdds.lock</span></div>
+      </div>
+    </div>
+
+    <!-- 09:00-18:59 importJraRaceOneResult -->
+    <div class="tl-item">
+      <div class="tl-time">09:00<br>〜<br>18:59</div>
+      <div class="tl-dot red"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🏁</span>
+          <div class="card-titles">
+            <div class="card-name">レース結果 リアルタイム取得</div>
+            <span class="card-cmd">keiba:importJraRaceOneResult</span>
+            <span class="card-freq">毎分実行</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          毎分起動し、「発走後 10・15・20・25・30分」のタイミングに合致するレースのみJRA結果を取得してINSERT。タイミング外は即終了。keibaOddsGetJraRaceResult.mjs を実行（最大2回）。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-res">race_results</span><span style="font-size:11px;color:var(--t2)">着順・馬名（1レース分）</span></div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-res">race_results</span><span style="font-size:11px;color:var(--t2)">通知後に notified_at をセット</span></div>
+        </div>
+        <div class="note">ℹ️ 新規INSERTしたレースがあればWebPush通知を送信。既に登録済みの馬はSKIP。JRA結果ページの照合キー：kaisuu＋basho_name＋day＋race番号。マッチしない場合は2回目を実行。</div>
+        <div style="margin-top:6px"><span class="flock">flock /tmp/keiba_importJraRaceOneResult.lock</span></div>
+      </div>
+    </div>
+
+    <!-- 18:00 summary -->
+    <div class="sec-div">レース終了後</div>
+    <div class="tl-item">
+      <div class="tl-time">18:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📋</span>
+          <div class="card-titles">
+            <div class="card-name">オッズサマリー生成 + 履歴UPSERT</div>
+            <span class="card-cmd">keiba:summary</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          oddsテーブルの全タイミング分を馬ごとに集約してサマリーを生成。同一キーが既にあればSKIP（重複防止）。同時に race_result_history にも基本データをUPSERT（人気順も計算）。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-sum">summary</span><span style="font-size:11px;color:var(--t2)">馬ごとの各タイミングオッズ一覧</span></div>
+          <div class="op-row"><span class="act act-ups">UPSERT</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">基本情報＋popularity_rank を計算</span></div>
+        </div>
+        <div class="note">ℹ️ summaryカラム：odds_tan_before_24（=999）/ before_21 / before_18 / before_15 / before_12 / before_9 / before_6 / before_3 / before_0（=-999）の9タイミング。result は後の18:30で更新される。</div>
+      </div>
+    </div>
+
+    <!-- 18:30 importJraRaceResult -->
+    <div class="tl-item">
+      <div class="tl-time">18:30</div>
+      <div class="tl-dot blue"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🥇</span>
+          <div class="card-titles">
+            <div class="card-name">着順データ → summary へ反映</div>
+            <span class="card-cmd">keiba:importJraRaceResult</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          keibaOddsGetJraRaceResult.mjs で全レース結果を取得し、summaryテーブルの result カラムを更新。result が NULL のレコードのみ対象（更新済みはスキップ）。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-sum">summary</span><span style="font-size:11px;color:var(--t2)">result（着順）カラムを更新</span></div>
+        </div>
+        <div class="note">ℹ️ 照合キー：kaisuu + basho(コード) + day + race + num。JRAサイトの場所名（"東京"等）をコード変換してから照合。</div>
+      </div>
+    </div>
+
+    <!-- 19:00 importRaceResultHistory -->
+    <div class="sec-div">夜間バッチ</div>
+    <div class="tl-item">
+      <div class="tl-time">19:00</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📚</span>
+          <div class="card-titles">
+            <div class="card-name">過去レース結果 履歴取得</div>
+            <span class="card-cmd">keiba:importRaceResultHistory</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          当月の全開催の最終オッズ（単・複）をJRAサイト（jra.go.jp/JRADB）からスクレイピングして race_result_history に保存。インポート済み開催はSKIP（3回リトライ）。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ups">updateOrInsert</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">tan / fuku_min / fuku_max 等</span></div>
+        </div>
+        <div class="note">ℹ️ keibaOddsGetRaceResultHistory.mjs を使用。先に --list-only で開催一覧を取得してから各開催を処理。既存開催はSKIP。popularity_rank・finishing_position は後続バッチで設定。</div>
+      </div>
+    </div>
+
+    <!-- 20:00 summaryHistoryPopularityRank -->
+    <div class="tl-item">
+      <div class="tl-time">20:00</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🔢</span>
+          <div class="card-titles">
+            <div class="card-name">人気順（popularity_rank）計算・更新</div>
+            <span class="card-cmd">keiba:summaryHistoryPopularityRank</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          当月の race_result_history を取得し、レースごとに tan（単勝オッズ）昇順でランク付け。全馬ランク済みのレースはSKIP。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">popularity_rank（1=最低オッズ）を設定</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 20:30 summaryPopularityRankAverage ← 土曜はスキップ -->
+    <div class="tl-item">
+      <div class="tl-time">20:30</div>
+      <div class="tl-dot gray"></div>
+      <div class="skip-card">
+        <div class="skip-icon">🚫</div>
+        <div class="skip-text">
+          <strong>summaryPopularityRankAverage — 土曜はスキップ</strong>
+          cron設定 <code>0-5</code>曜日（日〜金）なので、土曜=6 は実行されない。
+        </div>
+      </div>
+    </div>
+
+    <!-- 21:00 summaryHistoryFinishingPosition -->
+    <div class="tl-item">
+      <div class="tl-time">21:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🏆</span>
+          <div class="card-titles">
+            <div class="card-name">着順（finishing_position）取得・更新</div>
+            <span class="card-cmd">keiba:summaryHistoryFinishingPosition</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          当月の history で finishing_position が NULL または 0 のレコードを開催ごとに取得。keibaOddsGetFinishingPosition.mjs でスクレイピングしてCASE WHEN で一括UPDATE。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">finishing_position（1以上=着順、-1=非完走）</span></div>
+        </div>
+        <div class="note">ℹ️ 中止・除外・取消・失格は -1 をセット（次回以降の再処理対象外）。1クエリ（CASE WHEN）で1開催分を一括更新して効率化。</div>
+      </div>
+    </div>
+
+  </div><!-- /tl -->
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!--  日曜                                                  -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="panel" id="panel-sun">
+
+  <div class="day-banner sun">
+    <div class="day-banner-row">
+      <div class="day-banner-dot"></div>
+      <span class="day-banner-name">日曜日</span>
+    </div>
+    <div class="day-banner-sub">土曜データをリセットして日曜分を再取得 → 当日レース処理</div>
+    <div class="day-banner-body">
+      6:00のimportScheduleが日曜分のoddsを含む全データをDELETE→再INSERT。土曜7時に入った日曜ベースオッズは<strong>ここで消去</strong>される。7:00に日曜分のみのベースオッズを再取得してクリーンな状態に。
+    </div>
+  </div>
+
+  <div class="day-sum">
+    <div class="ds-row"><span class="ds-time">06:00</span><span class="ds-cmd">importSchedule</span></div>
+    <div class="ds-row"><span class="ds-time">07:00</span><span class="ds-cmd">importBaseOdds</span></div>
+    <div class="ds-row"><span class="ds-time">08:00</span><span class="ds-cmd">ImportRacesPopularityRatio</span></div>
+    <div class="ds-row"><span class="ds-time">09:00〜17:59</span><span class="ds-cmd">importOdds</span><span class="ds-every">毎分</span></div>
+    <div class="ds-row"><span class="ds-time">09:00〜18:59</span><span class="ds-cmd">importJraRaceOneResult</span><span class="ds-every">毎分</span></div>
+    <div class="ds-row"><span class="ds-time">18:00</span><span class="ds-cmd">summary</span></div>
+    <div class="ds-row"><span class="ds-time">18:30</span><span class="ds-cmd">importJraRaceResult</span></div>
+    <div class="ds-row"><span class="ds-time">19:00</span><span class="ds-cmd">importRaceResultHistory</span></div>
+    <div class="ds-row"><span class="ds-time">20:00</span><span class="ds-cmd">summaryHistoryPopularityRank</span></div>
+    <div class="ds-row"><span class="ds-time">20:30</span><span class="ds-cmd">summaryPopularityRankAverage</span></div>
+    <div class="ds-row"><span class="ds-time">21:00</span><span class="ds-cmd">summaryHistoryFinishingPosition</span></div>
+  </div>
+
+  <div class="tl">
+
+    <!-- 06:00 importSchedule (日) -->
+    <div class="tl-item">
+      <div class="tl-time">06:00</div>
+      <div class="tl-dot blue"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🔄</span>
+          <div class="card-titles">
+            <div class="card-name">日曜分をリセット → 再取得</div>
+            <span class="card-cmd">keiba:importSchedule</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          JRAサイトからスクレイピング後、<strong>日曜分のみ</strong>に絞り込んでDELETE → INSERT。土曜分には一切触れない。<strong>oddsテーブルの日曜分も一緒にDELETE</strong>するので、土曜7時に入ったベースオッズも消去される。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作（日曜分のみ）</div>
+          <div class="op-row"><span class="act act-del">DELETE</span><span class="tbl tbl-odd">odds</span><span style="font-size:11px;color:var(--t2)">日曜分を全削除（土曜7時分も含む）</span></div>
+          <div class="op-row"><span class="act act-del">DELETE</span><span class="tbl tbl-sch">schedules</span><span class="tbl tbl-rac">races</span><span class="tbl tbl-hor">horses</span></div>
+          <div class="op-row" style="margin-top:4px"><span class="act act-ins">INSERT</span><span class="tbl tbl-sch">schedules</span><span class="tbl tbl-rac">races</span><span class="tbl tbl-hor">horses</span></div>
+        </div>
+        <div class="warn">🔑 ここがポイント：importSchedule の264行目<br><code>t_horse_odds_finder_odds.where('date', $date).delete()</code><br>で土曜7時の中途半端なデータが消去される。</div>
+      </div>
+    </div>
+
+    <!-- 07:00 importBaseOdds (日) -->
+    <div class="tl-item">
+      <div class="tl-time">07:00</div>
+      <div class="tl-dot orange"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📊</span>
+          <div class="card-titles">
+            <div class="card-name">ベースオッズ 再取得（日曜分のみ）</div>
+            <span class="card-cmd">keiba:importBaseOdds</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          races テーブルの「実行日以降」を対象 → <strong>日曜実行なので日曜分のみ</strong>。oddsテーブルは6:00のimportScheduleでDELETE済みなので、クリーンな状態から新規INSERT。<code>$race-&gt;day</code>（DBの実際の日目の値）を引数に渡し「X回場所名N日」を正確に特定。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-odd">odds</span><span style="font-size:11px;color:var(--t2)">minutes_before_start = 999（日曜分のみ）</span></div>
+        </div>
+        <div class="note">ℹ️ 万一importSchedule(6:00)が失敗してoddsが残っていた場合でも、upsert処理（exists→UPDATE / else→INSERT）で上書きできる。</div>
+      </div>
+    </div>
+
+    <!-- 08:00 ImportRacesPopularityRatio (日) -->
+    <div class="tl-item">
+      <div class="tl-time">08:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🔍</span>
+          <div class="card-titles">
+            <div class="card-name">当週レース × 過去マスタ ユークリッド類似度比較</div>
+            <span class="card-cmd">keiba:ImportRacesPopularityRatio</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          土曜と同じ処理。日曜レース分の popularity_ratio を計算し、過去マスタと類似度比較して races テーブルを UPDATE。土曜分の未処理があれば同時に処理される。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-rac">races</span><span style="font-size:11px;color:var(--t2)">popularity_ratio / table_ids / match_percent</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 09:00-17:59 importOdds (日) -->
+    <div class="sec-div">レースタイム帯</div>
+    <div class="tl-item">
+      <div class="tl-time">09:00<br>〜<br>17:59</div>
+      <div class="tl-dot orange"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">⏱️</span>
+          <div class="card-titles">
+            <div class="card-name">リアルタイム オッズ取得（日曜レース）</div>
+            <span class="card-cmd">keiba:importOdds</span>
+            <span class="card-freq">毎分実行</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          当日（日曜）のレースを対象に取得タイミングを毎分チェック。土曜と同じロジック。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ups">UPSERT</span><span class="tbl tbl-odd">odds</span><span class="tbl tbl-wid">odds_wide</span><span class="tbl tbl-tim">odds_timing</span></div>
+        </div>
+        <div style="margin-top:6px"><span class="flock">flock /tmp/keiba_importOdds.lock</span></div>
+      </div>
+    </div>
+
+    <!-- 09:00-18:59 importJraRaceOneResult (日) -->
+    <div class="tl-item">
+      <div class="tl-time">09:00<br>〜<br>18:59</div>
+      <div class="tl-dot red"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🏁</span>
+          <div class="card-titles">
+            <div class="card-name">レース結果 リアルタイム取得（日曜レース）</div>
+            <span class="card-cmd">keiba:importJraRaceOneResult</span>
+            <span class="card-freq">毎分実行</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          日曜レースの結果を発走後10〜30分のタイミングで取得。土曜と同じロジック。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-res">race_results</span><span style="font-size:11px;color:var(--t2)">着順・馬名（1レース分）</span></div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-res">race_results</span><span style="font-size:11px;color:var(--t2)">通知後に notified_at をセット</span></div>
+        </div>
+        <div style="margin-top:6px"><span class="flock">flock /tmp/keiba_importJraRaceOneResult.lock</span></div>
+      </div>
+    </div>
+
+    <!-- 18:00 summary (日) -->
+    <div class="sec-div">レース終了後</div>
+    <div class="tl-item">
+      <div class="tl-time">18:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📋</span>
+          <div class="card-titles">
+            <div class="card-name">オッズサマリー生成 + 履歴UPSERT</div>
+            <span class="card-cmd">keiba:summary</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          土曜・日曜両日のoddsを集約してsummaryを生成（既存はスキップ）。race_result_history にも UPSERT。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-sum">summary</span></div>
+          <div class="op-row"><span class="act act-ups">UPSERT</span><span class="tbl tbl-his">history</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 18:30 importJraRaceResult (日) -->
+    <div class="tl-item">
+      <div class="tl-time">18:30</div>
+      <div class="tl-dot blue"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🥇</span>
+          <div class="card-titles">
+            <div class="card-name">着順 → summary へ反映</div>
+            <span class="card-cmd">keiba:importJraRaceResult</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          JRAから全レース結果を取得して summary.result を更新。土日両日分のresultが更新対象。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-sum">summary</span><span style="font-size:11px;color:var(--t2)">result カラム（着順）</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 19:00 importRaceResultHistory (日) -->
+    <div class="sec-div">夜間バッチ</div>
+    <div class="tl-item">
+      <div class="tl-time">19:00</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📚</span>
+          <div class="card-titles">
+            <div class="card-name">過去レース結果 履歴取得</div>
+            <span class="card-cmd">keiba:importRaceResultHistory</span>
+          </div>
+        </div>
+        <div class="card-desc">当月の全開催の最終オッズを取得して history に保存。インポート済みはSKIP。</div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ups">updateOrInsert</span><span class="tbl tbl-his">history</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 20:00 summaryHistoryPopularityRank (日) -->
+    <div class="tl-item">
+      <div class="tl-time">20:00</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🔢</span>
+          <div class="card-titles">
+            <div class="card-name">人気順計算・更新</div>
+            <span class="card-cmd">keiba:summaryHistoryPopularityRank</span>
+          </div>
+        </div>
+        <div class="card-desc">当月の history に popularity_rank を設定。全馬ランク済みレースはSKIP。</div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">popularity_rank</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 20:30 summaryPopularityRankAverage (日) ← 実行される -->
+    <div class="tl-item">
+      <div class="tl-time">20:30</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📈</span>
+          <div class="card-titles">
+            <div class="card-name">人気順別 平均オッズ 集計・更新</div>
+            <span class="card-cmd">keiba:summaryPopularityRankAverage</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          race_result_history から人気順1〜18位別の平均単勝オッズを計算。初回はINSERT、2回目以降は加重平均でUPDATE（古いデータをソーステーブルから削除しても計算できる設計）。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-avg">rank_avg</span><span style="font-size:11px;color:var(--t2)">初回のみ（18行まで）</span></div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-avg">rank_avg</span><span style="font-size:11px;color:var(--t2)">加重平均・count・end_date を更新</span></div>
+        </div>
+        <div class="note">ℹ️ end_date 以降の新データのみ対象（差分集計）。新データが0件なら何もしない。</div>
+      </div>
+    </div>
+
+    <!-- 21:00 summaryHistoryFinishingPosition (日) -->
+    <div class="tl-item">
+      <div class="tl-time">21:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🏆</span>
+          <div class="card-titles">
+            <div class="card-name">着順（finishing_position）取得・更新</div>
+            <span class="card-cmd">keiba:summaryHistoryFinishingPosition</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          history の finishing_position が未設定のレースを開催ごとにスクレイピングしてUPDATE。土日両日分が対象になる。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">finishing_position（1以上/−1）</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /tl -->
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!--  月〜水                                                -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="panel" id="panel-wd">
+
+  <div class="day-banner wd">
+    <div class="day-banner-row">
+      <div class="day-banner-dot"></div>
+      <span class="day-banner-name">月曜・火曜・水曜</span>
+    </div>
+    <div class="day-banner-sub">競馬開催なし。夜間バッチ（履歴集計）のみ実行</div>
+    <div class="day-banner-body">
+      importSchedule は6:00に起動するがJRAにレースなし→実質スキップ。importOdds・importJraRaceOneResult は毎分起動するが当日レースが0件のため即終了。19:00以降の夜間バッチのみ意味のある処理が走る。
+    </div>
+  </div>
+
+  <div class="day-sum">
+    <div class="ds-row skip"><span class="ds-time">06:00</span><span class="ds-cmd">importSchedule</span><span class="ds-note">データ0件→実質スキップ</span></div>
+    <div class="ds-row skip"><span class="ds-time">09:00〜17:59</span><span class="ds-cmd">importOdds</span><span class="ds-every">毎分</span><span class="ds-note">レースなし→即終了</span></div>
+    <div class="ds-row skip"><span class="ds-time">09:00〜18:59</span><span class="ds-cmd">importJraRaceOneResult</span><span class="ds-every">毎分</span><span class="ds-note">レースなし→即終了</span></div>
+    <div class="ds-row"><span class="ds-time">18:00</span><span class="ds-cmd">summary</span></div>
+    <div class="ds-row"><span class="ds-time">18:30</span><span class="ds-cmd">importJraRaceResult</span></div>
+    <div class="ds-row"><span class="ds-time">19:00</span><span class="ds-cmd">importRaceResultHistory</span></div>
+    <div class="ds-row"><span class="ds-time">20:00</span><span class="ds-cmd">summaryHistoryPopularityRank</span></div>
+    <div class="ds-row"><span class="ds-time">20:30</span><span class="ds-cmd">summaryPopularityRankAverage</span></div>
+    <div class="ds-row"><span class="ds-time">21:00</span><span class="ds-cmd">summaryHistoryFinishingPosition</span></div>
+  </div>
+
+  <div class="tl">
+
+    <!-- 06:00 importSchedule (月-水) -->
+    <div class="tl-item">
+      <div class="tl-time">06:00</div>
+      <div class="tl-dot gray"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📅</span>
+          <div class="card-titles">
+            <div class="card-name">スケジュール取得（起動するが実質スキップ）</div>
+            <span class="card-cmd">keiba:importSchedule</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          月〜水は木・金のような明示スキップはなく<strong>Node.jsが実行される</strong>。しかしJRAサイトに平日のレースは表示されないため取得データが0件となり、INSERT・DELETEは何も行われず終了。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span style="font-size:12px;color:var(--t3)">取得データ0件のため操作なし</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 09:00-17:59 importOdds (月-水) -->
+    <div class="tl-item">
+      <div class="tl-time">09:00<br>〜<br>17:59</div>
+      <div class="tl-dot gray"></div>
+      <div class="skip-card">
+        <div class="skip-icon">⚡</div>
+        <div class="skip-text">
+          <strong>importOdds — 毎分起動・即終了</strong>
+          当日レースが0件のため「対象レースが0件のため終了します」で終了。DB操作なし。
+        </div>
+      </div>
+    </div>
+
+    <!-- 09:00-18:59 importJraRaceOneResult (月-水) -->
+    <div class="tl-item">
+      <div class="tl-time">09:00<br>〜<br>18:59</div>
+      <div class="tl-dot gray"></div>
+      <div class="skip-card">
+        <div class="skip-icon">⚡</div>
+        <div class="skip-text">
+          <strong>importJraRaceOneResult — 毎分起動・即終了</strong>
+          当日レースが0件のためタイミングヒットなし→即終了。DB操作なし。
+        </div>
+      </div>
+    </div>
+
+    <!-- 18:00 summary (月-水) -->
+    <div class="sec-div">夜間バッチ</div>
+    <div class="tl-item">
+      <div class="tl-time">18:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📋</span>
+          <div class="card-titles">
+            <div class="card-name">オッズサマリー（新規なし・スキップ主体）</div>
+            <span class="card-cmd">keiba:summary</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          土日分は既にSUMMARY済みなので既存キーチェックでほぼSKIP。新規INSERTは発生しない。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span style="font-size:12px;color:var(--t3)">新規INSERT・UPSERTなし（既存SKIP）</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 18:30 importJraRaceResult (月-水) -->
+    <div class="tl-item">
+      <div class="tl-time">18:30</div>
+      <div class="tl-dot blue"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🥇</span>
+          <div class="card-titles">
+            <div class="card-name">着順 → summary へ反映（新規なし）</div>
+            <span class="card-cmd">keiba:importJraRaceResult</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          JRAから結果を取得するがresult=NULLのレコードが残っていれば更新。通常は週末のうちに完了しているため新規更新なし。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-sum">summary</span><span style="font-size:11px;color:var(--t2)">result（未完了分があれば）</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 19:00 importRaceResultHistory (月-水) -->
+    <div class="tl-item">
+      <div class="tl-time">19:00</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📚</span>
+          <div class="card-titles">
+            <div class="card-name">過去レース結果 履歴取得（毎日実行）</div>
+            <span class="card-cmd">keiba:importRaceResultHistory</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          当月の全開催の最終オッズ履歴を更新。未インポート開催があれば処理し、済みはSKIP。月〜水・土曜（金曜以外）に毎日実行される。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ups">updateOrInsert</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">未処理分があれば</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 20:00 summaryHistoryPopularityRank (月-水) -->
+    <div class="tl-item">
+      <div class="tl-time">20:00</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🔢</span>
+          <div class="card-titles">
+            <div class="card-name">人気順計算・更新（毎日実行）</div>
+            <span class="card-cmd">keiba:summaryHistoryPopularityRank</span>
+          </div>
+        </div>
+        <div class="card-desc">当月の history を対象にpopularity_rankを設定・更新。ランク未設定のレースがあれば処理。</div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">popularity_rank</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 20:30 summaryPopularityRankAverage (月-水) -->
+    <div class="tl-item">
+      <div class="tl-time">20:30</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">📈</span>
+          <div class="card-titles">
+            <div class="card-name">人気順別 平均オッズ 集計・更新（毎日実行）</div>
+            <span class="card-cmd">keiba:summaryPopularityRankAverage</span>
+          </div>
+        </div>
+        <div class="card-desc">end_date 以降の新データがなければ何もしない。週末データが入れば差分加重平均を計算してUPDATE。</div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-avg">rank_avg</span><span style="font-size:11px;color:var(--t2)">新データがあれば</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 21:00 summaryHistoryFinishingPosition (月-水) -->
+    <div class="tl-item">
+      <div class="tl-time">21:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">🏆</span>
+          <div class="card-titles">
+            <div class="card-name">着順（finishing_position）取得・更新（毎日実行）</div>
+            <span class="card-cmd">keiba:summaryHistoryFinishingPosition</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          当月の finishing_position が未設定（NULL/0）のレコードがあればスクレイピングして更新。通常は週末のうちに完了しているため月以降は新規更新なし。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">finishing_position（未処理分）</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /tl -->
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!--  木曜                                                  -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="panel" id="panel-thu">
+
+  <div class="day-banner wd">
+    <div class="day-banner-row">
+      <div class="day-banner-dot"></div>
+      <span class="day-banner-name">木曜日</span>
+    </div>
+    <div class="day-banner-sub">importSchedule が明示的にスキップ。夜間バッチは全部実行</div>
+    <div class="day-banner-body">
+      コード内で <code>date('w') === '4'</code> の場合に明示スキップが入る（金曜も同様）。月〜水との違いはこの点だけで、夜間バッチは月〜水と全く同じ。
+    </div>
+  </div>
+
+  <div class="day-sum">
+    <div class="ds-row skip"><span class="ds-time">06:00</span><span class="ds-cmd">importSchedule</span><span class="ds-note">明示スキップ</span></div>
+    <div class="ds-row skip"><span class="ds-time">09:00〜17:59</span><span class="ds-cmd">importOdds</span><span class="ds-every">毎分</span><span class="ds-note">レースなし→即終了</span></div>
+    <div class="ds-row skip"><span class="ds-time">09:00〜18:59</span><span class="ds-cmd">importJraRaceOneResult</span><span class="ds-every">毎分</span><span class="ds-note">レースなし→即終了</span></div>
+    <div class="ds-row"><span class="ds-time">18:00</span><span class="ds-cmd">summary</span></div>
+    <div class="ds-row"><span class="ds-time">18:30</span><span class="ds-cmd">importJraRaceResult</span></div>
+    <div class="ds-row"><span class="ds-time">19:00</span><span class="ds-cmd">importRaceResultHistory</span></div>
+    <div class="ds-row"><span class="ds-time">20:00</span><span class="ds-cmd">summaryHistoryPopularityRank</span></div>
+    <div class="ds-row"><span class="ds-time">20:30</span><span class="ds-cmd">summaryPopularityRankAverage</span></div>
+    <div class="ds-row"><span class="ds-time">21:00</span><span class="ds-cmd">summaryHistoryFinishingPosition</span></div>
+  </div>
+
+  <div class="tl">
+
+    <!-- 06:00 importSchedule (木) - SKIP -->
+    <div class="tl-item">
+      <div class="tl-time">06:00</div>
+      <div class="tl-dot gray"></div>
+      <div class="skip-card">
+        <div class="skip-icon">🚫</div>
+        <div class="skip-text">
+          <strong>importSchedule — 木曜は明示スキップ</strong>
+          コード内で <code>date('w') === '4'</code> をチェックして即 return 0。Node.js すら実行しない。
+        </div>
+      </div>
+    </div>
+
+    <!-- 09:00-17:59 importOdds (木) -->
+    <div class="tl-item">
+      <div class="tl-time">09:00<br>〜<br>17:59</div>
+      <div class="tl-dot gray"></div>
+      <div class="skip-card">
+        <div class="skip-icon">⚡</div>
+        <div class="skip-text">
+          <strong>importOdds — 毎分起動・即終了（レースなし）</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- 09:00-18:59 importJraRaceOneResult (木) -->
+    <div class="tl-item">
+      <div class="tl-time">09:00<br>〜<br>18:59</div>
+      <div class="tl-dot gray"></div>
+      <div class="skip-card">
+        <div class="skip-icon">⚡</div>
+        <div class="skip-text">
+          <strong>importJraRaceOneResult — 毎分起動・即終了（レースなし）</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-div">夜間バッチ（月〜水と同一）</div>
+
+    <!-- 18:00 -->
+    <div class="tl-item">
+      <div class="tl-time">18:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">📋</span>
+          <div class="card-titles"><div class="card-name">keiba:summary（新規なし）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span style="font-size:12px;color:var(--t3)">新規INSERT・UPSERTなし</span></div></div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">18:30</div>
+      <div class="tl-dot blue"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">🥇</span>
+          <div class="card-titles"><div class="card-name">keiba:importJraRaceResult（新規なし）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-sum">summary</span><span style="font-size:11px;color:var(--t3)">未完了分があれば</span></div></div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">19:00</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">📚</span>
+          <div class="card-titles"><div class="card-name">keiba:importRaceResultHistory（毎日実行）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span class="act act-ups">updateOrInsert</span><span class="tbl tbl-his">history</span></div></div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">20:00</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">🔢</span>
+          <div class="card-titles"><div class="card-name">keiba:summaryHistoryPopularityRank（毎日実行）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">popularity_rank</span></div></div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">20:30</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">📈</span>
+          <div class="card-titles"><div class="card-name">keiba:summaryPopularityRankAverage（毎日実行）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-avg">rank_avg</span><span style="font-size:11px;color:var(--t3)">新データがあれば</span></div></div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">21:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">🏆</span>
+          <div class="card-titles"><div class="card-name">keiba:summaryHistoryFinishingPosition（毎日実行）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">finishing_position</span></div></div>
+      </div>
+    </div>
+
+  </div><!-- /tl -->
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!--  金曜                                                  -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="panel" id="panel-fri">
+
+  <div class="day-banner wd">
+    <div class="day-banner-row">
+      <div class="day-banner-dot"></div>
+      <span class="day-banner-name">金曜日</span>
+    </div>
+    <div class="day-banner-sub">importSchedule＆importRaceResultHistory の2つがスキップ</div>
+    <div class="day-banner-body">
+      木曜と同様にimportScheduleは明示スキップ。さらに importRaceResultHistory（19:00）が <code>0,1,2,3,4,6</code>（金曜=5を含まない）なのでスキップ。その他の夜間バッチは実行される。
+    </div>
+  </div>
+
+  <div class="day-sum">
+    <div class="ds-row skip"><span class="ds-time">06:00</span><span class="ds-cmd">importSchedule</span><span class="ds-note">明示スキップ</span></div>
+    <div class="ds-row skip"><span class="ds-time">09:00〜17:59</span><span class="ds-cmd">importOdds</span><span class="ds-every">毎分</span><span class="ds-note">レースなし→即終了</span></div>
+    <div class="ds-row skip"><span class="ds-time">09:00〜18:59</span><span class="ds-cmd">importJraRaceOneResult</span><span class="ds-every">毎分</span><span class="ds-note">レースなし→即終了</span></div>
+    <div class="ds-row"><span class="ds-time">18:00</span><span class="ds-cmd">summary</span></div>
+    <div class="ds-row"><span class="ds-time">18:30</span><span class="ds-cmd">importJraRaceResult</span></div>
+    <div class="ds-row skip"><span class="ds-time">19:00</span><span class="ds-cmd">importRaceResultHistory</span><span class="ds-note">金曜スキップ</span></div>
+    <div class="ds-row"><span class="ds-time">20:00</span><span class="ds-cmd">summaryHistoryPopularityRank</span></div>
+    <div class="ds-row"><span class="ds-time">20:30</span><span class="ds-cmd">summaryPopularityRankAverage</span></div>
+    <div class="ds-row"><span class="ds-time">21:00</span><span class="ds-cmd">summaryHistoryFinishingPosition</span></div>
+  </div>
+
+  <div class="tl">
+
+    <!-- 06:00 importSchedule (金) - SKIP -->
+    <div class="tl-item">
+      <div class="tl-time">06:00</div>
+      <div class="tl-dot gray"></div>
+      <div class="skip-card">
+        <div class="skip-icon">🚫</div>
+        <div class="skip-text">
+          <strong>importSchedule — 金曜は明示スキップ</strong>
+          <code>date('w') === '5'</code> をチェックして即 return 0。Node.js実行なし。
+        </div>
+      </div>
+    </div>
+
+    <!-- 09:00-17:59 importOdds (金) -->
+    <div class="tl-item">
+      <div class="tl-time">09:00<br>〜<br>17:59</div>
+      <div class="tl-dot gray"></div>
+      <div class="skip-card">
+        <div class="skip-icon">⚡</div>
+        <div class="skip-text">
+          <strong>importOdds — 毎分起動・即終了（レースなし）</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- 09:00-18:59 importJraRaceOneResult (金) -->
+    <div class="tl-item">
+      <div class="tl-time">09:00<br>〜<br>18:59</div>
+      <div class="tl-dot gray"></div>
+      <div class="skip-card">
+        <div class="skip-icon">⚡</div>
+        <div class="skip-text">
+          <strong>importJraRaceOneResult — 毎分起動・即終了（レースなし）</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-div">夜間バッチ</div>
+
+    <div class="tl-item">
+      <div class="tl-time">18:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">📋</span>
+          <div class="card-titles"><div class="card-name">keiba:summary（新規なし）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span style="font-size:12px;color:var(--t3)">新規INSERT・UPSERTなし</span></div></div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">18:30</div>
+      <div class="tl-dot blue"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">🥇</span>
+          <div class="card-titles"><div class="card-name">keiba:importJraRaceResult（新規なし）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-sum">summary</span><span style="font-size:11px;color:var(--t3)">未完了分があれば</span></div></div>
+      </div>
+    </div>
+
+    <!-- 19:00 importRaceResultHistory (金) ← スキップ -->
+    <div class="tl-item">
+      <div class="tl-time">19:00</div>
+      <div class="tl-dot gray"></div>
+      <div class="skip-card">
+        <div class="skip-icon">🚫</div>
+        <div class="skip-text">
+          <strong>importRaceResultHistory — 金曜はスキップ</strong>
+          cron設定 <code>0,1,2,3,4,6</code>（金曜=5 が含まれない）。
+        </div>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-time">20:00</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">🔢</span>
+          <div class="card-titles"><div class="card-name">keiba:summaryHistoryPopularityRank（毎日実行）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">popularity_rank</span></div></div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">20:30</div>
+      <div class="tl-dot purple"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">📈</span>
+          <div class="card-titles"><div class="card-name">keiba:summaryPopularityRankAverage（毎日実行）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-avg">rank_avg</span></div></div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">21:00</div>
+      <div class="tl-dot teal"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">🏆</span>
+          <div class="card-titles"><div class="card-name">keiba:summaryHistoryFinishingPosition（毎日実行）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">finishing_position</span></div></div>
+      </div>
+    </div>
+
+  </div><!-- /tl -->
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!--  LEGEND                                               -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="legend">
+
+  <div class="legend-title">テーブル凡例</div>
+
+  <div class="legend-sec">
+    <div class="legend-sec-title">アクション種別</div>
+    <div class="legend-chips">
+      <span><span class="act act-trunc">TRUNCATE</span></span>
+      <span><span class="act act-del">DELETE</span></span>
+      <span><span class="act act-ins">INSERT</span></span>
+      <span><span class="act act-upd">UPDATE</span></span>
+      <span><span class="act act-ups">UPSERT</span></span>
+    </div>
+  </div>
+
+  <div class="legend-sec">
+    <div class="legend-sec-title">テーブル略称 → 正式名</div>
+    <div>
+      <div class="legend-row"><span class="tbl tbl-sch">schedules</span><span class="legend-full">t_horse_odds_finder_schedules</span></div>
+      <div class="legend-row"><span class="tbl tbl-rac">races</span><span class="legend-full">t_horse_odds_finder_races</span></div>
+      <div class="legend-row"><span class="tbl tbl-hor">horses</span><span class="legend-full">t_horse_odds_finder_horses</span></div>
+      <div class="legend-row"><span class="tbl tbl-odd">odds</span><span class="legend-full">t_horse_odds_finder_odds</span></div>
+      <div class="legend-row"><span class="tbl tbl-wid">odds_wide</span><span class="legend-full">t_horse_odds_finder_odds_wide</span></div>
+      <div class="legend-row"><span class="tbl tbl-tim">odds_timing</span><span class="legend-full">t_horse_odds_finder_odds_get_timing</span></div>
+      <div class="legend-row"><span class="tbl tbl-res">race_results</span><span class="legend-full">t_horse_odds_finder_race_results</span></div>
+      <div class="legend-row"><span class="tbl tbl-sum">summary</span><span class="legend-full">t_horse_odds_finder_summary</span></div>
+      <div class="legend-row"><span class="tbl tbl-his">history</span><span class="legend-full">t_horse_odds_finder_race_result_history</span></div>
+      <div class="legend-row"><span class="tbl tbl-avg">rank_avg</span><span class="legend-full">t_horse_odds_finder_popularity_rank_average</span></div>
+      <div class="legend-row"><span class="tbl tbl-rat">ratio</span><span class="legend-full">t_horse_odds_finder_races_popularity_ratio</span></div>
+    </div>
+  </div>
+
+  <div class="legend-sec">
+    <div class="legend-sec-title">minutes_before_start 保存値の意味</div>
+    <div class="detail-list" style="list-style:none;padding:0">
+      <div style="font-size:11px;color:var(--t2);margin-bottom:4px"><code>999</code> = ベースオッズ（importBaseOdds / importOdds 24分前）</div>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:4px"><code>21, 18, 15, 12, 9, 6, 3</code> = 発走N分前のオッズ</div>
+      <div style="font-size:11px;color:var(--t2)"><code>-999</code> = 発走0分前（直前）のオッズ</div>
+    </div>
+  </div>
+
+  <div class="legend-sec">
+    <div class="legend-sec-title">コメントアウト中（未使用）コマンド</div>
+    <ul class="detail-list">
+      <li>keiba:importRace — 旧レース一覧取得（importScheduleに統合済み）</li>
+      <li>keiba:importRaceResult — 旧レース結果取得（importJraRaceResultに統合済み）</li>
+      <li>keiba:importRaceResultPayout — 払戻金取得（t_race_result_payout）</li>
+    </ul>
+  </div>
 
 </div>
 
-<!-- ========== 依存関係 ========== -->
-<div id="dep" class="section">
-  <div class="section-title">コマンド実行の依存関係（順番が崩れると失敗する）<a class="back-link" href="#summary">→ 総評へ</a></div>
-  <div class="danger">順番を守らないと後続コマンドがDBを読めず失敗する。</div>
-  <br>
-  <div class="dep-box">
-    <a class="dep-label" href="#sat-delete">05:50 deleteKeibaTableRecords</a>
-    <span class="dep-arrow">→</span>
-    <a class="dep-label" href="#sat-schedule">06:00 importSchedule</a>
-    <span class="dep-reason">TRUNCATEしてからINSERT。逆だとせっかく入れたデータが消える。</span>
-  </div>
-  <div class="dep-box">
-    <a class="dep-label" href="#sat-schedule">06:00 importSchedule（土）</a>
-    <span class="dep-arrow">→</span>
-    <a class="dep-label" href="#sat-race">06:20 importRace</a>
-    <span class="dep-reason">importRaceはt_horse_odds_finder_schedulesの日付一覧を読む。空だと即終了。</span>
-  </div>
-  <div class="dep-box">
-    <a class="dep-label" href="#sat-schedule">06:00 importSchedule（土）</a>
-    <span class="dep-arrow">→</span>
-    <a class="dep-label" href="#sat-baseodds">07:00 importBaseOdds</a>
-    <span class="dep-reason">importBaseOddsはt_horse_odds_finder_racesを読む。空だと0件で終了。</span>
-  </div>
-  <div class="dep-box">
-    <a class="dep-label" href="#sat-race">06:20 importRace</a>
-    <span class="dep-arrow">→</span>
-    <a class="dep-label" href="#sat-result">09:00〜 importRaceResult(土)</a>
-    <span class="dep-reason">importRaceResultはt_horse_odds_finder_netkeiba_racesを読む。2時間40分の余裕あり。</span>
-  </div>
-  <div class="dep-box">
-    <a class="dep-label" href="#sat-schedule">土曜 importSchedule</a>
-    <span class="dep-arrow">→</span>
-    <a class="dep-label" href="#sun-schedule">日曜 importSchedule</a>
-    <span class="dep-arrow">→</span>
-    <a class="dep-label" href="#sun-odds">日曜 importOdds</a>
-    <span class="dep-reason">土曜に土日両日分を登録→日曜6:00に日曜分を最新化→importOddsが使用。</span>
-  </div>
-  <div class="dep-box">
-    <a class="dep-label" href="#sat-baseodds">土曜 importBaseOdds</a>
-    <span class="dep-arrow">→</span>
-    <a class="dep-label" href="#sun-odds">日曜 importOdds</a>
-    <span class="dep-reason">importBaseOddsは土日両日分の999オッズを土曜7時に一括取得。日曜のdiff=24 upsertはこのレコードを更新する。</span>
-  </div>
-  <div class="dep-box">
-    <a class="dep-label" href="#sat-race">土曜 importRace（06:20）</a>
-    <span class="dep-arrow">→</span>
-    <a class="dep-label" href="#sun-race">日曜 importRace（06:20）</a>
-    <span class="dep-arrow">→</span>
-    <a class="dep-label" href="#sun-result">日曜 importRaceResult</a>
-    <span class="dep-reason">土曜importRaceで土日両日分を登録→日曜importRaceで日曜分を再upsert（最新化）→日曜importRaceResultはその最新データを使う。</span>
-  </div>
-</div>
+<script>
+function show(day){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  var panel=document.getElementById('panel-'+day);
+  if(panel)panel.classList.add('active');
+  var tabs=document.querySelectorAll('.tab');
+  var map={sat:0,sun:1,wd:2,thu:3,fri:4};
+  if(tabs[map[day]])tabs[map[day]].classList.add('active');
+}
 
-<!-- ========== 土曜タイムライン ========== -->
-<div id="timeline-sat" class="day-header sat">土曜日 2026-06-06　実行タイムライン</div>
-<div class="timeline">
-  <div class="tl-item">
-    <div class="tl-time">05:50</div>
-    <div class="tl-dot"></div>
-    <div class="tl-box">
-      <div class="tl-title">① keiba:deleteKeibaTableRecords</div>
-      <div class="tl-sub">全8テーブルTRUNCATE＋ログ削除。数秒で完了。</div>
-      <a class="tl-link" href="#sat-delete">→ 詳細を見る</a>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time">06:00</div>
-    <div class="tl-dot"></div>
-    <div class="tl-box">
-      <div class="tl-title">② keiba:importSchedule</div>
-      <div class="tl-sub">Node.js 1本でスケジュール・レース・馬情報を取得。<strong>土日両日分を全件INSERT</strong>（date('w')==='6'なので日付フィルターなし）。5〜10分で完了見込み。</div>
-      <a class="tl-link" href="#sat-schedule">→ 詳細を見る</a>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time">06:20</div>
-    <div class="tl-dot"></div>
-    <div class="tl-box">
-      <div class="tl-title">③ keiba:importRace</div>
-      <div class="tl-sub">ネットケイバからレース一覧を取得。<strong>土日両日分をupsert</strong>。日曜のimportRaceResultも後でこのデータを使う。</div>
-      <a class="tl-link" href="#sat-race">→ 詳細を見る</a>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time">07:00</div>
-    <div class="tl-dot"></div>
-    <div class="tl-box">
-      <div class="tl-title">④ keiba:importBaseOdds</div>
-      <div class="tl-sub">JRAから土日<strong>全24レース分</strong>の単複オッズを取得（minutes_before_start=999）。約4〜8分で完了。<strong>日曜分も同時に保存される。</strong></div>
-      <a class="tl-link" href="#sat-baseodds">→ 詳細を見る</a>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time">09:00〜<br>17:59</div>
-    <div class="tl-dot"></div>
-    <div class="tl-box">
-      <div class="tl-title">⑤ keiba:importOdds（毎分）</div>
-      <div class="tl-sub">date='2026-06-06'の土曜レースのみ処理。ODDS_GET_TIMING=[24,21,18,15,12,9,6,3,0]に合致した分だけ取得。ワイドオッズも同時取得。</div>
-      <a class="tl-link" href="#sat-odds">→ 詳細を見る</a>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time">09:00〜<br>17:59</div>
-    <div class="tl-dot"></div>
-    <div class="tl-box">
-      <div class="tl-title">⑥ keiba:importRaceResult（毎分）</div>
-      <div class="tl-sub">ネットケイバから土曜レースの確定オッズ等を取得。importOddsとは別ロックで<strong>並行動作</strong>。</div>
-      <a class="tl-link" href="#sat-result">→ 詳細を見る</a>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time">18:00</div>
-    <div class="tl-dot"></div>
-    <div class="tl-box">
-      <div class="tl-title">⑦ keiba:summary</div>
-      <div class="tl-sub">毎日実行（<code>0 18 * * *</code>）。当日レースのサマリを作成。</div>
-      <a class="tl-link" href="#daily-summary">→ 詳細を見る</a>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time">18:30</div>
-    <div class="tl-dot"></div>
-    <div class="tl-box">
-      <div class="tl-title">⑧ keiba:importJraRaceResult</div>
-      <div class="tl-sub">毎日実行（<code>30 18 * * *</code>）。JRAから当日レース結果を取得・更新。</div>
-      <a class="tl-link" href="#daily-jra-result">→ 詳細を見る</a>
-    </div>
-  </div>
-</div>
-
-<br>
-
-<!-- ========== ① deleteKeibaTableRecords ========== -->
-<div id="sat-delete" class="section">
-  <div class="section-title">① 05:50 土曜 — <span class="cmd">keiba:deleteKeibaTableRecords</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
-  <h3>実行内容</h3>
-  <p>条件分岐なし。無条件で全テーブルをTRUNCATEしてログファイルを削除する。実行時間は数秒。</p>
-  <h3>TRUNCATEされるテーブル（全8テーブル）</h3>
-  <div class="table-list">
-    <span class="table-badge truncate">t_horse_odds_finder_schedules</span>
-    <span class="table-badge truncate">t_horse_odds_finder_races</span>
-    <span class="table-badge truncate">t_horse_odds_finder_horses</span>
-    <span class="table-badge truncate">t_horse_odds_finder_odds</span>
-    <span class="table-badge truncate">t_horse_odds_finder_netkeiba_races</span>
-    <span class="table-badge truncate">t_horse_odds_finder_netkeiba_odds</span>
-    <span class="table-badge truncate">t_horse_odds_finder_odds_get_timing</span>
-    <span class="table-badge truncate">t_horse_odds_finder_odds_wide</span>
-  </div>
-  <h3>削除されるログファイル（10個）</h3>
-  <pre>/var/www/horse_odds_finder/storage/logs/cron_odds.log
-/var/www/horse_odds_finder/storage/logs/importRaceResult.log
-/var/www/horse_odds_finder/storage/logs/importBaseOdds.log
-（他のログファイルも削除）</pre>
-  <h3>実行後のDB状態</h3>
-  <div class="db-state">
-    <div class="db-state-title">実行後 — 全テーブルが空</div>
-    <div class="db-row">
-      <span class="db-empty">schedules: 0件</span>
-      <span class="db-empty">races: 0件</span>
-      <span class="db-empty">horses: 0件</span>
-      <span class="db-empty">odds: 0件</span>
-      <span class="db-empty">netkeiba_races: 0件</span>
-      <span class="db-empty">netkeiba_odds: 0件</span>
-      <span class="db-empty">odds_get_timing: 0件</span>
-      <span class="db-empty">odds_wide: 0件</span>
-    </div>
-  </div>
-  <div class="ok">全テーブルが空の状態でimportScheduleが始まる。前週の古いデータが混入しない。</div>
-</div>
-
-<!-- ========== ② importSchedule ========== -->
-<div id="sat-schedule" class="section">
-  <div class="section-title">② 06:00 土曜 — <span class="cmd">keiba:importSchedule</span>（--debugなし）<a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
-  <h3>コード条件の評価（土曜: date('w') = '6'）</h3>
-  <div class="table-wrap"><table class="eval-table">
-    <tr><th>条件</th><th>コード</th><th>評価結果</th><th>動作</th></tr>
-    <tr>
-      <td>DEBUGフラグ</td>
-      <td class="code">$isDebug = $this->option('debug')</td>
-      <td class="result-ng">false</td>
-      <td>通常モード</td>
-    </tr>
-    <tr>
-      <td>木曜・金曜チェック</td>
-      <td class="code">!$isDebug &amp;&amp; (date('w')==='4' || date('w')==='5')<br>= true &amp;&amp; ('6'==='4' || '6'==='5') = <strong>false</strong></td>
-      <td class="result-ok">false → スキップしない</td>
-      <td>処理続行 ✓</td>
-    </tr>
-    <tr>
-      <td>日付フィルター</td>
-      <td class="code">!$isDebug &amp;&amp; date('w') !== '6'<br>= true &amp;&amp; '6' !== '6' = <strong>false</strong></td>
-      <td class="result-ok">false → フィルターしない</td>
-      <td><strong>土日両日分を全件INSERT ✓</strong></td>
-    </tr>
-  </table></div>
-  <div class="info">土曜は date('w')==='6' なので「日付フィルターなし」のパスを通る。スクレイピングで取得した土日両日分のデータをそのまま全件INSERTする。これが日曜の動作の前提になる。</div>
-  <h3>処理フロー（詳細）</h3>
-  <pre>
-1. Node.js (keibaOddsGetSchedule.mjs) を timeout 300s で実行
-   └─ JRAサイトをスクレイピング → schedules / races / horses を含むJSONを返す
-2. JSONパース → schedules / races / horses を取り出す
-3. datesToDelete = スクレイピングデータ内の全日付（土曜 + 日曜）
-4. トランザクション開始
-   ├─ 各日付をDELETE（TRUNCATE済みなので実質0件削除）
-   ├─ t_horse_odds_finder_schedules に INSERT（土日分）
-   ├─ t_horse_odds_finder_races    に INSERT（start_time ≠ 'XXX' のレースのみ）
-   │     ※ races.date に 土曜分・日曜分 両方が入る
-   ├─ t_horse_odds_finder_horses   に INSERT（土日分）
-   └─ t_horse_odds_finder_odds をDELETE（TRUNCATE済みなので0件）
-5. コミット</pre>
-  <h3>影響テーブル</h3>
-  <div class="table-list">
-    <span class="table-badge insert">t_horse_odds_finder_schedules（土日分INSERT）</span>
-    <span class="table-badge insert">t_horse_odds_finder_races（土日分INSERT）</span>
-    <span class="table-badge insert">t_horse_odds_finder_horses（土日分INSERT）</span>
-  </div>
-  <h3>実行後のDB状態</h3>
-  <div class="db-state">
-    <div class="db-state-title">実行後</div>
-    <div class="db-row">
-      <span class="db-new">schedules: 土日2日分</span>
-      <span class="db-new">races: 土日24レース（各12レース×2会場）</span>
-      <span class="db-new">horses: 土日全馬分</span>
-      <span class="db-empty">odds: 0件</span>
-      <span class="db-empty">netkeiba_races: 0件</span>
-    </div>
-  </div>
-  <div class="ok">約5〜10分で完了。06:20のimportRaceまでに10〜15分の余裕あり。</div>
-  <div class="risk">Node.jsスクリプト(timeout 300s=5分)が最大5分かかる。ネットワーク障害時は06:20のimportRaceに間に合わない可能性がある。その場合importRaceは「スケジュールに日付が登録されていません」で即終了する。</div>
-</div>
-
-<!-- ========== ③ importRace ========== -->
-<div id="sat-race" class="section">
-  <div class="section-title">③ 06:20 土曜 — <span class="cmd">keiba:importRace</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
-  <h3>コード条件の評価</h3>
-  <div class="table-wrap"><table class="eval-table">
-    <tr><th>条件</th><th>コード</th><th>評価</th><th>動作</th></tr>
-    <tr>
-      <td>スケジュール日付取得</td>
-      <td class="code">SELECT date FROM t_horse_odds_finder_schedules GROUP BY date</td>
-      <td class="result-ok">土日2日分の日付が取得できる</td>
-      <td>処理続行 ✓</td>
-    </tr>
-    <tr>
-      <td>スケジュールが空の場合</td>
-      <td class="code">if (empty($dates)) return</td>
-      <td class="result-ok">importSchedule完了済みなので空にならない</td>
-      <td>正常 ✓</td>
-    </tr>
-    <tr>
-      <td>処理対象日付</td>
-      <td class="code">foreach ($dates as $date) → 2日分ループ</td>
-      <td class="result-ok">2026-06-06（土）と2026-06-07（日）</td>
-      <td>土日両日分を処理 ✓</td>
-    </tr>
-  </table></div>
-  <h3>処理フロー（詳細）</h3>
-  <pre>
-1. t_horse_odds_finder_schedules から日付一覧を取得
-   → ['2026-06-06', '2026-06-07'] の2件
-2. Node.js (keibaOddsGetRaceList.mjs) を "all" モードで1回起動
-   └─ ネットケイバをスクレイピング → 全レースのrace_idを含むJSONを返す
-3. JSONから土日分のレース情報を抽出
-4. t_horse_odds_finder_netkeiba_races に updateOrInsert（race_idがキー）
-   └─ 土曜分・日曜分 両方がupsertされる</pre>
-  <h3>影響テーブル</h3>
-  <div class="table-list">
-    <span class="table-badge upsert">t_horse_odds_finder_netkeiba_races（土日両日分 UPSERT）</span>
-  </div>
-  <h3>実行後のDB状態</h3>
-  <div class="db-state">
-    <div class="db-state-title">実行後</div>
-    <div class="db-row">
-      <span class="db-ok">schedules: 土日2日分</span>
-      <span class="db-ok">races: 土日24レース</span>
-      <span class="db-new">netkeiba_races: 土日両日分のrace_id登録済み</span>
-      <span class="db-empty">odds: 0件</span>
-      <span class="db-empty">netkeiba_odds: 0件</span>
-    </div>
-  </div>
-  <div class="ok">importScheduleの20分後。通常は問題なし。日曜のimportRaceResultはこのnetkeiba_racesの日曜分を使う。</div>
-</div>
-
-<!-- ========== ④ importBaseOdds ========== -->
-<div id="sat-baseodds" class="section">
-  <div class="section-title">④ 07:00 土曜 — <span class="cmd">keiba:importBaseOdds</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
-  <h3>コード条件の評価</h3>
-  <div class="table-wrap"><table class="eval-table">
-    <tr><th>条件</th><th>コード</th><th>評価</th><th>動作</th></tr>
-    <tr>
-      <td>レース取得（日付フィルターなし）</td>
-      <td class="code">DB::table('t_horse_odds_finder_races')<br>→ WHERE句なし・全件</td>
-      <td class="result-ok">土日24レース全件取得 ✓</td>
-      <td>土日両日を処理</td>
-    </tr>
-    <tr>
-      <td>0件チェック</td>
-      <td class="code">if ($totalRaces === 0) return</td>
-      <td class="result-ok">importSchedule完了済みなので24件あり</td>
-      <td>正常 ✓</td>
-    </tr>
-    <tr>
-      <td>retryロジック</td>
-      <td class="code">$maxRetry = 3; sleep(5)</td>
-      <td>—</td>
-      <td>最大3回リトライ。失敗しても続行</td>
-    </tr>
-  </table></div>
-  <h3>処理フロー（詳細）</h3>
-  <pre>
-1. t_horse_odds_finder_races から全レース取得（日付フィルターなし → 土日24件）
-2. 各レースについてループ（土曜12件 → 日曜12件の順）
-   ├─ Node.js (keibaOddsGetTanpuku.mjs) を実行（timeout 120s, <span class="warn">retry 3回, sleep 5s</span>）
-   ├─ 各馬の単勝・複勝オッズを取得
-   └─ t_horse_odds_finder_odds に minutes_before_start=999 で upsert
-        ├─ 既存レコードあり → UPDATE（odds / fuku_min / fuku_max のみ）
-        └─ 存在しない場合 → INSERT
-
-処理時間の目安:
-  通常: 1レース 10〜15秒 × 24レース = 4〜6分
-  最悪: 1レース timeout+retry = (120+5)×3 = 375秒 × 24 ＝ 150分（現実的ではない）</pre>
-  <h3>影響テーブル</h3>
-  <div class="table-list">
-    <span class="table-badge upsert">t_horse_odds_finder_odds（土日全レース分 minutes_before_start=999 でUPSERT）</span>
-  </div>
-  <h3>実行後のDB状態</h3>
-  <div class="db-state">
-    <div class="db-state-title">実行後（約07:05〜07:10ごろ完了）</div>
-    <div class="db-row">
-      <span class="db-ok">schedules: 土日2日分</span>
-      <span class="db-ok">races: 土日24レース</span>
-      <span class="db-ok">netkeiba_races: 土日両日分</span>
-      <span class="db-new">odds: 土日全馬分（minutes_before_start=999）</span>
-      <span class="db-empty">netkeiba_odds: 0件</span>
-      <span class="db-empty">odds_wide: 0件</span>
-      <span class="db-empty">odds_get_timing: 0件</span>
-    </div>
-  </div>
-  <div class="ok">importOddsが始まる9:00まで2時間近い余裕がある。<strong>日曜分の999オッズもこの時点で保存済み</strong>なので、日曜にimportBaseOddsを再実行する必要はない。</div>
-  <div class="risk">cron設定は <code>0 7 * * 6</code>（土曜のみ）。日曜は実行されない。日曜レースの999オッズはこの土曜の1回で賄われる。</div>
-</div>
-
-<!-- ========== ⑤ importOdds（土曜） ========== -->
-<div id="sat-odds" class="section">
-  <div class="section-title">⑤ 09:00〜17:59 毎分 土曜 — <span class="cmd">keiba:importOdds</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
-  <h3>コード条件の評価（土曜: date('Y-m-d') = '2026-06-06'）</h3>
-  <div class="table-wrap"><table class="eval-table">
-    <tr><th>条件</th><th>コード</th><th>評価</th><th>動作</th></tr>
-    <tr>
-      <td>ロックファイル</td>
-      <td class="code">file_exists('/tmp/keiba_importOdds.lock')</td>
-      <td class="result-ok">前回のプロセスが終わっていれば存在しない</td>
-      <td>正常 ✓</td>
-    </tr>
-    <tr>
-      <td>DEBUGフラグ</td>
-      <td class="code">$isDebug = false</td>
-      <td>—</td>
-      <td>通常モード</td>
-    </tr>
-    <tr>
-      <td>対象日付（本番）</td>
-      <td class="code">where('date', date('Y-m-d'))<br>= where('date', '2026-06-06')</td>
-      <td class="result-ok">土曜12レース×2会場=最大24件</td>
-      <td>土曜レースのみ処理 ✓</td>
-    </tr>
-    <tr>
-      <td>発走済みチェック</td>
-      <td class="code">if ($diff &lt; 0) continue</td>
-      <td>—</td>
-      <td>発走済みレースは自動スキップ</td>
-    </tr>
-    <tr>
-      <td>タイミングチェック</td>
-      <td class="code">!in_array($diff, [24,21,18,15,12,9,6,3,0])</td>
-      <td>—</td>
-      <td>非合致の分はスキップ</td>
-    </tr>
-  </table></div>
-
-  <h3>ODDS_GET_TIMING 動作シミュレーション（阪神1R 09:50発走を例に）</h3>
-  <div class="timing-wrap"><table class="timing-table">
-    <tr>
-      <th>cron起動時刻</th><th>残り分(diff)</th><th>in_array</th><th>動作</th><th>minutes_before_start</th><th>保存方法</th>
-    </tr>
-    <tr class="miss"><td>09:00〜09:25</td><td>50〜25</td><td>× 非該当</td><td>スキップ</td><td>—</td><td>—</td></tr>
-    <tr class="hit"><td>09:26</td><td>24</td><td>✓</td><td><strong>取得・保存</strong></td><td>999</td><td>upsert（importBaseOddsを上書き）</td></tr>
-    <tr class="miss"><td>09:27〜09:28</td><td>23〜22</td><td>× 非該当</td><td>スキップ</td><td>—</td><td>—</td></tr>
-    <tr class="hit"><td>09:29</td><td>21</td><td>✓</td><td><strong>取得・保存</strong></td><td>21</td><td>insert</td></tr>
-    <tr class="hit"><td>09:32</td><td>18</td><td>✓</td><td><strong>取得・保存</strong></td><td>18</td><td>insert</td></tr>
-    <tr class="hit"><td>09:35</td><td>15</td><td>✓</td><td><strong>取得・保存</strong></td><td>15</td><td>insert</td></tr>
-    <tr class="hit"><td>09:38</td><td>12</td><td>✓</td><td><strong>取得・保存</strong></td><td>12</td><td>insert</td></tr>
-    <tr class="hit"><td>09:41</td><td>9</td><td>✓</td><td><strong>取得・保存</strong></td><td>9</td><td>insert</td></tr>
-    <tr class="hit"><td>09:44</td><td>6</td><td>✓</td><td><strong>取得・保存</strong></td><td>6</td><td>insert</td></tr>
-    <tr class="hit"><td>09:47</td><td>3</td><td>✓</td><td><strong>取得・保存</strong></td><td>3</td><td>insert</td></tr>
-    <tr class="hit"><td>09:50</td><td>0</td><td>✓</td><td><strong>取得・保存</strong></td><td>-999</td><td>insert（確定オッズ）</td></tr>
-    <tr class="miss"><td>09:51〜</td><td>-1以下</td><td>発走済み</td><td>スキップ</td><td>—</td><td>—</td></tr>
-  </table></div>
-  <p class="note">→ 1レースにつきtimingスナップショットは最大9回（importBaseOddsの999を含めると計10回）保存される。</p>
-
-  <h3>t_horse_odds_finder_odds への保存ロジック</h3>
-  <pre>
-diff === 24 のとき:
-  minutes_before_start = 999
-  <span class="hl">→ upsert</span>（importBaseOddsが既に999レコードを持っているため更新）
-
-diff === 0 のとき:
-  minutes_before_start = -999
-  <span class="hl">→ insert</span>（確定オッズ）
-
-それ以外 (21, 18, 15, 12, 9, 6, 3) のとき:
-  minutes_before_start = diff値そのまま
-  <span class="hl">→ insert</span>（スナップショット）</pre>
-
-  <h3>ワイドオッズ取得（getWideOdds）</h3>
-  <pre>
-1タイミングごとに keibaOddsGetWide.mjs を実行（timeout 120s, retry 2回）
-引数: date / kaisuu / basho / race / day
-→ JRAサイトのwideoddspageをスクレイピング
-→ 取得組合せ数 = C(n,2) = n*(n-1)/2（n=出走頭数）
-
-保存先: t_horse_odds_finder_odds_wide
-キー: {date, kaisuu, basho, day, race, uma1, uma2, minutes_before_start}
-重複時: upsert（odds_min / odds_max を上書き）</pre>
-
-  <h3>odds_get_timing への記録</h3>
-  <pre>
-キー: {date, kaisuu, basho, day, race, timing}
-値:   {get_datetime, odds_from='JRA'}
-→ upsert（後から実行されたimportRaceResultが上書きする可能性あり）
-timingの値:
-  diff=24 → timing=999
-  diff=0  → timing=-999
-  それ以外 → timing=diff値</pre>
-
-  <h3>影響テーブル</h3>
-  <div class="table-list">
-    <span class="table-badge upsert">t_horse_odds_finder_odds（diff=24はupsert、それ以外insert）</span>
-    <span class="table-badge upsert">t_horse_odds_finder_odds_wide（upsert）</span>
-    <span class="table-badge upsert">t_horse_odds_finder_odds_get_timing（upsert、odds_from='JRA'）</span>
-  </div>
-  <div class="ok">diff=24（999）はupsertのため、importBaseOddsとの重複INSERT起きない。</div>
-  <div class="ok">importRaceResultとはロックファイルが別（keiba_importOdds.lock vs keiba_importRaceResult.lock）なので並行して動作する。</div>
-  <div class="risk">1回のcron実行で複数レースが同タイミングに合致した場合、処理時間が60秒を超えるとロックファイルが残り次の分がスキップされる。ただし同時に合致するレースは通常1〜2件（約20〜40秒）なので現実的には問題なし。</div>
-</div>
-
-<!-- ========== ⑥ importRaceResult（土曜） ========== -->
-<div id="sat-result" class="section">
-  <div class="section-title">⑥ 09:00〜17:59 毎分 土曜 — <span class="cmd">keiba:importRaceResult</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
-  <h3>コード条件の評価（土曜: date('Y-m-d') = '2026-06-06'）</h3>
-  <div class="table-wrap"><table class="eval-table">
-    <tr><th>条件</th><th>コード</th><th>評価</th><th>動作</th></tr>
-    <tr>
-      <td>ロックファイル</td>
-      <td class="code">file_exists('/tmp/keiba_importRaceResult.lock')</td>
-      <td class="result-ok">importOddsとは別ロック → 並行動作可能</td>
-      <td>正常 ✓</td>
-    </tr>
-    <tr>
-      <td>DEBUGフラグ</td>
-      <td class="code">$isDebug = false</td>
-      <td>—</td>
-      <td>通常モード</td>
-    </tr>
-    <tr>
-      <td>対象日付（本番）</td>
-      <td class="code">where('date', date('Y-m-d'))<br>= where('date', '2026-06-06')<br>→ t_horse_odds_finder_netkeiba_races から取得</td>
-      <td class="result-ok">土曜分のnetkeiba_races取得 ✓</td>
-      <td>正常 ✓</td>
-    </tr>
-    <tr>
-      <td>確定オッズ重複チェック</td>
-      <td class="code">diff === 0: 既存レコードがあればスキップ</td>
-      <td>—</td>
-      <td>確定オッズは1回だけ保存される</td>
-    </tr>
-    <tr>
-      <td>JSONパース失敗</td>
-      <td class="code">empty($data['data']) → このレースをスキップ</td>
-      <td class="result-ok">当日レースはnetkeiba公開済みなので通常OK</td>
-      <td>正常 ✓</td>
-    </tr>
-  </table></div>
-  <h3>処理フロー（詳細）</h3>
-  <pre>
-1. t_horse_odds_finder_netkeiba_races から date='2026-06-06' のレースを取得
-2. 各レースについてループ
-   a. 発走までの残り分数(diff)を計算
-   b. diff &lt; 0: スキップ（発走済み）
-   c. in_array($diff, ODDS_GET_TIMING)でなければ: スキップ
-   d. diff=0 かつ -999レコード保存済み: スキップ（確定オッズは1回のみ）
-   e. keibaOddsGetRaceResult.mjs を実行（timeout 120s）
-      └─ ネットケイバからrace_idの単複オッズJSONを取得
-   f. saveOdds() で t_horse_odds_finder_netkeiba_odds に保存
-      ├─ 999: upsert
-      ├─ -999: 未保存のときのみinsert
-      └─ その他: insert
-   g. t_horse_odds_finder_odds_get_timing に upsert（odds_from='netkeiba'）</pre>
-  <h3>odds_get_timing の上書き関係</h3>
-  <pre>
-同じtimingに対してimportOddsとimportRaceResultが両方書く:
-  importOdds       → odds_from='JRA'      で先に書く（多くの場合）
-  importRaceResult → odds_from='netkeiba' で後から上書き
-
-→ 最終的に odds_get_timing の odds_from は 'netkeiba' になることが多い
-→ これは意図した動作（後勝ちupsert）</pre>
-  <h3>影響テーブル</h3>
-  <div class="table-list">
-    <span class="table-badge upsert">t_horse_odds_finder_netkeiba_odds（999はupsert、-999は条件付きinsert、他insert）</span>
-    <span class="table-badge upsert">t_horse_odds_finder_odds_get_timing（upsert、odds_from='netkeiba'）</span>
-  </div>
-  <div class="risk">netkeibaがレースデータを未公開の場合「JSONパース失敗」でそのレースをスキップする。当日レースは公開済みのため通常は問題なし。</div>
-</div>
-
-<!-- ========== 日曜 ========== -->
-<div id="sun-overview" class="day-header sun">日曜日 2026-06-07　date('w') = '0'</div>
-
-<div class="section sun">
-  <div class="section-title sun">日曜の特徴 — importSchedule・importRace が追加で動く（土曜より動くコマンドが少ない）<a class="back-link" href="#timeline-sun">↓ TLへ</a></div>
-  <div class="diff-box">
-    <div class="diff-box-title">土曜と日曜の違い（cron設定より）</div>
-    <div class="table-wrap"><table class="eval-table">
-      <tr><th>コマンド</th><th>cron</th><th>日曜</th><th>理由</th></tr>
-      <tr>
-        <td>deleteKeibaTableRecords</td>
-        <td class="code">50 5 * * 6</td>
-        <td class="result-skip">実行されない</td>
-        <td>土曜専用。日曜はTRUNCATEしない。前日のデータが生きたまま。</td>
-      </tr>
-      <tr>
-        <td>importSchedule</td>
-        <td class="code">0 6 * * *</td>
-        <td class="result-ok">実行される ✓</td>
-        <td>毎日実行。日曜は当日分（日曜）のみフィルターして再INSERT。最新化。</td>
-      </tr>
-      <tr>
-        <td>importRace</td>
-        <td class="code">20 6 * * 0,6</td>
-        <td class="result-ok">実行される ✓</td>
-        <td>土日両日で実行。日曜分の race_id を再upsert。出走取消などの当日変更に対応。</td>
-      </tr>
-      <tr>
-        <td>importBaseOdds</td>
-        <td class="code">0 7 * * 6</td>
-        <td class="result-skip">実行されない</td>
-        <td>土曜朝7時に土日全レースの999オッズを取得済み。日曜分も含まれている。</td>
-      </tr>
-      <tr>
-        <td>importOdds</td>
-        <td class="code">* 9-17 * * *</td>
-        <td class="result-ok">実行される ✓</td>
-        <td>毎日cron動作。日曜は date='2026-06-07' のレースを処理。</td>
-      </tr>
-      <tr>
-        <td>importRaceResult</td>
-        <td class="code">* 9-17 * * *</td>
-        <td class="result-ok">実行される ✓</td>
-        <td>同上。</td>
-      </tr>
-      <tr>
-        <td>summary</td>
-        <td class="code">0 18 * * *</td>
-        <td class="result-ok">実行される ✓</td>
-        <td>毎日18:00。当日レースのサマリを作成。</td>
-      </tr>
-      <tr>
-        <td>importJraRaceResult</td>
-        <td class="code">30 18 * * *</td>
-        <td class="result-ok">実行される ✓</td>
-        <td>毎日18:30。JRAから当日レース結果を取得・更新。</td>
-      </tr>
-    </table></div>
-  </div>
-  <h3>日曜朝9:00時点でのDB状態（土曜のコマンドが全て正常終了した前提）</h3>
-  <div class="db-state">
-    <div class="db-state-title">日曜 09:00時点のDB</div>
-    <div class="db-row">
-      <span class="db-ok">schedules: 日曜分（06:00のimportScheduleで最新化済み）</span>
-      <span class="db-ok">races: 土日24レース（土曜+06:00で日曜分更新）</span>
-      <span class="db-ok">horses: 土日全馬分（同上）</span>
-      <span class="db-ok">odds: 土日全馬分999 + 土曜分スナップショット多数</span>
-      <span class="db-ok">netkeiba_races: 土日両日分</span>
-      <span class="db-ok">netkeiba_odds: 土曜分のスナップショット多数</span>
-      <span class="db-ok">odds_wide: 土曜分のワイドオッズ多数</span>
-      <span class="db-ok">odds_get_timing: 土曜分の記録多数</span>
-    </div>
-  </div>
-  <div class="ok">日曜の999オッズは土曜朝7時のimportBaseOddsで取得済み。日曜のimportOddsがdiff=24に合致したタイミングでupsert（上書き更新）する。</div>
-</div>
-
-<!-- ========== 日曜タイムライン ========== -->
-<div id="timeline-sun" class="day-header sun">日曜日 2026-06-07　実行タイムライン</div>
-<div class="timeline">
-  <div class="tl-item">
-    <div class="tl-time sun">00:00〜<br>05:59</div>
-    <div class="tl-dot sun"></div>
-    <div class="tl-box">
-      <div class="tl-title">何も実行されない</div>
-      <div class="tl-sub">土曜夜〜日曜深夜はcronが何も動かない。DBに土曜のデータが蓄積されたまま残っている。</div>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time sun">06:00</div>
-    <div class="tl-dot sun"></div>
-    <div class="tl-box">
-      <div class="tl-title">⑦ keiba:importSchedule（日曜分を最新化）</div>
-      <div class="tl-sub">毎日実行（<code>0 6 * * *</code>）。日曜は date('w') !== '6' → 当日分フィルター。日曜のスケジュール・レース・馬情報を最新状態に更新する。</div>
-      <a class="tl-link" href="#sun-schedule">→ 詳細を見る</a>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time sun">06:20</div>
-    <div class="tl-dot sun"></div>
-    <div class="tl-box">
-      <div class="tl-title">⑧ keiba:importRace（日曜分を再upsert）</div>
-      <div class="tl-sub">土日両日実行（<code>20 6 * * 0,6</code>）。ネットケイバから日曜分のrace_idを取得して再upsert。出走取消などの当日変更に対応。</div>
-      <a class="tl-link" href="#sun-race">→ 詳細を見る</a>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time sun">09:00〜<br>17:59</div>
-    <div class="tl-dot sun"></div>
-    <div class="tl-box">
-      <div class="tl-title">⑨ keiba:importOdds（毎分）</div>
-      <div class="tl-sub">date='2026-06-07'の日曜レースのみ処理。土曜レースは<code>diff &lt; 0</code>で全スキップ。動作ロジックは土曜と全く同じ。</div>
-      <a class="tl-link" href="#sun-odds">→ 詳細を見る</a>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time sun">09:00〜<br>17:59</div>
-    <div class="tl-dot sun"></div>
-    <div class="tl-box">
-      <div class="tl-title">⑩ keiba:importRaceResult（毎分）</div>
-      <div class="tl-sub">date='2026-06-07'の日曜netkeiba_racesのみ処理。土曜レースはスキップ。動作ロジックは土曜と全く同じ。</div>
-      <a class="tl-link" href="#sun-result">→ 詳細を見る</a>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time sun">18:00</div>
-    <div class="tl-dot sun"></div>
-    <div class="tl-box">
-      <div class="tl-title">⑪ keiba:summary</div>
-      <div class="tl-sub">毎日実行（<code>0 18 * * *</code>）。当日レースのサマリを作成。</div>
-      <a class="tl-link" href="#daily-summary">→ 詳細を見る</a>
-    </div>
-  </div>
-  <div class="tl-item">
-    <div class="tl-time sun">18:30</div>
-    <div class="tl-dot sun"></div>
-    <div class="tl-box">
-      <div class="tl-title">⑫ keiba:importJraRaceResult</div>
-      <div class="tl-sub">毎日実行（<code>30 18 * * *</code>）。JRAから当日レース結果を取得・更新。</div>
-      <a class="tl-link" href="#daily-jra-result">→ 詳細を見る</a>
-    </div>
-  </div>
-</div>
-
-<br>
-
-<!-- ========== ⑦ importSchedule（日曜） ========== -->
-<div id="sun-schedule" class="section sun">
-  <div class="section-title sun">⑦ 06:00 日曜 — <span class="cmd">keiba:importSchedule</span>（毎日実行・当日分のみ）<a class="back-link" href="#timeline-sun">↑ TLへ</a></div>
-  <div class="diff-box">
-    <div class="diff-box-title">土曜との差分</div>
-    <div class="table-wrap"><table class="eval-table">
-      <tr><th>項目</th><th>土曜</th><th>日曜</th></tr>
-      <tr>
-        <td>date('w')</td>
-        <td class="code">'6'</td>
-        <td class="code">'0'</td>
-      </tr>
-      <tr>
-        <td>日付フィルター</td>
-        <td>date('w') === '6' → <strong>フィルターなし</strong>（土日両日分）</td>
-        <td>date('w') !== '6' → <strong>当日分のみ</strong>（日曜分のみ）</td>
-      </tr>
-      <tr>
-        <td>INSERT対象</td>
-        <td>土日両日分のschedules/races/horses</td>
-        <td>日曜分のみ再INSERT（最新化）</td>
-      </tr>
-      <tr>
-        <td>odds DELETE</td>
-        <td>TRUNCATE済みなので0件</td>
-        <td>日曜分のoddsをDELETE（999含む）→ importOddsが再取得</td>
-      </tr>
-    </table></div>
-  </div>
-  <h3>コード条件の評価（日曜: date('w') = '0'）</h3>
-  <div class="table-wrap"><table class="eval-table">
-    <tr><th>条件</th><th>コード</th><th>評価</th><th>動作</th></tr>
-    <tr>
-      <td>木曜・金曜チェック</td>
-      <td class="code">date('w')==='4' || date('w')==='5'<br>= '0'==='4' || '0'==='5' = <strong>false</strong></td>
-      <td class="result-ok">false → スキップしない</td>
-      <td>処理続行 ✓</td>
-    </tr>
-    <tr>
-      <td>日付フィルター</td>
-      <td class="code">date('w') !== '6'<br>= '0' !== '6' = <strong>true</strong></td>
-      <td class="result-ok">true → 当日（日曜）分のみ</td>
-      <td>日曜分のみ処理 ✓</td>
-    </tr>
-  </table></div>
-  <h3>処理フロー</h3>
-  <pre>
-1. Node.js (keibaOddsGetSchedule.mjs) を timeout 300s で実行
-   └─ JRAサイトをスクレイピング → 当日（日曜）の開催情報を取得
-2. datesToDelete = ['2026-06-07']（日曜のみ）
-3. トランザクション開始
-   ├─ date='2026-06-07' のschedules/races/horses をDELETE → INSERT（最新化）
-   └─ date='2026-06-07' の odds をDELETE
-        ※ 土曜importBaseOddsが入れた日曜999オッズも消える
-4. コミット
-
-→ importOddsがdiff=24のタイミングで999オッズを再取得（INSERT）する</pre>
-  <div class="ok">出走取消・枠順変更など当日の変更を反映できる。</div>
-  <div class="info">土曜のimportBaseOddsで保存した日曜分の999オッズは一旦削除される。importOddsのdiff=24で「existsチェック→存在しない→INSERT」として再作成されるため問題なし。</div>
-</div>
-
-<!-- ========== ⑧ importRace（日曜） ========== -->
-<div id="sun-race" class="section sun">
-  <div class="section-title sun">⑧ 06:20 日曜 — <span class="cmd">keiba:importRace</span>（土日両日実行）<a class="back-link" href="#timeline-sun">↑ TLへ</a></div>
-  <div class="diff-box">
-    <div class="diff-box-title">土曜との差分</div>
-    <div class="table-wrap"><table class="eval-table">
-      <tr><th>項目</th><th>土曜</th><th>日曜</th></tr>
-      <tr>
-        <td>cron</td>
-        <td class="code">20 6 * * 0,6</td>
-        <td class="code">20 6 * * 0,6</td>
-      </tr>
-      <tr>
-        <td>動作</td>
-        <td>土日両日分のrace_idをupsert（初回登録）</td>
-        <td>日曜分のrace_idを再upsert（最新化）。土曜分は上書きされるがdiff&lt;0のため実害なし。</td>
-      </tr>
-    </table></div>
-  </div>
-  <div class="ok">土曜のimportRaceで土日両日分が登録済みのため、日曜のimportRaceは重複upsertになるが問題なし。出走取消などがあっても日曜06:20の再upsertで最新状態に更新される。</div>
-</div>
-
-<!-- ========== ⑨ importOdds（日曜） ========== -->
-<div id="sun-odds" class="section sun">
-  <div class="section-title sun">⑨ 09:00〜17:59 毎分 日曜 — <span class="cmd">keiba:importOdds</span><a class="back-link" href="#timeline-sun">↑ TLへ</a></div>
-  <div class="diff-box">
-    <div class="diff-box-title">土曜との差分（ここだけ読めばOK）</div>
-    <div class="table-wrap"><table class="eval-table">
-      <tr><th>項目</th><th>土曜</th><th>日曜</th></tr>
-      <tr>
-        <td>date('Y-m-d')</td>
-        <td class="code">'2026-06-06'</td>
-        <td class="code">'2026-06-07'</td>
-      </tr>
-      <tr>
-        <td>取得対象レース</td>
-        <td>土曜12レース×2会場</td>
-        <td>日曜12レース×2会場</td>
-      </tr>
-      <tr>
-        <td>土曜レースの扱い</td>
-        <td>where句に合致</td>
-        <td class="result-skip">where句に合致しないので取得されない</td>
-      </tr>
-      <tr>
-        <td>diff=24 のupsert先</td>
-        <td>importBaseOddsが土曜分999でinsert済み → upsert</td>
-        <td>06:00のimportScheduleでoddsが削除済み → <strong>INSERT</strong>として実行</td>
-      </tr>
-      <tr>
-        <td>ロジック・コード</td>
-        <td colspan="2" class="result-ok">完全に同じ。日付だけ変わる。</td>
-      </tr>
-    </table></div>
-  </div>
-  <h3>日曜の1レースが辿るパス（例: 阪神1R 09:50発走）</h3>
-  <pre>
-土曜07:05 importBaseOdds:
-  → t_horse_odds_finder_odds に INSERT (date='2026-06-07', race=1, <span class="hl">minutes_before_start=999</span>)
-
-日曜06:00 importSchedule:
-  → date='2026-06-07' の odds をDELETE（上記の999レコードが消える）
-
-日曜09:26 importOdds (diff=24):
-  → exists check → 存在しない → <span class="hl">INSERT</span> (minutes_before_start=999)
-  → t_horse_odds_finder_odds_get_timing に INSERT (timing=999, odds_from='JRA')
-
-日曜09:29 importOdds (diff=21):
-  → t_horse_odds_finder_odds に <span class="hl">INSERT</span> (minutes_before_start=21)
-
-  ... 中略（18, 15, 12, 9, 6, 3 も同様）...
-
-日曜09:50 importOdds (diff=0):
-  → t_horse_odds_finder_odds に <span class="hl">INSERT</span> (minutes_before_start=-999)</pre>
-  <h3>影響テーブル（土曜と同じ）</h3>
-  <div class="table-list">
-    <span class="table-badge upsert">t_horse_odds_finder_odds（日曜分を追加）</span>
-    <span class="table-badge upsert">t_horse_odds_finder_odds_wide（日曜分を追加）</span>
-    <span class="table-badge upsert">t_horse_odds_finder_odds_get_timing（日曜分を追加）</span>
-  </div>
-  <div class="ok">土曜のデータはDBに残ったままだが、where句でdate='2026-06-07'に絞っているので土日混在しない。</div>
-</div>
-
-<!-- ========== ⑩ importRaceResult（日曜） ========== -->
-<div id="sun-result" class="section sun">
-  <div class="section-title sun">⑩ 09:00〜17:59 毎分 日曜 — <span class="cmd">keiba:importRaceResult</span><a class="back-link" href="#timeline-sun">↑ TLへ</a></div>
-  <div class="diff-box">
-    <div class="diff-box-title">土曜との差分</div>
-    <div class="table-wrap"><table class="eval-table">
-      <tr><th>項目</th><th>土曜</th><th>日曜</th></tr>
-      <tr>
-        <td>date('Y-m-d')</td>
-        <td class="code">'2026-06-06'</td>
-        <td class="code">'2026-06-07'</td>
-      </tr>
-      <tr>
-        <td>取得元テーブル</td>
-        <td>netkeiba_races where date='2026-06-06'</td>
-        <td>netkeiba_races where date='2026-06-07'</td>
-      </tr>
-      <tr>
-        <td>netkeiba_racesの日曜分</td>
-        <td>—</td>
-        <td class="result-ok">土曜のimportRaceで登録済み、さらに日曜06:20のimportRaceで最新化済み ✓</td>
-      </tr>
-      <tr>
-        <td>ロジック・コード</td>
-        <td colspan="2" class="result-ok">完全に同じ。日付だけ変わる。</td>
-      </tr>
-    </table></div>
-  </div>
-  <h3>影響テーブル（土曜と同じ）</h3>
-  <div class="table-list">
-    <span class="table-badge upsert">t_horse_odds_finder_netkeiba_odds（日曜分を追加）</span>
-    <span class="table-badge upsert">t_horse_odds_finder_odds_get_timing（日曜分を追加、odds_from='netkeiba'）</span>
-  </div>
-  <div class="ok">日曜のnetkeiba_racesデータは土曜のimportRaceで登録済みで、さらに日曜06:20のimportRaceで再upsert（最新化）されている。importRaceResultは即動作できる。</div>
-</div>
-
-<!-- ========== 毎日 summary ========== -->
-<div id="daily-summary" class="section">
-  <div class="section-title">⑪⑫ 18:00 毎日 — <span class="cmd">keiba:summary</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
-  <div class="info">毎日実行（<code>0 18 * * *</code>）。当日レースのサマリを作成する。競馬開催日（土日）も平日も実行される。</div>
-</div>
-
-<!-- ========== 毎日 importJraRaceResult ========== -->
-<div id="daily-jra-result" class="section">
-  <div class="section-title">⑫⑬ 18:30 毎日 — <span class="cmd">keiba:importJraRaceResult</span><a class="back-link" href="#timeline-sat">↑ TLへ</a></div>
-  <div class="info">毎日実行（<code>30 18 * * *</code>）。JRAから当日レース結果を取得・更新する。競馬開催日（土日）も平日も実行される。</div>
-</div>
-
-<!-- ========== 総評 ========== -->
-<div id="summary" class="section">
-  <div class="section-title">総評 — 土日本番チェックリスト<a class="back-link" href="#dep">↑ 依存関係へ</a></div>
-  <div class="table-wrap"><table class="eval-table">
-    <tr><th>チェック項目</th><th>内容・根拠</th><th>土曜</th><th>日曜</th></tr>
-    <tr>
-      <td><a class="anchor-link" href="#sat-delete">05:50 TRUNCATE → 06:00 INSERT</a></td>
-      <td>cronの順番通り。削除してから入れる。</td>
-      <td class="result-ok">✓</td>
-      <td class="result-skip">N/A（土曜のみ）</td>
-    </tr>
-    <tr>
-      <td><a class="anchor-link" href="#sat-schedule">importScheduleの日付フィルター（土曜）</a></td>
-      <td>date('w')==='6' → フィルターなし → 土日両日分INSERT</td>
-      <td class="result-ok">✓</td>
-      <td class="result-skip">N/A</td>
-    </tr>
-    <tr>
-      <td><a class="anchor-link" href="#sun-schedule">importSchedule（日曜）が当日分を最新化</a></td>
-      <td>毎日実行（0 6 * * *）。日曜は当日分のみフィルター。出走取消・枠順変更に対応。</td>
-      <td class="result-skip">N/A</td>
-      <td class="result-ok">✓</td>
-    </tr>
-    <tr>
-      <td><a class="anchor-link" href="#sat-schedule">importScheduleの完了タイミング</a></td>
-      <td>timeout 300s=最大5分。06:05完了。06:20まで余裕あり。</td>
-      <td class="result-ok">✓</td>
-      <td class="result-skip">N/A（importRace不要）</td>
-    </tr>
-    <tr>
-      <td><a class="anchor-link" href="#sat-baseodds">importBaseOddsが土日両日分取得</a></td>
-      <td>WHERE句なしで全レース取得 → 日曜分の999オッズも土曜朝7時に保存済み</td>
-      <td class="result-ok">✓</td>
-      <td class="result-ok">土曜に対応済み ✓</td>
-    </tr>
-    <tr>
-      <td><a class="anchor-link" href="#sat-odds">diff=24 upsert（重複しない）</a></td>
-      <td>土曜は999レコードUPDATE。日曜はimportScheduleが削除済みのためINSERT。いずれも正常。</td>
-      <td class="result-ok">✓</td>
-      <td class="result-ok">✓</td>
-    </tr>
-    <tr>
-      <td><a class="anchor-link" href="#sat-odds">importOddsとimportRaceResultの並行動作</a></td>
-      <td>ロックファイルが別。干渉しない。土日共通。</td>
-      <td class="result-ok">✓</td>
-      <td class="result-ok">✓</td>
-    </tr>
-    <tr>
-      <td><a class="anchor-link" href="#sat-odds">早朝レースのtiming取りこぼし</a></td>
-      <td>最初の発走が09:50なのでtiming=24は09:26。cron（9:00〜）で全て捕捉可能。</td>
-      <td class="result-ok">✓</td>
-      <td class="result-ok">✓</td>
-    </tr>
-    <tr>
-      <td><a class="anchor-link" href="#sun-result">日曜のimportRaceResultの依存データ</a></td>
-      <td>netkeiba_racesの日曜分は土曜importRaceで登録済み。</td>
-      <td class="result-skip">N/A</td>
-      <td class="result-ok">✓</td>
-    </tr>
-    <tr>
-      <td>--debugオプションの影響</td>
-      <td>本番はdebugフラグなし。全isDebug分岐は通常パスを通る。</td>
-      <td class="result-ok">✓</td>
-      <td class="result-ok">✓</td>
-    </tr>
-    <tr>
-      <td>odds_get_timing の設計</td>
-      <td>キー={date,kaisuu,basho,day,race,timing}。JRA→netkeiba順で後勝ちupsert。</td>
-      <td class="result-ok">✓</td>
-      <td class="result-ok">✓</td>
-    </tr>
-  </table></div>
-  <br>
-  <div class="ok">土曜・日曜ともに現状のコードで本番は問題なく動作する見込み。</div>
-  <div class="info">日曜 06:00 に importSchedule が動き、当日分のデータを最新化する。出走取消などの変更が反映される。</div>
-  <div class="risk">唯一のリスクはネットワーク障害・JRA/ネットケイバのサイト障害。各コマンドにリトライ機構があり、importOdds / importRaceResultはcronが毎分再起動するため自己回復する。土曜朝6時前後の障害だけは特に注意（importScheduleが失敗すると日曜分のデータも取れなくなる）。</div>
-</div>
-
-</div>
+// op-rowのテーブルバッジの下にフルテーブル名を表示
+var TBL_FULL={
+  'tbl-sch':'t_horse_odds_finder_schedules',
+  'tbl-rac':'t_horse_odds_finder_races',
+  'tbl-hor':'t_horse_odds_finder_horses',
+  'tbl-odd':'t_horse_odds_finder_odds',
+  'tbl-wid':'t_horse_odds_finder_odds_wide',
+  'tbl-tim':'t_horse_odds_finder_odds_get_timing',
+  'tbl-res':'t_horse_odds_finder_race_results',
+  'tbl-sum':'t_horse_odds_finder_summary',
+  'tbl-his':'t_horse_odds_finder_race_result_history',
+  'tbl-avg':'t_horse_odds_finder_popularity_rank_average',
+  'tbl-rat':'t_horse_odds_finder_races_popularity_ratio',
+  'tbl-pay':'t_horse_odds_finder_race_result_payout',
+};
+document.querySelectorAll('.op-row').forEach(function(row){
+  var tbls=row.querySelectorAll('.tbl');
+  if(!tbls.length)return;
+  var names=Array.from(tbls).map(function(el){
+    var cls=Array.from(el.classList).find(function(c){return c.startsWith('tbl-')&&c!=='tbl';});
+    return TBL_FULL[cls]||null;
+  }).filter(Boolean);
+  if(!names.length)return;
+  var full=document.createElement('div');
+  full.className='op-full';
+  full.textContent=names.join('\n');
+  row.insertAdjacentElement('afterend',full);
+});
+</script>
 </body>
 </html>

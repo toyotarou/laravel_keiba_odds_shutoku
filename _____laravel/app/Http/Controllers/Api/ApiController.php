@@ -264,22 +264,6 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
         return response()->json(['data' => $result]);
     }
 
-    public function getHorseOddsFinderOddsWide()
-    {
-        $result = DB::table('t_horse_odds_finder_odds_wide')
-            ->orderBy('date')
-            ->orderBy('kaisuu')
-            ->orderBy('basho')
-            ->orderBy('day')
-            ->orderBy('race')
-            ->orderBy('minutes_before_start')
-            ->orderBy('uma1')
-            ->orderBy('uma2')
-            ->get();
-
-        return response()->json(['data' => $result]);
-    }
-    
     public function getHorseOddsFinderSummary()
     {
         $result = DB::table('t_horse_odds_finder_summary')
@@ -472,6 +456,65 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
         return response()->json(['data' => $result]);
     }
     
+    public function getHorseOddsFinderRacesPopularityRatio(Request $request)
+    {
+        $ids = explode("|", $request->ids);
+
+        // whereIn は入力順を保証しないため FIELD() で並び順を固定する
+        $intIds = array_map('intval', $ids);
+        $placeholders = implode(',', array_fill(0, count($intIds), '?'));
+
+        $result = DB::table('t_horse_odds_finder_races_popularity_ratio')
+            ->whereIn('id', $intIds)
+            ->orderByRaw("FIELD(id, {$placeholders})", $intIds)
+            ->get();
+
+        return response()->json(['data' => $result]);
+    }
+
+    public function getHorseOddsFinderRaceResultPayout(Request $request)
+    {
+        $ex_races = array_filter(explode("/", $request->races));
+
+        $response = [];
+
+        foreach($ex_races as $v){
+            list($date, $kaisuu, $basho_code, $race) = explode("|", trim($v));
+
+            $result = DB::table('t_horse_odds_finder_race_result_payout')
+                ->where('date', $date)
+                ->where('kaisuu', $kaisuu)
+                ->where('basho_code', $basho_code)
+                ->where('race', $race)
+                ->first();
+
+            if ($result === null) {
+                continue;
+            }
+
+            $response[] = [
+                'id' => $result->id,
+                'date' => $result->date,
+                'kaisuu' => $result->kaisuu,
+                'basho' => $result->basho,
+                'basho_code' => $result->basho_code,
+                'day' => $result->day,
+                'race' => $result->race,
+                'race_name' => $result->race_name,
+                'tan' => $result->tan,
+                'fuku' => $result->fuku,
+                'waku' => $result->waku,
+                'wide' => $result->wide,
+                'umaren' => $result->umaren,
+                'umatan' => $result->umatan,
+                'trio' => $result->trio,
+                'trifecta' => $result->trifecta
+            ];
+        }
+
+        return response()->json(['data' => $response]);
+    }
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// コンフィグ値取得
 

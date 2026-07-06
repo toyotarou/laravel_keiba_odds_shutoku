@@ -61,6 +61,20 @@ class SummaryRacesPopularityRatio extends Command
 
             foreach ($races as $race) {
 
+                // すでに集計済みならスキップ
+                $exists = DB::table('t_horse_odds_finder_races_popularity_ratio')
+                    ->where('date',   $race->date)
+                    ->where('kaisuu', $race->kaisuu)
+                    ->where('basho',  $race->basho_code)
+                    ->where('day',    $race->day)
+                    ->where('race',   $race->race)
+                    ->exists();
+
+                if ($exists) {
+                    $skippedCount++;
+                    continue;
+                }
+
                 // 同レースの馬を人気順に取得してオッズ比率を計算
                 $horses = DB::table('t_horse_odds_finder_race_result_history')
                     ->where('date',       $race->date)
@@ -80,33 +94,21 @@ class SummaryRacesPopularityRatio extends Command
 
                 $popularityRatio = implode('|', $ratios);
 
-                $exists = DB::table('t_horse_odds_finder_races_popularity_ratio')
-                    ->where('date',   $race->date)
-                    ->where('kaisuu', $race->kaisuu)
-                    ->where('basho',  $race->basho_code)
-                    ->where('day',    $race->day)
-                    ->where('race',   $race->race)
-                    ->exists();
+                DB::table('t_horse_odds_finder_races_popularity_ratio')->insert([
+                    'date'             => $race->date,
+                    'kaisuu'           => $race->kaisuu,
+                    'basho'            => $race->basho_code,
+                    'basho_name'       => $race->basho,
+                    'day'              => $race->day,
+                    'race'             => $race->race,
+                    'race_name'        => $race->race_name,
+                    'num_horses'       => $race->num_horses,
+                    'popularity_ratio' => $popularityRatio,
+                ]);
+                $insertedCount++;
 
-                if ($exists) {
-                    $skippedCount++;
-                } else {
-                    DB::table('t_horse_odds_finder_races_popularity_ratio')->insert([
-                        'date'             => $race->date,
-                        'kaisuu'           => $race->kaisuu,
-                        'basho'            => $race->basho_code,
-                        'basho_name'       => $race->basho,
-                        'day'              => $race->day,
-                        'race'             => $race->race,
-                        'race_name'        => $race->race_name,
-                        'num_horses'       => $race->num_horses,
-                        'popularity_ratio' => $popularityRatio,
-                    ]);
-                    $insertedCount++;
-
-                    if ($insertedCount % 100 === 0) {
-                        $this->line("  {$insertedCount} 件INSERT済み...");
-                    }
+                if ($insertedCount % 100 === 0) {
+                    $this->line("  {$insertedCount} 件INSERT済み...");
                 }
             }
 
