@@ -91,15 +91,26 @@ class ImportKeibaRaceResultPayout extends Command
             [$year, $month] = explode('-', $yearmonth);
             $from = "{$year}-{$month}-01";
             $to   = date('Y-m-t', strtotime($from));
-            $existingKaisaiKeys = DB::table('t_horse_odds_finder_race_result_payout')
+            $existingRows = DB::table('t_horse_odds_finder_race_result_payout')
                 ->whereBetween('date', [$from, $to])
                 ->select('date', 'kaisuu', 'basho_code', 'day')
                 ->distinct()
-                ->get()
+                ->get();
+            $existingKaisaiKeys      = $existingRows
                 ->mapWithKeys(fn($r) => ["{$r->date}_{$r->kaisuu}_{$r->basho_code}_{$r->day}" => true])
+                ->toArray();
+            // Node.js実行前の早期スキップ用（dateなし）
+            $existingKaisaiShortKeys = $existingRows
+                ->mapWithKeys(fn($r) => ["{$r->kaisuu}_{$r->basho_code}_{$r->day}" => true])
                 ->toArray();
             $this->info('  インポート済み開催: ' . count($existingKaisaiKeys) . ' 件');
             $this->info('');
+
+            $bashoMap = [
+                '札幌' => '01', '函館' => '02', '福島' => '03', '新潟' => '04',
+                '東京' => '05', '中山' => '06', '中京' => '07', '京都' => '08',
+                '阪神' => '09', '小倉' => '10',
+            ];
 
             // ── Step 2: 各開催を順番に処理 ───────────────────────────────
             $kaisaiIndex = 0;
@@ -110,6 +121,16 @@ class ImportKeibaRaceResultPayout extends Command
                 $this->info('══════════════════════════════════════════════════════');
                 $this->info("[{$kaisaiIndex}/{$totalKaisai}] {$kaisai} 処理開始");
                 $this->info('══════════════════════════════════════════════════════');
+
+                // Node.js実行前の早期スキップ（kaisai文字列を解析して判定）
+                if (preg_match('/^(\d+)回(.+?)(\d+)日$/', $kaisai, $m)) {
+                    $shortKey = (int)$m[1] . '_' . ($bashoMap[$m[2]] ?? '') . '_' . (int)$m[3];
+                    if (!empty($bashoMap[$m[2]]) && isset($existingKaisaiShortKeys[$shortKey])) {
+                        $this->info("  [SKIP] インポート済み（Node.js実行省略）: {$kaisai}");
+                        $this->info('');
+                        continue;
+                    }
+                }
 
                 $command = 'timeout 300 ' . $nodeBin . ' ' . escapeshellarg($script)
                     . ' --yearmonth=' . escapeshellarg($yearmonth)
