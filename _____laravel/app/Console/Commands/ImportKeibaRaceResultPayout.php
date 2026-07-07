@@ -243,18 +243,15 @@ class ImportKeibaRaceResultPayout extends Command
                         'trifecta'  => implode('/', $buckets['trifecta']) ?: null,
                     ];
 
-                    $exists = DB::table('t_horse_odds_finder_race_result_payout')
-                        ->where($key)
-                        ->exists();
-
-                    if (!$exists) {
-                        DB::table('t_horse_odds_finder_race_result_payout')
-                            ->insert(array_merge($key, $data));
-                        $saved++;
-                        $this->info("    {$raceData['race']}R → 保存完了");
-                    } else {
+                    if (DB::table('t_horse_odds_finder_race_result_payout')->where($key)->exists()) {
                         $this->info("    {$raceData['race']}R → スキップ（既存）");
+                        continue;
                     }
+
+                    DB::table('t_horse_odds_finder_race_result_payout')
+                        ->insert(array_merge($key, $data));
+                    $saved++;
+                    $this->info("    {$raceData['race']}R → 保存完了");
                 }
 
                 $totalSaved += $saved;

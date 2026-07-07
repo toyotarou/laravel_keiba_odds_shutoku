@@ -435,6 +435,7 @@ code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-siz
     <div class="ds-row"><span class="ds-time">20:00</span><span class="ds-cmd">summaryHistoryPopularityRank</span></div>
     <div class="ds-row skip"><span class="ds-time">20:30</span><span class="ds-cmd">summaryPopularityRankAverage</span><span class="ds-note">土曜スキップ</span></div>
     <div class="ds-row"><span class="ds-time">21:00</span><span class="ds-cmd">summaryHistoryFinishingPosition</span></div>
+    <div class="ds-row"><span class="ds-time">21:30</span><span class="ds-cmd">importRaceResultPayout</span></div>
   </div>
 
   <div class="tl">
@@ -764,6 +765,29 @@ code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-siz
       </div>
     </div>
 
+    <!-- 21:30 importRaceResultPayout (土) -->
+    <div class="tl-item">
+      <div class="tl-time">21:30</div>
+      <div class="tl-dot orange"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">💰</span>
+          <div class="card-titles">
+            <div class="card-name">払戻金 取得・保存</div>
+            <span class="card-cmd">keiba:importRaceResultPayout</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          当月の全開催の払戻金（単勝・複勝・枠連・ワイド・馬連・馬単・3連複・3連単）をJRAサイトからスクレイピングして race_result_payout に保存。インポート済み開催はNode.js実行前にスキップ（3回リトライ）。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-pay">payout</span><span style="font-size:11px;color:var(--t2)">払戻金（1レース1行、既存はSKIP）</span></div>
+        </div>
+        <div class="note">ℹ️ keibaOddsGetPayout.mjs 使用。先に --list-only で開催一覧取得 → kaisai文字列（例："3回東京2日"）をパースして早期SKIP判定。tan/fuku/waku/wide/umaren/umatan/trio/trifecta を | 区切りで1カラムに格納。</div>
+      </div>
+    </div>
+
   </div><!-- /tl -->
 </section>
 
@@ -795,6 +819,7 @@ code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-siz
     <div class="ds-row"><span class="ds-time">20:00</span><span class="ds-cmd">summaryHistoryPopularityRank</span></div>
     <div class="ds-row"><span class="ds-time">20:30</span><span class="ds-cmd">summaryPopularityRankAverage</span></div>
     <div class="ds-row"><span class="ds-time">21:00</span><span class="ds-cmd">summaryHistoryFinishingPosition</span></div>
+    <div class="ds-row"><span class="ds-time">21:30</span><span class="ds-cmd">importRaceResultPayout</span></div>
   </div>
 
   <div class="tl">
@@ -1052,6 +1077,28 @@ code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-siz
       </div>
     </div>
 
+    <!-- 21:30 importRaceResultPayout (日) -->
+    <div class="tl-item">
+      <div class="tl-time">21:30</div>
+      <div class="tl-dot orange"></div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-ico">💰</span>
+          <div class="card-titles">
+            <div class="card-name">払戻金 取得・保存</div>
+            <span class="card-cmd">keiba:importRaceResultPayout</span>
+          </div>
+        </div>
+        <div class="card-desc">
+          当月の全開催の払戻金を取得して保存。土日両日分が対象。インポート済みはSKIP。
+        </div>
+        <div class="ops">
+          <div class="ops-label">テーブル操作</div>
+          <div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-pay">payout</span><span style="font-size:11px;color:var(--t2)">払戻金（既存はSKIP）</span></div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /tl -->
 </section>
 
@@ -1081,6 +1128,7 @@ code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-siz
     <div class="ds-row"><span class="ds-time">20:00</span><span class="ds-cmd">summaryHistoryPopularityRank</span></div>
     <div class="ds-row"><span class="ds-time">20:30</span><span class="ds-cmd">summaryPopularityRankAverage</span></div>
     <div class="ds-row"><span class="ds-time">21:00</span><span class="ds-cmd">summaryHistoryFinishingPosition</span></div>
+    <div class="ds-row"><span class="ds-time">21:30</span><span class="ds-cmd">importRaceResultPayout</span></div>
   </div>
 
   <div class="tl">
@@ -1262,6 +1310,20 @@ code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-siz
       </div>
     </div>
 
+    <!-- 21:30 importRaceResultPayout (月-水) -->
+    <div class="tl-item">
+      <div class="tl-time">21:30</div>
+      <div class="tl-dot orange"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">💰</span>
+          <div class="card-titles"><div class="card-name">払戻金 取得・保存（未処理分があれば）</div>
+            <span class="card-cmd">keiba:importRaceResultPayout</span>
+          </div>
+        </div>
+        <div class="ops"><div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-pay">payout</span><span style="font-size:11px;color:var(--t3)">未処理開催があれば</span></div></div>
+      </div>
+    </div>
+
   </div><!-- /tl -->
 </section>
 
@@ -1291,6 +1353,7 @@ code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-siz
     <div class="ds-row"><span class="ds-time">20:00</span><span class="ds-cmd">summaryHistoryPopularityRank</span></div>
     <div class="ds-row"><span class="ds-time">20:30</span><span class="ds-cmd">summaryPopularityRankAverage</span></div>
     <div class="ds-row"><span class="ds-time">21:00</span><span class="ds-cmd">summaryHistoryFinishingPosition</span></div>
+    <div class="ds-row"><span class="ds-time">21:30</span><span class="ds-cmd">importRaceResultPayout</span></div>
   </div>
 
   <div class="tl">
@@ -1395,6 +1458,16 @@ code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-siz
         <div class="ops"><div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">finishing_position</span></div></div>
       </div>
     </div>
+    <div class="tl-item">
+      <div class="tl-time">21:30</div>
+      <div class="tl-dot orange"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">💰</span>
+          <div class="card-titles"><div class="card-name">keiba:importRaceResultPayout（毎日実行）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-pay">payout</span><span style="font-size:11px;color:var(--t3)">未処理開催があれば</span></div></div>
+      </div>
+    </div>
 
   </div><!-- /tl -->
 </section>
@@ -1425,6 +1498,7 @@ code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-siz
     <div class="ds-row"><span class="ds-time">20:00</span><span class="ds-cmd">summaryHistoryPopularityRank</span></div>
     <div class="ds-row"><span class="ds-time">20:30</span><span class="ds-cmd">summaryPopularityRankAverage</span></div>
     <div class="ds-row"><span class="ds-time">21:00</span><span class="ds-cmd">summaryHistoryFinishingPosition</span></div>
+    <div class="ds-row"><span class="ds-time">21:30</span><span class="ds-cmd">importRaceResultPayout</span></div>
   </div>
 
   <div class="tl">
@@ -1532,6 +1606,16 @@ code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-siz
         <div class="ops"><div class="op-row"><span class="act act-upd">UPDATE</span><span class="tbl tbl-his">history</span><span style="font-size:11px;color:var(--t2)">finishing_position</span></div></div>
       </div>
     </div>
+    <div class="tl-item">
+      <div class="tl-time">21:30</div>
+      <div class="tl-dot orange"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-ico">💰</span>
+          <div class="card-titles"><div class="card-name">keiba:importRaceResultPayout（毎日実行）</div></div>
+        </div>
+        <div class="ops"><div class="op-row"><span class="act act-ins">INSERT</span><span class="tbl tbl-pay">payout</span><span style="font-size:11px;color:var(--t3)">未処理開催があれば</span></div></div>
+      </div>
+    </div>
 
   </div><!-- /tl -->
 </section>
@@ -1568,6 +1652,7 @@ code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-siz
       <div class="legend-row"><span class="tbl tbl-his">history</span><span class="legend-full">t_horse_odds_finder_race_result_history</span></div>
       <div class="legend-row"><span class="tbl tbl-avg">rank_avg</span><span class="legend-full">t_horse_odds_finder_popularity_rank_average</span></div>
       <div class="legend-row"><span class="tbl tbl-rat">ratio</span><span class="legend-full">t_horse_odds_finder_races_popularity_ratio</span></div>
+      <div class="legend-row"><span class="tbl tbl-pay">payout</span><span class="legend-full">t_horse_odds_finder_race_result_payout</span></div>
     </div>
   </div>
 
@@ -1585,7 +1670,6 @@ code,pre,.mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace;font-siz
     <ul class="detail-list">
       <li>keiba:importRace — 旧レース一覧取得（importScheduleに統合済み）</li>
       <li>keiba:importRaceResult — 旧レース結果取得（importJraRaceResultに統合済み）</li>
-      <li>keiba:importRaceResultPayout — 払戻金取得（t_race_result_payout）</li>
     </ul>
   </div>
 
