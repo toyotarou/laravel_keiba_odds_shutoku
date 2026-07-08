@@ -49,3 +49,5 @@ Route::get('getHorseOddsFinderHorseBattleRecord', [ApiController::class, 'getHor
 Route::get('getHorseOddsFinderRacesPopularityRatio', [ApiController::class, 'getHorseOddsFinderRacesPopularityRatio']);
 
 Route::get('getHorseOddsFinderRaceResultPayout', [ApiController::class, 'getHorseOddsFinderRaceResultPayout']);
+
+Route::get('getHorseOddsFinderSummaryTableCount', [ApiController::class, 'getHorseOddsFinderSummaryTableCount']);

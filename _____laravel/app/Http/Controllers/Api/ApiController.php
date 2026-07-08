@@ -519,14 +519,34 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
 /// コンフィグ値取得
 
 
-    public function getHorseOddsFinderConfigs()
-    {
+public function getHorseOddsFinderConfigs()
+{
+$sql = "
+SELECT
+CASE
+WHEN CAST(odds_tan_before_3 AS DECIMAL(10,1)) < 5.0  THEN 'honmei'
+WHEN CAST(odds_tan_before_3 AS DECIMAL(10,1)) < 15.0 THEN 'chu_ana'
+ELSE 'daiana'
+END AS odds_band,
+ROUND(SUM(CASE WHEN result <= 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS rate
+FROM t_horse_odds_finder_summary
+WHERE odds_tan_before_24 REGEXP '^[0-9]'
+AND odds_tan_before_3  REGEXP '^[0-9]'
+AND result IS NOT NULL
+AND (CAST(odds_tan_before_3 AS DECIMAL(10,1)) / CAST(odds_tan_before_24 AS DECIMAL(10,1))) < 0.7
+GROUP BY odds_band
+";
 
-        return response()->json(['data' => [
-            "odds_get_timing" => implode("|", Constants::ODDS_GET_TIMING),
-        ]]);
+$rows = DB::select($sql);
 
-    }
+$oddsDropRate = ['honmei' => null, 'chu_ana' => null, 'daiana' => null];
+foreach ($rows as $row) {$oddsDropRate[$row->odds_band] = (float) $row->rate;}
+
+return response()->json(['data' => [
+'odds_get_timing' => implode('|', Constants::ODDS_GET_TIMING),
+'odds_drop_rate'  => $oddsDropRate,
+]]);
+}
 
 
 
@@ -574,6 +594,71 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
         $isDelete = $request->input('is_delete');
         
         DB::table('t_horse_odds_finder_push_subscriptions')->where('id', $id)->update(['is_delete' => $isDelete]);
+    }
+    
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// サマリーテーブルのカウント取得
+
+
+    public function getHorseOddsFinderSummaryTableCount()
+    {
+        $sql = " select date, count(date) as count from t_horse_odds_finder_race_result_history group by date; ";
+        $history = [];
+        $result = DB::select($sql);
+        foreach($result as $v){
+            $history[$v->date] = $v->count;
+        }
+        
+        $sql = " select date, count(date) as count from t_horse_odds_finder_race_result_history where popularity_rank is not null group by date; ";
+        $history_popularity_rank = [];
+        $result = DB::select($sql);
+        foreach($result as $v){
+            $history_popularity_rank[$v->date] = $v->count;
+        }
+
+        $sql = " select date, count(date) as count from t_horse_odds_finder_race_result_history where finishing_position is not null group by date; ";
+        $history_finishing_position = [];
+        $result = DB::select($sql);
+        foreach($result as $v){
+            $history_finishing_position[$v->date] = $v->count;
+        }
+        
+        $sql = " select date, count(date) as count from t_horse_odds_finder_race_result_payout group by date; ";
+        $payout = [];
+        $result = DB::select($sql);
+        foreach($result as $v){
+            $payout[$v->date] = $v->count;
+        }
+        
+        $sql = " select date, count(date) as count from t_horse_odds_finder_races_popularity_ratio group by date; ";
+        $ratio = [];
+        $result = DB::select($sql);
+        foreach($result as $v){
+            $ratio[$v->date] = $v->count;
+        }
+        
+        $sql = " select date, count(date) as count from t_horse_odds_finder_summary group by date; ";
+        $summary = [];
+        $result = DB::select($sql);
+        foreach($result as $v){
+            $summary[$v->date] = $v->count;
+        }
+        
+        //------------
+
+        foreach($history as $date=>$count){
+            $response[] = [
+                "date" => $date,
+                "summary_count" => (isset($summary[$date])) ? $summary[$date] : 0,
+                "history_count" => $count,
+                "history_popularity_rank_count" => (isset($history_popularity_rank[$date])) ? $history_popularity_rank[$date] : 0,
+                "history_finishing_position_count" => (isset($history_finishing_position[$date])) ? $history_finishing_position[$date] : 0,
+                "payout_count" => (isset($payout[$date])) ? $payout[$date] : 0,
+                "ratio_count" => (isset($ratio[$date])) ? $ratio[$date] : 0,
+            ];
+        }
+        
+        return response()->json(['data' => $response]);
     }
     
 }
