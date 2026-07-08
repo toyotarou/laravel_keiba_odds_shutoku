@@ -6,6 +6,38 @@ use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * SummaryRacesPopularityRatio
+ *
+ * 【概要】
+ *   t_horse_odds_finder_race_result_history のデータをもとに、
+ *   レースごとの「連続する人気順オッズの比率」（popularity_ratio）を計算して
+ *   t_horse_odds_finder_races_popularity_ratio テーブルに INSERT する。
+ *   これは ImportRacesPopularityRatio のマスタデータとして機能する。
+ *
+ * 【処理フロー】
+ *   【ブロック 1】多重起動防止（ロックファイル）
+ *   【ブロック 2】開始バナー
+ *   【ブロック 3】race_result_history をレース単位でグループ化して取得
+ *   【ブロック 4】レースごとのループ
+ *                  → 集計済みスキップ（EXISTS チェック）
+ *                  → 人気順に tan を取得
+ *                  → 連続比率を計算して INSERT
+ *   【ブロック 5】完了サマリー・WebPush 通知（finally で必ず実行）
+ *
+ * 【popularity_ratio の形式】
+ *   tan（単勝オッズ）を popularity_rank 昇順に並べ、
+ *   隣り合う要素の比（次÷前）を小数第1位で四捨五入して '|' で連結した文字列。
+ *   例: tan=[1.5, 2.3, 3.0] → 2.3/1.5=1.5, 3.0/2.3=1.3 → "1.5|1.3"
+ *
+ * 【ImportRacesPopularityRatio との関係】
+ *   このコマンドが INSERT したレコードが RMSE 類似度計算のマスタになる。
+ *   ImportRacesPopularityRatio は races テーブル側の popularity_ratio を
+ *   このマスタと比較して match_percent を算出・保存する。
+ *
+ * 【使い方】
+ *   php artisan keiba:summaryRacesPopularityRatio
+ */
 class SummaryRacesPopularityRatio extends Command
 {
     protected $signature = 'keiba:summaryRacesPopularityRatio';
@@ -13,7 +45,9 @@ class SummaryRacesPopularityRatio extends Command
 
     public function handle(): void
     {
-        // ── 多重起動防止 ─────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 1】多重起動防止（ロックファイル）
+        // ─────────────────────────────────────────────────────────────────
         $lockFile = sys_get_temp_dir() . '/keiba_summaryRacesPopularityRatio.lock';
         if (file_exists($lockFile)) {
             $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
@@ -28,6 +62,9 @@ class SummaryRacesPopularityRatio extends Command
 
         try {
 
+            // ─────────────────────────────────────────────────────────────────
+            // 【ブロック 2】開始バナー
+            // ─────────────────────────────────────────────────────────────────
             $this->info('');
             $this->info('╔══════════════════════════════════════════════════╗');
             $this->info('║     レース人気比率 集計処理 ── 開始               ║');
@@ -35,7 +72,11 @@ class SummaryRacesPopularityRatio extends Command
             $this->info('実行日時: ' . date('Y-m-d H:i:s'));
             $this->info('');
 
-            // レース単位でグループ化した基本情報を取得
+            // ─────────────────────────────────────────────────────────────────
+            // 【ブロック 3】race_result_history をレース単位でグループ化して取得
+            //   GROUP BY でレースキーを集約し、MAX(race_name) と COUNT(*) を取得する。
+            //   num_horses は同レースの行数（= 出走頭数）として使われる。
+            // ─────────────────────────────────────────────────────────────────
             $races = DB::table('t_horse_odds_finder_race_result_history')
                 ->select(
                     'date',
@@ -59,9 +100,16 @@ class SummaryRacesPopularityRatio extends Command
             $this->info('');
             $this->info('INSERT / UPDATE 中...');
 
+            // ─────────────────────────────────────────────────────────────────
+            // 【ブロック 4】レースごとのループ
+            //   ① EXISTS チェック: 集計済みのレースはスキップ。
+            //   ② 同レースの馬を popularity_rank 昇順（人気順）に取得して tan 配列を得る。
+            //   ③ 隣り合う tan の比（次÷前）を '|' 区切りで連結して popularity_ratio を生成。
+            //   ④ INSERT（マスタ用テーブルなので更新はしない）。
+            //   ⑤ 100件ごとに進捗をログ出力する。
+            // ─────────────────────────────────────────────────────────────────
             foreach ($races as $race) {
 
-                // すでに集計済みならスキップ
                 $exists = DB::table('t_horse_odds_finder_races_popularity_ratio')
                     ->where('date',   $race->date)
                     ->where('kaisuu', $race->kaisuu)
@@ -75,7 +123,6 @@ class SummaryRacesPopularityRatio extends Command
                     continue;
                 }
 
-                // 同レースの馬を人気順に取得してオッズ比率を計算
                 $horses = DB::table('t_horse_odds_finder_race_result_history')
                     ->where('date',       $race->date)
                     ->where('kaisuu',     $race->kaisuu)
@@ -117,6 +164,9 @@ class SummaryRacesPopularityRatio extends Command
 
         } finally {
 
+            // ─────────────────────────────────────────────────────────────────
+            // 【ブロック 5】完了サマリー・WebPush 通知（finally で必ず実行）
+            // ─────────────────────────────────────────────────────────────────
             $this->info('');
             $this->info('╔══════════════════════════════════════════════════╗');
             $this->info('║     処理結果サマリー                              ║');

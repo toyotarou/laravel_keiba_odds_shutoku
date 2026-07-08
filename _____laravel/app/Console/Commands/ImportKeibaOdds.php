@@ -9,11 +9,34 @@ use Illuminate\Support\Facades\DB;
 use App\Constants\Constants;
 
 /**
- * cronで毎分実行される。
- * ODDS_GET_TIMING に合致する発走前分数のレースのみオッズを取得してDBに保存する。
+ * ImportKeibaOdds
  *
- * cron設定:
+ * 【概要】
+ *   cron で毎分（9〜17時）実行されるオッズ取得コマンド。
+ *   Constants::ODDS_GET_TIMING = [24, 21, 18, 15, 12, 9, 6, 3, 0]（発走前分数）に
+ *   合致するレースのみ keibaOddsGetTanpuku.mjs で単複オッズを取得して DB に保存する。
+ *   直前タイミングとのオッズ比較で人気順位の変動を検出し、
+ *   2位以上の変動があれば WebPush 通知でユーザーに知らせる。
+ *
+ * 【処理フロー】
+ *   【ブロック 1】初期化（定数・変数・DEBUGオプション）
+ *   【ブロック 2】レース一覧取得（通常は当日、DEBUGは直近日付）
+ *   【ブロック 3】レースごとのループ・タイミング判定
+ *   【ブロック 4】変動検出のための直前タイミングのオッズ先読み
+ *   【ブロック 5】Node.js 実行（リトライ最大2回）
+ *   【ブロック 6】現タイミングの人気順位を計算
+ *   【ブロック 7】DB保存トランザクション（minutes_before_start の値決定ロジック含む）
+ *   【ブロック 8】取得タイミング記録（t_horse_odds_finder_odds_get_timing）
+ *   【ブロック 9】人気順位変動ログ出力
+ *   【ブロック 10】有意変動（2位以上）の WebPush 通知
+ *
+ * 【cron設定】
  *   * 9-17 * * * php /var/www/horse_odds_finder/artisan keiba:importOdds >> /var/www/horse_odds_finder/storage/logs/cron_odds.log 2>&1
+ *
+ * 【minutes_before_start の変換ルール】
+ *   diff=24 → 999  （importBaseOdds と同じ ベースオッズの扱い）
+ *   diff=0  → -999 （発走直前の確定オッズ）
+ *   それ以外 → そのまま（21, 18, ... 3）
  */
 class ImportKeibaOdds extends Command
 {
@@ -35,6 +58,11 @@ class ImportKeibaOdds extends Command
 
 
 
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 1】初期化（定数・変数・DEBUGオプション）
+        //   $timings = ODDS_GET_TIMING: [24, 21, 18, 15, 12, 9, 6, 3, 0]
+        //   diff=24 → DB値 999、diff=0 → DB値 -999 に変換する慣例がある。
+        // ─────────────────────────────────────────────────────────────────
         $date    = date('Y-m-d');
         $now     = time();
         $script  = base_path('scripts/keibaOddsGetTanpuku.mjs');
@@ -49,7 +77,11 @@ class ImportKeibaOdds extends Command
             $this->warn('【DEBUGモード】タイミングチェックをスキップします。');
         }
 
-        // ── レース一覧を取得（通常は当日分のみ、DEBUGモードは直近日付分） ──
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 2】レース一覧取得（通常は当日、DEBUGは直近日付）
+        //   DEBUGモードは min('date') で「今日以降で最も近い開催日」を取得する。
+        //   レースのない日に動作確認するための配慮。
+        // ─────────────────────────────────────────────────────────────────
         $query = DB::table('t_horse_odds_finder_races');
         if ($isDebug) {
             $nearestDate = DB::table('t_horse_odds_finder_races')
@@ -73,20 +105,23 @@ class ImportKeibaOdds extends Command
 
         $totalInserted = 0;
 
-        // ── レースごとの処理 ──────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 3】レースごとのループ・タイミング判定
+        //   $diff = (発走時刻 - 現在時刻) / 60（残り分数、発走後は負）
+        //   発走済み（$diff < 0）はスキップ。
+        //   $timings に含まれない分数もスキップ（DEBUGモード除く）。
+        // ─────────────────────────────────────────────────────────────────
         foreach ($races as $race) {
 
             $diff = (int) round((strtotime("{$race->date} {$race->start_time}") - $now) / 60);
 
-            // 発走済みはスキップ（$diff=0 が最後のタイミング）
             if ($diff < 0) {
-                continue;
+                continue;  // 発走済みはスキップ（$diff=0 が最後のタイミング）
             }
 
             $this->info('--------------------------------------------------');
             $this->info("[{$race->basho_name}] {$race->race}R 「{$race->race_name}」 発走: {$race->start_time}  (残り {$diff} 分)");
 
-            // 取得タイミング外はスキップ（DEBUGモード時はスキップしない）
             if (!$isDebug && !in_array($diff, $timings)) {
                 $this->info("  → スキップ (残り{$diff}分は取得タイミング外)");
                 continue;
@@ -94,8 +129,13 @@ class ImportKeibaOdds extends Command
 
             $this->info("  → 取得タイミング合致 (残り{$diff}分) : オッズ取得を開始します。");
 
-            // ── 変動検出のための事前データ取得 ─────────────────────────
-            // 直前タイミングのオッズから人気順位を算出し、現タイミングと比較する
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 4】変動検出のための直前タイミングのオッズ先読み
+            //   $timings[0]=24 は最初のタイミングなので「前」がない → スキップ。
+            //   $timingIndex > 0 の場合、$timings[$timingIndex-1] が直前タイミング。
+            //   直前タイミングのオッズを asort して人気順位 $prevRankMap を作る。
+            //   diff=24 の場合、DB上のキーは 999 なので $prevMinutesBefore に変換する。
+            // ─────────────────────────────────────────────────────────────
             $prevRankMap = [];
             $timingIndex = array_search($diff, $timings);
             if ($diff !== 24 && $timingIndex !== false && $timingIndex > 0) {
@@ -111,16 +151,19 @@ class ImportKeibaOdds extends Command
                     ->pluck('odds', 'num')
                     ->all();
 
-                asort($prevOddsMap); // オッズ昇順ソート → 人気順
+                asort($prevOddsMap); // オッズ昇順ソート → 人気順位に相当
                 $rank = 1;
                 foreach ($prevOddsMap as $num => $_) {
                     $prevRankMap[$num] = $rank++;
                 }
             }
 
-            // ── 単複オッズのスクレイピング ──────────────────────────────
-            // stderrはlogFileへリダイレクトし、stdoutのJSONに混入させない。
-            // timeout 120: Node.js が無応答でもPHPプロセスが永久ブロックしないようにする
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 5】Node.js 実行（リトライ最大2回）
+            //   stderr はログファイルへリダイレクトして stdout の JSON に混入させない。
+            //   timeout 120: Node.js が無応答でも PHP が永久ブロックするのを防ぐ。
+            //   リトライ間隔3秒（JRAサーバの一時的な応答遅延を考慮）。
+            // ─────────────────────────────────────────────────────────────
             $raceStart = microtime(true);
             $command   = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($script)
                 . ' ' . escapeshellarg($race->date)
@@ -156,7 +199,11 @@ class ImportKeibaOdds extends Command
 
             $this->info("  [単複] Node.js 取得完了 → " . count($odds) . " 頭分 ({$fetchSec}秒 / {$fetchMs}ms)");
 
-            // 現タイミングの人気順位を計算 [num => rank]
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 6】現タイミングの人気順位を計算 [num => rank]
+            //   取得した $odds を tan（単勝オッズ）の昇順にソートして順位を付ける。
+            //   $prevRankMap との差分が $changeRecords になる。
+            // ─────────────────────────────────────────────────────────────
             $currRankMap = [];
             $sortedCurr  = $odds;
             usort($sortedCurr, fn($a, $b) => (float) $a['tan'] <=> (float) $b['tan']);
@@ -165,7 +212,6 @@ class ImportKeibaOdds extends Command
                 $currRankMap[$horse['num']] = $rank++;
             }
 
-            // ── 単複オッズのDB保存 + 変動検出 ────────────────────────────
             $saved         = 0;
             $changeRecords = [];
 
@@ -186,8 +232,13 @@ class ImportKeibaOdds extends Command
                         'fuku_max' => $horse['fuku_max'],
                     ];
 
+                    // ─────────────────────────────────────────────────────
+                    // 【ブロック 7】minutes_before_start の値決定・DB保存
+                    //   diff=24: importBaseOdds が999で先行 INSERT している場合があるため upsert
+                    //   diff=0 : -999（発走直前の確定オッズ）として INSERT
+                    //   その他: diff の値そのままで INSERT（同一 diff の重複は想定しない）
+                    // ─────────────────────────────────────────────────────
                     if ($diff === 24) {
-                        // importBaseOdds が既に 999 を INSERT している可能性があるため upsert
                         $exists = DB::table('t_horse_odds_finder_odds')
                             ->where($key)->where('minutes_before_start', 999)->exists();
                         if ($exists) {
@@ -216,7 +267,11 @@ class ImportKeibaOdds extends Command
                     }
                 }
 
-                // 取得タイミングを記録
+                // ─────────────────────────────────────────────────────────
+                // 【ブロック 8】取得タイミング記録（t_horse_odds_finder_odds_get_timing）
+                //   「いつ・どのタイミング・どのソースから」オッズを取得したかを記録する。
+                //   同一キーが既存の場合は get_datetime と odds_from を上書き更新する。
+                // ─────────────────────────────────────────────────────────
                 $timing    = ($diff === 24) ? 999 : (($diff === 0) ? -999 : $diff);
                 $timingKey = [
                     'date'   => $race->date,
@@ -243,15 +298,19 @@ class ImportKeibaOdds extends Command
             $this->info("  [単複] DB保存完了 → {$saved} 頭分 (合計 {$totalSec}秒 / {$totalMs}ms)");
             $totalInserted += $saved;
 
-            // ── オッズ変動のログ出力 ──────────────────────────────────────
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 9】人気順位変動ログ出力
+            //   前タイミングと現タイミングで順位が変わった馬を1頭ずつログに出す。
+            // ─────────────────────────────────────────────────────────────
             foreach ($changeRecords as $change) {
                 $this->info("  [人気順位変動] {$change['num']}番: {$change['prev_rank']}位 → {$change['curr_rank']}位");
             }
-            
 
-
-//            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaOdds::handle\n保存:{$saved}頭分 ({$totalMs}ms)");
-            
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 10】有意変動（2位以上）の WebPush 通知
+            //   abs(prev - curr) >= 2 の変動をユーザーへ通知する。
+            //   ユーザーが注目馬の急変を見逃さないようにするための仕組み。
+            // ─────────────────────────────────────────────────────────────
             $significantChanges = array_filter($changeRecords, fn($c) => abs($c['prev_rank'] - $c['curr_rank']) >= 2);
             if (in_array($diff, $timings) && !empty($significantChanges)) {
                 $deepLinkUrl = 'https://baganriki.com/horse_odds_finder/?' . http_build_query([

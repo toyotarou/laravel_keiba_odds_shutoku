@@ -7,16 +7,41 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * 指定年月の t_horse_odds_finder_race_result_history の finishing_position を埋める。
+ * SummaryHistoryFinishingPosition
  *
- * finishing_position の値の意味:
+ * 【概要】
+ *   指定年月の t_horse_odds_finder_race_result_history テーブルの
+ *   finishing_position（着順）が未取得（NULL/0）の開催を
+ *   keibaOddsGetFinishingPosition.mjs 経由で取得して一括更新する。
+ *   中止・除外等の非完走馬は -1 に設定して以後の再処理対象外とする。
+ *
+ * 【処理フロー】
+ *   【ブロック 1】引数チェック（YYYY-MM 形式の検証）
+ *   【ブロック 2】多重起動防止（年月別ロックファイル）
+ *   【ブロック 3】初期化・開始バナー
+ *   【ブロック 4】Step 1: finishing_position が未取得の開催を取得
+ *   【ブロック 5】Step 2: 各開催を順番に処理
+ *   【ブロック 6】Node.js 実行（リトライ最大3回）
+ *   【ブロック 7】CASE WHEN 一括 UPDATE（1開催 = 1クエリ）
+ *   【ブロック 8】完了サマリー・WebPush 通知
+ *
+ * 【finishing_position の値の意味】
  *   NULL / 0  : 未取得（cron の再処理対象）
  *   1〜       : 着順
  *   -1        : 中止・除外・取消・失格等（再処理対象外）
  *
- * 使い方:
+ * 【CASE WHEN 一括 UPDATE の構造】
+ *   CASE
+ *     WHEN race = 1 AND num = 14 THEN 1
+ *     WHEN race = 1 AND num =  5 THEN 2
+ *     ...
+ *     WHEN race = 12 AND num = 1 THEN 1
+ *   END
+ *   1開催分の全着順を1クエリで書き込むことで DB ラウンドトリップを最小化する。
+ *
+ * 【使い方】
  *   php artisan keiba:summaryHistoryFinishingPosition --yearmonth=2023-01
- *   php artisan keiba:summaryHistoryFinishingPosition          # 当月を対象
+ *   php artisan keiba:summaryHistoryFinishingPosition  # 当月
  */
 class SummaryHistoryFinishingPosition extends Command
 {
@@ -25,14 +50,18 @@ class SummaryHistoryFinishingPosition extends Command
 
     public function handle(): void
     {
-        // ── 引数チェック ──────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 1】引数チェック（YYYY-MM 形式の検証）
+        // ─────────────────────────────────────────────────────────────────
         $yearmonth = $this->option('yearmonth') ?: date('Y-m');
         if (!preg_match('/^\d{4}-\d{2}$/', $yearmonth)) {
             $this->error('--yearmonth=YYYY-MM の形式で指定してください。例: --yearmonth=2023-01');
             return;
         }
 
-        // ── 多重起動防止 ─────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 2】多重起動防止（年月別ロックファイル）
+        // ─────────────────────────────────────────────────────────────────
         $lockFile = sys_get_temp_dir() . '/keiba_summaryHistoryFinishingPosition_' . str_replace('-', '', $yearmonth) . '.lock';
         if (file_exists($lockFile)) {
             $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
@@ -41,6 +70,9 @@ class SummaryHistoryFinishingPosition extends Command
         file_put_contents($lockFile, getmypid());
         register_shutdown_function(fn() => @unlink($lockFile));
 
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 3】初期化・開始バナー
+        // ─────────────────────────────────────────────────────────────────
         $now     = microtime(true);
         $script  = base_path('scripts/keibaOddsGetFinishingPosition.mjs');
         $logFile = base_path('scripts/keibaOddsGetFinishingPosition.log');
@@ -52,9 +84,12 @@ class SummaryHistoryFinishingPosition extends Command
         $this->info('スクリプト   : ' . $script);
         $this->info('');
 
-        // ── Step 1: finishing_position が未取得の開催を取得 ──────────
-        // NULL = インポート前 / 0 = インポート済みだが着順未取得
-        // どちらも再処理対象。-1（非完走）や 1〜（着順）は対象外。
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 4】Step 1: finishing_position が未取得の開催を取得
+        //   NULL = インポート前 / 0 = インポート済みだが着順未取得 → 再処理対象
+        //   -1（非完走）や 1〜（着順確定）は対象外。
+        //   date LIKE 'YYYY-MM%' で年月単位に絞り込む。
+        // ─────────────────────────────────────────────────────────────────
         $this->info('[Step 1] 未取得の開催を DB から取得中...');
 
         $kaisaiRows = DB::table('t_horse_odds_finder_race_result_history')
@@ -78,7 +113,9 @@ class SummaryHistoryFinishingPosition extends Command
             $this->info("  → {$totalKaisai} 開催を検出");
             $this->info('');
 
-            // ── Step 2: 各開催を順番に処理 ───────────────────────────────
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 5】Step 2: 各開催を順番に処理
+            // ─────────────────────────────────────────────────────────────
             foreach ($kaisaiRows as $row) {
                 $kaisaiIndex++;
 
@@ -96,6 +133,9 @@ class SummaryHistoryFinishingPosition extends Command
                 $this->info('  実行: ' . $command);
                 $this->info('');
 
+                // ─────────────────────────────────────────────────────────
+                // 【ブロック 6】Node.js 実行（リトライ最大3回）
+                // ─────────────────────────────────────────────────────────
                 $kaisaiStart = microtime(true);
                 $result      = null;
                 $output      = '';
@@ -131,13 +171,16 @@ class SummaryHistoryFinishingPosition extends Command
 
                 $raceCount = count($result['races']);
 
-                // ── DB UPDATE（1開催 = 1クエリ CASE WHEN）───────────────
-                // CASE WHEN race = 1 AND num = 14 THEN 1
-                //      WHEN race = 1 AND num =  5 THEN 2
-                //      ...
-                //      WHEN race = 12 AND num = 1 THEN 1
-                // END
-                // 中止・除外等（数値以外）は -1 → 次回 cron の再処理対象外になる
+                // ─────────────────────────────────────────────────────────
+                // 【ブロック 7】CASE WHEN 一括 UPDATE（1開催 = 1クエリ）
+                //   CASE WHEN race = 1 AND num = 14 THEN 1
+                //        WHEN race = 1 AND num =  5 THEN 2
+                //        ...
+                //        WHEN race = 12 AND num = 1 THEN 1
+                //   END
+                //   中止・除外等（chakujun が整数でない）は -1 → 以後の再処理対象外になる。
+                //   1開催の全着順を1クエリで書き込むことで DB ラウンドトリップを最小化する。
+                // ─────────────────────────────────────────────────────────
                 $caseWhen    = 'CASE';
                 $raceGroups  = [];
                 $totalHorses = 0;
@@ -175,8 +218,9 @@ class SummaryHistoryFinishingPosition extends Command
             }
         }
 
-        // ── 完了サマリー ─────────────────────────────────────────────
-        // バナー行が完全に末尾へ来るよう、明細（件数・失敗リスト・処理時間）を先に出す
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 8】完了サマリー・WebPush 通知
+        // ─────────────────────────────────────────────────────────────────
         $totalElapsed = round(microtime(true) - $now, 1);
         $failedCount  = count($failedList);
 

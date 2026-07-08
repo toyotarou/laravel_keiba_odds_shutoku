@@ -7,15 +7,36 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * 発走時刻から一定時間後（10〜30分）に1レース分の結果を取得し、
- * t_horse_odds_finder_race_results にINSERTする。
+ * ImportKeibaJraRaceOneResult
  *
- * Usage:
+ * 【概要】
+ *   発走時刻から 10 / 15 / 20 / 25 / 30 分後のいずれかに当たる cron 実行時に
+ *   JRAサイトから最新レース結果（着順・馬名）を取得し、
+ *   t_horse_odds_finder_race_results に INSERT する。
+ *   結果確定が遅れるケースに備えて Node.js を最大2回実行し（1回目不一致 → 2回目リトライ）、
+ *   INSERT 完了レースは WebPush 通知でユーザーに知らせる。
+ *
+ * 【処理フロー】
+ *   【ブロック 1】DEBUGオプション解析・開始バナー
+ *   【ブロック 2】当日レース一覧を取得（通常は当日、DEBUG時は最新日付）
+ *   【ブロック 3】発走後タイミング（+10〜+30分）にヒットしたレースを収集
+ *   【ブロック 4】登録済みキーセットを一括先読み（重複 INSERT 防止）
+ *   【ブロック 5】通知済みレースキーセットを一括先読み（二重通知防止）
+ *   【ブロック 6】1回目 Node.js 実行 → 全ヒットレースを照合
+ *   【ブロック 7】2回目 Node.js 実行（1回目でマッチしなかったレースのみ再試行）
+ *   【ブロック 8】WebPush 通知送信 & notified_at 更新
+ *   ── プライベートメソッド ──
+ *   【ブロック 9】matchAndInsert(): レース照合・INSERT・通知キュー登録
+ *   【ブロック 10】fetchResults(): Node.js 実行して結果配列を返す
+ *
+ * 【使い方】
  *   php artisan keiba:importJraRaceOneResult
- *   php /var/www/horse_odds_finder/artisan keiba:importJraRaceOneResult >> /var/www/horse_odds_finder/storage/logs/importJraRaceOneResult.log
+ *   php artisan keiba:importJraRaceOneResult --debug   （タイミングチェック無効）
  *
- * Debug:
- *   php artisan keiba:importJraRaceOneResult --debug
+ * 【多重起動防止について】
+ *   現在はロックファイルコードがコメントアウトされている。
+ *   同一 cron が複数並走しても matchAndInsert 内の $existingKeys チェックで
+ *   二重 INSERT は防がれるため、実害はない。
  */
 class ImportKeibaJraRaceOneResult extends Command
 {
@@ -33,6 +54,11 @@ class ImportKeibaJraRaceOneResult extends Command
         // file_put_contents($lockFile, getmypid());
         // register_shutdown_function(fn() => @unlink($lockFile));
 
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 1】DEBUGオプション解析・開始バナー
+        //   --debug オプションがある場合はタイミングチェックをスキップし、
+        //   当日または DB 内最新日付の全レースを処理対象にする。
+        // ─────────────────────────────────────────────────────────────────
         $isDebug = (bool) $this->option('debug');
 
         $this->info('');
@@ -44,7 +70,12 @@ class ImportKeibaJraRaceOneResult extends Command
         $date = date("Y-m-d");
         $now  = time();
 
-        // 当日のレース一覧を取得（DEBUGモードはテーブル内の最新日付を対象にする）
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 2】当日レース一覧を取得
+        //   通常モード: 当日（$date）のレースのみ対象
+        //   DEBUGモード: テーブル内の最大日付（最新レース日）を対象にする
+        //               （レースのない日に手動で動作確認するため）
+        // ─────────────────────────────────────────────────────────────────
         $query = DB::table('t_horse_odds_finder_races');
         if ($isDebug) {
             $nearestDate = DB::table('t_horse_odds_finder_races')->max('date');
@@ -63,7 +94,13 @@ class ImportKeibaJraRaceOneResult extends Command
 
         $this->info("当日レース取得 → {$resultRaces->count()} 件");
 
-        // ── タイミングにヒットしたレースを収集 ──────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 3】発走後タイミング（+10〜+30分）にヒットしたレースを収集
+        //   $diff = (現在時刻 - 発走時刻) / 60（分）
+        //   [10, 15, 20, 25, 30] のいずれかに一致するレースのみ処理する。
+        //   JRA公式の結果掲載が遅れる場合を考慮して30分後まで複数タイミングを設定。
+        //   DEBUGモード時はタイミング不問で全レースを $hitRaces に追加する。
+        // ─────────────────────────────────────────────────────────────────
         $hitRaces = [];
         foreach ($resultRaces as $race) {
             $targetTime  = strtotime("{$race->date} {$race->start_time}");
@@ -91,9 +128,13 @@ class ImportKeibaJraRaceOneResult extends Command
             return;
         }
 
-        // 登録済みキーセットをループ前に一括取得する。
-        // キー形式: "{kaisuu}-{basho}-{day}-{race}-{num}"
-        // INSERT後はメモリ上に追記して同一実行内の重複も防ぐ。
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 4】登録済みキーセットを一括先読み（重複 INSERT 防止）
+        //   キー形式: "{kaisuu}-{basho}-{day}-{race}-{num}"
+        //   ->keys()->flip()->all() でキーを値にした連想配列を生成し、
+        //   isset($existingKeys[$key]) で O(1) 検索できるようにする。
+        //   INSERT 後はメモリ上に追記して同一実行内の重複も防ぐ。
+        // ─────────────────────────────────────────────────────────────────
         $existingKeys = DB::table('t_horse_odds_finder_race_results')
             ->where('date', $date)
             ->whereNotNull('result')
@@ -105,9 +146,12 @@ class ImportKeibaJraRaceOneResult extends Command
 
         $this->info("登録済み結果取得 → " . count($existingKeys) . " 件");
 
-        // ── 通知済みレースキーセットをループ前に一括取得する ────────────
-        // キー形式: "{kaisuu}-{basho}-{day}-{race}"
-        // notified_at が設定済みのレースは通知をスキップする。
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 5】通知済みレースキーセットを一括先読み（二重通知防止）
+        //   キー形式: "{kaisuu}-{basho}-{day}-{race}"（馬番は含まない）
+        //   notified_at が設定済みのレースは WebPush 通知をスキップする。
+        //   ->unique()->flip()->all() でハッシュセットとして利用する。
+        // ─────────────────────────────────────────────────────────────────
         $notifiedRaceKeys = DB::table('t_horse_odds_finder_race_results')
             ->where('date', $date)
             ->whereNotNull('notified_at')
@@ -123,7 +167,12 @@ class ImportKeibaJraRaceOneResult extends Command
         $skipped      = 0;
         $notifyRaces  = [];
 
-        // ── 1回目: Node.js を1回実行して全ヒットレースを照合 ─────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 6】1回目 Node.js 実行 → 全ヒットレースを照合
+        //   fetchResults() で JRA サイトから最新の結果一覧を取得する。
+        //   取得した結果を全ヒットレースに対して matchAndInsert() で照合する。
+        //   照合失敗（結果未掲載）のレースは $unmatchedRaces に積む。
+        // ─────────────────────────────────────────────────────────────────
         $this->info('');
         $this->info('  [1回目] Node.js 実行中...');
         $start   = microtime(true);
@@ -139,7 +188,6 @@ class ImportKeibaJraRaceOneResult extends Command
 
         $this->info("  [1回目] 取得完了 → {$fetchMs}ms / " . count($results) . " 件");
 
-        // 1回目の照合。マッチしなかったレースを $unmatchedRaces に積む。
         $unmatchedRaces = [];
         foreach ($hitRaces as $race) {
             $found = $this->matchAndInsert($race, $results, $existingKeys, $notifiedRaceKeys, $inserted, $skipped, $notifyRaces);
@@ -149,7 +197,11 @@ class ImportKeibaJraRaceOneResult extends Command
             }
         }
 
-        // ── 2回目: マッチしなかったレースがあれば Node.js を再実行 ────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 7】2回目 Node.js 実行（1回目でマッチしなかったレースのみ再試行）
+        //   JRA公式の結果掲載タイムラグにより1回目で取れないケースを救済する。
+        //   2回目でもマッチしない場合は次回 cron 実行時（5分後）に自動リトライされる。
+        // ─────────────────────────────────────────────────────────────────
         if (!empty($unmatchedRaces)) {
             $this->info('');
             $this->info('  [2回目] Node.js 再実行中...');
@@ -173,7 +225,12 @@ class ImportKeibaJraRaceOneResult extends Command
         $this->info('');
         $this->info("INSERT完了 → 登録: {$inserted} 件 / スキップ: {$skipped} 件");
 
-        // ── プッシュ通知送信 & notified_at 更新 ───────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 8】WebPush 通知送信 & notified_at 更新
+        //   $notifyRaces は matchAndInsert() が通知対象として積んだレースの連想配列。
+        //   キー = "{kaisuu}-{basho}-{day}-{race}" で重複通知を防ぐ。
+        //   送信後に t_horse_odds_finder_race_results の全馬行へ notified_at を一括更新する。
+        // ─────────────────────────────────────────────────────────────────
         $notifyCount = count($notifyRaces);
         $this->info("通知対象レース → {$notifyCount} 件");
 
@@ -193,7 +250,7 @@ class ImportKeibaJraRaceOneResult extends Command
                 $deepLinkUrl,
             );
 
-            // 通知送信後に notified_at をセット（同レースの全馬をまとめて更新）
+            // 同レースの全馬行をまとめて notified_at 更新（whereNull で二重更新を防ぐ）
             DB::table('t_horse_odds_finder_race_results')
                 ->where('date',    $race->date)
                 ->where('kaisuu',  $race->kaisuu)
@@ -211,11 +268,16 @@ class ImportKeibaJraRaceOneResult extends Command
     }
 
     /**
-     * レースの照合・INSERT を行う。
-     * JRA結果の中に該当レースのエントリが1件でもあれば true を返す。
-     * 1件もなければ false を返す（未掲載・照合ミス）。
+     * 【ブロック 9】matchAndInsert: レース照合・INSERT・通知キュー登録
      *
-     * @param array $notifiedRaceKeys 通知済みレースキーのセット（参照渡し不要・読み取り専用）
+     * JRA結果配列 ($results) の中に $race と一致するエントリを探す。
+     * 一致判定: kaisuu / basho_name / day / race が全て trim 一致
+     * 一致した馬を $existingKeys でチェックし、未登録のものだけ INSERT する。
+     * INSERT した馬の所属レースが通知未済の場合は $notifyRaces に追加する。
+     *
+     * 戻り値: 1件でもヒットすれば true、1件もなければ false（次回リトライ対象）
+     *
+     * @param array $notifiedRaceKeys 通知済みレースキーのセット（読み取り専用）
      */
     private function matchAndInsert(
         object $race,
@@ -276,8 +338,13 @@ class ImportKeibaJraRaceOneResult extends Command
     }
 
     /**
-     * Node.js スクリプトを実行してJRAのレース結果を配列で返す。
-     * 取得失敗時は null を返す。
+     * 【ブロック 10】fetchResults: Node.js 実行して結果配列を返す
+     *
+     * keibaOddsGetJraRaceResult.mjs を実行し、JRAサイトの最新レース結果を取得する。
+     * timeout 300: 6開催分のページ遷移があるため余裕を持たせる。
+     * 出力 JSON の構造: { "results": [ { kaisuu, basho, day, race, horse_num, horse_name, rank }, ... ] }
+     *
+     * 取得失敗（出力なし / JSON パース不可 / results キー欠落）の場合は null を返す。
      */
     private function fetchResults(): ?array
     {

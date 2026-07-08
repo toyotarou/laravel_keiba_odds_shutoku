@@ -5,6 +5,30 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * ImportKeibaRace
+ *
+ * 【概要】
+ *   ★DEPRECATED★
+ *   Node.js スクリプト（keibaOddsGetRaceList.mjs）経由でレース一覧を取得して
+ *   t_horse_odds_finder_netkeiba_races に保存するコマンド。
+ *   現在は DB INSERT 部分が全てコメントアウトされており実質的に無効化されている。
+ *   スクレイピング先の廃止に伴い、このコマンドは使用しない。
+ *
+ * 【処理フロー】
+ *   【ブロック 1】多重起動防止（ロックファイル）
+ *   【ブロック 2】スケジュール登録済みの日付一覧を取得
+ *   【ブロック 3】Node.js スクリプトを all モードで実行して全日付のレース一覧を取得
+ *   【ブロック 4】日付・開催場所ごとにループして upsert（現在 INSERT 部はコメントアウト）
+ *   ※ fetchRaceListAll(): Node.js 実行 → '=== RESULT JSON ===' 区切りでJSON部分を取得
+ *
+ * 【BASHO_MAP】
+ *   開催場所の漢字名 → 2桁コードのマッピング（ImportKeibaSchedule と同じ定義）。
+ *
+ * 【使い方】
+ *   php artisan keiba:importRace
+ *   ※現在は無効化されているため実行しても何も保存されない。
+ */
 class ImportKeibaRace extends Command
 {
     protected $signature = 'keiba:importRace';
@@ -25,7 +49,9 @@ class ImportKeibaRace extends Command
 
     public function handle()
     {
-        // ── 多重起動防止 ─────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 1】多重起動防止（ロックファイル）
+        // ─────────────────────────────────────────────────────────────────
         $lockFile = sys_get_temp_dir() . '/keiba_importRace.lock';
         if (file_exists($lockFile)) {
             $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
@@ -34,7 +60,10 @@ class ImportKeibaRace extends Command
         file_put_contents($lockFile, getmypid());
         register_shutdown_function(fn() => @unlink($lockFile));
 
-        // スケジュールに登録されている日付一覧を取得
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 2】スケジュール登録済みの日付一覧を取得
+        //   schedules テーブルに日付がなければ処理不要で即終了する。
+        // ─────────────────────────────────────────────────────────────────
         $sql   = "SELECT date FROM t_horse_odds_finder_schedules GROUP BY date";
         $dates = DB::select($sql);
 
@@ -43,7 +72,11 @@ class ImportKeibaRace extends Command
             return;
         }
 
-        // スクリプトを all モードで1回起動して全日付まとめて取得
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 3】Node.js スクリプトを all モードで実行して全日付のレース一覧を取得
+        //   fetchRaceListAll() で keibaOddsGetRaceList.mjs を起動し
+        //   '=== RESULT JSON ===' 区切りの後半をJSONとして解析する。
+        // ─────────────────────────────────────────────────────────────────
         $this->info('レース一覧を取得中...');
         $json = $this->fetchRaceListAll();
 
@@ -59,7 +92,13 @@ class ImportKeibaRace extends Command
             return;
         }
 
-        // スケジュール登録済みの日付分だけ処理
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 4】日付・開催場所ごとにループして upsert
+        //   $dateKey: 'YYYY-MM-DD' → 'YYYYMMDD' に変換して JSON キーと照合する。
+        //   BASHO_MAP で漢字名を2桁コードに変換する。
+        //   ★ updateOrInsert() は現在コメントアウト中（廃止済みテーブルへの書き込みを停止）。
+        //      $insertCount はカウントのみ行い DB には書き込まない。
+        // ─────────────────────────────────────────────────────────────────
         $totalInsertCount = 0;
         foreach ($dates as $row) {
             $date    = $row->date;
@@ -85,9 +124,7 @@ class ImportKeibaRace extends Command
 
                 foreach ($place['races'] as $race) {
                     // DB::table('t_horse_odds_finder_netkeiba_races')->updateOrInsert(
-                    //     [
-                    //         'race_id' => $race['race_id'],
-                    //     ],
+                    //     ['race_id' => $race['race_id']],
                     //     [
                     //         'date'       => $date,
                     //         'kaisuu'     => $place['kai'],
@@ -112,11 +149,15 @@ class ImportKeibaRace extends Command
         $this->info('全日程の取り込み完了');
     }
 
+    /**
+     * Node.js スクリプトを all モードで実行してレース一覧 JSON を返す。
+     * '=== RESULT JSON ===' より後の部分をJSONとして返す。
+     * 失敗時は null を返す（timeout 120 で無応答を防ぐ）。
+     */
     private function fetchRaceListAll(): ?string
     {
         $nodeBin    = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
         $scriptPath = base_path('scripts/keibaOddsGetRaceList.mjs');
-        // timeout 120: Node.js が無応答でもPHPプロセスが永久ブロックしないようにする
         $command    = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($scriptPath) . ' all 2>/dev/null';
         $output     = shell_exec($command);
 

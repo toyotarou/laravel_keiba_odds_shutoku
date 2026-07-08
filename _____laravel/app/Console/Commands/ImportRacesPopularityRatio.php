@@ -7,6 +7,38 @@ use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * ImportRacesPopularityRatio
+ *
+ * 【概要】
+ *   t_horse_odds_finder_races の popularity_ratio が NULL のレースに対して、
+ *   オッズから人気比率（連続する人気順オッズの比）を計算し、
+ *   マスタテーブルとの RMSE 類似度を算出して各カラムに保存する。
+ *
+ * 【処理フロー】
+ *   【ブロック 1】多重起動防止（ロックファイル）
+ *   【ブロック 2】開始バナー
+ *   【ブロック 3】popularity_ratio が NULL のレースを取得
+ *   【ブロック 4】比較マスタを num_horses 別にメモリ展開（ループ外で一度だけ）
+ *   【ブロック 5】レースごとのループ: popularity_ratio の決定
+ *   【ブロック 6】フォールバック: ODDS_GET_TIMING から最初に存在するオッズを取得
+ *   【ブロック 7】連続比率の計算（2÷1, 3÷2, ... を '|' で連結）
+ *   【ブロック 8】RMSE 類似度の計算とマッチングID収集
+ *   【ブロック 9】races テーブルを UPDATE
+ *   【ブロック 10】完了サマリー・WebPush 通知（finally で必ず実行）
+ *
+ * 【popularity_ratio の形式】
+ *   単勝オッズを人気順に並べ、連続する要素の比を '|' で連結した文字列。
+ *   例: オッズ=[1.5, 2.3, 3.0] → 2.3/1.5=1.5, 3.0/2.3=1.3 → "1.5|1.3"
+ *
+ * 【RMSE 類似度の計算】
+ *   matchPercent = max(0, 1 - RMSE) × 100
+ *   RMSE = sqrt(Σ(a-b)²/n)
+ *   matchPercent >= 70.0% のマスタを $matchedIds に収集し match_percent 降順で保存。
+ *
+ * 【使い方】
+ *   php artisan keiba:ImportRacesPopularityRatio
+ */
 class ImportRacesPopularityRatio extends Command
 {
     protected $signature = 'keiba:ImportRacesPopularityRatio';
@@ -14,7 +46,9 @@ class ImportRacesPopularityRatio extends Command
 
     public function handle(): void
     {
-        // ── 多重起動防止 ─────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 1】多重起動防止（ロックファイル）
+        // ─────────────────────────────────────────────────────────────────
         $lockFile = sys_get_temp_dir() . '/keiba_ImportRacesPopularityRatio.lock';
         if (file_exists($lockFile)) {
             $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
@@ -29,6 +63,9 @@ class ImportRacesPopularityRatio extends Command
 
         try {
 
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 2】開始バナー
+            // ─────────────────────────────────────────────────────────────
             $this->info('');
             $this->info('╔══════════════════════════════════════════════════╗');
             $this->info('║     レース人気比率 インポート処理 ── 開始         ║');
@@ -36,7 +73,10 @@ class ImportRacesPopularityRatio extends Command
             $this->info('実行日時: ' . date('Y-m-d H:i:s'));
             $this->info('');
 
-            // ── popularity_ratio が未設定のレース一覧を取得 ──
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 3】popularity_ratio が NULL のレースを取得
+            //   既に計算済みの行（popularity_ratio が NOT NULL）はスキップされる。
+            // ─────────────────────────────────────────────────────────────
             $races = DB::table('t_horse_odds_finder_races')
                 ->whereNull('popularity_ratio')
                 ->get();
@@ -44,7 +84,12 @@ class ImportRacesPopularityRatio extends Command
             $this->info('対象レース数: ' . count($races) . ' 件');
             $this->info('');
 
-            // ── 比較用マスタを num_horses ごとにメモリ展開（ループ外で一度だけ）──
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 4】比較マスタを num_horses 別にメモリ展開（ループ外で一度だけ）
+            //   $ratioMaster[$num_horses] = [ref1, ref2, ...] の形で保持する。
+            //   ループごとに DB 問い合わせするとマスタ件数 × 対象レース数で爆発するため
+            //   ループ前に全件を PHP のメモリ上に展開しておく。
+            // ─────────────────────────────────────────────────────────────
             $ratioMaster = [];
             DB::table('t_horse_odds_finder_races_popularity_ratio')
                 ->whereNotNull('popularity_ratio')
@@ -59,13 +104,20 @@ class ImportRacesPopularityRatio extends Command
 
             foreach ($races as $v) {
 
-                // ── popularity_ratio を決定 ──
-                // 既に値があればそれを使い、なければオッズから計算する
+                // ─────────────────────────────────────────────────────────
+                // 【ブロック 5】レースごとのループ: popularity_ratio の決定
+                //   既に値があれば（races テーブルに値が入った状態で取得した場合）そのまま使う。
+                //   なければ【ブロック 6】でオッズから計算する。
+                // ─────────────────────────────────────────────────────────
                 if ($v->popularity_ratio !== null) {
                     $popularityRatio = $v->popularity_ratio;
                 } else {
-                    // 999(=24h前) から順にフォールバックして最初に取得できたタイミングを使う
-                    // ODDS_GET_TIMING の 24 は DB 上 999 として保存されている
+                    // ─────────────────────────────────────────────────────
+                    // 【ブロック 6】フォールバック: ODDS_GET_TIMING から最初に存在するオッズを取得
+                    //   999(=24h前) から順にフォールバックして最初に取得できたタイミングを使う。
+                    //   ODDS_GET_TIMING の 24 は DB 上 999 として保存されているため変換する。
+                    //   オッズは単勝昇順（人気順）で取得する（orderByRaw('odds + 0') で数値昇順）。
+                    // ─────────────────────────────────────────────────────
                     $fallbackTimings = array_map(fn($t) => $t === 24 ? 999 : $t, Constants::ODDS_GET_TIMING);
                     $odds = collect();
                     foreach ($fallbackTimings as $timing) {
@@ -86,7 +138,11 @@ class ImportRacesPopularityRatio extends Command
                         continue;
                     }
 
-                    // 2つ目÷1つ目、3つ目÷2つ目 … を繰り返して | で連結
+                    // ─────────────────────────────────────────────────────
+                    // 【ブロック 7】連続比率の計算（2÷1, 3÷2, ... を '|' で連結）
+                    //   $odds = [1.5, 2.3, 3.0] → ratios = [1.5, 1.3]
+                    //   → popularityRatio = "1.5|1.3"
+                    // ─────────────────────────────────────────────────────
                     $ratios = [];
                     for ($i = 0; $i < count($odds) - 1; $i++) {
                         $prev = (float) $odds[$i];
@@ -97,8 +153,13 @@ class ImportRacesPopularityRatio extends Command
                     $popularityRatio = implode('|', $ratios);
                 }
 
-                // ── 同頭数マスタとユークリッド類似度（RMSE）を比較 ──
-                // match = max(0, 1 - RMSE) × 100 ── 完全一致で100%、差0.3/要素で70%
+                // ─────────────────────────────────────────────────────────
+                // 【ブロック 8】RMSE 類似度の計算とマッチングID収集
+                //   matchPercent = max(0, 1 - RMSE) × 100
+                //   完全一致で 100%、平均差 0.3 で約 70%（閾値）。
+                //   同じ num_horses のマスタのみを比較対象にする（$ratioMaster[$v->num_horses]）。
+                //   要素数が一致しないマスタはスキップ（異なる頭数のレースと比較しない）。
+                // ─────────────────────────────────────────────────────────
                 $currentRatios   = array_map('floatval', explode('|', $popularityRatio));
                 $n               = count($currentRatios);
                 $matchedIds      = [];
@@ -121,11 +182,16 @@ class ImportRacesPopularityRatio extends Command
                     }
                 }
 
-                // match_percent 降順にソート
                 if ($matchedIds) {
                     array_multisort($matchedPercents, SORT_DESC, $matchedIds);
                 }
 
+                // ─────────────────────────────────────────────────────────
+                // 【ブロック 9】races テーブルを UPDATE
+                //   popularity_ratio: 計算した比率文字列
+                //   popularity_ratio_table_ids: マッチしたマスタIDを '|' で連結
+                //   popularity_ratio_match_percent: 各マスタの類似度を '|' で連結
+                // ─────────────────────────────────────────────────────────
                 DB::table('t_horse_odds_finder_races')
                     ->where('id', $v->id)
                     ->update([
@@ -135,8 +201,6 @@ class ImportRacesPopularityRatio extends Command
                     ]);
 
                 $insertedCount++;
-
-
             }
 
             $this->info("INSERT 完了 ── INSERT: {$insertedCount} 件、スキップ: {$skippedCount} 件。");
@@ -144,6 +208,9 @@ class ImportRacesPopularityRatio extends Command
 
         } finally {
 
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 10】完了サマリー・WebPush 通知（finally で必ず実行）
+            // ─────────────────────────────────────────────────────────────
             $this->info('');
             $this->info('╔══════════════════════════════════════════════════╗');
             $this->info('║     処理結果サマリー                              ║');

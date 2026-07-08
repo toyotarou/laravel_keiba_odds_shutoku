@@ -7,10 +7,24 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * JRA公式サイトからレース結果（着順）を取得し、
- * t_horse_odds_finder_summary の result カラムを更新する。
+ * ImportKeibaJraRaceResult
  *
- * Usage:
+ * 【概要】
+ *   JRA公式サイトから当日の全レース結果（着順）を取得し、
+ *   t_horse_odds_finder_summary テーブルの result カラムを更新する。
+ *   summary テーブルは「basho コード」で管理しているが、
+ *   keibaOddsGetJraRaceResult.mjs の出力は「東京」等の漢字名なので
+ *   BASHO_MAP で変換してから UPDATE キーに使う。
+ *
+ * 【処理フロー】
+ *   【ブロック 1】初期化・開始バナー
+ *   【ブロック 2】Node.js 実行・JSON パース・件数確認
+ *   【ブロック 3】basho名→コード変換マップ（クラス定数）
+ *   【ブロック 4】トランザクション内で result を一行ずつ UPDATE
+ *   【ブロック 5】完了サマリー・WebPush 通知（finally で必ず実行）
+ *   【ブロック 6】fetchJraRaceResult(): Node.js 実行ヘルパー
+ *
+ * 【使い方】
  *   php artisan keiba:importJraRaceResult
  */
 class ImportKeibaJraRaceResult extends Command
@@ -18,8 +32,12 @@ class ImportKeibaJraRaceResult extends Command
     protected $signature = 'keiba:importJraRaceResult';
     protected $description = 'JRAからレース結果（着順）を取得し、summaryテーブルのresultを更新する';
 
-    // basho名 → bashoコード変換マップ
-    // mjs出力は「東京」などの文字列、summaryテーブルは「05」などのコード
+    // ─────────────────────────────────────────────────────────────────
+    // 【ブロック 3】basho名 → bashoコード変換マップ（クラス定数）
+    //   Node.js スクリプトの出力は「東京」「中山」等の漢字名。
+    //   summary テーブルの basho カラムは「05」「06」等の2桁コード。
+    //   この変換がないと UPDATE の WHERE 条件がヒットせずスキップになる。
+    // ─────────────────────────────────────────────────────────────────
     private const BASHO_MAP = [
         '札幌' => '01',
         '函館' => '02',
@@ -35,15 +53,24 @@ class ImportKeibaJraRaceResult extends Command
 
     public function handle(): void
     {
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 1】初期化・開始バナー
+        //   $status は各 return 経路で上書きされ、finally ブロックでログ出力・通知に使う。
+        // ─────────────────────────────────────────────────────────────────
         $updated = 0;
         $skipped = 0;
-        $status  = '不明な理由で終了';   // 終了理由（各経路で上書きする）
+        $status  = '不明な理由で終了';
 
         try {
             $this->info('');
             $this->info('========== keiba:importJraRaceResult 開始 ' . date('Y-m-d H:i:s') . ' ==========');
 
-            // Node.js スクリプトを実行してJRAから結果取得
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 2】Node.js 実行・JSON パース・件数確認
+            //   fetchJraRaceResult() で Node.js を呼び出し、JRAサイトから
+            //   当日の全レース結果を JSON 文字列として受け取る。
+            //   results が空（0件）の場合はレース未終了とみなして早期終了する。
+            // ─────────────────────────────────────────────────────────────
             $start = microtime(true);
             $json  = $this->fetchJraRaceResult();
             $fetchMs = round((microtime(true) - $start) * 1000);
@@ -70,10 +97,15 @@ class ImportKeibaJraRaceResult extends Command
                 return;
             }
 
-            // result ごとにupdateを実行
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 4】トランザクション内で result を一行ずつ UPDATE
+            //   照合キー: kaisuu + basho(コード) + day + race + num
+            //   whereNull('result') で既に着順が入っている行は UPDATE しない。
+            //   $affected = 0 の場合は照合キー不一致（basho名変換失敗含む）としてスキップ。
+            // ─────────────────────────────────────────────────────────────
             DB::transaction(function () use ($results, &$updated, &$skipped) {
                 foreach ($results as $row) {
-                    // basho名をコードに変換
+                    // basho 漢字名 → 2桁コードへ変換（未対応の場合はスキップ）
                     $bashoCode = self::BASHO_MAP[$row['basho']] ?? null;
                     if ($bashoCode === null) {
                         $this->warn("  未対応の開催場所: {$row['basho']} → スキップ");
@@ -81,8 +113,7 @@ class ImportKeibaJraRaceResult extends Command
                         continue;
                     }
 
-                    // summaryテーブルのresultを更新
-                    // 照合キー: date, kaisuu, basho, day, race, num
+                    // result が NULL の行のみ UPDATE する（確定済みを上書きしない）
                     $affected = DB::table('t_horse_odds_finder_summary')
                         ->where('kaisuu', (string) $row['kaisuu'])
                         ->where('basho',  $bashoCode)
@@ -104,6 +135,10 @@ class ImportKeibaJraRaceResult extends Command
             $status = '正常終了';
 
         } finally {
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 5】完了サマリー・WebPush 通知（finally で必ず実行）
+            //   どの経路で return しても必ず終了バナーと通知が送信される。
+            // ─────────────────────────────────────────────────────────────
             $this->info("終了理由: {$status}");
             $this->info('========== keiba:importJraRaceResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
@@ -113,7 +148,11 @@ class ImportKeibaJraRaceResult extends Command
     }
 
     /**
-     * Node.js スクリプトを実行してJRAのレース結果JSONを取得する
+     * 【ブロック 6】fetchJraRaceResult: Node.js 実行ヘルパー
+     *
+     * keibaOddsGetJraRaceResult.mjs を実行し、JRAサイトの結果 JSON 文字列を返す。
+     * timeout 300: 6開催分のページ遷移があるため余裕を持たせる。
+     * 出力 JSON のパース検証を行い、不正な場合は null を返す（呼び出し元が判定）。
      */
     private function fetchJraRaceResult(): ?string
     {

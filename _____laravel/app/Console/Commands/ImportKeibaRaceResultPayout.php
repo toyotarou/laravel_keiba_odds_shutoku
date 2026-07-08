@@ -7,11 +7,35 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * 指定年月の全開催・全レースの払戻金を取得し
- * t_horse_odds_finder_race_result_payout に保存する。
+ * ImportKeibaRaceResultPayout
  *
- * 使い方:
+ * 【概要】
+ *   指定年月の全開催・全レースの払戻金を keibaOddsGetPayout.mjs 経由で取得し、
+ *   t_horse_odds_finder_race_result_payout に保存する。
+ *   ImportKeibaRaceResultHistory と同じ2段階処理（--list-only → 個別処理）。
+ *   払戻金は券種別に '馬番組合せ|払戻額' 形式にまとめ、'/' で結合した文字列で保存する。
+ *
+ * 【処理フロー】
+ *   【ブロック 1】引数チェック（YYYY-MM 形式の検証）
+ *   【ブロック 2】多重起動防止（年月別ロックファイル）
+ *   【ブロック 3】初期化・開始バナー
+ *   【ブロック 4】Step 1: --list-only で開催一覧を取得
+ *   【ブロック 5】インポート済み開催をDBから先読み（PRE-SKIP 判定用）
+ *   【ブロック 6】Step 2: 各開催を順番に処理（PRE-SKIP → Node.js → DB保存）
+ *   【ブロック 7】Node.js 実行（リトライ最大3回）
+ *   【ブロック 8】typeMap による券種名→カラム名変換・バケツへの仕分け
+ *   【ブロック 9】DB保存（EXISTS チェック → 未保存のみ INSERT）
+ *   【ブロック 10】完了サマリー・WebPush 通知（finally で必ず実行）
+ *
+ * 【typeMap 変換規則】
+ *   '単勝' → 'tan', '複勝' → 'fuku', '枠連' → 'waku', 'ワイド' → 'wide'
+ *   '馬連' → 'umaren', '馬単' → 'umatan'
+ *   '3連複'/'３連複' → 'trio', '3連単'/'３連単' → 'trifecta'
+ *   バケット内の要素は '馬番|金額' 形式。複数は '/' で連結（例: 'tan' = '14|180'）
+ *
+ * 【使い方】
  *   php artisan keiba:importRaceResultPayout --yearmonth=2023-01
+ *   php artisan keiba:importRaceResultPayout  # 当月
  */
 class ImportKeibaRaceResultPayout extends Command
 {
@@ -20,14 +44,20 @@ class ImportKeibaRaceResultPayout extends Command
 
     public function handle(): void
     {
-        // ── 引数チェック ──────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 1】引数チェック（YYYY-MM 形式の検証）
+        //   省略時は当月（date('Y-m')）を対象にする。
+        // ─────────────────────────────────────────────────────────────────
         $yearmonth = $this->option('yearmonth') ?: date('Y-m');
         if (!preg_match('/^\d{4}-\d{2}$/', $yearmonth)) {
             $this->error('--yearmonth=YYYY-MM の形式で指定してください。例: --yearmonth=2023-01');
             return;
         }
 
-        // ── 多重起動防止 ─────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 2】多重起動防止（年月別ロックファイル）
+        //   年月をロックファイル名に含めることで異なる年月の同時実行は許可する。
+        // ─────────────────────────────────────────────────────────────────
         $lockFile = sys_get_temp_dir() . '/keiba_importRaceResultPayout_' . str_replace('-', '', $yearmonth) . '.lock';
         if (file_exists($lockFile)) {
             $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
@@ -36,6 +66,9 @@ class ImportKeibaRaceResultPayout extends Command
         file_put_contents($lockFile, getmypid());
         register_shutdown_function(fn() => @unlink($lockFile));
 
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 3】初期化・開始バナー
+        // ─────────────────────────────────────────────────────────────────
         $now     = microtime(true);
         $script  = base_path('scripts/keibaOddsGetPayout.mjs');
         $logFile = base_path('scripts/keibaOddsGetPayout.log');
@@ -54,7 +87,10 @@ class ImportKeibaRaceResultPayout extends Command
             $this->info('ログファイル : ' . $logFile);
             $this->info('');
 
-            // ── Step 1: --list-only で開催一覧を取得 ─────────────────────
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 4】Step 1: --list-only で開催一覧を取得
+            //   ImportKeibaRaceResultHistory と同じ2段階処理パターン。
+            // ─────────────────────────────────────────────────────────────
             $this->info('[Step 1] 開催一覧を取得中...');
 
             $listCommand = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($script)
@@ -86,7 +122,11 @@ class ImportKeibaRaceResultPayout extends Command
             $this->info("  → {$totalKaisai} 開催を検出: " . implode(', ', $kaisaiList));
             $this->info('');
 
-            // ── インポート済みkaisaiを先読み（スキップ判定用） ──────────
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 5】インポート済み開催をDBから先読み（PRE-SKIP 判定用）
+            //   $existingKaisaiKeys (date付きキー) は Node.js 実行後の最終スキップに使う。
+            //   $existingKaisaiShortKeys (date無しキー) は Node.js 実行前の早期スキップに使う。
+            // ─────────────────────────────────────────────────────────────
             $this->info('[事前確認] インポート済みkaisaiを確認中...');
             [$year, $month] = explode('-', $yearmonth);
             $from = "{$year}-{$month}-01";
@@ -99,7 +139,6 @@ class ImportKeibaRaceResultPayout extends Command
             $existingKaisaiKeys      = $existingRows
                 ->mapWithKeys(fn($r) => ["{$r->date}_{$r->kaisuu}_{$r->basho_code}_{$r->day}" => true])
                 ->toArray();
-            // Node.js実行前の早期スキップ用（dateなし）
             $existingKaisaiShortKeys = $existingRows
                 ->mapWithKeys(fn($r) => ["{$r->kaisuu}_{$r->basho_code}_{$r->day}" => true])
                 ->toArray();
@@ -112,7 +151,11 @@ class ImportKeibaRaceResultPayout extends Command
                 '阪神' => '09', '小倉' => '10',
             ];
 
-            // ── Step 2: 各開催を順番に処理 ───────────────────────────────
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 6】Step 2: 各開催を順番に処理（PRE-SKIP → Node.js → DB保存）
+            //   kaisai テキスト "3回東京1日" を正規表現で解析し、
+            //   $existingKaisaiShortKeys に一致したら Node.js 実行そのものをスキップ。
+            // ─────────────────────────────────────────────────────────────
             $kaisaiIndex = 0;
 
             foreach ($kaisaiList as $kaisai) {
@@ -122,7 +165,6 @@ class ImportKeibaRaceResultPayout extends Command
                 $this->info("[{$kaisaiIndex}/{$totalKaisai}] {$kaisai} 処理開始");
                 $this->info('══════════════════════════════════════════════════════');
 
-                // Node.js実行前の早期スキップ（kaisai文字列を解析して判定）
                 if (preg_match('/^(\d+)回(.+?)(\d+)日$/', $kaisai, $m)) {
                     $shortKey = (int)$m[1] . '_' . ($bashoMap[$m[2]] ?? '') . '_' . (int)$m[3];
                     if (!empty($bashoMap[$m[2]]) && isset($existingKaisaiShortKeys[$shortKey])) {
@@ -140,6 +182,9 @@ class ImportKeibaRaceResultPayout extends Command
                 $this->info('  実行: ' . $command);
                 $this->info('');
 
+                // ─────────────────────────────────────────────────────────
+                // 【ブロック 7】Node.js 実行（リトライ最大3回）
+                // ─────────────────────────────────────────────────────────
                 $kaisaiStart = microtime(true);
                 $result      = null;
                 $output      = '';
@@ -173,7 +218,6 @@ class ImportKeibaRaceResultPayout extends Command
                     continue;
                 }
 
-                // インポート済みkaisaiはDBへの保存をスキップ
                 $kaisaiKey = "{$result['date']}_{$result['kaisuu']}_{$result['basho_code']}_{$result['day']}";
                 if (isset($existingKaisaiKeys[$kaisaiKey])) {
                     $this->info("  [SKIP] インポート済み: {$kaisaiKey} ({$elapsed}秒)");
@@ -185,20 +229,18 @@ class ImportKeibaRaceResultPayout extends Command
                 $this->info("  取得完了: {$raceCount} レース / 日付: {$result['date']} ({$elapsed}秒)");
                 $this->info('');
 
-                // ── DB保存 ───────────────────────────────────────────────
+                // ─────────────────────────────────────────────────────────
+                // 【ブロック 8】typeMap による券種名→カラム名変換・バケツへの仕分け
+                //   $payout['type'] は JRA払戻ページから取得した券種名（漢字・全角含む）。
+                //   $typeMap で正規化して $buckets[カラム名][] に 'combo|amount' 形式で格納。
+                //   例: 単勝14番→180円 → $buckets['tan'][] = '14|180'
+                //   例: 複勝が3着同着 → $buckets['fuku'] = ['14|110', '5|150', '1|480']
+                //       → implode('/', ...) で 'tan' = '14|180', 'fuku' = '14|110/5|150/1|480'
+                // ─────────────────────────────────────────────────────────
                 $saved = 0;
                 foreach ($result['races'] as $raceData) {
                     $this->info("    {$raceData['race']}R 「{$raceData['race_name']}」 保存中...");
 
-                    // payouts配列 → 券種ごとに文字列へ変換
-                    // tan:      「14|180」
-                    // fuku:     「14|110/5|150/1|480」
-                    // waku:     「3-7|470」
-                    // wide:     「5-14|220/1-14|790/1-5|1550」
-                    // umaren:   「5-14|470」
-                    // umatan:   「14-5|660」
-                    // trio:     「1-5-14|3040」
-                    // trifecta: 「14-5-1|8890」
                     $typeMap = [
                         '単勝'  => 'tan',
                         '複勝'  => 'fuku',
@@ -223,6 +265,11 @@ class ImportKeibaRaceResultPayout extends Command
                         $buckets[$col][] = $payout['combo'] . '|' . $payout['amount'];
                     }
 
+                    // ─────────────────────────────────────────────────────
+                    // 【ブロック 9】DB保存（EXISTS チェック → 未保存のみ INSERT）
+                    //   同一 $key が既に存在する場合はスキップ（冪等性の確保）。
+                    //   bucket を '/' で連結した文字列でカラムに格納する。
+                    // ─────────────────────────────────────────────────────
                     $key = [
                         'date'       => $result['date'],
                         'kaisuu'     => $result['kaisuu'],
@@ -263,6 +310,9 @@ class ImportKeibaRaceResultPayout extends Command
             $status = (count($failedList) > 0) ? '正常終了（一部失敗あり）' : '正常終了';
 
         } finally {
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 10】完了サマリー・WebPush 通知（finally で必ず実行）
+            // ─────────────────────────────────────────────────────────────
             $totalElapsed = round(microtime(true) - $now, 1);
             $failedCount  = count($failedList);
 

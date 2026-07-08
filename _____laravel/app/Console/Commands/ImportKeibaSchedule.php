@@ -9,92 +9,43 @@ use Illuminate\Support\Facades\DB;
 /**
  * ImportKeibaSchedule
  *
- * 【役割】
- *   Node.js スクリプト経由で当週の開催スケジュール・レース・馬情報を取得し、
- *   DB に保存する。
- *   土曜日は deleteKeibaTableRecords（cron）が事前に全テーブルを TRUNCATE するため、
+ * 【概要】
+ *   Node.js スクリプト keibaOddsGetSchedule.mjs 経由で当週の開催スケジュール・
+ *   レース・出走馬情報を取得し、DB に保存する。
+ *   土曜日は deleteKeibaTableRecords（cron）が事前に全テーブルを TRUNCATE するため
  *   このコマンドは INSERT のみ行う。
  *   土曜日以外（主に日曜日）は当日分のデータを DELETE してから INSERT する。
  *
- * 【cron スケジュール】
- *   土日 6:00 に1回だけ実行（importOdds より前に完了させること）
- *   土曜日は事前に deleteKeibaTableRecords（全テーブル TRUNCATE）が実行されること
+ * 【処理フロー】
+ *   【ブロック 1】多重起動防止（ロックファイル）
+ *   【ブロック 2】開始バナー・DEBUGオプション確認
+ *   【ブロック 3】曜日チェック（木/金はスキップ）
+ *   【ブロック 4】Node.js 実行（keibaOddsGetSchedule.mjs）
+ *   【ブロック 5】JSON パース・schedules/races/horses を展開
+ *   【ブロック 6】出走済みチェック（start_time='XXX' の全件カウント）
+ *   【ブロック 7】データ絞り込み（土曜日以外は当日分のみ）
+ *   【ブロック 8】トランザクション: 対象日付を全テーブルから DELETE
+ *   【ブロック 9】schedules INSERT（開催日・回・場所・日目）
+ *   【ブロック 10】races INSERT（start_time='XXX' はスキップ）
+ *   【ブロック 11】horses INSERT（馬番・馬名・騎手・調教師・URL）
+ *   【ブロック 12】完了サマリー・WebPush 通知（finally で必ず実行）
  *
  * 【対象テーブル】
  *   t_horse_odds_finder_schedules … 開催スケジュール
  *   t_horse_odds_finder_races     … レース一覧（発走時刻・頭数など）
  *   t_horse_odds_finder_horses    … 出走馬情報
- *   t_horse_odds_finder_odds      … オッズ（importOdds が書き込む）
- *                                   ※ スケジュール更新時に一緒にリセットして
- *                                     当日分をゼロから記録できるようにする
+ *   t_horse_odds_finder_odds      … 当日分をリセット（次回importOddsがゼロから記録）
  *
- * =====================================================================
- * handle() の流れ
- * =====================================================================
+ * 【土曜/日曜の違い】
+ *   土曜: deleteKeibaTableRecords が事前に全テーブルを TRUNCATE → ここでは DELETE スキップ
+ *   日曜: 当日分のみ DELETE してから INSERT（土曜データは消さない）
  *
- * 【起動・初期化】
- *   - 開始バナーをログ出力する
- *   - 実行日時・曜日番号をログ出力する
+ * 【cron設定】
+ *   土日 6:00 に1回だけ実行（importOdds より前に完了させること）
  *
- * 【曜日チェック】
- *   - 木曜日（4）または金曜日（5）の場合は競馬開催がないため処理をスキップして終了する
- *   - それ以外の曜日の場合は処理を続行する
- *
- * 【Node.js スクリプトの実行】
- *   - スクリプトパス・ログファイルパス・node バイナリのパスを変数にセットする
- *   - Node.js スクリプト（keibaOddsGetSchedule.mjs）を実行する
- *   - stderr はログファイルへリダイレクトし、stdout の JSON には混入させない
- *   - 出力文字数をログ出力する
- *
- * 【JSON パース】
- *   - Node.js の出力を JSON としてパースし連想配列に変換する
- *   - パース失敗（Node.js エラー・空レスポンスなど）の場合はエラーログを出して処理を中断する（return 1）
- *
- * 【データの展開】
- *   - JSON から schedules・races・horses の3配列を取り出す
- *   - キーが存在しない場合は空配列にフォールバックする
- *
- * 【出走済みチェック】
- *   - start_time が 'XXX' のレースは既に発走済みであることを示す
- *   - 当日のレース総数と、start_time === 'XXX'（発走済み）のレース数をカウントする
- *   - 当日レースが1件以上あり、かつ全てが発走済みの場合、データ再取得は不要として終了する
- *   - 未発走のレースが1件でも残っている場合は処理を続行する
- *   - 取得件数（絞り込み前）をログ出力する
- *
- * 【データの絞り込み】
- *   - 土曜日以外の場合：schedules・races・horses を当日分のみに絞り込む
- *                       （土曜日のデータには触れないようにするため）
- *   - 土曜日の場合    ：絞り込みをせず、土日両日分の全件をそのまま使う
- *
- * 【トランザクション内でデータを入れ替え】
- *   - トランザクションを開始する
- *   - 土曜日以外の場合：当日分のデータを DELETE してから INSERT する
- *       - t_horse_odds_finder_schedules の当日分を DELETE する
- *       - t_horse_odds_finder_races     の当日分を DELETE する
- *       - t_horse_odds_finder_horses    の当日分を DELETE する
- *       - t_horse_odds_finder_odds      の当日分を DELETE する
- *         （スケジュール更新 = 新しいレース日の始まり なので
- *           前回の odds データをリセットして当日分をゼロから記録できるようにする）
- *   - 土曜日の場合：deleteKeibaTableRecords（cron）が事前に TRUNCATE 済みのため DELETE はスキップする
- *   - schedules を INSERT する
- *       - 開催日・開催回・場所・場所名・何日目かを記録する
- *       - 進捗を10件ごとにログ出力する
- *       - INSERT 完了件数をログ出力する
- *   - races を INSERT する
- *       - 発走時刻・頭数など importOdds が参照する情報を記録する
- *       - 発走済みレース（start_time === 'XXX'）は INSERT をスキップする
- *       - 1件ごとに場所名・レース番号・レース名・発走時刻をログ出力する
- *       - INSERT 完了件数をログ出力する
- *   - horses を INSERT する
- *       - 馬番・枠番・馬名・騎手・調教師・馬 URL などを記録する
- *       - 進捗を10件ごとにログ出力する
- *       - INSERT 完了件数をログ出力する
- *   - トランザクションをコミットする（INSERT 途中で失敗した場合は自動でロールバックされる）
- *
- * 【終了処理】
- *   - どの経路（スキップ・全発走済み・パース失敗・正常終了）でも
- *     finally ブロックで終了サマリーと WebPush 通知を必ず出力する
- *   - 終了バナー行は常に出力の完全な末尾に置く
+ * 【使い方】
+ *   php artisan keiba:importSchedule
+ *   php artisan keiba:importSchedule --debug  # 木・金チェックをスキップ
  */
 class ImportKeibaSchedule extends Command
 {
@@ -103,7 +54,10 @@ class ImportKeibaSchedule extends Command
 
     public function handle()
     {
-        // ── 多重起動防止 ─────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 1】多重起動防止（ロックファイル）
+        //   cron が60秒間隔で起動しても、前の実行が終わるまで重複しないようにする。
+        // ─────────────────────────────────────────────────────────────────
         $lockFile = sys_get_temp_dir() . '/keiba_importSchedule.lock';
         if (file_exists($lockFile)) {
             $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
@@ -115,10 +69,14 @@ class ImportKeibaSchedule extends Command
         $schedules = [];
         $races     = [];
         $horses    = [];
-        $status    = '不明な理由で終了';   // 終了理由（各経路で上書きする）
+        $status    = '不明な理由で終了';
 
         try {
 
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 2】開始バナー・DEBUGオプション確認
+            //   date('w') の値: 0=日, 1=月, ..., 5=金, 6=土
+            // ─────────────────────────────────────────────────────────────
             $this->info('');
             $this->info('╔══════════════════════════════════════════════════╗');
             $this->info('║     競馬スケジュール取得処理 ── 開始              ║');
@@ -133,7 +91,9 @@ class ImportKeibaSchedule extends Command
             }
 
             // ─────────────────────────────────────────────────────────────
-            // 木曜日（4）・金曜日（5）はレース開催がないためスキップする
+            // 【ブロック 3】曜日チェック（木/金はスキップ）
+            //   木曜日（4）・金曜日（5）はレース開催がないためスキップする。
+            //   --debug オプション時はこのチェックを迂回する。
             // ─────────────────────────────────────────────────────────────
             if (!$isDebug && (date('w') === '4' || date('w') === '5')) {
                 $this->warn('本日は木曜日または金曜日のため処理をスキップします。');
@@ -145,8 +105,9 @@ class ImportKeibaSchedule extends Command
             $this->info('');
 
             // ─────────────────────────────────────────────────────────────
-            // Node.js スクリプトを実行してスケジュール JSON を取得
-            // stderr はログファイルへリダイレクトし、stdout の JSON には混入させない
+            // 【ブロック 4】Node.js 実行（keibaOddsGetSchedule.mjs）
+            //   timeout 300: 2開催×12R×ページ遷移 = 最大約250秒かかりうるため余裕を持たせる。
+            //   stderr はログファイルへリダイレクトし stdout の JSON に混入させない。
             // ─────────────────────────────────────────────────────────────
             $script  = base_path('scripts/keibaOddsGetSchedule.mjs');
             $logFile = base_path('scripts/keibaOddsGetSchedule.log');
@@ -157,7 +118,6 @@ class ImportKeibaSchedule extends Command
 
             $nodeBin = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
             $this->info('node パス: ' . $nodeBin);
-            // timeout 300: 2開催×12R×4秒 + ページ遷移 = 最大約250秒かかりうるため180では不足
             $output = shell_exec('timeout 300 ' . $nodeBin . ' ' . escapeshellarg($script) . ' 2>>' . escapeshellarg($logFile));
 
             $this->info('Node.js スクリプト完了。出力を受け取りました。');
@@ -165,12 +125,13 @@ class ImportKeibaSchedule extends Command
             $this->info('');
 
             // ─────────────────────────────────────────────────────────────
-            // Node.js の出力を連想配列にパース
+            // 【ブロック 5】JSON パース・schedules/races/horses を展開
+            //   パース失敗（Node.js エラー・空レスポンスなど）は処理を中断する。
+            //   各キーが存在しない場合は空配列にフォールバックする。
             // ─────────────────────────────────────────────────────────────
             $this->info('JSON をパース中...');
             $data = json_decode($output, true);
 
-            // パース失敗（Node.js エラー・空レスポンスなど）は処理を中断
             if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
                 $this->error('JSON パース失敗。Node.js の出力内容:');
                 $this->error($output);
@@ -182,18 +143,15 @@ class ImportKeibaSchedule extends Command
             $this->info('JSON パース成功。');
             $this->info('');
 
-            // ─────────────────────────────────────────────────────────────
-            // JSON の各キーを取り出す（キーが存在しない場合は空配列にフォールバック）
-            // ─────────────────────────────────────────────────────────────
             $this->info('データを展開中...');
             $schedules = $data['schedules'] ?? [];
             $races     = $data['races']     ?? [];
             $horses    = $data['horses']    ?? [];
 
             // ─────────────────────────────────────────────────────────────
-            // 出走済みチェック
-            // start_time が 'XXX' のレースは既に発走済みであることを示す。
-            // 当日の全レースが発走済みの場合、データ再取得は不要として終了する。
+            // 【ブロック 6】出走済みチェック（start_time='XXX' の全件カウント）
+            //   start_time='XXX' のレースは既に発走済みであることを示す慣例値。
+            //   当日の全レースが発走済みの場合はデータ再取得は不要として早期終了する。
             // ─────────────────────────────────────────────────────────────
             $today = date('Y-m-d');
             $todayRaceCount = 0;
@@ -213,40 +171,30 @@ class ImportKeibaSchedule extends Command
                 return 0;
             }
 
-            // 取得件数を表示（土曜日以外はこの後当日分に絞り込む）
             $this->info('  schedules : ' . count($schedules) . ' 件');
             $this->info('  races     : ' . count($races)     . ' 件');
             $this->info('  horses    : ' . count($horses)    . ' 件');
             $this->info('');
 
             // ─────────────────────────────────────────────────────────────
-            // トランザクション内でデータを入れ替え（DELETE → INSERT）
+            // 【ブロック 7】データ絞り込み（土曜日以外は当日分のみ）
+            //   土曜日: deleteKeibaTableRecords が事前に全テーブルを TRUNCATE 済みのため
+            //           絞り込みなし→土日両日分を全件 INSERT する。
+            //   日曜日: 当日分のみ INSERT（土曜のデータには触れない）。
+            //   DEBUGモード: 絞り込みをスキップして取得した全データを INSERT する。
             //
-            // 土曜日:
-            //   deleteKeibaTableRecords（cron）が事前に全テーブルを TRUNCATE 済みのため
-            //   ここでは DELETE をスキップして INSERT だけ行う。
-            //
-            // 土曜日以外（主に日曜日）:
-            //   当日分のデータのみ DELETE してから INSERT する。
-            //   トランザクションで囲むことで、INSERT 途中に失敗しても
-            //   DELETE 前の状態にロールバックされる。
-            //
-            // odds テーブルも削除する理由:
-            //   スケジュールを入れ替える = 新しいレース日の始まり なので、
-            //   前回の odds データをリセットして当日分をゼロから記録できるようにする。
+            //   INSERT 前に必ず DELETE → $datesToDelete で収集した日付を全テーブルで削除。
+            //   これにより何度実行しても重複せずに冪等性が保たれる。
             // ─────────────────────────────────────────────────────────────
             $this->info('──────────────────────────────────────');
             $this->info('トランザクション開始 ── データを入れ替えます...');
 
-            // 土曜日以外は当日分のみ INSERT（土曜日のデータには触れない）
-            // DEBUGモード時は絞り込みをスキップして取得した全データを INSERT する
             if (!$isDebug && date('w') !== '6') {
                 $schedules = array_values(array_filter($schedules, fn($r) => $r['date'] === $today));
                 $races      = array_values(array_filter($races,     fn($r) => $r['date'] === $today));
                 $horses     = array_values(array_filter($horses,    fn($r) => $r['date'] === $today));
             }
 
-            // INSERT する対象日付を収集（重複防止のため INSERT 前に必ず DELETE する）
             $datesToDelete = array_unique(array_merge(
                 array_column($schedules, 'date'),
                 array_column($races,     'date'),
@@ -255,7 +203,12 @@ class ImportKeibaSchedule extends Command
 
             DB::transaction(function () use ($schedules, $races, $horses, $datesToDelete) {
 
-                // 挿入対象の日付ぶんを事前に全削除（何度実行しても重複しない）
+                // ─────────────────────────────────────────────────────────
+                // 【ブロック 8】トランザクション: 対象日付を全テーブルから DELETE
+                //   odds テーブルも削除する理由:
+                //     スケジュール更新 = 新しいレース日の始まり なので
+                //     前回 odds データをリセットして当日分をゼロから記録できるようにする。
+                // ─────────────────────────────────────────────────────────
                 foreach ($datesToDelete as $date) {
                     DB::table('t_horse_odds_finder_schedules')->where('date', $date)->delete();
                     DB::table('t_horse_odds_finder_races')    ->where('date', $date)->delete();
@@ -266,8 +219,10 @@ class ImportKeibaSchedule extends Command
 
                 $this->info('');
 
-                // ── スケジュールを INSERT ──
-                // 開催日・開催回・場所・場所名・何日目かを記録する
+                // ─────────────────────────────────────────────────────────
+                // 【ブロック 9】schedules INSERT（開催日・回・場所・日目）
+                //   進捗を10件ごとにログ出力する。
+                // ─────────────────────────────────────────────────────────
                 $this->info('スケジュールを INSERT 中...');
                 $count = 0;
                 foreach ($schedules as $row) {
@@ -279,7 +234,6 @@ class ImportKeibaSchedule extends Command
                         'day'        => $row['day'],
                     ]);
                     $count++;
-                    // 進捗を10件ごとに表示
                     if ($count % 10 === 0) {
                         $this->line("  schedules: {$count} 件挿入済み...");
                     }
@@ -287,15 +241,17 @@ class ImportKeibaSchedule extends Command
                 $this->info("  schedules INSERT 完了 ── 合計 {$count} 件。");
                 $this->info('');
 
-                // ── レース一覧を INSERT ──
-                // 発走時刻・頭数など importOdds が参照する情報を記録する
+                // ─────────────────────────────────────────────────────────
+                // 【ブロック 10】races INSERT（start_time='XXX' はスキップ）
+                //   start_time='XXX' のレースは発走済みのためスキップする。
+                //   importOdds が参照する start_time / num_horses などを記録する。
+                // ─────────────────────────────────────────────────────────
                 $this->info('レース一覧を INSERT 中...');
                 $count = 0;
                 foreach ($races as $row) {
 
-                    // 発走済みレース（start_time === 'XXX'）は INSERT をスキップ
                     if ($row['start_time'] === 'XXX') {
-                        continue;
+                        continue;  // 発走済みはスキップ
                     }
 
                     DB::table('t_horse_odds_finder_races')->insert([
@@ -315,8 +271,10 @@ class ImportKeibaSchedule extends Command
                 $this->info("  races INSERT 完了 ── 合計 {$count} 件。");
                 $this->info('');
 
-                // ── 出走馬情報を INSERT ──
-                // 馬番・馬名・騎手・調教師・馬 URL などを記録する
+                // ─────────────────────────────────────────────────────────
+                // 【ブロック 11】horses INSERT（馬番・馬名・騎手・調教師・URL）
+                //   進捗を10件ごとにログ出力する。
+                // ─────────────────────────────────────────────────────────
                 $this->info('出走馬情報を INSERT 中...');
                 $count = 0;
                 foreach ($horses as $row) {
@@ -335,7 +293,6 @@ class ImportKeibaSchedule extends Command
                         'trainer'    => $row['trainer'],
                     ]);
                     $count++;
-                    // 進捗を10件ごとに表示
                     if ($count % 10 === 0) {
                         $this->line("  horses: {$count} 件挿入済み...");
                     }
@@ -350,8 +307,11 @@ class ImportKeibaSchedule extends Command
 
         } finally {
 
-            // ── 最終サマリー（どの経路でも必ず出力）──
-            // バナー行が完全に末尾へ来るよう、明細（サマリー各行）を先に出す
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 12】完了サマリー・WebPush 通知（finally で必ず実行）
+            //   どの経路（スキップ・全発走済み・パース失敗・正常終了）でも必ず実行。
+            //   S=schedules、R=races、H=horses の件数を通知本文に含める。
+            // ─────────────────────────────────────────────────────────────
             $cnt_schedule = count($schedules);
             $cnt_race     = count($races);
             $cnt_horse    = count($horses);

@@ -7,12 +7,37 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * cronで実行される。
- * t_horse_odds_finder_odds のデータをもとに
- * t_horse_odds_finder_summary に馬ごとのサマリーを生成・保存する。
- * 同一キー（date/kaisuu/basho/day/race/num）が既に存在する場合はINSERTしない。
+ * SummaryKeibaInfo
  *
- * cron設定:
+ * 【概要】
+ *   t_horse_odds_finder_odds のデータをもとに
+ *   t_horse_odds_finder_summary に馬ごとのサマリーを生成・保存する。
+ *   また t_horse_odds_finder_race_result_history へのベースオッズ upsert も行う。
+ *   同一キー（date/kaisuu/basho/day/race/num）が既に存在する場合はINSERTしない。
+ *
+ * 【処理フロー】
+ *   【ブロック 1】クエリログ無効化・多重起動防止
+ *   【ブロック 2】馬情報を取得（waku, name） → $horses マップ
+ *   【ブロック 3】レース情報を取得（basho_name, race_name） → $races マップ
+ *   【ブロック 4】既存サマリーキーを取得（重複INSERT防止用ハッシュセット）
+ *   【ブロック 5】JRAオッズを取得 → $oddsMap に集約
+ *   【ブロック 6】サマリーを INSERT（既存キーはスキップ）
+ *   【ブロック 7】レース結果履歴をUPSERT（popularity_rank は設定済み行を保護）
+ *   【ブロック 8】完了ログ・WebPush 通知
+ *
+ * 【$oddsMap のデータ構造】
+ *   $oddsMap[horse_key]['odds_tan_before_XX'] = value
+ *   minutes_before_start の変換:
+ *     999  → 'odds_tan_before_24'  （ベースオッズ）
+ *     -999 → 'odds_tan_before_0'   （発走直前確定）
+ *     N    → 'odds_tan_before_N'   （残り N 分前）
+ *
+ * 【メモリ削減の工夫】
+ *   DB::disableQueryLog() でクエリログ蓄積を停止。
+ *   $result（7104行超）は $oddsMap 構築後に unset() して解放する。
+ *   history テーブルは全件取得せず対象日付のみに絞り込む。
+ *
+ * 【cron設定】
  *   0 18 * * * php /var/www/horse_odds_finder/artisan keiba:summary >> /var/www/horse_odds_finder/storage/logs/summaryKeibaInfo.log 2>&1
  */
 class SummaryKeibaInfo extends Command
@@ -22,10 +47,12 @@ class SummaryKeibaInfo extends Command
 
     public function handle(): void
     {
-        // ★変更: クエリログ蓄積を停止（長時間バッチのメモリ肥大を防ぐ）
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 1】クエリログ無効化・多重起動防止
+        //   DB::disableQueryLog(): 長時間バッチでクエリログがメモリを肥大化させないよう無効化。
+        // ─────────────────────────────────────────────────────────────────
         DB::disableQueryLog();
 
-        // ── 多重起動防止 ─────────────────────────────────────────────
         $lockFile = sys_get_temp_dir() . '/keiba_summary.lock';
         if (file_exists($lockFile)) {
             $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
@@ -38,7 +65,11 @@ class SummaryKeibaInfo extends Command
         $this->info('');
         $this->info('========== keiba:summary 開始 ' . date('Y-m-d H:i:s', $now) . ' ==========');
 
-        // ── 馬情報を取得（waku, name） ─────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 2】馬情報を取得（waku, name） → $horses マップ
+        //   キー: "date_kaisuu_basho_day_race_num"
+        //   summary INSERT 時に waku・horse_name の参照に使う。
+        // ─────────────────────────────────────────────────────────────────
         $this->info('馬情報を取得中...');
         $horses = [];
 
@@ -58,7 +89,10 @@ class SummaryKeibaInfo extends Command
         }
         $this->info('  馬情報: ' . count($horses) . ' 頭');
 
-        // ── レース情報を取得（basho_name, race_name） ──────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 3】レース情報を取得（basho_name, race_name） → $races マップ
+        //   キー: "date_kaisuu_basho_day_race"
+        // ─────────────────────────────────────────────────────────────────
         $this->info('レース情報を取得中...');
         $races = [];
 
@@ -76,8 +110,11 @@ class SummaryKeibaInfo extends Command
         }
         $this->info('  レース情報: ' . count($races) . ' レース');
 
-        // ── 既存サマリーキーを取得（同一キーの重複INSERT防止） ─────────
-        // 毎日実行されるため、既にINSERT済みのキーは処理をスキップする
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 4】既存サマリーキーを取得（重複INSERT防止用ハッシュセット）
+        //   毎日実行されるため、既にINSERT済みのキーは処理をスキップする。
+        //   O(1) ルックアップのために配列値を true で保持する（isset() で判定）。
+        // ─────────────────────────────────────────────────────────────────
         $this->info('既存サマリーキーを確認中...');
         $existingSummaryKeys = [];
 
@@ -96,8 +133,15 @@ class SummaryKeibaInfo extends Command
         }
         $this->info('  既存サマリー: ' . count($existingSummaryKeys) . ' 件');
 
-        // ── JRAオッズを取得 ──────────────────────────────────────────
-        // 1馬につき minutes_before_start の数だけ行が存在する
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 5】JRAオッズを取得 → $oddsMap に集約
+        //   1馬につき minutes_before_start の数だけ行が存在するため、
+        //   horse_key でまとめて 'odds_tan_before_XX' カラム名に変換する。
+        //   minutes_before_start の変換: 999→'before_24', -999→'before_0', N→'before_N'
+        //   $lastFukuOdds: -999（発走直前）の複勝オッズ（下限・上限）を別途保持。
+        //   $targetDates: history テーブルの絞り込みに使う対象日付セット。
+        //   $result は map 構築後に unset() してメモリを解放する。
+        // ─────────────────────────────────────────────────────────────────
         $this->info('JRAオッズを取得中...');
         $result = DB::table('t_horse_odds_finder_odds')
             ->orderBy('date')
@@ -109,19 +153,12 @@ class SummaryKeibaInfo extends Command
             ->orderBy('minutes_before_start')
             ->get();
 
-        // $oddsMap: [ horse_key => [ 'odds_tan_before_XX' => value, ... ] ]
-        // minutes_before_start: 999=24分前相当, -999=発走直前(0分), それ以外=残り分数
-        $oddsMap = [];
-
+        $oddsMap      = [];
         $lastFukuOdds = [];
-
-        // ★変更: history絞り込み用の対象日付セットを収集する
-        $targetDates = [];
+        $targetDates  = [];
 
         foreach ($result as $v) {
             $key = "{$v->date}_{$v->kaisuu}_{$v->basho}_{$v->day}_{$v->race}_{$v->num}";
-
-            // ★変更: この馬の日付を対象日付として記録
             $targetDates[$v->date] = true;
 
             switch ($v->minutes_before_start) {
@@ -130,10 +167,8 @@ class SummaryKeibaInfo extends Command
                     break;
                 case '-999':
                     $oddsMap[$key]['odds_tan_before_0'] = $v->odds;
-
                     $lastFukuOdds[$key]['min'] = $v->fuku_min;
                     $lastFukuOdds[$key]['max'] = $v->fuku_max;
-
                     break;
                 default:
                     $oddsMap[$key]["odds_tan_before_{$v->minutes_before_start}"] = $v->odds;
@@ -142,13 +177,13 @@ class SummaryKeibaInfo extends Command
         }
         $this->info('  JRAオッズ: ' . count($oddsMap) . ' 頭分');
 
-        // ★変更: odds全件($result)はmap構築後に不要。7104行を解放してメモリを空ける
-        unset($result);
+        unset($result);  // $oddsMap 構築後はもう不要なので解放
 
-        // ── サマリーをINSERT ──────────────────────────────────────────
-        // ★変更: 旧実装は $result(7104行) を再ループしていたが、
-        //        $oddsMap のキーだけでINSERTに必要な値は全て復元できるため、
-        //        $oddsMap を基準にループする（$result 保持が不要になりメモリ削減）。
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 6】サマリーを INSERT（既存キーはスキップ）
+        //   $oddsMap のキーから date/kaisuu/basho/day/race/num を explode で復元。
+        //   レース情報・馬情報のどちらかがない場合はエラーとしてスキップ。
+        // ─────────────────────────────────────────────────────────────────
         $this->info('サマリーを生成中...');
         $inserted     = 0;
         $skipped      = 0;
@@ -156,16 +191,11 @@ class SummaryKeibaInfo extends Command
         $insertedKeys = [];
 
         foreach ($oddsMap as $key => $odds) {
-            // ★変更: 同馬の複数タイミング行は $oddsMap で既に1キーに集約済みのため、
-            //        $insertedKeys による今回実行内の重複チェックは不要。
-
-            // 既存サマリーに存在するキーはスキップ（毎日実行のための重複防止）
             if (isset($existingSummaryKeys[$key])) {
                 $skipped++;
                 continue;
             }
 
-            // ★変更: キーからカラム値を復元（history側と同じ explode パターン）
             [$date, $kaisuu, $basho, $day, $race, $num] = explode('_', $key);
             $raceKey = "{$date}_{$kaisuu}_{$basho}_{$day}_{$race}";
 
@@ -212,28 +242,24 @@ class SummaryKeibaInfo extends Command
 
         $this->info("  INSERT完了: {$inserted} 件 / スキップ（既存）: {$skipped} 件 / エラー（データ不備）: {$errors} 件");
 
-        // ── レース結果履歴をUPSERT ─────────────────────────────────────────
-
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 7】レース結果履歴をUPSERT（popularity_rank は設定済み行を保護）
+        //   history テーブルは全件取得せず $targetDateList で絞り込む
+        //   （旧実装の全件取得は16万件超でメモリを圧迫していた）。
+        //   $existingPopularityRanks: 馬キー → 既存の popularity_rank マップ。
+        //   $rankedRaceGroups: レースキー → 設定済みかどうかのフラグ。
+        //   popularity_rank が設定済みのレースはスキップ（SummaryHistoryPopularityRank を保護）。
+        // ─────────────────────────────────────────────────────────────────
         $this->info('レース結果履歴をUPSERT中...');
 
-        // ★変更: 対象日付のリストを作成（この配列で history をスコープする）
-        $targetDateList = array_keys($targetDates);
-
-        // SummaryHistoryPopularityRank で設定済みの popularity_rank を保護するため
-        // 既存レコードを先読みする
-        // ★変更: 旧実装は t_horse_odds_finder_race_result_history を全件 ->get() していたが、
-        //        16万件超（毎日増加）でメモリを圧迫するため、
-        //        今回処理対象の date に含まれる行のみに絞り込む。
-        //        参照している $existingPopularityRanks / $rankedRaceGroups は
-        //        どちらも $oddsMap 内のキー（＝今回の対象日付）しか使わないため、
-        //        対象日付だけ取得すれば結果は同一になる。
+        $targetDateList          = array_keys($targetDates);
         $existingPopularityRanks = [];
         $rankedRaceGroups        = [];
 
         if (!empty($targetDateList)) {
             DB::table('t_horse_odds_finder_race_result_history')
                 ->select('date', 'kaisuu', 'basho_code', 'day', 'race', 'num', 'popularity_rank')
-                ->whereIn('date', $targetDateList) // ★変更: 全件→対象日付のみ
+                ->whereIn('date', $targetDateList)
                 ->get()
                 ->each(function ($r) use (&$existingPopularityRanks, &$rankedRaceGroups) {
                     $horseKey = "{$r->date}_{$r->kaisuu}_{$r->basho_code}_{$r->day}_{$r->race}_{$r->num}";
@@ -245,7 +271,6 @@ class SummaryKeibaInfo extends Command
                 });
         }
 
-        // $oddsMap の全馬を対象にレコードを作成（summaryのスキップ対象も含む）
         $historyRecords = [];
         foreach ($oddsMap as $key => $odds) {
             [$date, $kaisuu, $basho, $day, $race, $num] = explode('_', $key);
@@ -272,8 +297,7 @@ class SummaryKeibaInfo extends Command
             ];
         }
 
-        // レースごとに人気順を計算（発走直前の単勝オッズ昇順、1位=最低オッズ）
-        // グループ内に1頭でも popularity_rank > 0 の馬がいればスキップ（設定済み）
+        // レースごとに人気順を計算（rankedRaceGroups に含まれるレースはスキップ）
         $raceGroups = [];
         foreach ($historyRecords as $key => $record) {
             $raceKey = "{$record['date']}_{$record['kaisuu']}_{$record['basho_code']}_{$record['day']}_{$record['race']}";
@@ -302,13 +326,14 @@ class SummaryKeibaInfo extends Command
 
         $historyCount = count($historyRecords);
         $this->info("  UPSERT完了: {$historyCount} 件");
+
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 8】完了ログ・WebPush 通知
+        // ─────────────────────────────────────────────────────────────────
         $this->info('');
         $this->info('========== keiba:summary 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
 
-
-
         (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryKeibaInfo::handle\n投入:{$inserted}、飛:{$skipped}、履歴:{$historyCount}");
-
     }
 }
