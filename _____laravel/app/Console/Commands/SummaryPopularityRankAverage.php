@@ -116,6 +116,10 @@ class SummaryPopularityRankAverage extends Command
             $this->warn('追加対象のレコードがありません。処理を終了します。');
             $this->info('========== keiba:summaryPopularityRankAverage 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
+            (new WebPushService())->sendPushNotifierDeveloperNews(
+                'develop',
+                'SummaryPopularityRankAverage::handle' . "\n" . '追加対象なし（空振り）'
+            );
             return;
         }
 
