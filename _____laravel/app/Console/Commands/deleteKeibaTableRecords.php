@@ -93,7 +93,8 @@ class DeleteKeibaTableRecords extends Command
             '/var/www/horse_odds_finder/storage/logs/importRaceResultHistory.log',
             '/var/www/horse_odds_finder/storage/logs/SummaryHistoryPopularityRank.log',
             '/var/www/horse_odds_finder/storage/logs/summaryHistoryFinishingPosition.log',
-            '/var/www/horse_odds_finder/storage/logs/importRaceResultPayout.log'
+            '/var/www/horse_odds_finder/storage/logs/importRaceResultPayout.log',
+            '/var/www/horse_odds_finder/storage/logs/importShutsubaHistory.log'
         ];
         foreach ($logFiles as $logFile) {
             if (file_exists($logFile)) {

@@ -151,7 +151,7 @@ class ImportKeibaOdds extends Command
                     ->pluck('odds', 'num')
                     ->all();
 
-                asort($prevOddsMap); // オッズ昇順ソート → 人気順位に相当
+                uasort($prevOddsMap, fn($a, $b) => (float) $a <=> (float) $b); // 数値昇順ソート → 人気順位に相当
                 $rank = 1;
                 foreach ($prevOddsMap as $num => $_) {
                     $prevRankMap[$num] = $rank++;

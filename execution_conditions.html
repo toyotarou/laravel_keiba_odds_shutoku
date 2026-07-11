@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>バッチ実行条件一覧</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    font-size: 14px;
+    background: #f0f2f5;
+    color: #1a1a2e;
+  }
+
+  /* ── タブバー ── */
+  .tab-bar {
+    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #1a1a2e;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 13px 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #9ca3af;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+  }
+  .tab-btn.active { color: #fff; border-bottom-color: #2563eb; }
+  .tab-panel { display: none; padding-bottom: 24px; }
+  .tab-panel.active { display: block; }
+
+  h1 { font-size: 16px; font-weight: 700; text-align: center; padding: 14px 12px 2px; }
+  .subtitle { font-size: 11px; text-align: center; color: #888; padding-bottom: 10px; }
+
+  /* ── 曜日ヘッダー ── */
+  .day-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; margin-top: 8px; color: #fff;
+    font-size: 18px; font-weight: 800; letter-spacing: 0.02em;
+    position: sticky; top: 46px; z-index: 10;
+  }
+  .day-header.sat  { background: #1d4ed8; }
+  .day-header.sun  { background: #b91c1c; }
+  .day-header.mon, .day-header.tue,
+  .day-header.wed, .day-header.thu, .day-header.fri { background: #374151; }
+  .day-header .day-sub { font-size: 12px; font-weight: 400; opacity: 0.8; }
+
+  /* ── cron カード ── */
+  .day-body { padding: 8px 12px 4px; }
+  .row {
+    display: flex; gap: 10px; align-items: flex-start;
+    background: #fff; border-radius: 10px; padding: 10px 12px;
+    margin-bottom: 7px; box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+  }
+  .row.skip { background: #f3f4f6; box-shadow: none; opacity: 0.55; }
+  .row.norun { background: #fef9c3; box-shadow: none; opacity: 0.7; border: 1px solid #fde047; }
+  .time-col { min-width: 52px; font-size: 15px; font-weight: 700; color: #1a1a2e; padding-top: 1px; line-height: 1.2; }
+  .time-col small { display: block; font-size: 10px; font-weight: 400; color: #999; }
+  .info-col { flex: 1; min-width: 0; }
+  .filename { font-size: 11px; font-family: 'Courier New', monospace; color: #1d4ed8; font-weight: 600; margin-bottom: 3px; word-break: break-all; }
+  .row.skip .filename { color: #9ca3af; }
+  .row.norun .filename { color: #92400e; }
+  .desc { font-size: 12px; color: #374151; line-height: 1.5; margin-bottom: 4px; }
+  .row.skip .desc { color: #9ca3af; }
+  .tables { font-size: 11px; line-height: 1.8; background: #f8fafc; border-radius: 5px; padding: 4px 8px; }
+  .r { color: #1d4ed8; } .w { color: #b91c1c; font-weight: 600; }
+  .lbl { color: #9ca3af; font-weight: 600; margin-right: 4px; }
+  .note { margin-top: 4px; font-size: 11px; color: #92400e; background: #fffbeb; border-radius: 4px; padding: 3px 7px; line-height: 1.5; }
+  .note.red { color: #991b1b; background: #fef2f2; }
+  .skip-label { font-size: 12px; color: #9ca3af; font-style: italic; }
+  .norun-label { font-size: 12px; color: #92400e; font-weight: 600; }
+
+  /* ── テーブル一覧タブ ── */
+  .tbl-card { background: #fff; border-radius: 10px; margin: 8px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); overflow: hidden; }
+  .tbl-name { background: #1a1a2e; color: #fff; font-size: 12px; font-family: 'Courier New', monospace; font-weight: 700; padding: 10px 14px; word-break: break-all; line-height: 1.5; }
+  .tbl-section { padding: 10px 14px; border-top: 1px solid #f0f2f5; }
+  .tbl-section-label { font-size: 11px; font-weight: 800; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tbl-section-label.write  { color: #b91c1c; }
+  .tbl-section-label.read   { color: #1d4ed8; }
+  .tbl-section-label.update { color: #7c3aed; }
+  .tbl-section-label.del    { color: #d97706; }
+  .tbl-entry { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 5px; }
+  .tbl-cron { min-width: 76px; font-size: 10px; font-weight: 700; color: #fff; border-radius: 4px; padding: 2px 6px; white-space: nowrap; text-align: center; flex-shrink: 0; }
+  .tbl-cron.sat     { background: #1d4ed8; }
+  .tbl-cron.sun     { background: #b91c1c; }
+  .tbl-cron.satsu   { background: #0f766e; }
+  .tbl-cron.every   { background: #6b7280; }
+  .tbl-cron.exfri   { background: #7c3aed; }
+  .tbl-cron.exsat   { background: #059669; }
+  .tbl-cron.once    { background: #d97706; }
+  .tbl-file { font-family: 'Courier New', monospace; font-size: 11px; color: #374151; word-break: break-all; line-height: 1.5; }
+  .tbl-note { font-size: 11px; color: #6b7280; font-style: italic; margin-left: 84px; margin-top: -2px; margin-bottom: 4px; }
+  .tbl-note.warn { color: #92400e; font-style: normal; font-weight: 600; background: #fffbeb; border-radius: 3px; padding: 1px 4px; }
+
+  @media (prefers-color-scheme: dark) {
+    body { background: #111827; color: #f3f4f6; }
+    .row { background: #1f2937; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+    .row.skip { background: #1a202c; }
+    .row.norun { background: #2d2006; border-color: #854d0e; }
+    .time-col { color: #f3f4f6; }
+    .desc { color: #d1d5db; }
+    .tables { background: #111827; }
+    .filename { color: #60a5fa; }
+    .row.norun .filename { color: #fbbf24; }
+    .tbl-card { background: #1f2937; }
+    .tbl-section { border-top-color: #374151; }
+    .tbl-file { color: #d1d5db; }
+    .tab-bar { background: #111827; }
+    h1 { color: #f3f4f6; }
+    .note { background: #2d2006; }
+    .note.red { background: #2d0606; color: #fca5a5; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════ タブバー ════ -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('cron')">⏱ 実行順</button>
+  <button class="tab-btn"        onclick="switchTab('table')">🗄 テーブル</button>
+</div>
+
+<script>
+  function switchTab(id) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 1: 実行順
+══════════════════════════════════════════════════════════ -->
+<div id="tab-cron" class="tab-panel active">
+<h1>⏱ バッチ実行条件一覧</h1>
+<p class="subtitle">曜日ごと・cron実行順　（実際の crontab をもとに作成）</p>
+
+<!-- ════ 土曜日 ════ -->
+<div class="day-header sat">土曜日 <span class="day-sub">/ Saturday</span></div>
+<div class="day-body">
+
+  <div class="row"><div class="time-col">05:00</div><div class="info-col">
+    <div class="filename">SummaryRacesPopularityRatio.php</div>
+    <div class="desc">race_result_history の<strong>全データ（過去全期間）</strong>をもとに、レースごとの「人気順オッズの連続比率」を計算してマスタテーブルに保存する</div>
+    <div class="tables">
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（日付絞りなし・全件。popularity_rank 昇順で tan を取得）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_races_popularity_ratio（EXISTSチェック → 未登録レースのみ INSERT）</span>
+    </div>
+    <div class="note">⚠️ 既に登録済みのレースはスキップ（冪等）。このマスタが 08:00 の ImportRacesPopularityRatio の比較元になる。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">05:50</div><div class="info-col">
+    <div class="filename">deleteKeibaTableRecords.php</div>
+    <div class="desc">今週のレース開始前に<strong>運用テーブル7本を TRUNCATE</strong>してリセットする</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">TRUNCATE：horses / odds / odds_get_timing / odds_wide / race_results / races / schedules</span>
+    </div>
+    <div class="note">⚠️ 06:00 の importSchedule より必ず先に実行すること。累積テーブル（race_result_history 等）は対象外。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">06:00</div><div class="info-col">
+    <div class="filename">ImportKeibaSchedule.php</div>
+    <div class="desc"><strong>土・日 両日分</strong>の開催スケジュール・レース・馬情報を JRA サイトから取得して保存する</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_schedules / races / horses（INSERT）</span>
+    </div>
+    <div class="note">土曜は 05:50 の TRUNCATE 済みのため odds の DELETE 不要。毎日 cron だが土日以外は実質空振り。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">07:00</div><div class="info-col">
+    <div class="filename">ImportKeibaBaseOdds.php</div>
+    <div class="desc"><strong>土・日 両日分</strong>のオッズを初回一括取得する（cron: <code>0 7 * * 6</code>）</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_odds（minutes_before_start=999 でUPSERT）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_odds_get_timing（タイミング記録を UPSERT）</span>
+    </div>
+    <div class="note">WHERE date &gt;= 今日（土曜）で取得するため、土・日 両日分のオッズが一度に保存される。リトライ最大3回。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">08:00</div><div class="info-col">
+    <div class="filename">ImportRacesPopularityRatio.php</div>
+    <div class="desc"><strong>当日（土曜）のレース</strong>の人気比率を 05:00 で作成したマスタと照合し、RMSE 類似度を算出してレーステーブルに保存する</div>
+    <div class="tables">
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_races_popularity_ratio（マスタ・全件をメモリ展開）</span><br>
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_races（WHERE popularity_ratio IS NULL）</span><br>
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_odds（fallback: ODDS_GET_TIMING 順でオッズ取得）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_races.popularity_ratio / popularity_ratio_table_ids / popularity_ratio_match_percent を UPDATE</span>
+    </div>
+    <div class="note">matchPercent ≥ 70% のマスタIDを '|' 区切りで保存。オッズが1件もない場合はスキップ。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">09〜17時<small>毎分</small></div><div class="info-col">
+    <div class="filename">ImportKeibaOdds.php</div>
+    <div class="desc">発走タイミング（残り 24/21/18/15/12/9/6/3/0 分）に合致するレースのみオッズをリアルタイム取得する（flock）</div>
+    <div class="tables">
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_races（当日・未発走レース一覧）</span><br>
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_odds（前回オッズとの比較用）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_odds（UPSERT）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_odds_get_timing（タイミング記録 INSERT/UPDATE）</span>
+    </div>
+    <div class="note">人気順位の変化 ≥ 2 の場合に WebPush 送信。diff=24→999、diff=0→-999 で保存。flock で多重起動防止。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">09〜18時<small>毎分</small></div><div class="info-col">
+    <div class="filename">ImportKeibaJraRaceOneResult.php</div>
+    <div class="desc">レース終了後すぐ（発走+10/15/20/25/30分）にレース結果を取得する（flock）</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_race_results（INSERT。notified_at も設定）</span>
+    </div>
+    <div class="note">$existingKeys チェックで重複 INSERT を防止。結果確定時に WebPush 送信。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">18:00</div><div class="info-col">
+    <div class="filename">SummaryKeibaInfo.php</div>
+    <div class="desc"><strong>当日</strong>のレース情報をもとにサマリを作成する。<strong>同時に race_result_history への UPSERT も実行する</strong>（確定オッズ使用）</div>
+    <div class="tables">
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_horses / races / odds（WHERE minutes_before_start=-999 確定オッズ）</span><br>
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_summary（重複チェック用既存キー）</span><br>
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（既存 popularity_rank を保持するため参照）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_summary（INSERT。重複はスキップ）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_race_result_history（UPSERT：basho / race_name / name / tan / fuku_min / fuku_max / popularity_rank を保存）</span>
+    </div>
+    <div class="note red">★重要：この UPSERT が先行するため、19:00 の ImportKeibaRaceResultHistory は全開催が PRE-SKIP となり「頭数:0 / 開催:N」通知になる。これは正常動作。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">18:30</div><div class="info-col">
+    <div class="filename">ImportKeibaJraRaceResult.php</div>
+    <div class="desc"><strong>当日</strong>のレース着順（result）を JRA サイトから一括取得し、サマリテーブルに書き込む</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_summary.result（着順カラムのみ UPDATE。WHERE result IS NULL で未確定のみ対象）</span>
+    </div>
+    <div class="note">※ race_results テーブルではなく summary テーブルの result カラムを更新する。BASHO_MAP で漢字→コード変換。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">19:00</div><div class="info-col">
+    <div class="filename">ImportKeibaRaceResultHistory.php</div>
+    <div class="desc"><strong>当日（土曜）</strong>のレース結果を Node.js 経由で JRA サイトから取得し race_result_history に保存する</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_race_result_history（INSERT）</span>
+    </div>
+    <div class="note">⚠️ 18:00 の SummaryKeibaInfo が全開催を先に UPSERT 済みのため、ほぼ全開催が PRE-SKIP となる（新規保存=0件が正常）。バックアップ・補完として機能。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">20:00</div><div class="info-col">
+    <div class="filename">SummaryHistoryPopularityRank.php</div>
+    <div class="desc">race_result_history の<strong>人気順（popularity_rank）</strong>を tan 昇順で算出し更新する</div>
+    <div class="tables">
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（WHERE date BETWEEN 当月1日〜末日）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_race_result_history.popularity_rank を UPDATE</span>
+    </div>
+    <div class="note">全馬に popularity_rank が既に入っているレースはスキップ。NULL/非数値の tan は最後尾に並べる。</div>
+  </div></div>
+
+  <div class="row skip"><div class="time-col">20:30</div><div class="info-col">
+    <div class="filename">SummaryPopularityRankAverage.php</div>
+    <div class="skip-label">🚫 土曜日は cron 対象外のため実行なし（cron: <code>30 20 * * 0-5</code>）</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">21:00</div><div class="info-col">
+    <div class="filename">SummaryHistoryFinishingPosition.php</div>
+    <div class="desc">race_result_history の<strong>着順（finishing_position）</strong>を JRA サイトから取得して更新する</div>
+    <div class="tables">
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（WHERE date LIKE '当月%' AND finishing_position IS NULL OR = 0）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_race_result_history.finishing_position を UPDATE</span>
+    </div>
+    <div class="note">非入賞（競走中止等）は -1 を格納。以降の処理でスキップ対象になる。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">21:30</div><div class="info-col">
+    <div class="filename">ImportKeibaRaceResultPayout.php</div>
+    <div class="desc"><strong>当月全開催</strong>の払い戻し金を JRA サイトから取得して保存する</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_race_result_payout（EXISTSチェック → 未登録レースのみ INSERT）</span>
+    </div>
+    <div class="note">券種（単勝/複勝/枠連/ワイド/馬連/馬単/3連複/3連単）ごとに '馬番|金額' 形式で保存。複数は '/' で結合。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">22:00</div><div class="info-col">
+    <div class="filename">ImportKeibaShutsubaHistory.php</div>
+    <div class="desc"><strong>翌日（日曜）</strong>の全開催・全レースの出走情報（前走〜4走前）を取得して保存する（flock）</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_shutsuba_history（updateOrInsert：UNIQUE KEY = name + date + basho_code + race）</span>
+    </div>
+    <div class="note">PRE-SKIP：今日取得済みの basho_code は Node.js 実行をスキップ。翌日が開催なしなら空振り。</div>
+  </div></div>
+
+</div><!-- /土曜 -->
+
+
+<!-- ════ 日曜日 ════ -->
+<div class="day-header sun">日曜日 <span class="day-sub">/ Sunday</span></div>
+<div class="day-body">
+
+  <div class="row"><div class="time-col">06:00</div><div class="info-col">
+    <div class="filename">ImportKeibaSchedule.php</div>
+    <div class="desc"><strong>当日（日曜）</strong>のスケジュール・レース・馬情報を JRA サイトから取得して保存する</div>
+    <div class="tables">
+      <span class="lbl">削除</span><span class="w" style="color:#d97706;">t_horse_odds_finder_odds の日曜分データを DELETE（土曜 07:00 に入れた日曜オッズをリセット）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_schedules / races / horses（INSERT）</span>
+    </div>
+    <div class="note">日曜実行時は先に odds の日曜分を DELETE してからスケジュール投入。その後 07:00 の ImportKeibaBaseOdds が日曜オッズを再取得する。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">07:00</div><div class="info-col">
+    <div class="filename">ImportKeibaBaseOdds.php</div>
+    <div class="desc"><strong>当日（日曜）分</strong>のオッズを取得する（cron: <code>0 7 * * 0</code>）。06:00 の DELETE で空になった日曜オッズを再投入する</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_odds（minutes_before_start=999 でUPSERT）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_odds_get_timing（タイミング記録 UPSERT）</span>
+    </div>
+    <div class="note">WHERE date &gt;= 今日（日曜）で取得。土曜分は TRUNCATE 後に土曜 07:00 で取得済みのため対象外。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">08:00</div><div class="info-col">
+    <div class="filename">ImportRacesPopularityRatio.php</div>
+    <div class="desc"><strong>当日（日曜）のレース</strong>の人気比率をマスタと照合し類似度を算出する</div>
+    <div class="tables">
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_races_popularity_ratio（マスタ・全件）</span><br>
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_races（WHERE popularity_ratio IS NULL）</span><br>
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_odds（fallback オッズ取得）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_races.popularity_ratio / popularity_ratio_table_ids / popularity_ratio_match_percent を UPDATE</span>
+    </div>
+  </div></div>
+
+  <div class="row"><div class="time-col">09〜17時<small>毎分</small></div><div class="info-col">
+    <div class="filename">ImportKeibaOdds.php</div>
+    <div class="desc">発走タイミング合致レースのみオッズをリアルタイム取得する（flock）</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_odds（UPSERT）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_odds_get_timing（INSERT/UPDATE）</span>
+    </div>
+  </div></div>
+
+  <div class="row"><div class="time-col">09〜18時<small>毎分</small></div><div class="info-col">
+    <div class="filename">ImportKeibaJraRaceOneResult.php</div>
+    <div class="desc">レース終了後すぐにレース結果を取得する（flock）</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_race_results（INSERT）</span>
+    </div>
+  </div></div>
+
+  <div class="row"><div class="time-col">18:00</div><div class="info-col">
+    <div class="filename">SummaryKeibaInfo.php</div>
+    <div class="desc"><strong>当日</strong>のサマリ作成。<strong>race_result_history への UPSERT も同時実行</strong>（確定オッズ使用）</div>
+    <div class="tables">
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_horses / races / odds（minutes_before_start=-999）/ summary / race_result_history</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_summary（INSERT）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_race_result_history（UPSERT：tan / fuku_min / fuku_max / popularity_rank 等）</span>
+    </div>
+    <div class="note red">★重要：この UPSERT が先行するため、19:00 の ImportKeibaRaceResultHistory は全開催が PRE-SKIP となる（正常動作）。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">18:30</div><div class="info-col">
+    <div class="filename">ImportKeibaJraRaceResult.php</div>
+    <div class="desc"><strong>当日</strong>のレース着順を JRA サイトから取得し、サマリテーブルの result カラムを更新する</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_summary.result（着順カラムのみ UPDATE。WHERE result IS NULL）</span>
+    </div>
+    <div class="note">※ race_results テーブルではなく summary テーブルの result（着順）カラムを更新する。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">19:00</div><div class="info-col">
+    <div class="filename">ImportKeibaRaceResultHistory.php</div>
+    <div class="desc"><strong>当日（日曜）</strong>のレース結果を Node.js 経由で取得し race_result_history に保存する</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_race_result_history（INSERT）</span>
+    </div>
+    <div class="note">⚠️ 18:00 の SummaryKeibaInfo が先に全開催を UPSERT 済みのため、実質 PRE-SKIP（新規保存=0件）が正常。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">20:00</div><div class="info-col">
+    <div class="filename">SummaryHistoryPopularityRank.php</div>
+    <div class="desc">race_result_history の<strong>人気順</strong>を算出・更新する</div>
+    <div class="tables">
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（WHERE date BETWEEN 当月1日〜末日）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_race_result_history.popularity_rank を UPDATE</span>
+    </div>
+  </div></div>
+
+  <div class="row"><div class="time-col">20:30</div><div class="info-col">
+    <div class="filename">SummaryPopularityRankAverage.php</div>
+    <div class="desc">人気 1〜18 位の<strong>平均オッズ</strong>を加重平均で集計テーブルに保存する（cron: <code>30 20 * * 0-5</code>）</div>
+    <div class="tables">
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_popularity_rank_average（前回の end_date を参照）</span><br>
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（初回=全件 / 2回目以降=WHERE date &gt; 前回end_date、かつ popularity_rank IS NOT NULL AND tan が数値）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_popularity_rank_average（初回=INSERT / 2回目以降=加重平均でUPDATE）</span>
+    </div>
+    <div class="note">最大18行（人気1〜18位）。増分更新方式のため過去データを再集計する必要なし。</div>
+  </div></div>
+
+  <div class="row"><div class="time-col">21:00</div><div class="info-col">
+    <div class="filename">SummaryHistoryFinishingPosition.php</div>
+    <div class="desc">race_result_history の<strong>着順</strong>を更新する</div>
+    <div class="tables">
+      <span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（WHERE date LIKE '当月%' AND finishing_position IS NULL OR = 0）</span><br>
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_race_result_history.finishing_position を UPDATE</span>
+    </div>
+  </div></div>
+
+  <div class="row"><div class="time-col">21:30</div><div class="info-col">
+    <div class="filename">ImportKeibaRaceResultPayout.php</div>
+    <div class="desc"><strong>当月全開催</strong>の払い戻し金を取得して保存する</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_race_result_payout（EXISTSチェック → 未登録のみ INSERT）</span>
+    </div>
+  </div></div>
+
+  <div class="row"><div class="time-col">22:00</div><div class="info-col">
+    <div class="filename">ImportKeibaShutsubaHistory.php</div>
+    <div class="desc"><strong>翌日（月曜）</strong>の出走情報を取得して保存する（flock）</div>
+    <div class="tables">
+      <span class="lbl">書く</span><span class="w">t_horse_odds_finder_shutsuba_history（updateOrInsert）</span>
+    </div>
+    <div class="note">月曜は開催なしのため通常空振り（kaisaiList が空で正常終了）。</div>
+  </div></div>
+
+</div><!-- /日曜 -->
+
+
+<!-- ════ 月曜日 ════ -->
+<div class="day-header mon">月曜日 <span class="day-sub">/ Monday　※平日はレースなし</span></div>
+<div class="day-body">
+  <div class="row skip"><div class="time-col">06:00</div><div class="info-col"><div class="filename">ImportKeibaSchedule.php</div><div class="skip-label">実質空振り（毎日cron、平日はデータなし）</div></div></div>
+  <div class="row skip"><div class="time-col">09〜17時<small>毎分</small></div><div class="info-col"><div class="filename">ImportKeibaOdds.php</div><div class="skip-label">対象レースなし（races テーブルが空）</div></div></div>
+  <div class="row skip"><div class="time-col">09〜18時<small>毎分</small></div><div class="info-col"><div class="filename">ImportKeibaJraRaceOneResult.php</div><div class="skip-label">対象レースなし</div></div></div>
+  <div class="row skip"><div class="time-col">18:00</div><div class="info-col"><div class="filename">SummaryKeibaInfo.php</div><div class="skip-label">実質空振り（races が空）</div></div></div>
+  <div class="row skip"><div class="time-col">18:30</div><div class="info-col"><div class="filename">ImportKeibaJraRaceResult.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row skip"><div class="time-col">19:00</div><div class="info-col"><div class="filename">ImportKeibaRaceResultHistory.php</div><div class="skip-label">実質空振り（平日レースなし）</div></div></div>
+  <div class="row"><div class="time-col">20:00</div><div class="info-col">
+    <div class="filename">SummaryHistoryPopularityRank.php</div>
+    <div class="desc">race_result_history の<strong>人気順</strong>を算出・更新する（新データがなければ実質空振り）</div>
+    <div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（当月）</span><br><span class="lbl">書く</span><span class="w">popularity_rank を UPDATE</span></div>
+  </div></div>
+  <div class="row"><div class="time-col">20:30</div><div class="info-col">
+    <div class="filename">SummaryPopularityRankAverage.php</div>
+    <div class="desc">人気1〜18位の<strong>平均オッズ</strong>を集計する</div>
+    <div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（WHERE date &gt; 前回end_date）</span><br><span class="lbl">書く</span><span class="w">t_horse_odds_finder_popularity_rank_average</span></div>
+  </div></div>
+  <div class="row"><div class="time-col">21:00</div><div class="info-col">
+    <div class="filename">SummaryHistoryFinishingPosition.php</div>
+    <div class="desc">race_result_history の<strong>着順</strong>を算出・更新する</div>
+    <div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（当月・未確定行）</span><br><span class="lbl">書く</span><span class="w">finishing_position を UPDATE</span></div>
+  </div></div>
+  <div class="row skip"><div class="time-col">21:30</div><div class="info-col"><div class="filename">ImportKeibaRaceResultPayout.php</div><div class="skip-label">実質空振り（週末分は処理済み）</div></div></div>
+  <div class="row"><div class="time-col">22:00</div><div class="info-col">
+    <div class="filename">ImportKeibaShutsubaHistory.php</div>
+    <div class="desc"><strong>翌日</strong>の出走情報を取得・保存する</div>
+    <div class="tables"><span class="lbl">書く</span><span class="w">t_horse_odds_finder_shutsuba_history</span></div>
+    <div class="note">翌日（火曜）も開催なし → 空振り。来週に向けた翌日分の取得試行。</div>
+  </div></div>
+</div>
+
+<!-- ════ 火曜日 ════ -->
+<div class="day-header tue">火曜日 <span class="day-sub">/ Tuesday　※月曜と同じ</span></div>
+<div class="day-body">
+  <div class="row skip"><div class="time-col">06:00</div><div class="info-col"><div class="filename">ImportKeibaSchedule.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row skip"><div class="time-col">09〜17時<small>毎分</small></div><div class="info-col"><div class="filename">ImportKeibaOdds.php</div><div class="skip-label">対象レースなし</div></div></div>
+  <div class="row skip"><div class="time-col">09〜18時<small>毎分</small></div><div class="info-col"><div class="filename">ImportKeibaJraRaceOneResult.php</div><div class="skip-label">対象レースなし</div></div></div>
+  <div class="row skip"><div class="time-col">18:00</div><div class="info-col"><div class="filename">SummaryKeibaInfo.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row skip"><div class="time-col">18:30</div><div class="info-col"><div class="filename">ImportKeibaJraRaceResult.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row skip"><div class="time-col">19:00</div><div class="info-col"><div class="filename">ImportKeibaRaceResultHistory.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row"><div class="time-col">20:00</div><div class="info-col"><div class="filename">SummaryHistoryPopularityRank.php</div><div class="desc">race_result_history の<strong>人気順</strong>を算出・更新する</div><div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（当月）</span><br><span class="lbl">書く</span><span class="w">popularity_rank を UPDATE</span></div></div></div>
+  <div class="row"><div class="time-col">20:30</div><div class="info-col"><div class="filename">SummaryPopularityRankAverage.php</div><div class="desc">人気1〜18位の<strong>平均オッズ</strong>を集計する</div><div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history</span><br><span class="lbl">書く</span><span class="w">t_horse_odds_finder_popularity_rank_average</span></div></div></div>
+  <div class="row"><div class="time-col">21:00</div><div class="info-col"><div class="filename">SummaryHistoryFinishingPosition.php</div><div class="desc">race_result_history の<strong>着順</strong>を算出・更新する</div><div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（当月・未確定）</span><br><span class="lbl">書く</span><span class="w">finishing_position を UPDATE</span></div></div></div>
+  <div class="row skip"><div class="time-col">21:30</div><div class="info-col"><div class="filename">ImportKeibaRaceResultPayout.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row"><div class="time-col">22:00</div><div class="info-col"><div class="filename">ImportKeibaShutsubaHistory.php</div><div class="desc"><strong>翌日</strong>の出走情報を取得・保存する</div><div class="tables"><span class="lbl">書く</span><span class="w">t_horse_odds_finder_shutsuba_history</span></div></div></div>
+</div>
+
+<!-- ════ 水曜日 ════ -->
+<div class="day-header wed">水曜日 <span class="day-sub">/ Wednesday　※月曜と同じ</span></div>
+<div class="day-body">
+  <div class="row skip"><div class="time-col">06:00</div><div class="info-col"><div class="filename">ImportKeibaSchedule.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row skip"><div class="time-col">09〜17時<small>毎分</small></div><div class="info-col"><div class="filename">ImportKeibaOdds.php</div><div class="skip-label">対象レースなし</div></div></div>
+  <div class="row skip"><div class="time-col">09〜18時<small>毎分</small></div><div class="info-col"><div class="filename">ImportKeibaJraRaceOneResult.php</div><div class="skip-label">対象レースなし</div></div></div>
+  <div class="row skip"><div class="time-col">18:00</div><div class="info-col"><div class="filename">SummaryKeibaInfo.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row skip"><div class="time-col">18:30</div><div class="info-col"><div class="filename">ImportKeibaJraRaceResult.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row skip"><div class="time-col">19:00</div><div class="info-col"><div class="filename">ImportKeibaRaceResultHistory.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row"><div class="time-col">20:00</div><div class="info-col"><div class="filename">SummaryHistoryPopularityRank.php</div><div class="desc">race_result_history の<strong>人気順</strong>を算出・更新する</div><div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（当月）</span><br><span class="lbl">書く</span><span class="w">popularity_rank を UPDATE</span></div></div></div>
+  <div class="row"><div class="time-col">20:30</div><div class="info-col"><div class="filename">SummaryPopularityRankAverage.php</div><div class="desc">人気1〜18位の<strong>平均オッズ</strong>を集計する</div><div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history</span><br><span class="lbl">書く</span><span class="w">t_horse_odds_finder_popularity_rank_average</span></div></div></div>
+  <div class="row"><div class="time-col">21:00</div><div class="info-col"><div class="filename">SummaryHistoryFinishingPosition.php</div><div class="desc">race_result_history の<strong>着順</strong>を算出・更新する</div><div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（当月・未確定）</span><br><span class="lbl">書く</span><span class="w">finishing_position を UPDATE</span></div></div></div>
+  <div class="row skip"><div class="time-col">21:30</div><div class="info-col"><div class="filename">ImportKeibaRaceResultPayout.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row"><div class="time-col">22:00</div><div class="info-col"><div class="filename">ImportKeibaShutsubaHistory.php</div><div class="desc"><strong>翌日</strong>の出走情報を取得・保存する</div><div class="tables"><span class="lbl">書く</span><span class="w">t_horse_odds_finder_shutsuba_history</span></div></div></div>
+</div>
+
+<!-- ════ 木曜日 ════ -->
+<div class="day-header thu">木曜日 <span class="day-sub">/ Thursday　※月曜と同じ</span></div>
+<div class="day-body">
+  <div class="row skip"><div class="time-col">06:00</div><div class="info-col"><div class="filename">ImportKeibaSchedule.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row skip"><div class="time-col">09〜17時<small>毎分</small></div><div class="info-col"><div class="filename">ImportKeibaOdds.php</div><div class="skip-label">対象レースなし</div></div></div>
+  <div class="row skip"><div class="time-col">09〜18時<small>毎分</small></div><div class="info-col"><div class="filename">ImportKeibaJraRaceOneResult.php</div><div class="skip-label">対象レースなし</div></div></div>
+  <div class="row skip"><div class="time-col">18:00</div><div class="info-col"><div class="filename">SummaryKeibaInfo.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row skip"><div class="time-col">18:30</div><div class="info-col"><div class="filename">ImportKeibaJraRaceResult.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row skip"><div class="time-col">19:00</div><div class="info-col"><div class="filename">ImportKeibaRaceResultHistory.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row"><div class="time-col">20:00</div><div class="info-col"><div class="filename">SummaryHistoryPopularityRank.php</div><div class="desc">race_result_history の<strong>人気順</strong>を算出・更新する</div><div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（当月）</span><br><span class="lbl">書く</span><span class="w">popularity_rank を UPDATE</span></div></div></div>
+  <div class="row"><div class="time-col">20:30</div><div class="info-col"><div class="filename">SummaryPopularityRankAverage.php</div><div class="desc">人気1〜18位の<strong>平均オッズ</strong>を集計する</div><div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history</span><br><span class="lbl">書く</span><span class="w">t_horse_odds_finder_popularity_rank_average</span></div></div></div>
+  <div class="row"><div class="time-col">21:00</div><div class="info-col"><div class="filename">SummaryHistoryFinishingPosition.php</div><div class="desc">race_result_history の<strong>着順</strong>を算出・更新する</div><div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（当月・未確定）</span><br><span class="lbl">書く</span><span class="w">finishing_position を UPDATE</span></div></div></div>
+  <div class="row skip"><div class="time-col">21:30</div><div class="info-col"><div class="filename">ImportKeibaRaceResultPayout.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row"><div class="time-col">22:00</div><div class="info-col"><div class="filename">ImportKeibaShutsubaHistory.php</div><div class="desc"><strong>翌日（金曜）</strong>の出走情報を取得・保存する</div><div class="tables"><span class="lbl">書く</span><span class="w">t_horse_odds_finder_shutsuba_history</span></div><div class="note">金曜も開催なし → 空振り。土曜の出馬表はまだ確定しないことが多い。</div></div></div>
+</div>
+
+<!-- ════ 金曜日 ════ -->
+<div class="day-header fri">金曜日 <span class="day-sub">/ Friday　※importRaceResultHistory だけ cron なし</span></div>
+<div class="day-body">
+  <div class="row skip"><div class="time-col">06:00</div><div class="info-col"><div class="filename">ImportKeibaSchedule.php</div><div class="skip-label">実質空振り（内部スキップ：date('w')=5 で早期 return）</div></div></div>
+  <div class="row skip"><div class="time-col">09〜17時<small>毎分</small></div><div class="info-col"><div class="filename">ImportKeibaOdds.php</div><div class="skip-label">対象レースなし</div></div></div>
+  <div class="row skip"><div class="time-col">09〜18時<small>毎分</small></div><div class="info-col"><div class="filename">ImportKeibaJraRaceOneResult.php</div><div class="skip-label">対象レースなし</div></div></div>
+  <div class="row skip"><div class="time-col">18:00</div><div class="info-col"><div class="filename">SummaryKeibaInfo.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row skip"><div class="time-col">18:30</div><div class="info-col"><div class="filename">ImportKeibaJraRaceResult.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row skip"><div class="time-col">19:00</div><div class="info-col">
+    <div class="filename">ImportKeibaRaceResultHistory.php</div>
+    <div class="skip-label">🚫 金曜日は cron エントリなし（<code>0 19 * * 0,1,2,3,4,6</code> ＝ 金曜=5 が除外）</div>
+  </div></div>
+  <div class="row"><div class="time-col">20:00</div><div class="info-col"><div class="filename">SummaryHistoryPopularityRank.php</div><div class="desc">race_result_history の<strong>人気順</strong>を算出・更新する</div><div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（当月）</span><br><span class="lbl">書く</span><span class="w">popularity_rank を UPDATE</span></div></div></div>
+  <div class="row"><div class="time-col">20:30</div><div class="info-col"><div class="filename">SummaryPopularityRankAverage.php</div><div class="desc">人気1〜18位の<strong>平均オッズ</strong>を集計する</div><div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history</span><br><span class="lbl">書く</span><span class="w">t_horse_odds_finder_popularity_rank_average</span></div></div></div>
+  <div class="row"><div class="time-col">21:00</div><div class="info-col"><div class="filename">SummaryHistoryFinishingPosition.php</div><div class="desc">race_result_history の<strong>着順</strong>を算出・更新する</div><div class="tables"><span class="lbl">読む</span><span class="r">t_horse_odds_finder_race_result_history（当月・未確定）</span><br><span class="lbl">書く</span><span class="w">finishing_position を UPDATE</span></div></div></div>
+  <div class="row skip"><div class="time-col">21:30</div><div class="info-col"><div class="filename">ImportKeibaRaceResultPayout.php</div><div class="skip-label">実質空振り</div></div></div>
+  <div class="row"><div class="time-col">22:00</div><div class="info-col">
+    <div class="filename">ImportKeibaShutsubaHistory.php</div>
+    <div class="desc"><strong>翌日（土曜）</strong>の出走情報を取得・保存する</div>
+    <div class="tables"><span class="lbl">書く</span><span class="w">t_horse_odds_finder_shutsuba_history</span></div>
+    <div class="note">土曜の出馬表が確定していれば取得成功。まだ未確定なら空振りで正常終了。</div>
+  </div></div>
+</div>
+
+<p style="text-align:center;font-size:11px;color:#9ca3af;padding:16px 0 8px;">薄いカード = 実行されるが実質空振り　／　🚫 = cron自体なし</p>
+</div><!-- /tab-cron -->
+
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 2: テーブル一覧
+══════════════════════════════════════════════════════════ -->
+<div id="tab-table" class="tab-panel">
+<h1>🗄 テーブル一覧</h1>
+<p class="subtitle">どのファイルが読み書きするか（週次リセット対象 / 累積テーブル を明記）</p>
+
+
+<!-- ════ t_horse_odds_finder_race_result_history ════ -->
+<div class="tbl-card">
+  <div class="tbl-name">t_horse_odds_finder_race_result_history<br><span style="font-size:10px;opacity:.7;font-weight:400;">累積テーブル。週次 TRUNCATE 対象外。過去全レースのオッズ・人気・着順を蓄積する。</span></div>
+
+  <div class="tbl-section">
+    <div class="tbl-section-label write">▼ WRITE 経路1：UPSERT（先行書き込み）</div>
+    <div class="tbl-entry"><span class="tbl-cron satsu">土日 18:00</span><span class="tbl-file">SummaryKeibaInfo.php<br>→ <strong>確定オッズ（minutes_before_start = -999）</strong>を使って basho / race_name / name / tan / fuku_min / fuku_max / popularity_rank を UPSERT<br><span style="color:#b91c1c;font-weight:600;">UPSERT KEY: date + kaisuu + basho_code + day + race + num</span></span></div>
+    <div class="tbl-note warn">★ この書き込みが 18:00 に完了しているため、19:00 の ImportKeibaRaceResultHistory は全開催が PRE-SKIP となる（「頭数:0 / 開催:N」通知は正常動作）</div>
+  </div>
+
+  <div class="tbl-section">
+    <div class="tbl-section-label write">▼ WRITE 経路2：INSERT（バックアップ / 補完）</div>
+    <div class="tbl-entry"><span class="tbl-cron exfri">金除く 19:00</span><span class="tbl-file">ImportKeibaRaceResultHistory.php<br>→ Node.js（keibaOddsGetRaceResultHistory.mjs）経由で JRA サイトからフルデータを取得して INSERT<br><span style="color:#6b7280;">PRE-SKIP: kaisuu_basho_code_day キー単位で先行判定 → SummaryKeibaInfo で UPSERT 済みなら Node.js 実行をスキップ</span></span></div>
+  </div>
+
+  <div class="tbl-section">
+    <div class="tbl-section-label update">▼ UPDATE（カラム更新）</div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 20:00</span><span class="tbl-file">SummaryHistoryPopularityRank.php<br>→ popularity_rank を UPDATE（tan 昇順で 1,2,3... を付番）<br><span style="color:#6b7280;">WHERE date BETWEEN 当月1日〜末日。全馬に popularity_rank 済みのレースはスキップ。</span></span></div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 21:00</span><span class="tbl-file">SummaryHistoryFinishingPosition.php<br>→ finishing_position を UPDATE（JRA サイトから取得）<br><span style="color:#6b7280;">WHERE date LIKE '当月%' AND (finishing_position IS NULL OR finishing_position = 0)。非入賞 = -1。</span></span></div>
+  </div>
+
+  <div class="tbl-section">
+    <div class="tbl-section-label read">▼ SELECT（読み込み）</div>
+    <div class="tbl-entry"><span class="tbl-cron sat">土 05:00</span><span class="tbl-file">SummaryRacesPopularityRatio.php<br><span style="color:#6b7280;">日付絞りなし（全件）。popularity_rank 昇順で tan を取得してマスタに INSERT。</span></span></div>
+    <div class="tbl-entry"><span class="tbl-cron satsu">土日 18:00</span><span class="tbl-file">SummaryKeibaInfo.php<br><span style="color:#6b7280;">既存の popularity_rank を保持するため参照。</span></span></div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 20:00</span><span class="tbl-file">SummaryHistoryPopularityRank.php<br><span style="color:#6b7280;">WHERE date BETWEEN 当月1日〜末日</span></span></div>
+    <div class="tbl-entry"><span class="tbl-cron exsat">土除く 20:30</span><span class="tbl-file">SummaryPopularityRankAverage.php<br><span style="color:#6b7280;">初回=全件 / 2回目以降=WHERE date &gt; 前回end_date、かつ popularity_rank IS NOT NULL AND tan が数値</span></span></div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 21:00</span><span class="tbl-file">SummaryHistoryFinishingPosition.php<br><span style="color:#6b7280;">WHERE date LIKE '当月%' AND finishing_position IS NULL OR = 0</span></span></div>
+  </div>
+</div>
+
+
+<!-- ════ t_horse_odds_finder_summary ════ -->
+<div class="tbl-card">
+  <div class="tbl-name">t_horse_odds_finder_summary<br><span style="font-size:10px;opacity:.7;font-weight:400;">累積テーブル。週次 TRUNCATE 対象外。レースごとのサマリ（オッズ・人気・着順）を保持。</span></div>
+
+  <div class="tbl-section">
+    <div class="tbl-section-label write">▼ INSERT</div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 18:00</span><span class="tbl-file">SummaryKeibaInfo.php<br>→ 当日のレース情報を INSERT（重複はスキップ）<br><span style="color:#6b7280;">読む: horses + races + odds（minutes_before_start=-999） → summary に INSERT</span></span></div>
+  </div>
+
+  <div class="tbl-section">
+    <div class="tbl-section-label update">▼ UPDATE</div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 18:30</span><span class="tbl-file">ImportKeibaJraRaceResult.php<br>→ result（着順）カラムのみ UPDATE<br><span style="color:#6b7280;">WHERE result IS NULL（未確定のものだけ更新）。BASHO_MAP で漢字→コード変換してから絞り込む。</span><br><span style="color:#b91c1c;font-weight:600;">※ race_results テーブルではなくこのテーブルの result カラムを更新する</span></span></div>
+  </div>
+</div>
+
+
+<!-- ════ t_horse_odds_finder_races_popularity_ratio ════ -->
+<div class="tbl-card">
+  <div class="tbl-name">t_horse_odds_finder_races_popularity_ratio<br><span style="font-size:10px;opacity:.7;font-weight:400;">累積マスタテーブル。週次 TRUNCATE 対象外。ImportRacesPopularityRatio の比較元。</span></div>
+  <div class="tbl-section">
+    <div class="tbl-section-label write">▼ INSERT</div>
+    <div class="tbl-entry"><span class="tbl-cron sat">土 05:00</span><span class="tbl-file">SummaryRacesPopularityRatio.php<br>→ race_result_history の全データから popularity_ratio を計算して INSERT<br><span style="color:#6b7280;">EXISTS チェックで未登録レースのみ INSERT（冪等）。num_horses = 出走頭数。</span></span></div>
+  </div>
+  <div class="tbl-section">
+    <div class="tbl-section-label read">▼ SELECT</div>
+    <div class="tbl-entry"><span class="tbl-cron satsu">土日 08:00</span><span class="tbl-file">ImportRacesPopularityRatio.php<br><span style="color:#6b7280;">WHERE popularity_ratio IS NOT NULL（全件）をメモリ展開して RMSE 類似度計算に使う</span></span></div>
+  </div>
+</div>
+
+
+<!-- ════ t_horse_odds_finder_races ════ -->
+<div class="tbl-card">
+  <div class="tbl-name">t_horse_odds_finder_races<br><span style="font-size:10px;opacity:.7;font-weight:400;">週次リセットあり（土曜 05:50 の TRUNCATE で消える）</span></div>
+  <div class="tbl-section">
+    <div class="tbl-section-label write">▼ INSERT</div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 06:00</span><span class="tbl-file">ImportKeibaSchedule.php（土日のみ実質データあり）</span></div>
+  </div>
+  <div class="tbl-section">
+    <div class="tbl-section-label update">▼ UPDATE</div>
+    <div class="tbl-entry"><span class="tbl-cron satsu">土日 08:00</span><span class="tbl-file">ImportRacesPopularityRatio.php<br>→ popularity_ratio / popularity_ratio_table_ids / popularity_ratio_match_percent の 3 カラムを UPDATE</span></div>
+  </div>
+  <div class="tbl-section">
+    <div class="tbl-section-label read">▼ SELECT</div>
+    <div class="tbl-entry"><span class="tbl-cron satsu">土日 08:00</span><span class="tbl-file">ImportRacesPopularityRatio.php<br><span style="color:#6b7280;">WHERE popularity_ratio IS NULL のレースを取得</span></span></div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 09〜17時 毎分</span><span class="tbl-file">ImportKeibaOdds.php<br><span style="color:#6b7280;">当日・未発走レース一覧の取得</span></span></div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 09〜18時 毎分</span><span class="tbl-file">ImportKeibaJraRaceOneResult.php<br><span style="color:#6b7280;">発走タイミング判定用</span></span></div>
+  </div>
+</div>
+
+
+<!-- ════ t_horse_odds_finder_popularity_rank_average ════ -->
+<div class="tbl-card">
+  <div class="tbl-name">t_horse_odds_finder_popularity_rank_average<br><span style="font-size:10px;opacity:.7;font-weight:400;">累積テーブル。最大18行（人気1〜18位）のみ存在する集計テーブル。</span></div>
+  <div class="tbl-section">
+    <div class="tbl-section-label write">▼ INSERT / UPDATE</div>
+    <div class="tbl-entry"><span class="tbl-cron exsat">土除く 20:30</span><span class="tbl-file">SummaryPopularityRankAverage.php<br>→ 初回=INSERT / 2回目以降=加重平均で UPDATE<br><span style="color:#6b7280;">古いデータは削除済みのため全再計算不可。増分更新方式で蓄積。</span></span></div>
+  </div>
+  <div class="tbl-section">
+    <div class="tbl-section-label read">▼ SELECT</div>
+    <div class="tbl-entry"><span class="tbl-cron exsat">土除く 20:30</span><span class="tbl-file">SummaryPopularityRankAverage.php 自身<br><span style="color:#6b7280;">前回の end_date と件数を参照して増分更新の起点にする</span></span></div>
+  </div>
+</div>
+
+
+<!-- ════ t_horse_odds_finder_odds ════ -->
+<div class="tbl-card">
+  <div class="tbl-name">t_horse_odds_finder_odds<br><span style="font-size:10px;opacity:.7;font-weight:400;">週次リセットあり（土曜 05:50 の TRUNCATE で消える）</span></div>
+  <div class="tbl-section">
+    <div class="tbl-section-label write">▼ INSERT / UPDATE (UPSERT)</div>
+    <div class="tbl-entry"><span class="tbl-cron satsu">土日 07:00</span><span class="tbl-file">ImportKeibaBaseOdds.php<br>→ minutes_before_start = 999（ベースオッズ）で UPSERT<br><span style="color:#6b7280;">土曜: WHERE date &gt;= 今日（土日両日分）/ 日曜: WHERE date &gt;= 今日（日曜分のみ）</span></span></div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 09〜17時 毎分</span><span class="tbl-file">ImportKeibaOdds.php<br>→ タイミング別（999/21/18/.../3/-999）で UPSERT</span></div>
+  </div>
+  <div class="tbl-section">
+    <div class="tbl-section-label del">▼ DELETE</div>
+    <div class="tbl-entry"><span class="tbl-cron sun">日 06:00</span><span class="tbl-file">ImportKeibaSchedule.php（日曜実行時のみ）<br>→ 日曜分のオッズを DELETE してリセット<br><span style="color:#6b7280;">土曜 07:00 に ImportKeibaBaseOdds が日曜分も取得済みのため、日曜朝に一度削除して 07:00 で再取得する</span></span></div>
+    <div class="tbl-entry"><span class="tbl-cron once">土 05:50</span><span class="tbl-file">deleteKeibaTableRecords.php → TRUNCATE（週次）</span></div>
+  </div>
+  <div class="tbl-section">
+    <div class="tbl-section-label read">▼ SELECT</div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 09〜17時 毎分</span><span class="tbl-file">ImportKeibaOdds.php（前回オッズとの比較用）</span></div>
+    <div class="tbl-entry"><span class="tbl-cron satsu">土日 18:00</span><span class="tbl-file">SummaryKeibaInfo.php（WHERE minutes_before_start = -999 の確定オッズ）</span></div>
+    <div class="tbl-entry"><span class="tbl-cron satsu">土日 08:00</span><span class="tbl-file">ImportRacesPopularityRatio.php（fallback: ODDS_GET_TIMING 順でオッズ取得）</span></div>
+  </div>
+</div>
+
+
+<!-- ════ t_horse_odds_finder_odds_get_timing ════ -->
+<div class="tbl-card">
+  <div class="tbl-name">t_horse_odds_finder_odds_get_timing<br><span style="font-size:10px;opacity:.7;font-weight:400;">週次リセットあり（土曜 05:50 の TRUNCATE で消える）。オッズ取得タイミングの記録。</span></div>
+  <div class="tbl-section">
+    <div class="tbl-section-label write">▼ INSERT / UPDATE (UPSERT)</div>
+    <div class="tbl-entry"><span class="tbl-cron satsu">土日 07:00</span><span class="tbl-file">ImportKeibaBaseOdds.php → timing=999 を記録</span></div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 09〜17時 毎分</span><span class="tbl-file">ImportKeibaOdds.php → 各タイミングを記録（odds_from='jra'）</span></div>
+    <div class="tbl-entry"><span class="tbl-cron once">土 05:50</span><span class="tbl-file">deleteKeibaTableRecords.php → TRUNCATE（週次）</span></div>
+  </div>
+</div>
+
+
+<!-- ════ t_horse_odds_finder_race_results ════ -->
+<div class="tbl-card">
+  <div class="tbl-name">t_horse_odds_finder_race_results<br><span style="font-size:10px;opacity:.7;font-weight:400;">週次リセットあり（土曜 05:50 の TRUNCATE で消える）。当週のリアルタイムレース結果。</span></div>
+  <div class="tbl-section">
+    <div class="tbl-section-label write">▼ INSERT</div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 09〜18時 毎分</span><span class="tbl-file">ImportKeibaJraRaceOneResult.php<br>→ レース終了後すぐに結果を INSERT（$existingKeys チェックで重複防止）<br><span style="color:#6b7280;">タイミング: 発走+10/15/20/25/30分。notified_at も更新。WebPush 送信あり。</span></span></div>
+    <div class="tbl-entry"><span class="tbl-cron once">土 05:50</span><span class="tbl-file">deleteKeibaTableRecords.php → TRUNCATE（週次）</span></div>
+  </div>
+  <div class="tbl-section" style="background:#fffbeb;">
+    <div class="tbl-section-label" style="color:#92400e;">⚠️ 注意</div>
+    <div style="font-size:11px;color:#92400e;">ImportKeibaJraRaceResult.php（18:30）は <strong>このテーブルを書かない</strong>。<br>あちらは t_horse_odds_finder_summary.result（着順カラム）を UPDATE する。名前が紛らわしいので注意。</div>
+  </div>
+</div>
+
+
+<!-- ════ schedules / horses ════ -->
+<div class="tbl-card">
+  <div class="tbl-name">t_horse_odds_finder_schedules　／　t_horse_odds_finder_horses<br><span style="font-size:10px;opacity:.7;font-weight:400;">週次リセットあり（土曜 05:50 の TRUNCATE で消える）</span></div>
+  <div class="tbl-section">
+    <div class="tbl-section-label write">▼ INSERT</div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 06:00</span><span class="tbl-file">ImportKeibaSchedule.php（土日のみ実質データあり）</span></div>
+    <div class="tbl-entry"><span class="tbl-cron once">土 05:50</span><span class="tbl-file">deleteKeibaTableRecords.php → TRUNCATE（週次）</span></div>
+  </div>
+  <div class="tbl-section">
+    <div class="tbl-section-label read">▼ SELECT</div>
+    <div class="tbl-entry"><span class="tbl-cron satsu">土日 18:00</span><span class="tbl-file">SummaryKeibaInfo.php（horses / races を読んでサマリ作成）</span></div>
+  </div>
+</div>
+
+
+<!-- ════ t_horse_odds_finder_race_result_payout ════ -->
+<div class="tbl-card">
+  <div class="tbl-name">t_horse_odds_finder_race_result_payout<br><span style="font-size:10px;opacity:.7;font-weight:400;">累積テーブル。週次 TRUNCATE 対象外。払い戻し金の永続保存。</span></div>
+  <div class="tbl-section">
+    <div class="tbl-section-label write">▼ INSERT</div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 21:30</span><span class="tbl-file">ImportKeibaRaceResultPayout.php<br>→ EXISTS チェックで未登録レースのみ INSERT（冪等）<br><span style="color:#6b7280;">券種: tan / fuku / waku / wide / umaren / umatan / trio / trifecta<br>値形式: '馬番|金額'、複数は '/' で結合</span></span></div>
+  </div>
+</div>
+
+
+<!-- ════ t_horse_odds_finder_shutsuba_history ════ -->
+<div class="tbl-card">
+  <div class="tbl-name">t_horse_odds_finder_shutsuba_history<br><span style="font-size:10px;opacity:.7;font-weight:400;">累積テーブル。週次 TRUNCATE 対象外。出走馬の前走〜4走前を蓄積。</span></div>
+  <div class="tbl-section">
+    <div class="tbl-section-label write">▼ updateOrInsert</div>
+    <div class="tbl-entry"><span class="tbl-cron every">毎日 22:00</span><span class="tbl-file">ImportKeibaShutsubaHistory.php<br>→ 翌日の全開催・全レースの出走馬の前走情報を updateOrInsert<br><span style="color:#6b7280;">UNIQUE KEY: name + date + basho_code + race<br>PRE-SKIP: 当日 created_at で取得済み basho_code はスキップ</span></span></div>
+  </div>
+</div>
+
+
+<p style="text-align:center;font-size:11px;color:#9ca3af;padding:16px 0 24px;">
+  青=土 / 赤=日 / 緑=土日 / 紫=金除く / 緑(薄)=土除く / 灰=毎日 / 橙=土のみ(週次)
+</p>
+</div><!-- /tab-table -->
+
+</body>
+</html>
