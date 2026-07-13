@@ -2,3 +2,4 @@ keep/
 no use/
 
 storage/app/firebase-service-account.json
+.env
