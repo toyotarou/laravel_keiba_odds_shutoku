@@ -53,3 +53,5 @@ Route::get('getHorseOddsFinderRaceResultPayout', [ApiController::class, 'getHors
 Route::get('getHorseOddsFinderSummaryTableCount', [ApiController::class, 'getHorseOddsFinderSummaryTableCount']);
 
 Route::get('getHorseOddsFinderHighProbabilityHorses', [ApiController::class, 'getHorseOddsFinderHighProbabilityHorses']);
+
+Route::get('getHorseOddsFinderAiAnalysis', [ApiController::class, 'getHorseOddsFinderAiAnalysis']);

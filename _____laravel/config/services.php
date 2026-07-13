@@ -42,4 +42,8 @@ return [
         'project_id' => env('FCM_PROJECT_ID'),
     ],
     
+    'anthropic' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+    ],
+    
 ];

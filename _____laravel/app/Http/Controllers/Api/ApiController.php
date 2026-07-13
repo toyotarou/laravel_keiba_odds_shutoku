@@ -885,5 +885,168 @@ return response()->json(['data' => [
         
         return response()->json(['data' => $response]);
     }
+
+    
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// Claude AIの使用
+
+    public function getHorseOddsFinderAiAnalysis(Request $request)
+    {
+        $prompt = $this->_getAiAnalysisPrompt(
+            $request->query('date', date('Y-m-d')),
+            $request->query('kaisuu'),
+            $request->query('basho'),
+            $request->query('day'),
+            $request->query('race')
+        );
+
+        if ($prompt === null) {
+            return response()->json(['error' => 'プロンプト生成に失敗しました（レースまたはオッズデータが不足しています）'], 404);
+        }
+
+        $response = \Illuminate\Support\Facades\Http::withHeaders([
+            'x-api-key'         => config('services.anthropic.api_key'),
+            'anthropic-version' => '2023-06-01',
+            'content-type'      => 'application/json',
+        ])->timeout(30)->post('https://api.anthropic.com/v1/messages', [
+            'model'      => 'claude-haiku-4-5',
+            'max_tokens' => 1024,
+            'messages'   => [
+                ['role' => 'user', 'content' => $prompt],
+            ],
+        ]);
+
+        if ($response->failed()) {
+            \Log::error('Anthropic API error', [
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+            return response()->json(['error' => 'AI分析に失敗しました'], 500);
+        }
+
+        $body = $response->json();
+
+        return response()->json([
+            'data' => [
+                'analysis'    => $body['content'][0]['text'] ?? '',
+                'tokens_used' => ($body['usage']['input_tokens'] ?? 0) + ($body['usage']['output_tokens'] ?? 0),
+            ],
+        ]);
+    }
+
+
+    
+    private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, $targetDay, $targetRace)
+    {
+        $raceQuery = DB::table('t_horse_odds_finder_races')
+            ->where('date',   $targetDate)
+            ->where('kaisuu', $targetKaisuu)
+            ->where('basho',  $targetBasho)
+            ->where('day',    $targetDay)
+            ->where('race',   intval($targetRace));
+
+        $race = $raceQuery->first();
+
+        if (!$race) {
+            return null;
+        }
+
+        $horses = DB::table('t_horse_odds_finder_horses')
+            ->where('date',   $targetDate)
+            ->where('kaisuu', $race->kaisuu)
+            ->where('basho',  $race->basho)
+            ->where('day',    $race->day)
+            ->where('race',   $race->race)
+            ->orderBy('num')
+            ->get()
+            ->keyBy('num');
+
+        $oddsRows = DB::table('t_horse_odds_finder_odds')
+            ->where('date',   $targetDate)
+            ->where('kaisuu', $race->kaisuu)
+            ->where('basho',  $race->basho)
+            ->where('day',    $race->day)
+            ->where('race',   $race->race)
+            ->whereIn('minutes_before_start', [999, 3])
+            ->get();
+
+        $oddsByNum = [];
+        foreach ($oddsRows as $row) {
+            $num = $row->num;
+            if (!isset($oddsByNum[$num])) {
+                $oddsByNum[$num] = ['odds_base' => null, 'odds_3' => null];
+            }
+            if ($row->minutes_before_start == 999) {
+                $oddsByNum[$num]['odds_base'] = floatval($row->odds);
+            }
+            if ($row->minutes_before_start == 3) {
+                $oddsByNum[$num]['odds_3'] = floatval($row->odds);
+            }
+        }
+
+        $promptHorses = [];
+        foreach ($oddsByNum as $num => $o) {
+            if ($o['odds_base'] === null || $o['odds_3'] === null) continue;
+
+            $changeRate = round(($o['odds_3'] - $o['odds_base']) / $o['odds_base'] * 100, 1);
+
+            if ($changeRate < 0) {
+                $changeLabel = '下落 ' . abs($changeRate) . '%';
+            } elseif ($changeRate > 0) {
+                $changeLabel = '上昇 +' . $changeRate . '%';
+            } else {
+                $changeLabel = '変化なし';
+            }
+
+            $name = isset($horses[$num]) ? $horses[$num]->name : '馬' . $num;
+
+            $promptHorses[] = [
+                'num'          => $num,
+                'name'         => $name,
+                'odds_base'    => $o['odds_base'],
+                'odds_3'       => $o['odds_3'],
+                'change_rate'  => $changeRate,
+                'change_label' => $changeLabel,
+            ];
+        }
+
+        if (empty($promptHorses)) {
+            return null;
+        }
+
+        usort($promptHorses, fn($a, $b) => $a['num'] <=> $b['num']);
+
+        $lines = [];
+        foreach ($promptHorses as $h) {
+            $lines[] = sprintf(
+                '%2d番 %-12s  計測開始前: %5.1f倍  3分前: %5.1f倍  変動: %s',
+                $h['num'],
+                $h['name'],
+                $h['odds_base'],
+                $h['odds_3'],
+                $h['change_label']
+            );
+        }
+        $table = implode("\n", $lines);
+
+        $raceLabel = $race->kaisuu . '回' . $race->basho_name . $race->day . '日';
+        $raceNum   = $race->race . 'R';
+        $raceName  = $race->race_name ?? '';
+
+        return 'あなたは競馬オッズ分析の専門家です。' . "\n\n"
+            . 'レース情報' . "\n"
+            . '日付: ' . $targetDate . "\n"
+            . '開催: ' . $raceLabel . "\n"
+            . 'レース: ' . $raceNum . ' ' . $raceName . "\n\n"
+            . '単勝オッズデータ（計測開始前から発走3分前）' . "\n"
+            . $table . "\n\n"
+            . '分析依頼' . "\n"
+            . 'オッズ推移から以下を教えてください。' . "\n"
+            . '1. 勝つ確率が高そうな馬（最大3頭）と理由' . "\n"
+            . '2. 積極的に消してよい馬と理由' . "\n"
+            . '3. このレースの総評（混戦か本命か、買い方の方向性）' . "\n\n"
+            . 'オッズ下落10%以上は人気急上昇として注目してください。' . "\n"
+            . '日本語・箇条書きで簡潔にまとめてください。';
+    }
     
 }
