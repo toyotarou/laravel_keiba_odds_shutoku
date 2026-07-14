@@ -890,21 +890,89 @@ return response()->json(['data' => [
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Claude AIの使用
 
+    /**
+     * 指定レースのAI分析結果を返す
+     *
+     * すでに分析済みのレースは t_horse_odds_finder_ai_analysis からキャッシュを返す。
+     * 未分析の場合は Claude API を呼び出して分析を生成し、DBに保存してから返す。
+     *
+     * ＜テーブル間のカラム対応に注意＞
+     *   t_horse_odds_finder_races.basho      → t_horse_odds_finder_ai_analysis.basho_code（場コード）
+     *   t_horse_odds_finder_races.basho_name → t_horse_odds_finder_ai_analysis.basho    （場名称）
+     *
+     * @param  Request $request
+     *   クエリパラメータ: date, kaisuu, basho（場コード）, day, race
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function getHorseOddsFinderAiAnalysis(Request $request)
     {
-        $prompt = $this->_getAiAnalysisPrompt(
-            $request->query('date', date('Y-m-d')),
-            $request->query('kaisuu'),
-            $request->query('basho'),
-            $request->query('day'),
-            $request->query('race')
-        );
+        // ─── リクエストパラメータの取り出し ───────────────────────────────
+        $date   = $request->query('date');
+        $kaisuu = $request->query('kaisuu');
+        $basho  = $request->query('basho');  // 場コード（t_horse_odds_finder_races.basho と同値）
+        $day    = $request->query('day');
+        $race   = $request->query('race');
+
+        // ─── 注目馬の抽出ロジック ─────────────────────────────────────────
+        // AIにプロンプトで "PICKUP:馬番|馬名/..." 形式の最終行を出力させているので、
+        // その行だけを抜き出す。形式が固定されているため自由文のパースより確実。
+        $parsePickupHorses = function (string $text): string {
+            if (preg_match('/^PICKUP:(.+)$/mu', $text, $m)) {
+                return trim($m[1]);
+            }
+            return '';
+        };
+
+        // ─── キャッシュ確認 ───────────────────────────────────────────────
+        // 同一レースの分析がすでに保存済みであればDBから即返す。
+        // exists() + first() の2クエリを first() 1本にまとめている。
+        $cached = DB::table('t_horse_odds_finder_ai_analysis')
+            ->where('date',       $date)
+            ->where('kaisuu',     $kaisuu)
+            ->where('basho_code', $basho)
+            ->where('day',        $day)
+            ->where('race',       $race)
+            ->first();
+
+        if ($cached) {
+            // DBの analysis_text には PICKUP: 行が含まれているので、レスポンスでは除去して返す
+            return response()->json(['data' => [
+                'date'          => $date,
+                'kaisuu'        => $kaisuu,
+                'basho_code'    => $basho,
+                'day'           => $day,
+                'race'          => $race,
+                'analysis_text' => trim(preg_replace('/^PICKUP:.+$/mu', '', $cached->analysis_text)),
+                'pickup_horse'  => $parsePickupHorses($cached->analysis_text),
+            ]]);
+        }
+
+        // ─── レース基本情報の取得 ─────────────────────────────────────────
+        // basho_name（場名称）と race_name をDBから取得する。
+        // ※ 全件取得は不要。対象レースの1行だけ絞り込めば十分。
+        $raceRow = DB::table('t_horse_odds_finder_races')
+            ->where('date',   $date)
+            ->where('kaisuu', $kaisuu)
+            ->where('basho',  $basho)
+            ->where('day',    $day)
+            ->where('race',   intval($race))
+            ->first();
+
+        if (!$raceRow) {
+            return response()->json(['error' => 'レースが見つかりません'], 404);
+        }
+
+        // ─── AIプロンプト生成 ─────────────────────────────────────────────
+        // 馬情報・オッズ推移を組み合わせてプロンプトを構築する（_getAiAnalysisPrompt 参照）。
+        // オッズデータが不足している場合は null が返るので早期リターンする。
+        $prompt = $this->_getAiAnalysisPrompt($date, $kaisuu, $basho, $day, $race);
 
         if ($prompt === null) {
             return response()->json(['error' => 'プロンプト生成に失敗しました（レースまたはオッズデータが不足しています）'], 404);
         }
 
-        $response = \Illuminate\Support\Facades\Http::withHeaders([
+        // ─── Claude API 呼び出し ──────────────────────────────────────────
+        $aiResponse = \Illuminate\Support\Facades\Http::withHeaders([
             'x-api-key'         => config('services.anthropic.api_key'),
             'anthropic-version' => '2023-06-01',
             'content-type'      => 'application/json',
@@ -916,28 +984,72 @@ return response()->json(['data' => [
             ],
         ]);
 
-        if ($response->failed()) {
+        if ($aiResponse->failed()) {
             \Log::error('Anthropic API error', [
-                'status' => $response->status(),
-                'body'   => $response->body(),
+                'status' => $aiResponse->status(),
+                'body'   => $aiResponse->body(),
             ]);
             return response()->json(['error' => 'AI分析に失敗しました'], 500);
         }
 
-        $body = $response->json();
+        // レスポンスのテキスト部分を取り出す（ドット記法でネストを辿る）
+        $rawText = $aiResponse->json('content.0.text') ?? '';
 
-        return response()->json([
-            'data' => [
-                'analysis'    => $body['content'][0]['text'] ?? '',
-                'tokens_used' => ($body['usage']['input_tokens'] ?? 0) + ($body['usage']['output_tokens'] ?? 0),
-            ],
+        // PICKUP: 行を抽出して pickup_horse を確定する
+        $pickupHorse  = $parsePickupHorses($rawText);
+        // レスポンス用に PICKUP: 行を除去したテキストを作成
+        $analysisText = trim(preg_replace('/^PICKUP:.+$/mu', '', $rawText));
+
+        // ─── 分析結果をDBに保存（次回以降はキャッシュから返す） ──────────
+        // analysis_text には PICKUP: 行を含んだまま保存する。
+        // キャッシュ返却時にも pickup_horse を再抽出できるようにするため。
+        // APIレスポンスでは PICKUP: 行を除去して返す（上の $analysisText を使用）。
+        //   basho_code ← $basho          （場コード: races.basho）
+        //   basho      ← basho_name      （場名称:   races.basho_name）
+        DB::table('t_horse_odds_finder_ai_analysis')->insert([
+            'date'          => $date,
+            'kaisuu'        => $kaisuu,
+            'basho_code'    => $basho,
+            'basho'         => $raceRow->basho_name,
+            'day'           => $day,
+            'race'          => $race,
+            'race_name'     => $raceRow->race_name,
+            'analysis_text' => $rawText,  // PICKUP: 行を含めて保存
         ]);
+
+        return response()->json(['data' => [
+            'date'          => $date,
+            'kaisuu'        => $kaisuu,
+            'basho_code'    => $basho,
+            'day'           => $day,
+            'race'          => $race,
+            'analysis_text' => $analysisText,
+            'pickup_horse'  => $pickupHorse,
+        ]]);
     }
 
 
-    
+    /**
+     * AI分析用のプロンプト文字列を組み立てる
+     *
+     * 以下の3テーブルを参照してプロンプトを生成する。
+     *   - t_horse_odds_finder_races  : レース基本情報（開催・レース名など）
+     *   - t_horse_odds_finder_horses : 出走馬情報（馬番・馬名）
+     *   - t_horse_odds_finder_odds   : 単勝オッズ（計測開始前: 999分前, 発走3分前: 3分前）
+     *
+     * オッズが両方揃っている馬だけを分析対象とし、変動率（%）を算出してプロンプトに含める。
+     * レースが存在しないか、分析対象馬が0頭の場合は null を返す。
+     *
+     * @param  string $targetDate    対象日付（Y-m-d）
+     * @param  string $targetKaisuu  開催回数
+     * @param  string $targetBasho   場コード（t_horse_odds_finder_races.basho）
+     * @param  string $targetDay     開催日次
+     * @param  string $targetRace    レース番号
+     * @return string|null  プロンプト文字列、または null（データ不足時）
+     */
     private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, $targetDay, $targetRace)
     {
+        // ─── レース存在確認 ───────────────────────────────────────────────
         $raceQuery = DB::table('t_horse_odds_finder_races')
             ->where('date',   $targetDate)
             ->where('kaisuu', $targetKaisuu)
@@ -951,6 +1063,7 @@ return response()->json(['data' => [
             return null;
         }
 
+        // ─── 出走馬情報の取得（馬番をキーにした連想配列） ────────────────
         $horses = DB::table('t_horse_odds_finder_horses')
             ->where('date',   $targetDate)
             ->where('kaisuu', $race->kaisuu)
@@ -961,6 +1074,9 @@ return response()->json(['data' => [
             ->get()
             ->keyBy('num');
 
+        // ─── オッズ取得（計測開始前と3分前の2時点のみ） ─────────────────
+        // minutes_before_start = 999 : 計測開始時点（ベースオッズ）
+        // minutes_before_start = 3   : 発走3分前（最終オッズに近い値）
         $oddsRows = DB::table('t_horse_odds_finder_odds')
             ->where('date',   $targetDate)
             ->where('kaisuu', $race->kaisuu)
@@ -970,6 +1086,7 @@ return response()->json(['data' => [
             ->whereIn('minutes_before_start', [999, 3])
             ->get();
 
+        // 馬番ごとに2時点のオッズをまとめる
         $oddsByNum = [];
         foreach ($oddsRows as $row) {
             $num = $row->num;
@@ -984,10 +1101,14 @@ return response()->json(['data' => [
             }
         }
 
+        // ─── プロンプト用データの組み立て ────────────────────────────────
+        // 両時点のオッズが揃っている馬のみ対象。変動率を計算してラベルも付与する。
         $promptHorses = [];
         foreach ($oddsByNum as $num => $o) {
-            if ($o['odds_base'] === null || $o['odds_3'] === null) continue;
+            // 片方でも欠けている、またはベースオッズが0の馬はスキップ（0除算防止）
+            if ($o['odds_base'] === null || $o['odds_3'] === null || $o['odds_base'] == 0) continue;
 
+            // 変動率（%）= (3分前オッズ - ベースオッズ) / ベースオッズ × 100
             $changeRate = round(($o['odds_3'] - $o['odds_base']) / $o['odds_base'] * 100, 1);
 
             if ($changeRate < 0) {
@@ -998,6 +1119,7 @@ return response()->json(['data' => [
                 $changeLabel = '変化なし';
             }
 
+            // 馬名が取れない場合は「馬{番号}」で代替
             $name = isset($horses[$num]) ? $horses[$num]->name : '馬' . $num;
 
             $promptHorses[] = [
@@ -1010,10 +1132,12 @@ return response()->json(['data' => [
             ];
         }
 
+        // 分析対象馬が1頭もいなければプロンプト生成不可
         if (empty($promptHorses)) {
             return null;
         }
 
+        // 馬番順に並べてテーブル形式のテキストを作成
         usort($promptHorses, fn($a, $b) => $a['num'] <=> $b['num']);
 
         $lines = [];
@@ -1029,6 +1153,7 @@ return response()->json(['data' => [
         }
         $table = implode("\n", $lines);
 
+        // ─── プロンプト本文の構築 ─────────────────────────────────────────
         $raceLabel = $race->kaisuu . '回' . $race->basho_name . $race->day . '日';
         $raceNum   = $race->race . 'R';
         $raceName  = $race->race_name ?? '';
@@ -1046,7 +1171,11 @@ return response()->json(['data' => [
             . '2. 積極的に消してよい馬と理由' . "\n"
             . '3. このレースの総評（混戦か本命か、買い方の方向性）' . "\n\n"
             . 'オッズ下落10%以上は人気急上昇として注目してください。' . "\n"
-            . '日本語・箇条書きで簡潔にまとめてください。';
+            . '日本語・箇条書きで簡潔にまとめてください。' . "\n\n"
+            . '【必須】回答の最後の行に、必ず以下の形式だけで注目馬を出力してください。' . "\n"
+            . '他の文章や説明は一切付けず、この1行だけを最終行にしてください。' . "\n"
+            . 'PICKUP:馬番|馬名/馬番|馬名/馬番|馬名' . "\n"
+            . '例）PICKUP:3|トーアマリシテン/6|モスクロッサー/5|フェイトライン';
     }
     
 }
