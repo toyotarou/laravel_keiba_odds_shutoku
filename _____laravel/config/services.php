@@ -40,6 +40,7 @@ return [
 
     'fcm' => [
         'project_id' => env('FCM_PROJECT_ID'),
+   'credentials' => env('FIREBASE_CREDENTIALS'),
     ],
     
     'anthropic' => [

@@ -1,3 +1,5 @@
 storage/app/firebase-service-account.json
 
 .env
+
+storage/app/firebase-credentials.json

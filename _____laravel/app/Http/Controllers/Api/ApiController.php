@@ -971,6 +971,10 @@ return response()->json(['data' => [
             return response()->json(['error' => 'プロンプト生成に失敗しました（レースまたはオッズデータが不足しています）'], 404);
         }
 
+        $now  = date('Y-m-d_H-i-s');  // コロン(:)はファイル名に使えないので - に変更
+        $file = "/var/www/horse_odds_finder/public/prompt/prompt_{$now}.data";
+        file_put_contents($file, $prompt);
+        
         // ─── Claude API 呼び出し ──────────────────────────────────────────
         $aiResponse = \Illuminate\Support\Facades\Http::withHeaders([
             'x-api-key'         => config('services.anthropic.api_key'),
@@ -1158,7 +1162,7 @@ return response()->json(['data' => [
         $raceNum   = $race->race . 'R';
         $raceName  = $race->race_name ?? '';
 
-        return 'あなたは競馬オッズ分析の専門家です。' . "\n\n"
+        return 'あなたは競馬オッズ分析の専門家です。' . "\n" . '有料公開するものなので、できるだけ正しい日本語で返してください。' . "\n\n"
             . 'レース情報' . "\n"
             . '日付: ' . $targetDate . "\n"
             . '開催: ' . $raceLabel . "\n"
@@ -1174,8 +1178,8 @@ return response()->json(['data' => [
             . '日本語・箇条書きで簡潔にまとめてください。' . "\n\n"
             . '【必須】回答の最後の行に、必ず以下の形式だけで注目馬を出力してください。' . "\n"
             . '他の文章や説明は一切付けず、この1行だけを最終行にしてください。' . "\n"
-            . 'PICKUP:馬番|馬名/馬番|馬名/馬番|馬名' . "\n"
-            . '例）PICKUP:3|トーアマリシテン/6|モスクロッサー/5|フェイトライン';
+            . 'PICKUP:馬番|馬名|おすすめ度/馬番|馬名|おすすめ度/馬番|馬名|おすすめ度' . "\n"
+            . '例）PICKUP:3|トーアマリシテン|99/6|モスクロッサー|99/5|フェイトライン|99';
     }
     
 }
