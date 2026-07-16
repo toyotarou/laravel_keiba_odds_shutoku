@@ -55,3 +55,5 @@ Route::get('getHorseOddsFinderSummaryTableCount', [ApiController::class, 'getHor
 Route::get('getHorseOddsFinderHighProbabilityHorses', [ApiController::class, 'getHorseOddsFinderHighProbabilityHorses']);
 
 Route::get('getHorseOddsFinderAiAnalysis', [ApiController::class, 'getHorseOddsFinderAiAnalysis']);
+
+Route::get('getHorseOddsFinderShutsubaHistory', [ApiController::class, 'getHorseOddsFinderShutsubaHistory']);

@@ -70,7 +70,13 @@ class DeleteKeibaTableRecords extends Command
 
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_schedules');
         $this->info('t_horse_odds_finder_schedules をtruncateしました。');
-
+        
+        DB::statement('TRUNCATE TABLE t_horse_odds_finder_ai_analysis');
+        $this->info('t_horse_odds_finder_ai_analysis をtruncateしました。');
+        
+        DB::statement('TRUNCATE TABLE t_horse_odds_finder_push_send_logs');
+        $this->info('t_horse_odds_finder_push_send_logs をtruncateしました。');
+        
         $this->info('テーブルデータ削除処理 ── 完了');
 
         // ─────────────────────────────────────────────────────────────────
