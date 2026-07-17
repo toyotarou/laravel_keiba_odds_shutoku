@@ -264,6 +264,9 @@ class ImportKeibaSchedule extends Command
                         'race_name'  => $row['race_name'],
                         'start_time' => $row['start_time'],
                         'num_horses' => $row['num_horses'],
+
+                        'course'     => $row['course']     ?? '',
+                        'dist'       => $row['dist']       ?? 0,
                     ]);
                     $count++;
                     $this->line("  races: [{$row['basho_name']}] R{$row['race']} {$row['race_name']} ({$row['start_time']}) 挿入...");

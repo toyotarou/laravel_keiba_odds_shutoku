@@ -327,9 +327,15 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             //   枠番は rowspan で結合されているため、<img> がある行でのみ更新し、
             //   ない行では前の値を引き継ぐ。
             // ─────────────────────────────────────────────────
-            const horses = await page.evaluate(() => {
+            const horseData = await page.evaluate(() => {
+                // ページテキストから「コース：1,200メートル（芝・右）」を抽出
+                const pageText = document.body.innerText ?? '';
+                const courseMatch = pageText.match(/コース[：:]\s*([\d,，]+)\s*メートル[（(]([^)）・\s]+)/);
+                const dist   = courseMatch ? Number(courseMatch[1].replace(/[,，]/g, '')) : 0;
+                const course = courseMatch ? courseMatch[2].trim() : '';
+
                 const table = document.querySelector('table.tanpuku');
-                if (!table) return [];
+                if (!table) return { list: [], course, dist };
 
                 const list = [];
                 let waku = 0; // 現在の枠番（前の行から引き継ぐ）
@@ -360,10 +366,14 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                     });
                 });
 
-                return list;
+                return { list, course, dist };
             });
 
-            log(`  [${raceLabel}] ${horses.length}頭取得`);
+            const horses  = horseData.list;
+            const rCourse = horseData.course;
+            const rDist   = horseData.dist;
+
+            log(`  [${raceLabel}] ${horses.length}頭取得 course=${rCourse} dist=${rDist}`);
             horses.forEach(h =>
                 log(`    馬番${String(h.num).padStart(2,' ')} 枠${h.waku} ${h.name} / 騎手:${h.jockey} / 師:${h.trainer}`)
             );
@@ -378,6 +388,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                 race:       ri.raceNum,
                 race_name:  ri.raceName,
                 start_time: ri.startTime,
+                course:     rCourse,
+                dist:       rDist,
                 num_horses: horses.length,
             });
 

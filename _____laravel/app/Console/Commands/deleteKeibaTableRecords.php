@@ -85,8 +85,6 @@ class DeleteKeibaTableRecords extends Command
         //   存在しないファイルはスキップ（エラーにしない）。
         // ─────────────────────────────────────────────────────────────────
         $logFiles = [
-            '/var/www/horse_odds_finder/scripts/keibaOddsGetJraRaceResult.log',
-            '/var/www/horse_odds_finder/scripts/keibaOddsGetSchedule.log',
             '/var/www/horse_odds_finder/storage/logs/importSchedule.log',
             '/var/www/horse_odds_finder/storage/logs/importRace.log',
             '/var/www/horse_odds_finder/storage/logs/importBaseOdds.log',
@@ -100,7 +98,15 @@ class DeleteKeibaTableRecords extends Command
             '/var/www/horse_odds_finder/storage/logs/SummaryHistoryPopularityRank.log',
             '/var/www/horse_odds_finder/storage/logs/summaryHistoryFinishingPosition.log',
             '/var/www/horse_odds_finder/storage/logs/importRaceResultPayout.log',
-            '/var/www/horse_odds_finder/storage/logs/importShutsubaHistory.log'
+            '/var/www/horse_odds_finder/storage/logs/importShutsubaHistory.log',
+            
+            '/var/www/horse_odds_finder/scripts/keibaOddsGetJraRaceResult.log',
+            '/var/www/horse_odds_finder/scripts/keibaOddsGetSchedule.log',
+            '/var/www/horse_odds_finder/scripts/keibaOddsGetFinishingPosition.log',
+            '/var/www/horse_odds_finder/scripts/keibaOddsGetPayout.log',
+            '/var/www/horse_odds_finder/scripts/keibaOddsGetRaceResultHistory.log',
+            '/var/www/horse_odds_finder/scripts/keibaOddsGetShutsuba.log',
+            '/var/www/horse_odds_finder/scripts/keibaOddsGetTanpuku.log'
         ];
         foreach ($logFiles as $logFile) {
             if (file_exists($logFile)) {
