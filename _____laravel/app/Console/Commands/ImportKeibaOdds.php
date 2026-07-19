@@ -13,7 +13,7 @@ use App\Constants\Constants;
  *
  * 【概要】
  *   cron で毎分（9〜17時）実行されるオッズ取得コマンド。
- *   Constants::ODDS_GET_TIMING = [24, 21, 18, 15, 12, 9, 6, 3, 0]（発走前分数）に
+ *   Constants::ODDS_GET_TIMING = [30, 21, 18, 15, 12, 9, 6, 3, 0]（発走前分数）に
  *   合致するレースのみ keibaOddsGetTanpuku.mjs で単複オッズを取得して DB に保存する。
  *   直前タイミングとのオッズ比較で人気順位の変動を検出し、
  *   2位以上の変動があれば WebPush 通知でユーザーに知らせる。
@@ -34,7 +34,7 @@ use App\Constants\Constants;
  *   * 9-17 * * * php /var/www/horse_odds_finder/artisan keiba:importOdds >> /var/www/horse_odds_finder/storage/logs/cron_odds.log 2>&1
  *
  * 【minutes_before_start の変換ルール】
- *   diff=24 → 999  （importBaseOdds と同じ ベースオッズの扱い）
+ *   diff=30 → 999  （importBaseOdds と同じ ベースオッズの扱い）
  *   diff=0  → -999 （発走直前の確定オッズ）
  *   それ以外 → そのまま（21, 18, ... 3）
  */
@@ -60,8 +60,8 @@ class ImportKeibaOdds extends Command
 
         // ─────────────────────────────────────────────────────────────────
         // 【ブロック 1】初期化（定数・変数・DEBUGオプション）
-        //   $timings = ODDS_GET_TIMING: [24, 21, 18, 15, 12, 9, 6, 3, 0]
-        //   diff=24 → DB値 999、diff=0 → DB値 -999 に変換する慣例がある。
+        //   $timings = ODDS_GET_TIMING: [30, 21, 18, 15, 12, 9, 6, 3, 0]
+        //   diff=30 → DB値 999、diff=0 → DB値 -999 に変換する慣例がある。
         // ─────────────────────────────────────────────────────────────────
         $date    = date('Y-m-d');
         $now     = time();
@@ -69,7 +69,7 @@ class ImportKeibaOdds extends Command
         $logFile = base_path('scripts/keibaOddsGetTanpuku.log');
         $nodeBin = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
         $isDebug = (bool) $this->option('debug');
-        $timings = Constants::ODDS_GET_TIMING; // [24, 21, 18, 15, 12, 9, 6, 3, 0]
+        $timings = Constants::ODDS_GET_TIMING; // [30, 21, 18, 15, 12, 9, 6, 3, 0]
 
         $this->info('');
         $this->info('========== keiba:importOdds 開始 ' . date('Y-m-d H:i:s', $now) . ' ==========');
@@ -131,16 +131,32 @@ class ImportKeibaOdds extends Command
 
             // ─────────────────────────────────────────────────────────────
             // 【ブロック 4】変動検出のための直前タイミングのオッズ先読み
-            //   $timings[0]=24 は最初のタイミングなので「前」がない → スキップ。
+            //   $timings[0]=30 は最初のタイミングなので「前」がない → スキップ。
             //   $timingIndex > 0 の場合、$timings[$timingIndex-1] が直前タイミング。
             //   直前タイミングのオッズを asort して人気順位 $prevRankMap を作る。
-            //   diff=24 の場合、DB上のキーは 999 なので $prevMinutesBefore に変換する。
+            //   diff=30 の場合、DB上のキーは 999 なので $prevMinutesBefore に変換する。
             // ─────────────────────────────────────────────────────────────
             $prevRankMap = [];
             $timingIndex = array_search($diff, $timings);
-            if ($diff !== 24 && $timingIndex !== false && $timingIndex > 0) {
+
+
+
+/////(1)
+if ($diff !== $timings[0] && $timingIndex !== false && $timingIndex > 0) {
+/////
+
+
+
                 $prevDiff          = $timings[$timingIndex - 1];
-                $prevMinutesBefore = ($prevDiff === 24) ? 999 : $prevDiff;
+
+
+
+/////(2)
+$prevMinutesBefore = ($prevDiff === $timings[0]) ? Constants::ODDS_DB_FIRST : $prevDiff;
+/////
+
+
+
                 $prevOddsMap = DB::table('t_horse_odds_finder_odds')
                     ->where('date',                 $race->date)
                     ->where('kaisuu',               $race->kaisuu)
@@ -234,22 +250,30 @@ class ImportKeibaOdds extends Command
 
                     // ─────────────────────────────────────────────────────
                     // 【ブロック 7】minutes_before_start の値決定・DB保存
-                    //   diff=24: importBaseOdds が999で先行 INSERT している場合があるため upsert
+                    //   diff=30: importBaseOdds が999で先行 INSERT している場合があるため upsert
                     //   diff=0 : -999（発走直前の確定オッズ）として INSERT
                     //   その他: diff の値そのままで INSERT（同一 diff の重複は想定しない）
                     // ─────────────────────────────────────────────────────
-                    if ($diff === 24) {
+
+
+
+/////(3)
+if ($diff === $timings[0]) {
+/////
+
+
+
                         $exists = DB::table('t_horse_odds_finder_odds')
-                            ->where($key)->where('minutes_before_start', 999)->exists();
+                            ->where($key)->where('minutes_before_start', Constants::ODDS_DB_FIRST)->exists();
                         if ($exists) {
                             DB::table('t_horse_odds_finder_odds')
-                                ->where($key)->where('minutes_before_start', 999)->update($data);
+                                ->where($key)->where('minutes_before_start', Constants::ODDS_DB_FIRST)->update($data);
                         } else {
                             DB::table('t_horse_odds_finder_odds')
-                                ->insert(array_merge($key, $data, ['minutes_before_start' => 999]));
+                                ->insert(array_merge($key, $data, ['minutes_before_start' => Constants::ODDS_DB_FIRST]));
                         }
                     } else {
-                        $minutesBefore = ($diff === 0) ? -999 : $diff;
+                        $minutesBefore = ($diff === 0) ? Constants::ODDS_DB_LAST : $diff;
                         DB::table('t_horse_odds_finder_odds')
                             ->insert(array_merge($key, $data, ['minutes_before_start' => $minutesBefore]));
                     }
@@ -272,7 +296,15 @@ class ImportKeibaOdds extends Command
                 //   「いつ・どのタイミング・どのソースから」オッズを取得したかを記録する。
                 //   同一キーが既存の場合は get_datetime と odds_from を上書き更新する。
                 // ─────────────────────────────────────────────────────────
-                $timing    = ($diff === 24) ? 999 : (($diff === 0) ? -999 : $diff);
+
+
+
+/////(4)
+$timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0) ? Constants::ODDS_DB_LAST : $diff);
+/////
+
+
+
                 $timingKey = [
                     'date'   => $race->date,
                     'kaisuu' => $race->kaisuu,

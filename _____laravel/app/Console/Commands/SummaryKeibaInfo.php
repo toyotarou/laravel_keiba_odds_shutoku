@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Constants\Constants;
 use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -162,10 +163,10 @@ class SummaryKeibaInfo extends Command
             $targetDates[$v->date] = true;
 
             switch ($v->minutes_before_start) {
-                case '999':
+                case (string) Constants::ODDS_DB_FIRST:
                     $oddsMap[$key]['odds_tan_before_24'] = $v->odds;
                     break;
-                case '-999':
+                case (string) Constants::ODDS_DB_LAST:
                     $oddsMap[$key]['odds_tan_before_0'] = $v->odds;
                     $lastFukuOdds[$key]['min'] = $v->fuku_min;
                     $lastFukuOdds[$key]['max'] = $v->fuku_max;

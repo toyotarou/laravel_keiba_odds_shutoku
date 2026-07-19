@@ -25,13 +25,13 @@ use App\Constants\Constants;
  *   【ブロック 4】レースごとのループ
  *                  → 発走タイミング差 $diff を計算
  *                  → Constants::ODDS_GET_TIMING に合致しない場合はスキップ
- *                  → minutes_before_start: diff=24→999, diff=0→-999 に変換
+ *                  → minutes_before_start: diff=30→999, diff=0→-999 に変換
  *                  → Node.js 実行（fetchRaceDetail）
  *                  → saveOdds() + timing 記録（いずれも現在コメントアウト中）
  *   【ブロック 5】完了ログ
  *
  * 【minutes_before_start の変換規則】
- *   24 → 999  （24h 前のベースオッズ）
+ *   30 → 999  （30分前のベースオッズ）
  *    0 → -999 （発走直前の確定オッズ）
  *   その他 → そのままの分数
  *
@@ -105,7 +105,7 @@ class ImportKeibaRaceResult extends Command
         //   ① 発走までの残り分数 $diff を算出（round() で四捨五入 = ImportKeibaOdds と同じ）。
         //   ② $diff < 0 は発走済み → スキップ。
         //   ③ Constants::ODDS_GET_TIMING に含まれない分数は取得タイミング外 → スキップ。
-        //   ④ $diff → $diffMinutes: 24→999, 0→-999, それ以外→そのまま。
+        //   ④ $diff → $diffMinutes: 30→999, 0→-999, それ以外→そのまま。
         //   ⑤ Node.js でオッズをスクレイピング（fetchRaceDetail）。
         //   ⑥ DB::transaction で saveOdds() + timing 記録（現在はいずれもコメントアウト中）。
         // ─────────────────────────────────────────────────────────────────
@@ -132,10 +132,17 @@ class ImportKeibaRaceResult extends Command
 
             $this->info("  → 取得タイミング合致 (残り{$diff}分) : オッズ取得を開始します。");
 
-            if ($diff === 24) {
-                $diffMinutes = 999;
+
+
+/////(1)
+if ($diff === $ary[0]) {
+/////
+
+
+
+                $diffMinutes = Constants::ODDS_DB_FIRST;
             } elseif ($diff === 0) {
-                $diffMinutes = -999;
+                $diffMinutes = Constants::ODDS_DB_LAST;
             } else {
                 $diffMinutes = $diff;
             }

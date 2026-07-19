@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Constants\Constants;
 use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -12,9 +13,9 @@ use Illuminate\Support\Facades\DB;
  * 【概要】
  *   土曜7時に1回だけ実行するベースオッズ取得コマンド。
  *   土日両日分の全レースの単勝・複勝オッズを keibaOddsGetTanpuku.mjs 経由で取得し、
- *   minutes_before_start=999（24時間前相当のベース値）として DB に保存する。
+ *   minutes_before_start=999（30分前相当のベース値）として DB に保存する。
  *   同一キーのレコードが既に存在する場合は INSERT せず UPDATE（upsert）する。
- *   これにより importOdds（毎分 cron）がレースの24分前タイミングを処理するときの
+ *   これにより importOdds（毎分 cron）がレースの30分前タイミングを処理するときの
  *   ベースライン（比較元）オッズが確実に DB に入った状態になる。
  *
  * 【処理フロー】
@@ -34,9 +35,9 @@ use Illuminate\Support\Facades\DB;
  *   0 7 * * 6 php /var/www/horse_odds_finder/artisan keiba:importBaseOdds >> /var/www/horse_odds_finder/storage/logs/importBaseOdds.log 2>&1
  *
  * 【補足: minutes_before_start=999 の意味】
- *   ImportKeibaOdds では ODDS_GET_TIMING=[24,21,...,0] の 24 を DB 値 999 に変換する。
+ *   ImportKeibaOdds では ODDS_GET_TIMING=[30,21,...,0] の 30 を DB 値 999 に変換する。
  *   importBaseOdds が事前に 999 で INSERT しておくことで、
- *   importOdds の 24分前タイミング処理が「INSERT ではなく UPDATE」で済む。
+ *   importOdds の 30分前タイミング処理が「INSERT ではなく UPDATE」で済む。
  */
 class ImportKeibaBaseOdds extends Command
 {
@@ -166,7 +167,7 @@ class ImportKeibaBaseOdds extends Command
                 //   同一キーが既存の場合は odds / fuku_min / fuku_max を上書き更新する。
                 //   EXISTS チェックで INSERT/UPDATE を明示的に分岐する
                 //   （DB ドライバに依存しない汎用的な upsert 手法）。
-                //   minutes_before_start=999 は「24時間前相当のベースオッズ」を意味する慣例値。
+                //   minutes_before_start=999 は「30分前相当のベースオッズ」を意味する慣例値。
                 // ─────────────────────────────────────────────────────────────
                 $saved = 0;
                 foreach ($odds as $horse) {
@@ -177,7 +178,7 @@ class ImportKeibaBaseOdds extends Command
                         'day'                  => $race->day,
                         'race'                 => $race->race,
                         'num'                  => $horse['num'],
-                        'minutes_before_start' => 999,   // ベースオッズは常に 999 で保存
+                        'minutes_before_start' => Constants::ODDS_DB_FIRST,   // ベースオッズは常に 999 で保存
                     ];
                     $data = [
                         'odds'     => $horse['tan'],      // 単勝オッズ

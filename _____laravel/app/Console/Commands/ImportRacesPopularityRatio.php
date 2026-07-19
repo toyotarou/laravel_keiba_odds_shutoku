@@ -114,11 +114,19 @@ class ImportRacesPopularityRatio extends Command
                 } else {
                     // ─────────────────────────────────────────────────────
                     // 【ブロック 6】フォールバック: ODDS_GET_TIMING から最初に存在するオッズを取得
-                    //   999(=24h前) から順にフォールバックして最初に取得できたタイミングを使う。
-                    //   ODDS_GET_TIMING の 24 は DB 上 999 として保存されているため変換する。
+                    //   999(=30分前) から順にフォールバックして最初に取得できたタイミングを使う。
+                    //   ODDS_GET_TIMING の 30 は DB 上 999 として保存されているため変換する。
                     //   オッズは単勝昇順（人気順）で取得する（orderByRaw('odds + 0') で数値昇順）。
                     // ─────────────────────────────────────────────────────
-                    $fallbackTimings = array_map(fn($t) => $t === 24 ? 999 : $t, Constants::ODDS_GET_TIMING);
+
+
+
+/////(1)
+$fallbackTimings = array_map(fn($t) => $t === Constants::ODDS_GET_TIMING[0] ? Constants::ODDS_DB_FIRST : $t, Constants::ODDS_GET_TIMING);
+/////
+
+
+
                     $odds = collect();
                     foreach ($fallbackTimings as $timing) {
                         $odds = DB::table('t_horse_odds_finder_odds')
