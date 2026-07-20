@@ -1832,7 +1832,7 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
                 'content-type'      => 'application/json',
             ])->timeout(30)->post('https://api.anthropic.com/v1/messages', [
                 'model'      => 'claude-haiku-4-5',
-                'max_tokens' => 1024,
+                'max_tokens' => 4096,
                 'messages'   => [
                     ['role' => 'user', 'content' => $prompt],
                 ],

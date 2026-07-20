@@ -77,6 +77,11 @@ class DeleteKeibaTableRecords extends Command
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_push_send_logs');
         $this->info('t_horse_odds_finder_push_send_logs をtruncateしました。');
         
+        if (date('N') === '6') {
+            DB::statement('TRUNCATE TABLE t_horse_odds_finder_popularity_rank_median');
+            $this->info('t_horse_odds_finder_popularity_rank_median をtruncateしました。');
+        }
+        
         $this->info('テーブルデータ削除処理 ── 完了');
 
         // ─────────────────────────────────────────────────────────────────

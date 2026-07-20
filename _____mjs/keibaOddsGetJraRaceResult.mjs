@@ -31,7 +31,7 @@
 //   - url/path: ESModules での __dirname 相当
 // ─────────────────────────────────────────────────────────────
 import { chromium } from 'playwright';
-import { createWriteStream, existsSync, writeFileSync, unlinkSync } from 'fs';
+import { createWriteStream, existsSync, writeFileSync, unlinkSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -65,10 +65,26 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms)); // 待機ユーティ
     //      行わないシンプル版（ファイルが残っていたら常に起動中とみなす）
     // ─────────────────────────────────────────────────────────
     if (existsSync(lockFile)) {
-        log('[LOCK] 既に起動中のため終了します');
-        console.log(JSON.stringify({ results: [] }));
-        logStream.end();
-        process.exit(0);
+        const pidStr = readFileSync(lockFile, 'utf8').trim();
+        const pid = parseInt(pidStr, 10);
+        let isRunning = false;
+        if (!isNaN(pid)) {
+            try {
+                process.kill(pid, 0); // シグナル0はプロセス存在確認のみ（実際には送らない）
+                isRunning = true;
+            } catch (e) {
+                isRunning = false; // プロセスが存在しない → スタールロック
+            }
+        }
+        if (isRunning) {
+            log('[LOCK] 既に起動中のため終了します');
+            console.log(JSON.stringify({ results: [] }));
+            logStream.end();
+            process.exit(0);
+        } else {
+            log('[LOCK] スタールロック検出（PID不在）。ロックファイルを削除して続行します');
+            unlinkSync(lockFile);
+        }
     }
     writeFileSync(lockFile, String(process.pid)); // 現在の PID を書き込む
     log(`[LOCK] ロックファイル作成: ${lockFile}`);
