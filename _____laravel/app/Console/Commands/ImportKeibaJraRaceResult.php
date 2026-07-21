@@ -10,16 +10,16 @@ use Illuminate\Support\Facades\DB;
  * ImportKeibaJraRaceResult
  *
  * 【概要】
- *   JRA公式サイトから当日の全レース結果（着順）を取得し、
+ *   JRA公式サイトから直近の全レース結果（着順）を取得し、
  *   t_horse_odds_finder_summary テーブルの result カラムを更新する。
  *   summary テーブルは「basho コード」で管理しているが、
  *   keibaOddsGetJraRaceResult.mjs の出力は「東京」等の漢字名なので
  *   BASHO_MAP で変換してから UPDATE キーに使う。
  *
- * 【処理フロー】
+ * 【処理フロー】（コード上の出現順）
+ *   【ブロック 3】basho名→コード変換マップ（クラス定数・handle()より先に定義）
  *   【ブロック 1】初期化・開始バナー
  *   【ブロック 2】Node.js 実行・JSON パース・件数確認
- *   【ブロック 3】basho名→コード変換マップ（クラス定数）
  *   【ブロック 4】トランザクション内で result を一行ずつ UPDATE
  *   【ブロック 5】完了サマリー・WebPush 通知（finally で必ず実行）
  *   【ブロック 6】fetchJraRaceResult(): Node.js 実行ヘルパー
@@ -101,7 +101,8 @@ class ImportKeibaJraRaceResult extends Command
             // 【ブロック 4】トランザクション内で result を一行ずつ UPDATE
             //   照合キー: kaisuu + basho(コード) + day + race + num
             //   whereNull('result') で既に着順が入っている行は UPDATE しない。
-            //   $affected = 0 の場合は照合キー不一致（basho名変換失敗含む）としてスキップ。
+            //   $affected = 0 の場合は照合キー不一致、または result 既入力によるスキップ。
+            //   （basho名変換失敗は手前の continue で処理済みのためここには到達しない）
             // ─────────────────────────────────────────────────────────────
             DB::transaction(function () use ($results, &$updated, &$skipped) {
                 foreach ($results as $row) {
