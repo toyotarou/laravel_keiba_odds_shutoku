@@ -59,3 +59,5 @@ Route::get('getHorseOddsFinderAiAnalysis', [ApiController::class, 'getHorseOddsF
 Route::get('getHorseOddsFinderShutsubaHistory', [ApiController::class, 'getHorseOddsFinderShutsubaHistory']);
 
 Route::get('getHorseOddsFinderCourseDistHistory', [ApiController::class, 'getHorseOddsFinderCourseDistHistory']);
+
+Route::get('getHorseOddsFinderPopularityRankMedian', [ApiController::class, 'getHorseOddsFinderPopularityRankMedian']);

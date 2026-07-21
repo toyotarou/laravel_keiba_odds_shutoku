@@ -444,7 +444,12 @@ async function parseShutsubaTable(page) {
             kaisaiList = kaisaiList.filter(k => k.date === dateFilter);
             if (kaisaiList.length === 0) {
                 log(`INFO: ${dateFilter} の開催が見つかりませんでした（出馬表未確定の可能性）。`);
-                console.log(JSON.stringify({ date: dateFilter, data: [], error: 'date_not_found' }));
+                if (listOnly) {
+                    // --list-only 時は kaisaiList キーを返す（PHP側が "対象開催なし" と判定できるように）
+                    console.log(JSON.stringify({ kaisaiList: [] }));
+                } else {
+                    console.log(JSON.stringify({ date: dateFilter, data: [], error: 'date_not_found' }));
+                }
                 return;
             }
             log(`日付絞り込み後 (${kaisaiList.length}件): ${kaisaiList.map(k => k.text).join(', ')}`);
