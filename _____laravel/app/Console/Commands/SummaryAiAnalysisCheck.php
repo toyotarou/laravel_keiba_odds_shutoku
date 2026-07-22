@@ -81,29 +81,15 @@ class SummaryAiAnalysisCheck extends Command
 
         // ─────────────────────────────────────────────────────────────────
         // 【ブロック 4】STEP2: レースごとに比較して INSERT or UPDATE
-        //   finishing_horse1 が入力済みのレコードは確定済みとみなしてスキップ。
-        //   未入力の場合は INSERT または UPDATE して結果を埋める。
+        //   finishing（実際の着順）が取得できたレコードのみ INSERT or UPDATE。
+        //   重複チェックなし（後で平均算出するため全件対象）。
         // ─────────────────────────────────────────────────────────────────
         $this->info('集計・挿入中...');
         $insertedCount = 0;
 
         foreach ($records as $v) {
 
-            // ① finishing が埋まっているレコードはスキップ
-            $alreadyFilled = DB::table('t_horse_odds_finder_ai_analysis_check')
-                ->where('date',       $v->date)
-                ->where('kaisuu',     $v->kaisuu)
-                ->where('basho_code', $v->basho_code)
-                ->where('day',        $v->day)
-                ->where('race',       $v->race)
-                ->whereNotNull('finishing_horse1')
-                ->exists();
-
-            if ($alreadyFilled) {
-                continue;
-            }
-
-            // ② AI 予想テキストから PICKUP 馬を抽出
+            // ① AI 予想テキストから PICKUP 馬を抽出（重複 OK・finishing 必須）
             $horses = [];
             if (preg_match('/^PICKUP:(.+)$/mu', $v->analysis_text, $m)) {
                 $parts = explode('/', trim($m[1]));
@@ -132,7 +118,12 @@ class SummaryAiAnalysisCheck extends Command
                 $fIdx++;
             }
 
-            // ④ similarity を計算して INSERT or UPDATE
+            // finishing が取得できていない場合はスキップ
+            if (empty($finishing)) {
+                continue;
+            }
+
+            // ③ similarity を計算して INSERT or UPDATE
             $sim = $this->horseSimilarity(array_values($horses), array_values($finishing));
 
             DB::table('t_horse_odds_finder_ai_analysis_check')->updateOrInsert(
