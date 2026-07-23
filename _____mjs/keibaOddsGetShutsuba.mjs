@@ -305,8 +305,12 @@ async function parseShutsubaTable(page) {
 
                 const date     = pastCell.querySelector('.date_line .date')?.textContent.trim()   ?? '';
                 const place    = pastCell.querySelector('.date_line .rc')?.textContent.trim()     ?? '';
-                const raceName = pastCell.querySelector('.race_line .name a')?.textContent.trim()
-                              ?? pastCell.querySelector('.race_line .name')?.textContent.trim()   ?? '';
+                const raceLink = pastCell.querySelector('.race_line .name a');
+                const raceName = raceLink?.textContent.trim()
+                              ?? pastCell.querySelector('.race_line .name')?.textContent.trim() ?? '';
+                const raceHref = raceLink?.href ?? '';
+                const raceCname = raceHref.match(/CNAME=(pw01sde\w+)/);
+                const pastRaceNum = raceCname ? parseInt(raceCname[1].substring(19, 21), 10) : null;
                 const grade    = pastCell.querySelector('.r_class img')?.alt ?? '';
 
                 // 着順・頭数・枠番・人気
@@ -346,6 +350,7 @@ async function parseShutsubaTable(page) {
 
                 return {
                     date, place, race_name: raceName, grade,
+                    race_num: (!pastRaceNum || isNaN(pastRaceNum)) ? null : pastRaceNum,
                     place_num:    placeNum ? parseInt(placeNum) : null,
                     head_count:   maxHead  ? parseInt(maxHead)  : null,
                     gate:         gate     ? parseInt(gate)     : null,

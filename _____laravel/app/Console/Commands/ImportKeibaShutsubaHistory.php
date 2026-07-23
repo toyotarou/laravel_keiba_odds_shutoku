@@ -271,16 +271,18 @@ class ImportKeibaShutsubaHistory extends Command
                             // place（漢字）→ basho_code（2桁コード）に変換
                             $pastBashoCode = $bashoMap[$past['place']] ?? null;
 
-                            // UNIQUE KEY: name + race_date + basho_code + race
-                            // → 同じ馬の同じレースは7/10取得でも8/10取得でも1レコード
+                            // UNIQUE KEY: name + date + basho_code
+                            // JRAルール「1日1レース」により (name, date, basho_code) が前走の一意キー。
+                            // race は現在処理中のR数ではなく前走のR数を保存すべきだが mjs 未取得のため
+                            // $data 側に移動し、キーから除外することで重複レコードを防ぐ。
                             $key = [
                                 'name'       => $horse['name'],
                                 'date'       => $past['date'],
                                 'basho_code' => $pastBashoCode,
-                                'race'       => $raceData['race'],
                             ];
 
                             $data = [
+                                'race'      => $past['race_num'] ?? null,
                                 'basho'     => $past['place'],
                                 'race_name' => $past['race_name'],
                                 'grade'         => $past['grade'],
