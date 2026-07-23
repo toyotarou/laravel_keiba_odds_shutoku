@@ -2157,42 +2157,45 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     }
 
     // ─── ②期待数値の組み立て ─────────────────────────────────────────
+    // 類似レースの中央値データが存在しない場合はブロックごとスキップ
     // 人気順Kの期待数値 = 中央値オッズK ÷ 人気順Kの単勝オッズ
     $upsetLines = [];
-    foreach ($promptHorses as $h) {
-        $pop    = $h['popularity'];
-        $median = $medians[$pop] ?? null;
+    if ($medianRow !== null) {
+        foreach ($promptHorses as $h) {
+            $pop    = $h['popularity'];
+            $median = $medians[$pop] ?? null;
 
-        // 6分前期待数値
-        $upset6 = ($median !== null && $h['odds_6'] > 0)
-            ? round($median / $h['odds_6'], 2)
-            : null;
+            // 6分前期待数値
+            $upset6 = ($median !== null && $h['odds_6'] > 0)
+                ? round($median / $h['odds_6'], 2)
+                : null;
 
-        // 999分前期待数値
-        $upsetBase = ($median !== null && $h['odds_base'] > 0)
-            ? round($median / $h['odds_base'], 2)
-            : null;
+            // 999分前期待数値
+            $upsetBase = ($median !== null && $h['odds_base'] > 0)
+                ? round($median / $h['odds_base'], 2)
+                : null;
 
-        // 変化率
-        $upsetChangeLabel = '－';
-        if ($upsetBase !== null && $upset6 !== null && $upsetBase > 0) {
-            $upsetChange = round(($upset6 - $upsetBase) / $upsetBase * 100, 1);
-            if ($upsetChange < 0) {
-                $upsetChangeLabel = '下落 ' . abs($upsetChange) . '%';
-            } elseif ($upsetChange > 0) {
-                $upsetChangeLabel = '上昇 +' . $upsetChange . '%';
-            } else {
-                $upsetChangeLabel = '変化なし';
+            // 変化率
+            $upsetChangeLabel = '－';
+            if ($upsetBase !== null && $upset6 !== null && $upsetBase > 0) {
+                $upsetChange = round(($upset6 - $upsetBase) / $upsetBase * 100, 1);
+                if ($upsetChange < 0) {
+                    $upsetChangeLabel = '下落 ' . abs($upsetChange) . '%';
+                } elseif ($upsetChange > 0) {
+                    $upsetChangeLabel = '上昇 +' . $upsetChange . '%';
+                } else {
+                    $upsetChangeLabel = '変化なし';
+                }
             }
-        }
 
-        $upsetLines[] = sprintf(
-            '%2d  %5.2f → %5.2f (%s)',
-            $pop,
-            $upsetBase ?? 0,
-            $upset6 ?? 0,
-            $upsetChangeLabel
-        );
+            $upsetLines[] = sprintf(
+                '%2d  %5.2f → %5.2f (%s)',
+                $pop,
+                $upsetBase ?? 0,
+                $upset6 ?? 0,
+                $upsetChangeLabel
+            );
+        }
     }
 
     // ─── 馬番順テーブルの組み立て ────────────────────────────────────
@@ -2223,7 +2226,6 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     $raceName  = $race->race_name ?? '';
 
     $faultBlock = implode("\n", $faultLines);
-    $upsetBlock = implode("\n", $upsetLines);
 
     // 頭数に応じたピックアップ推奨数
     if ($horseCount <= 8) {
@@ -2234,6 +2236,21 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $pickupCount = 6;
     }
 
+    // ②期待数値ブロック（類似レースデータがある場合のみ生成）
+    $upsetSection = '';
+    if (!empty($upsetLines)) {
+        $upsetBlock   = implode("\n", $upsetLines);
+        $upsetSection = '②期待数値' . "\n"
+            . $upsetBlock . "\n"
+            . '過去の類似レースにおける人気順別の中央値オッズを、今回のレースの同人気順のオッズで割った値です。' . "\n"
+            . '上位' . $pickupCount . '頭を他の馬より高い確率で推薦してください。' . "\n\n";
+    }
+
+    // ①②の前置き見出し（①は常に出力、②はデータがある場合のみ）
+    $supplementLabel = $upsetSection !== ''
+        ? '下記の①②の値も判断の参考にしてください。'
+        : '下記の①の値も判断の参考にしてください。';
+
     return 'あなたは競馬オッズ分析の専門家です。' . "\n"
         . '有料公開するものなので、できるだけ正しい日本語で返してください。' . "\n\n"
         . 'レース情報' . "\n"
@@ -2242,16 +2259,13 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         . 'レース: ' . $raceNum . ' ' . $raceName . "\n\n"
         . '単勝・複勝オッズデータ（計測開始前から発走6分前）' . "\n"
         . $table . "\n\n"
-        . '下記の①②の値も判断の参考にしてください。' . "\n\n"
+        . $supplementLabel . "\n\n"
         . '①オッズ間断層' . "\n"
         . $faultBlock . "\n"
         . '隣り合う人気順間のオッズ比率（次の人気順のオッズ ÷ この人気順のオッズ）です。' . "\n"
         . '（例：1-2 は、2番人気のオッズを1番人気のオッズで割った値です）' . "\n"
         . '断層値が2.0以上の人気順に位置する馬を、他の馬より高い確率で推薦してください。' . "\n\n"
-        . '②期待数値' . "\n"
-        . $upsetBlock . "\n"
-        . '過去の類似レースにおける人気順別の中央値オッズを、今回のレースの同人気順のオッズで割った値です。' . "\n"
-        . '上位' . $pickupCount . '頭を他の馬より高い確率で推薦してください。' . "\n\n"
+        . $upsetSection
         . '分析依頼' . "\n"
         . 'オッズ推移から以下を教えてください。' . "\n"
         . '1. 勝つ確率が高そうな馬（最大3頭）と理由' . "\n"

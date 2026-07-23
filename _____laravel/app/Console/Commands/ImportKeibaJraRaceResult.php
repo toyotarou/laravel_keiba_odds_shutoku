@@ -57,9 +57,11 @@ class ImportKeibaJraRaceResult extends Command
         // 【ブロック 1】初期化・開始バナー
         //   $status は各 return 経路で上書きされ、finally ブロックでログ出力・通知に使う。
         // ─────────────────────────────────────────────────────────────────
-        $updated = 0;
-        $skipped = 0;
-        $status  = '不明な理由で終了';
+        $updated             = 0;
+        $skipped             = 0;
+        $insertedResults     = 0;
+        $insertedResultsByDate = [];
+        $status              = '不明な理由で終了';
 
         try {
             $this->info('');
@@ -104,7 +106,15 @@ class ImportKeibaJraRaceResult extends Command
             //   $affected = 0 の場合は照合キー不一致、または result 既入力によるスキップ。
             //   （basho名変換失敗は手前の continue で処理済みのためここには到達しない）
             // ─────────────────────────────────────────────────────────────
-            DB::transaction(function () use ($results, &$updated, &$skipped) {
+            // race_results の INSERT 重複チェック用に既存キーを先読み
+            $existingResultKeys = DB::table('t_horse_odds_finder_race_results')
+                ->get(['kaisuu', 'basho', 'day', 'race', 'num'])
+                ->keyBy(fn($r) => "{$r->kaisuu}-{$r->basho}-{$r->day}-{$r->race}-{$r->num}")
+                ->keys()
+                ->flip()
+                ->all();
+
+            DB::transaction(function () use ($results, &$updated, &$skipped, &$existingResultKeys, &$insertedResults, &$insertedResultsByDate) {
                 foreach ($results as $row) {
                     // basho 漢字名 → 2桁コードへ変換（未対応の場合はスキップ）
                     $bashoCode = self::BASHO_MAP[$row['basho']] ?? null;
@@ -129,10 +139,61 @@ class ImportKeibaJraRaceResult extends Command
                     } else {
                         $skipped++;
                     }
+
+                    // t_horse_odds_finder_race_results への INSERT（未登録のみ）
+                    $resultKey = "{$row['kaisuu']}-{$bashoCode}-{$row['day']}-{$row['race']}-{$row['horse_num']}";
+                    if (isset($existingResultKeys[$resultKey])) {
+                        continue;
+                    }
+
+                    // date と race_name を t_horse_odds_finder_races から取得
+                    $raceRow = DB::table('t_horse_odds_finder_races')
+                        ->where('kaisuu', $row['kaisuu'])
+                        ->where('basho',  $bashoCode)
+                        ->where('day',    $row['day'])
+                        ->where('race',   $row['race'])
+                        ->first(['date', 'race_name']);
+
+                    if (!$raceRow) {
+                        continue;
+                    }
+
+                    DB::table('t_horse_odds_finder_race_results')->insert([
+                        'date'        => $raceRow->date,
+                        'kaisuu'      => $row['kaisuu'],
+                        'basho'       => $bashoCode,
+                        'basho_name'  => $row['basho'],
+                        'day'         => $row['day'],
+                        'race'        => $row['race'],
+                        'race_name'   => $raceRow->race_name,
+                        'num'         => $row['horse_num'],
+                        'horse_name'  => $row['horse_name'],
+                        'result'      => $row['rank'],
+                        'notified_at' => null,
+                    ]);
+
+                    $existingResultKeys[$resultKey] = true;
+                    $insertedResults++;
+                    $insertedResultsByDate[$raceRow->date] = ($insertedResultsByDate[$raceRow->date] ?? 0) + 1;
                 }
             });
 
-            $this->info("UPDATE完了 → 更新: {$updated} 件 / スキップ: {$skipped} 件");
+            $this->info('');
+            $this->info('【summary UPDATE】');
+            $this->info("  更新: {$updated} 件 / スキップ: {$skipped} 件");
+            $this->info('');
+            $this->info('【race_results INSERT】');
+            if ($insertedResults === 0) {
+                $this->info('  0 件（全て登録済み）');
+            } else {
+                ksort($insertedResultsByDate);
+                foreach ($insertedResultsByDate as $date => $count) {
+                    $this->info("  {$date}: {$count} 件");
+                }
+                $this->info("  ─────────────────");
+                $this->info("  合計: {$insertedResults} 件");
+            }
+            $this->info('');
             $status = '正常終了';
 
         } finally {
@@ -144,7 +205,7 @@ class ImportKeibaJraRaceResult extends Command
             $this->info('========== keiba:importJraRaceResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
 
-            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaJraRaceResult::handle\n{$status}\n更新:{$updated}、飛:{$skipped}");
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaJraRaceResult::handle\n{$status}\n更新:{$updated}、飛:{$skipped}、results挿入:{$insertedResults}");
         }
     }
 
