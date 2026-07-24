@@ -120,6 +120,13 @@ class DeleteKeibaTableRecords extends Command
             }
         }
 
+        $dataFiles = glob('/var/www/horse_odds_finder/public/prompt/*.data') ?: [];
+        foreach ($dataFiles as $dataFile) {
+            unlink($dataFile);
+            $this->info("{$dataFile} を削除しました。");
+        }
+        $this->info('prompt/*.data の削除完了（' . count($dataFiles) . '件）');
+
         // ─────────────────────────────────────────────────────────────────
         // 【ブロック 3】WebPush 通知
         // ─────────────────────────────────────────────────────────────────
