@@ -231,7 +231,7 @@ $prevMinutesBefore = ($prevDiff === $timings[0]) ? Constants::ODDS_DB_FIRST : $p
             $saved         = 0;
             $changeRecords = [];
 
-            DB::transaction(function () use ($odds, $race, $diff, $prevRankMap, $currRankMap, &$saved, &$changeRecords) {
+            DB::transaction(function () use ($odds, $race, $diff, $timings, $prevRankMap, $currRankMap, &$saved, &$changeRecords) {
 
                 foreach ($odds as $horse) {
                     $key = [
