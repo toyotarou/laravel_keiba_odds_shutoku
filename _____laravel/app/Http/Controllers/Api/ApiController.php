@@ -1833,6 +1833,9 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
     $day    = $request->query('day');
     $race   = $request->query('race');
 
+    $gapHorseNums   = $request->query('gapHorseNums');
+    $upsetPickupHorseNums   = $request->query('upsetPickupHorseNums');
+
     // ─── 注目馬の抽出ロジック ─────────────────────────────────────────
     // AIにプロンプトで "PICKUP:馬番|馬名/..." 形式の最終行を出力させているので、
     // その行だけを抜き出す。形式が固定されているため自由文のパースより確実。
@@ -1911,7 +1914,7 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
         }
 
         // ─── AIプロンプト生成 ─────────────────────────────────────────────
-        $prompt = $this->_getAiAnalysisPrompt($date, $kaisuu, $basho, $day, $race);
+        $prompt = $this->_getAiAnalysisPrompt($date, $kaisuu, $basho, $day, $race, $gapHorseNums, $upsetPickupHorseNums);
 
         if ($prompt === null) {
             return response()->json(['error' => 'プロンプト生成に失敗しました（レースまたはオッズデータが不足しています）'], 404);
@@ -2022,7 +2025,7 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
  * @param  string $targetRace    レース番号
  * @return string|null  プロンプト文字列、または null（データ不足時）
  */
-private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, $targetDay, $targetRace)
+private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, $targetDay, $targetRace, $gapHorseNums, $upsetPickupHorseNums)
 {
     // ─── レース存在確認 ───────────────────────────────────────────────
     $race = DB::table('t_horse_odds_finder_races')
@@ -2156,111 +2159,6 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     }
     unset($h);
 
-    // ─── 類似レース中央値オッズの取得 ────────────────────────────────
-    $medianRow = DB::table('t_horse_odds_finder_popularity_rank_median')
-        ->where('date',   $targetDate)
-        ->where('kaisuu', $race->kaisuu)
-        ->where('basho',  $race->basho)
-        ->where('day',    $race->day)
-        ->where('race',   $race->race)
-        ->first();
-
-    // median_01〜median_18 を配列に展開（存在しないカラムはnull）
-    $medians = [];
-    for ($i = 1; $i <= 18; $i++) {
-        $col = 'median_' . str_pad($i, 2, '0', STR_PAD_LEFT);
-        $medians[$i] = ($medianRow && isset($medianRow->$col) && $medianRow->$col !== null)
-            ? floatval($medianRow->$col)
-            : null;
-    }
-
-    // ─── ①オッズ間断層の組み立て ─────────────────────────────────────
-    // 人気順K と K+1 の間の断層：K+1のオッズ ÷ Kのオッズ
-    // 2時点（999分前・6分前）それぞれで算出し、変化率も出す
-    //
-    // 999分前の人気順も「6分前の人気順」に合わせて並べる
-    // （同じ馬のベースオッズを人気順順に取り出す）
-    $faultLines = [];
-    for ($k = 0; $k < $horseCount - 1; $k++) {
-        $curr = $promptHorses[$k];
-        $next = $promptHorses[$k + 1];
-
-        // 6分前断層
-        $fault6 = ($curr['odds_6'] > 0)
-            ? round($next['odds_6'] / $curr['odds_6'], 2)
-            : null;
-
-        // 999分前断層（ベースオッズで同じ並び順のまま計算）
-        $faultBase = ($curr['odds_base'] > 0)
-            ? round($next['odds_base'] / $curr['odds_base'], 2)
-            : null;
-
-        // 変化率
-        $faultChangeLabel = '－';
-        if ($faultBase !== null && $fault6 !== null && $faultBase > 0) {
-            $faultChange = round(($fault6 - $faultBase) / $faultBase * 100, 1);
-            if ($faultChange < 0) {
-                $faultChangeLabel = '下落 ' . abs($faultChange) . '%';
-            } elseif ($faultChange > 0) {
-                $faultChangeLabel = '上昇 +' . $faultChange . '%';
-            } else {
-                $faultChangeLabel = '変化なし';
-            }
-        }
-
-        $pop = $curr['popularity'];
-        $faultLines[] = sprintf(
-            '%2d-%2d  %5.2f → %5.2f (%s)',
-            $pop,
-            $pop + 1,
-            $faultBase ?? 0,
-            $fault6 ?? 0,
-            $faultChangeLabel
-        );
-    }
-
-    // ─── ②期待数値の組み立て ─────────────────────────────────────────
-    // 類似レースの中央値データが存在しない場合はブロックごとスキップ
-    // 人気順Kの期待数値 = 中央値オッズK ÷ 人気順Kの単勝オッズ
-    $upsetLines = [];
-    if ($medianRow !== null) {
-        foreach ($promptHorses as $h) {
-            $pop    = $h['popularity'];
-            $median = $medians[$pop] ?? null;
-
-            // 6分前期待数値
-            $upset6 = ($median !== null && $h['odds_6'] > 0)
-                ? round($median / $h['odds_6'], 2)
-                : null;
-
-            // 999分前期待数値
-            $upsetBase = ($median !== null && $h['odds_base'] > 0)
-                ? round($median / $h['odds_base'], 2)
-                : null;
-
-            // 変化率
-            $upsetChangeLabel = '－';
-            if ($upsetBase !== null && $upset6 !== null && $upsetBase > 0) {
-                $upsetChange = round(($upset6 - $upsetBase) / $upsetBase * 100, 1);
-                if ($upsetChange < 0) {
-                    $upsetChangeLabel = '下落 ' . abs($upsetChange) . '%';
-                } elseif ($upsetChange > 0) {
-                    $upsetChangeLabel = '上昇 +' . $upsetChange . '%';
-                } else {
-                    $upsetChangeLabel = '変化なし';
-                }
-            }
-
-            $upsetLines[] = sprintf(
-                '%2d  %5.2f → %5.2f (%s)',
-                $pop,
-                $upsetBase ?? 0,
-                $upset6 ?? 0,
-                $upsetChangeLabel
-            );
-        }
-    }
-
     // ─── 馬番順テーブルの組み立て ────────────────────────────────────
     // 表示は馬番順に戻す
     $displayHorses = $promptHorses;
@@ -2288,47 +2186,26 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     $raceNum   = $race->race . 'R';
     $raceName  = $race->race_name ?? '';
 
-    $faultBlock = implode("\n", $faultLines);
-
-    // 頭数に応じたピックアップ推奨数
-    if ($horseCount <= 8) {
-        $pickupCount = 4;
-    } elseif ($horseCount <= 13) {
-        $pickupCount = 5;
-    } else {
-        $pickupCount = 6;
-    }
-
-    // ②期待数値ブロック（類似レースデータがある場合のみ生成）
-    $upsetSection = '';
-    if (!empty($upsetLines)) {
-        $upsetBlock   = implode("\n", $upsetLines);
-        $upsetSection = '②期待数値' . "\n"
-            . $upsetBlock . "\n"
-            . '過去の類似レースにおける人気順別の中央値オッズを、今回のレースの同人気順のオッズで割った値です。' . "\n"
-            . '上位' . $pickupCount . '頭を他の馬より高い確率で推薦してください。' . "\n\n";
-    }
-
-    // ①②の前置き見出し（①は常に出力、②はデータがある場合のみ）
-    $supplementLabel = $upsetSection !== ''
-        ? '下記の①②の値も判断の参考にしてください。'
-        : '下記の①の値も判断の参考にしてください。';
-
     return 'あなたは競馬オッズ分析の専門家です。' . "\n"
-        . '有料公開するものなので、できるだけ正しい日本語で返してください。' . "\n\n"
+        . '有料公開するものなので、正しい日本語で返してください。' . "\n\n"
         . 'レース情報' . "\n"
         . '日付: ' . $targetDate . "\n"
         . '開催: ' . $raceLabel . "\n"
         . 'レース: ' . $raceNum . ' ' . $raceName . "\n\n"
         . '単勝・複勝オッズデータ（計測開始前から発走6分前）' . "\n"
         . $table . "\n\n"
-        . $supplementLabel . "\n\n"
-        . '①オッズ間断層' . "\n"
-        . $faultBlock . "\n"
-        . '隣り合う人気順間のオッズ比率（次の人気順のオッズ ÷ この人気順のオッズ）です。' . "\n"
-        . '（例：1-2 は、2番人気のオッズを1番人気のオッズで割った値です）' . "\n"
-        . '断層値が2.0以上の人気順に位置する馬を、他の馬より高い確率で推薦してください。' . "\n\n"
-        . $upsetSection
+        . ((!empty($gapHorseNums) || !empty($upsetPickupHorseNums))
+            ? ('なお、オッズ分析にあたり、下記の注目馬番も参考にしてください。' . "\n"
+                . (!empty($upsetPickupHorseNums) ? '特に、②の期待数値の馬番はかなり結果を出せているので、重点的に注視してください。' . "\n" : '')
+                . "\n"
+                . '①　オッズ間断層の調査から絞り込んだ馬番「' . $gapHorseNums . '」（1|2|...のようにパイプで区切られている）' . "\n"
+                . 'オッズ間断層とは、隣り合う人気順間のオッズの比率（次の人気順のオッズ ÷ この人気順のオッズ）です。' . "\n"
+                . '比率が2以上の場合、「断層が発生している」と判断し、断層上の馬に注目しています。' . "\n\n"
+                . (!empty($upsetPickupHorseNums)
+                    ? ('②期待数値の調査から絞り込んだ馬番「' . $upsetPickupHorseNums . '」（1|2|...のようにパイプで区切られている）' . "\n"
+                        . '期待数値とは、過去の類似レースにおける人気順別の中央値オッズを、今回のレースの同人気順のオッズで割った値です。' . "\n\n")
+                    : ''))
+            : '')
         . '分析依頼' . "\n"
         . 'オッズ推移から以下を教えてください。' . "\n"
         . '1. 勝つ確率が高そうな馬（最大3頭）と理由' . "\n"

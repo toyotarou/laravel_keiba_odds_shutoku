@@ -88,7 +88,7 @@
  * 【出力 JSON 構造】
  *   {
  *     schedules: [ { date, kaisuu, basho, basho_name, day } ],
- *     races:     [ { date, kaisuu, basho, basho_name, day, race, race_name, start_time, num_horses } ],
+ *     races:     [ { date, kaisuu, basho, basho_name, day, race, race_name, start_time, course, dist, inner_outer, num_horses } ],
  *     horses:    [ { date, kaisuu, basho, basho_name, day, race, waku, num, name, horse_url, jockey, trainer } ]
  *   }
  *
@@ -400,15 +400,34 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             //   枠番は rowspan で結合されているため、<img> がある行でのみ更新し、
             //   ない行では前の値を引き継ぐ。
             // ─────────────────────────────────────────────────
-            const horseData = await page.evaluate(() => {
+            // 対象4場（新潟・中山・京都・阪神）かどうかのフラグ
+            const INNER_OUTER_BASHO = new Set(['04', '06', '08', '09']);
+            const isInnerOuterBasho = INNER_OUTER_BASHO.has(kaisai.basho);
+
+            const horseData = await page.evaluate((innerOuterBasho) => {
                 // ページテキストから「コース：1,200メートル（芝・右）」を抽出
                 const pageText = document.body.innerText ?? '';
                 const courseMatch = pageText.match(/コース[：:]\s*([\d,，]+)\s*メートル[（(]([^)）・\s]+)/);
                 const dist   = courseMatch ? Number(courseMatch[1].replace(/[,，]/g, '')) : 0;
                 const course = courseMatch ? courseMatch[2].trim() : '';
 
+                // 「外」「内」の抽出（例: "（芝・左 外）" → "外"）
+                // 対象競馬場: 新潟(04)・中山(06)・京都(08)・阪神(09) のみ
+                // ※ bashoCode はブラウザ外から渡す必要があるため引数で受け取る
+                //
+                // 障害コースは「（芝 外内）」のように「外内」が連続して表記される → null
+                // 直線コース（新潟芝1000m）は「（芝・直）」と表記される → null
+                const courseLineMatch = pageText.match(/コース[：:][^\n]+/);
+                const courseLine = courseLineMatch ? courseLineMatch[0] : '';
+                const inner_outer = innerOuterBasho
+                    ? (/外内/.test(courseLine) ? null          // 障害コース（"外内"連続表記）
+                       : /直/.test(courseLine) ? null          // 直線コース（新潟芝1000m）
+                       : /外/.test(courseLine) ? '外'
+                       : '内')
+                    : null;
+
                 const table = document.querySelector('table.tanpuku');
-                if (!table) return { list: [], course, dist };
+                if (!table) return { list: [], course, dist, inner_outer };
 
                 const list = [];
                 let waku = 0; // 現在の枠番（前の行から引き継ぐ）
@@ -439,14 +458,15 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                     });
                 });
 
-                return { list, course, dist };
-            });
+                return { list, course, dist, inner_outer };
+            }, isInnerOuterBasho);
 
-            const horses  = horseData.list;
-            const rCourse = horseData.course;
-            const rDist   = horseData.dist;
+            const horses      = horseData.list;
+            const rCourse     = horseData.course;
+            const rDist       = horseData.dist;
+            const rInnerOuter = horseData.inner_outer;
 
-            log(`  [${raceLabel}] ${horses.length}頭取得 course=${rCourse} dist=${rDist}`);
+            log(`  [${raceLabel}] ${horses.length}頭取得 course=${rCourse} dist=${rDist} inner_outer=${rInnerOuter}`);
             horses.forEach(h =>
                 log(`    馬番${String(h.num).padStart(2,' ')} 枠${h.waku} ${h.name} / 騎手:${h.jockey} / 師:${h.trainer}`)
             );
@@ -461,9 +481,10 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                 race:       ri.raceNum,
                 race_name:  ri.raceName,
                 start_time: ri.startTime,
-                course:     rCourse,
-                dist:       rDist,
-                num_horses: horses.length,
+                course:      rCourse,
+                dist:        rDist,
+                inner_outer: rInnerOuter,
+                num_horses:  horses.length,
             });
 
             // horses テーブル用データを追加（馬ごとに1レコード）
