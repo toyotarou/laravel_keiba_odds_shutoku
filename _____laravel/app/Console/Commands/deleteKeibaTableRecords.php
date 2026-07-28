@@ -77,6 +77,9 @@ class DeleteKeibaTableRecords extends Command
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_push_send_logs');
         $this->info('t_horse_odds_finder_push_send_logs をtruncateしました。');
         
+        DB::statement('TRUNCATE TABLE t_horse_odds_finder_forecast_from_last_race');
+        $this->info('t_horse_odds_finder_forecast_from_last_race をtruncateしました。');
+        
         if (date('N') === '6') {
             DB::statement('TRUNCATE TABLE t_horse_odds_finder_popularity_rank_median');
             $this->info('t_horse_odds_finder_popularity_rank_median をtruncateしました。');
@@ -96,15 +99,25 @@ class DeleteKeibaTableRecords extends Command
             '/var/www/horse_odds_finder/storage/logs/importOdds.log',
             '/var/www/horse_odds_finder/storage/logs/importRaceResult.log',
             '/var/www/horse_odds_finder/storage/logs/importOddsWide.log',
-            '/var/www/horse_odds_finder/storage/logs/summaryKeibaInfo.log',
             '/var/www/horse_odds_finder/storage/logs/importJraRaceResult.log',
             '/var/www/horse_odds_finder/storage/logs/importJraRaceOneResult.log',
             '/var/www/horse_odds_finder/storage/logs/importRaceResultHistory.log',
-            '/var/www/horse_odds_finder/storage/logs/SummaryHistoryPopularityRank.log',
-            '/var/www/horse_odds_finder/storage/logs/summaryHistoryFinishingPosition.log',
             '/var/www/horse_odds_finder/storage/logs/importRaceResultPayout.log',
             '/var/www/horse_odds_finder/storage/logs/importShutsubaHistory.log',
+            '/var/www/horse_odds_finder/storage/logs/ImportRacesPopularityRatio.log',
+            '/var/www/horse_odds_finder/storage/logs/importPayoutCourseDist.log',
+            '/var/www/horse_odds_finder/storage/logs/importPayoutInnerOuter.log',
             
+            '/var/www/horse_odds_finder/storage/logs/aiAnalysisCheck.log',
+            '/var/www/horse_odds_finder/storage/logs/popularityHorseCheck.log',
+
+            '/var/www/horse_odds_finder/storage/logs/summaryKeibaInfo.log',
+            '/var/www/horse_odds_finder/storage/logs/SummaryHistoryPopularityRank.log',
+            '/var/www/horse_odds_finder/storage/logs/summaryHistoryFinishingPosition.log',
+            '/var/www/horse_odds_finder/storage/logs/summaryPopularityRankAverage.log',
+            '/var/www/horse_odds_finder/storage/logs/summaryRacesPopularityRatio.log',
+            '/var/www/horse_odds_finder/storage/logs/summaryPopularityRankMedian.log',
+
             '/var/www/horse_odds_finder/scripts/keibaOddsGetJraRaceResult.log',
             '/var/www/horse_odds_finder/scripts/keibaOddsGetSchedule.log',
             '/var/www/horse_odds_finder/scripts/keibaOddsGetFinishingPosition.log',
@@ -112,12 +125,8 @@ class DeleteKeibaTableRecords extends Command
             '/var/www/horse_odds_finder/scripts/keibaOddsGetRaceResultHistory.log',
             '/var/www/horse_odds_finder/scripts/keibaOddsGetShutsuba.log',
             '/var/www/horse_odds_finder/scripts/keibaOddsGetTanpuku.log',
-            
-            '/var/www/horse_odds_finder/storage/logs/ImportRacesPopularityRatio.log',
-            '/var/www/horse_odds_finder/storage/logs/aiAnalysisCheck.log',
-            '/var/www/horse_odds_finder/storage/logs/popularityHorseCheck.log',
-            '/var/www/horse_odds_finder/storage/logs/summaryPopularityRankAverage.log',
-            '/var/www/horse_odds_finder/storage/logs/summaryRacesPopularityRatio.log'
+            '/var/www/horse_odds_finder/scripts/keibaOddsGetRaceCourseDist.log',
+            '/var/www/horse_odds_finder/scripts/keibaOddsGetRaceInnerOuter.log'
         ];
         foreach ($logFiles as $logFile) {
             if (file_exists($logFile)) {

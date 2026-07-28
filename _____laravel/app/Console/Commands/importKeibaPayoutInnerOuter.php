@@ -101,6 +101,8 @@ class ImportKeibaPayoutInnerOuter extends Command
 
             // 【ガード B】inner_outer IS NULL のレコード件数確認（count のみ・軽量）
             //   対象: 指定年月 & 対象4場 & 芝 & inner_outer 未設定
+            //   除外: 障害レース（race_name に「障害」を含む） → 正しく null のまま
+            //   除外: 新潟芝1000m（直線コース）          → 正しく null のまま
             $this->info('[ガードB] inner_outer が未設定のレコードを確認中...');
 
             $totalTarget = DB::table('t_horse_odds_finder_race_result_payout')
@@ -108,6 +110,12 @@ class ImportKeibaPayoutInnerOuter extends Command
                 ->whereIn('basho_code', self::TARGET_BASHO_CODES)
                 ->where('course', '芝')
                 ->whereNull('inner_outer')
+                ->where('race_name', 'not like', '%障害%')
+                ->where(function ($q) {
+                    // 新潟(04)芝1000m（直線）は外/内なし → 除外
+                    $q->where('basho_code', '!=', '04')
+                      ->orWhere('dist', '!=', 1000);
+                })
                 ->count();
 
             if ($totalTarget === 0) {

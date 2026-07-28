@@ -2181,6 +2181,16 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     }
     $table = implode("\n", $lines);
 
+    // ─── ③ 過去のレース情報から絞り込んだ馬番（forecast_nums）の取得 ──
+    $forecastNums = DB::table('t_horse_odds_finder_forecast_from_last_race')
+        ->where('date',       $targetDate)
+        ->where('kaisuu',     $race->kaisuu)
+        ->where('basho',      $race->basho)
+        ->where('basho_name', $race->basho_name)
+        ->where('day',        $race->day)
+        ->where('race',       $race->race)
+        ->value('forecast_nums');
+
     // ─── プロンプト本文の構築 ─────────────────────────────────────────
     $raceLabel = $race->kaisuu . '回' . $race->basho_name . $race->day . '日';
     $raceNum   = $race->race . 'R';
@@ -2194,7 +2204,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         . 'レース: ' . $raceNum . ' ' . $raceName . "\n\n"
         . '単勝・複勝オッズデータ（計測開始前から発走6分前）' . "\n"
         . $table . "\n\n"
-        . ((!empty($gapHorseNums) || !empty($upsetPickupHorseNums))
+        . ((!empty($gapHorseNums) || !empty($upsetPickupHorseNums) || !empty($forecastNums))
             ? ('なお、オッズ分析にあたり、下記の注目馬番も参考にしてください。' . "\n"
                 . (!empty($upsetPickupHorseNums) ? '特に、②の期待数値の馬番はかなり結果を出せているので、重点的に注視してください。' . "\n" : '')
                 . "\n"
@@ -2202,8 +2212,12 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
                 . 'オッズ間断層とは、隣り合う人気順間のオッズの比率（次の人気順のオッズ ÷ この人気順のオッズ）です。' . "\n"
                 . '比率が2以上の場合、「断層が発生している」と判断し、断層上の馬に注目しています。' . "\n\n"
                 . (!empty($upsetPickupHorseNums)
-                    ? ('②期待数値の調査から絞り込んだ馬番「' . $upsetPickupHorseNums . '」（1|2|...のようにパイプで区切られている）' . "\n"
+                    ? ('②　期待数値の調査から絞り込んだ馬番「' . $upsetPickupHorseNums . '」（1|2|...のようにパイプで区切られている）' . "\n"
                         . '期待数値とは、過去の類似レースにおける人気順別の中央値オッズを、今回のレースの同人気順のオッズで割った値です。' . "\n\n")
+                    : '')
+                . (!empty($forecastNums)
+                    ? ('③　過去のレース情報から絞り込んだ馬番「' . $forecastNums . '」（1|2|...のようにパイプで区切られている）' . "\n"
+                        . '過去の出走情報をAIに渡して、レースの頭数に応じて馬番を絞り込んだ値です（8頭以下は4頭、13頭以下は5頭、14頭以上は6頭に絞り込み）。' . "\n\n")
                     : ''))
             : '')
         . '分析依頼' . "\n"

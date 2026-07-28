@@ -241,7 +241,7 @@ async function getKaisaiList(page) {
             // pw01drl(7文字) + 場所(2) + 年(4) + 回(2) + 日次(2) = 17文字目から8桁が日付
             // ただし末尾に "/HASH" が付く場合があるので split('/')[0] で除去する
             const codeClean = code.split('/')[0];
-            const d         = codeClean.length >= 25 ? codeClean.substring(17, 25) : '';
+            const d         = codeClean.length >= 27 ? codeClean.substring(19, 27) : '';
             const date      = d.length === 8
                 ? `${d.substring(0,4)}-${d.substring(4,6)}-${d.substring(6,8)}`
                 : '';
@@ -397,7 +397,9 @@ async function parseShutsubaTable(page) {
                 const pastCell = row.querySelector(`td.past.p${n}`);
                 if (!pastCell) return null;
 
-                const date     = pastCell.querySelector('.date_line .date')?.textContent.trim()   ?? '';
+                const dateRaw  = pastCell.querySelector('.date_line .date')?.textContent.trim()   ?? '';
+                const dateM    = dateRaw.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+                const date     = dateM ? `${dateM[1]}-${dateM[2].padStart(2,'0')}-${dateM[3].padStart(2,'0')}` : dateRaw;
                 const place    = pastCell.querySelector('.date_line .rc')?.textContent.trim()     ?? '';
                 const raceLink = pastCell.querySelector('.race_line .name a');
                 const raceName = raceLink?.textContent.trim()

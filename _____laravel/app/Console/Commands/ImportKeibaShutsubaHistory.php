@@ -153,18 +153,9 @@ class ImportKeibaShutsubaHistory extends Command
             // ─────────────────────────────────────────────────────────────
             $this->info('[事前確認] インポート済み開催を確認中...');
 
-            $existingRaw = DB::table('t_horse_odds_finder_shutsuba_history')
-                ->whereNotNull('basho_code')
-                ->whereRaw('DATE(created_at) = ?', [date('Y-m-d')])
-                ->select('basho_code')
-                ->distinct()
-                ->get();
+            $preSkipSet = [];
 
-            $preSkipSet = $existingRaw
-                ->mapWithKeys(fn($r) => [$r->basho_code => true])
-                ->toArray();
-
-            $this->info('  インポート済み開催: ' . count($preSkipSet) . ' 件');
+            $this->info('  インポート済み開催: 0 件（PRE-SKIP無効）');
             $this->info('');
 
             // ─────────────────────────────────────────────────────────────
