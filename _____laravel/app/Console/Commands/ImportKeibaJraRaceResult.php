@@ -73,6 +73,20 @@ class ImportKeibaJraRaceResult extends Command
             //   当日の全レース結果を JSON 文字列として受け取る。
             //   results が空（0件）の場合はレース未終了とみなして早期終了する。
             // ─────────────────────────────────────────────────────────────
+
+            // 当日のレースをDB先読み（非開催日の早期リターン + ループ内N+1解消を兼ねる）
+            $todayRaces = DB::table('t_horse_odds_finder_races')
+                ->where('date', date('Y-m-d'))
+                ->get(['kaisuu', 'basho', 'day', 'race', 'date', 'race_name']);
+
+            if ($todayRaces->isEmpty()) {
+                $this->warn('本日のレースが存在しません。終了します。');
+                $status = '本日レースなし（スキップ）';
+                return;
+            }
+
+            $raceMap = $todayRaces->keyBy(fn($r) => "{$r->kaisuu}-{$r->basho}-{$r->day}-{$r->race}");
+
             $start = microtime(true);
             $json  = $this->fetchJraRaceResult();
             $fetchMs = round((microtime(true) - $start) * 1000);
@@ -114,7 +128,7 @@ class ImportKeibaJraRaceResult extends Command
                 ->flip()
                 ->all();
 
-            DB::transaction(function () use ($results, &$updated, &$skipped, &$existingResultKeys, &$insertedResults, &$insertedResultsByDate) {
+            DB::transaction(function () use ($results, $raceMap, &$updated, &$skipped, &$existingResultKeys, &$insertedResults, &$insertedResultsByDate) {
                 foreach ($results as $row) {
                     // basho 漢字名 → 2桁コードへ変換（未対応の場合はスキップ）
                     $bashoCode = self::BASHO_MAP[$row['basho']] ?? null;
@@ -146,13 +160,8 @@ class ImportKeibaJraRaceResult extends Command
                         continue;
                     }
 
-                    // date と race_name を t_horse_odds_finder_races から取得
-                    $raceRow = DB::table('t_horse_odds_finder_races')
-                        ->where('kaisuu', $row['kaisuu'])
-                        ->where('basho',  $bashoCode)
-                        ->where('day',    $row['day'])
-                        ->where('race',   $row['race'])
-                        ->first(['date', 'race_name']);
+                    // date と race_name を先読みマップから取得（N+1解消）
+                    $raceRow = $raceMap["{$row['kaisuu']}-{$bashoCode}-{$row['day']}-{$row['race']}"] ?? null;
 
                     if (!$raceRow) {
                         continue;

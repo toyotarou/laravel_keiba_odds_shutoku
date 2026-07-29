@@ -237,22 +237,22 @@ class ImportKeibaRaceResultPayout extends Command
                 //   例: 複勝が3着同着 → $buckets['fuku'] = ['14|110', '5|150', '1|480']
                 //       → implode('/', ...) で 'tan' = '14|180', 'fuku' = '14|110/5|150/1|480'
                 // ─────────────────────────────────────────────────────────
+                $typeMap = [
+                    '単勝'   => 'tan',
+                    '複勝'   => 'fuku',
+                    '枠連'   => 'waku',
+                    'ワイド'  => 'wide',
+                    '馬連'   => 'umaren',
+                    '馬単'   => 'umatan',
+                    '3連複'  => 'trio',
+                    '３連複' => 'trio',
+                    '3連単'  => 'trifecta',
+                    '３連単' => 'trifecta',
+                ];
+
                 $saved = 0;
                 foreach ($result['races'] as $raceData) {
                     $this->info("    {$raceData['race']}R 「{$raceData['race_name']}」 保存中...");
-
-                    $typeMap = [
-                        '単勝'  => 'tan',
-                        '複勝'  => 'fuku',
-                        '枠連'  => 'waku',
-                        'ワイド' => 'wide',
-                        '馬連'  => 'umaren',
-                        '馬単'  => 'umatan',
-                        '3連複' => 'trio',
-                        '３連複' => 'trio',
-                        '3連単' => 'trifecta',
-                        '３連単' => 'trifecta',
-                    ];
 
                     $buckets = [
                         'tan' => [], 'fuku' => [], 'waku' => [], 'wide' => [],

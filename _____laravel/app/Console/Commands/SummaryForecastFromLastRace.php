@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Log;
  *   【ブロック 3】初期化・開始バナー
  *   ─── ガード節 ───────────────────────────────────────────────────────────
  *   【ガード A】対象日のレース存在確認
+ *   【ガード A'】馬・騎手スコアを先読み（name → score のハッシュマップ）
  *   【フェーズ 1】プロンプト収集（処理済みレースはスキップ）
  *   【ガード B】pending 空確認
  *   ─── ここから API 呼び出し確定 ─────────────────────────────────────────
@@ -93,7 +94,9 @@ class SummaryForecastFromLastRace extends Command
             // ガード節
             // ═════════════════════════════════════════════════════════════
 
+            // ─────────────────────────────────────────────────────────────
             // 【ガード A】対象日のレース存在確認
+            // ─────────────────────────────────────────────────────────────
             $races = DB::table('t_horse_odds_finder_races')
                 ->where('date', $date)
                 ->orderBy('kaisuu')
@@ -110,6 +113,27 @@ class SummaryForecastFromLastRace extends Command
 
             $totalRaces = $races->count();
             $this->info("[ガードA] {$totalRaces} レースを確認。");
+            $this->info('');
+
+            // ─────────────────────────────────────────────────────────────
+            // 【ガード A'】馬・騎手スコアを先読み（name → score のハッシュマップ）
+            //   プロンプト生成時に O(1) 参照するための前処理。
+            //   騎手名は jockey_scores に記号なしで保存されているため、
+            //   参照時も先頭記号を preg_replace で除去してからキーを引く。
+            // ─────────────────────────────────────────────────────────────
+            $this->info("[ガード A'] 馬・騎手スコアを先読み中...");
+
+            $horseScores = DB::table('t_horse_odds_finder_horse_scores')
+                ->get()
+                ->mapWithKeys(fn($r) => [$r->name => $r->score])
+                ->toArray();
+
+            $jockeyScores = DB::table('t_horse_odds_finder_jockey_scores')
+                ->get()
+                ->mapWithKeys(fn($r) => [$r->name => $r->score])
+                ->toArray();
+
+            $this->info('  → 馬スコア: ' . count($horseScores) . ' 頭 / 騎手スコア: ' . count($jockeyScores) . ' 名');
             $this->info('');
 
             // ─────────────────────────────────────────────────────────────
@@ -141,8 +165,9 @@ class SummaryForecastFromLastRace extends Command
                     ->orderBy('num')
                     ->get();
 
-                $horseInfoList    = [];
+                $horseInfoList     = [];
                 $horseInfoTemplate = "馬番:NUM___馬名:NAME___成績:RECORD";
+                $historyTemplate   = "(RACE_NUM)日付:DATE|開催場所:BASHO|レース種別:DIST|馬場状態:CONDITION|頭数:NUM_HORSES|人気:POPULARITY|着順:FINISHING_POSITION|馬体重:HORSE_WEIGHT|コーナー順位:CORNER1-CORNER2-CORNER3-CORNER4|ラスト3ハロン:LAST3F|ジョッキー:JOCKEY";
 
                 foreach ($horses as $horse) {
                     $horseHistory = DB::table('t_horse_odds_finder_shutsuba_history')
@@ -150,11 +175,9 @@ class SummaryForecastFromLastRace extends Command
                         ->orderBy('date', 'desc')
                         ->get();
 
-                    $historyTemplate = "(RACE_NUM)日付:DATE|開催場所:BASHO|レース種別:DIST|馬場状態:CONDITION|頭数:NUM_HORSES|人気:POPULARITY|着順:FINISHING_POSITION|馬体重:HORSE_WEIGHT|コーナー順位:CORNER1-CORNER2-CORNER3-CORNER4|ラスト3ハロン:LAST3F|ジョッキー:JOCKEY";
-
                     $historyStrings = [];
                     foreach ($horseHistory as $historyIndex => $history) {
-                        $historyStrings[] = strtr($historyTemplate, [
+                        $historyStr = strtr($historyTemplate, [
                             'RACE_NUM'           => ($historyIndex + 1),
                             'DATE'               => $history->date,
                             'BASHO'              => $history->basho,
@@ -171,13 +194,30 @@ class SummaryForecastFromLastRace extends Command
                             'LAST3F'             => $history->last_3f,
                             'JOCKEY'             => $history->jockey,
                         ]);
+
+                        $cleanJockey = preg_replace('/^[▲★☆△◇]+/u', '', trim($history->jockey));
+                        if (isset($jockeyScores[$cleanJockey])) {
+                            $historyStr .= "|ジョッキー評価:100点中{$jockeyScores[$cleanJockey]}点";
+                        }
+
+                        if ($history->finishing_position != 1) {
+                            $historyStr .= "|1位との差:{$history->fin_time_diff}";
+                        }
+
+                        $historyStrings[] = $historyStr;
                     }
 
-                    $horseInfoList[] = strtr($horseInfoTemplate, [
+                    $horseInfoStr = strtr($horseInfoTemplate, [
                         'NUM'    => $horse->num,
                         'NAME'   => $horse->name,
                         'RECORD' => implode('/', $historyStrings),
                     ]);
+
+                    if (isset($horseScores[$horse->name])) {
+                        $horseInfoStr .= "___馬評価:100点中{$horseScores[$horse->name]}点";
+                    }
+
+                    $horseInfoList[] = $horseInfoStr;
                 }
 
                 $pickupCount = $race->num_horses <= 8
@@ -207,7 +247,9 @@ class SummaryForecastFromLastRace extends Command
 
             $this->info('');
 
+            // ─────────────────────────────────────────────────────────────
             // 【ガード B】pending 空確認
+            // ─────────────────────────────────────────────────────────────
             if (empty($pending)) {
                 $this->info('[ガードB] 未処理レースなし。API 送信をスキップします。');
                 $status = '全レース処理済み（スキップ）';
@@ -266,7 +308,6 @@ class SummaryForecastFromLastRace extends Command
                     $label    = "{$race->basho_name} {$race->race}R";
                     $response = $responses[$itemIndex];
 
-                    // 接続例外
                     if ($response instanceof \Throwable) {
                         Log::error('SummaryForecastFromLastRace: 接続エラー', [
                             'date' => $race->date, 'basho' => $race->basho_name, 'race' => $race->race,

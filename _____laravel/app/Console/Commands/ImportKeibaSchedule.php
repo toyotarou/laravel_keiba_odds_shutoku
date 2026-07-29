@@ -201,7 +201,47 @@ class ImportKeibaSchedule extends Command
                 array_column($horses,    'date'),
             ));
 
-            DB::transaction(function () use ($schedules, $races, $horses, $datesToDelete) {
+            // start_time='XXX'（発走済み）を除外してバルク INSERT 用データを構築
+            $schedulesRows = array_map(fn($r) => [
+                'date'       => $r['date'],
+                'kaisuu'     => $r['kaisuu'],
+                'basho'      => $r['basho'],
+                'basho_name' => $r['basho_name'],
+                'day'        => $r['day'],
+            ], $schedules);
+
+            $racesFiltered = array_values(array_filter($races, fn($r) => $r['start_time'] !== 'XXX'));
+            $racesRows     = array_map(fn($r) => [
+                'date'        => $r['date'],
+                'kaisuu'      => $r['kaisuu'],
+                'basho'       => $r['basho'],
+                'basho_name'  => $r['basho_name'],
+                'day'         => $r['day'],
+                'race'        => $r['race'],
+                'race_name'   => $r['race_name'],
+                'start_time'  => $r['start_time'],
+                'num_horses'  => $r['num_horses'],
+                'course'      => $r['course']      ?? '',
+                'dist'        => $r['dist']        ?? 0,
+                'inner_outer' => $r['inner_outer'] ?? null,
+            ], $racesFiltered);
+
+            $horsesRows = array_map(fn($r) => [
+                'date'       => $r['date'],
+                'kaisuu'     => $r['kaisuu'],
+                'basho'      => $r['basho'],
+                'race'       => $r['race'],
+                'num'        => $r['num'],
+                'basho_name' => $r['basho_name'],
+                'day'        => $r['day'],
+                'waku'       => $r['waku'],
+                'name'       => $r['name'],
+                'horse_url'  => $r['horse_url'],
+                'jockey'     => $r['jockey'],
+                'trainer'    => $r['trainer'],
+            ], $horses);
+
+            DB::transaction(function () use ($schedulesRows, $racesRows, $horsesRows, $datesToDelete) {
 
                 // ─────────────────────────────────────────────────────────
                 // 【ブロック 8】トランザクション: 対象日付を全テーブルから DELETE
@@ -220,88 +260,33 @@ class ImportKeibaSchedule extends Command
                 $this->info('');
 
                 // ─────────────────────────────────────────────────────────
-                // 【ブロック 9】schedules INSERT（開催日・回・場所・日目）
-                //   進捗を10件ごとにログ出力する。
+                // 【ブロック 9】schedules バルク INSERT
                 // ─────────────────────────────────────────────────────────
                 $this->info('スケジュールを INSERT 中...');
-                $count = 0;
-                foreach ($schedules as $row) {
-                    DB::table('t_horse_odds_finder_schedules')->insert([
-                        'date'       => $row['date'],
-                        'kaisuu'     => $row['kaisuu'],
-                        'basho'      => $row['basho'],
-                        'basho_name' => $row['basho_name'],
-                        'day'        => $row['day'],
-                    ]);
-                    $count++;
-                    if ($count % 10 === 0) {
-                        $this->line("  schedules: {$count} 件挿入済み...");
-                    }
+                if (!empty($schedulesRows)) {
+                    DB::table('t_horse_odds_finder_schedules')->insert($schedulesRows);
                 }
-                $this->info("  schedules INSERT 完了 ── 合計 {$count} 件。");
+                $this->info("  schedules INSERT 完了 ── 合計 " . count($schedulesRows) . " 件。");
                 $this->info('');
 
                 // ─────────────────────────────────────────────────────────
-                // 【ブロック 10】races INSERT（start_time='XXX' はスキップ）
-                //   start_time='XXX' のレースは発走済みのためスキップする。
-                //   importOdds が参照する start_time / num_horses などを記録する。
+                // 【ブロック 10】races バルク INSERT（start_time='XXX' 除外済み）
                 // ─────────────────────────────────────────────────────────
                 $this->info('レース一覧を INSERT 中...');
-                $count = 0;
-                foreach ($races as $row) {
-
-                    if ($row['start_time'] === 'XXX') {
-                        continue;  // 発走済みはスキップ
-                    }
-
-                    DB::table('t_horse_odds_finder_races')->insert([
-                        'date'       => $row['date'],
-                        'kaisuu'     => $row['kaisuu'],
-                        'basho'      => $row['basho'],
-                        'basho_name' => $row['basho_name'],
-                        'day'        => $row['day'],
-                        'race'       => $row['race'],
-                        'race_name'  => $row['race_name'],
-                        'start_time' => $row['start_time'],
-                        'num_horses' => $row['num_horses'],
-
-                        'course'      => $row['course']      ?? '',
-                        'dist'        => $row['dist']        ?? 0,
-                        'inner_outer' => $row['inner_outer'] ?? null,
-                    ]);
-                    $count++;
-                    $this->line("  races: [{$row['basho_name']}] R{$row['race']} {$row['race_name']} ({$row['start_time']}) 挿入...");
+                if (!empty($racesRows)) {
+                    DB::table('t_horse_odds_finder_races')->insert($racesRows);
                 }
-                $this->info("  races INSERT 完了 ── 合計 {$count} 件。");
+                $this->info("  races INSERT 完了 ── 合計 " . count($racesRows) . " 件。");
                 $this->info('');
 
                 // ─────────────────────────────────────────────────────────
-                // 【ブロック 11】horses INSERT（馬番・馬名・騎手・調教師・URL）
-                //   進捗を10件ごとにログ出力する。
+                // 【ブロック 11】horses バルク INSERT
                 // ─────────────────────────────────────────────────────────
                 $this->info('出走馬情報を INSERT 中...');
-                $count = 0;
-                foreach ($horses as $row) {
-                    DB::table('t_horse_odds_finder_horses')->insert([
-                        'date'       => $row['date'],
-                        'kaisuu'     => $row['kaisuu'],
-                        'basho'      => $row['basho'],
-                        'race'       => $row['race'],
-                        'num'        => $row['num'],
-                        'basho_name' => $row['basho_name'],
-                        'day'        => $row['day'],
-                        'waku'       => $row['waku'],
-                        'name'       => $row['name'],
-                        'horse_url'  => $row['horse_url'],
-                        'jockey'     => $row['jockey'],
-                        'trainer'    => $row['trainer'],
-                    ]);
-                    $count++;
-                    if ($count % 10 === 0) {
-                        $this->line("  horses: {$count} 件挿入済み...");
-                    }
+                if (!empty($horsesRows)) {
+                    DB::table('t_horse_odds_finder_horses')->insert($horsesRows);
                 }
-                $this->info("  horses INSERT 完了 ── 合計 {$count} 件。");
+                $this->info("  horses INSERT 完了 ── 合計 " . count($horsesRows) . " 件。");
             });
 
             $this->info('トランザクション コミット成功。');

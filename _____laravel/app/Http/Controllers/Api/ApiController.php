@@ -1807,6 +1807,166 @@ return response()->json(['data' => [
         return response()->json(['data' => $response]);
     }
     
+
+
+    /**
+     * コース・距離別の過去成績統計を計算する（内部共通処理）
+     *
+     * getHorseOddsFinderCourseDistStats と _getAiAnalysisPrompt の両方から使用する。
+     *
+     * @param  string $course  コース種別 例: 芝, ダート
+     * @param  int    $dist    距離(m)   例: 1600
+     * @return array|null  集計結果、データなしの場合は null
+     */
+    private function _calcCourseDistStats(string $course, int $dist): ?array
+    {
+        $payouts = DB::table('t_horse_odds_finder_race_result_payout')
+            ->where('course', $course)
+            ->where('dist',   $dist)
+            ->get();
+
+        if ($payouts->isEmpty()) return null;
+
+        $raceCount       = 0;
+        $popularityStats = [];
+
+        foreach ($payouts as $payout) {
+            $histories = DB::table('t_horse_odds_finder_race_result_history')
+                ->where('date',       $payout->date)
+                ->where('kaisuu',     $payout->kaisuu)
+                ->where('basho_code', $payout->basho_code)
+                ->where('day',        $payout->day)
+                ->where('race',       $payout->race)
+                ->get();
+
+            if ($histories->isEmpty()) continue;
+
+            $raceCount++;
+            $tanPayout = floatval(explode('|', $payout->tan)[1] ?? 0);
+
+            $fukuMap = [];
+            foreach (explode('/', $payout->fuku ?? '') as $entry) {
+                $parts = explode('|', $entry);
+
+                if (count($parts) === 2) {$fukuMap[(int)$parts[0]] = floatval($parts[1]);}
+            }
+
+            foreach ($histories as $h) {
+                if (is_null($h->finishing_position)) continue;
+                if (is_null($h->popularity_rank))    continue;
+
+                $pop = (int) $h->popularity_rank;
+                if (!isset($popularityStats[$pop])) {
+                    $popularityStats[$pop] = [
+                        'total'       => 0,
+                        'top3'        => 0,
+                        'tan_payout'  => 0.0,
+                        'fuku_payout' => 0.0,
+                    ];
+                }
+
+                $popularityStats[$pop]['total']++;
+                if ($h->finishing_position <= 3) {
+                    $popularityStats[$pop]['top3']++;
+
+                    if (isset($fukuMap[$h->num])) {$popularityStats[$pop]['fuku_payout'] += $fukuMap[$h->num];}
+                }
+
+                if ($h->finishing_position === 1) {$popularityStats[$pop]['tan_payout'] += $tanPayout;}
+
+            }
+        }
+
+        if ($raceCount === 0) return null;
+
+        ksort($popularityStats);
+
+        $MIN_TOTAL    = 800;
+        $byPopularity = [];
+        foreach ($popularityStats as $pop => $s) {
+            $byPopularity[] = [
+                'popularity_rank'    => $pop,
+                'total'              => $s['total'],
+                'top3'               => $s['top3'],
+                'top3_rate'          => round($s['top3']        / $s['total'] * 100, 1),
+                'tan_recovery_rate'  => round($s['tan_payout']  / ($s['total'] * 100) * 100, 1),
+                'fuku_recovery_rate' => round($s['fuku_payout'] / ($s['total'] * 100) * 100, 1),
+            ];
+        }
+
+        // 単勝回収率ランキング
+        $tanSorted = collect($byPopularity)
+            ->filter(fn($item) => $item['total'] >= $MIN_TOTAL)
+            ->sortByDesc('tan_recovery_rate')
+            ->values()->take(3);
+
+        $tanRanking = [];
+        foreach ($tanSorted as $i => $item) {
+            $tanRanking[] = [
+                'rank'              => $i + 1,
+                'popularity_rank'   => $item['popularity_rank'],
+                'total'             => $item['total'],
+                'tan_recovery_rate' => $item['tan_recovery_rate'],
+            ];
+        }
+
+        // 複勝回収率ランキング
+        $fukuSorted = collect($byPopularity)
+            ->filter(fn($item) => $item['total'] >= $MIN_TOTAL)
+            ->sortByDesc('fuku_recovery_rate')
+            ->values()->take(3);
+
+        $fukuRanking = [];
+        foreach ($fukuSorted as $i => $item) {
+            $fukuRanking[] = [
+                'rank'               => $i + 1,
+                'popularity_rank'    => $item['popularity_rank'],
+                'total'              => $item['total'],
+                'fuku_recovery_rate' => $item['fuku_recovery_rate'],
+            ];
+        }
+
+        return [
+            'course'        => $course,
+            'dist'          => $dist,
+            'race_count'    => $raceCount,
+            'by_popularity' => $byPopularity,
+            'tan_ranking'   => $tanRanking,
+            'fuku_ranking'  => $fukuRanking,
+        ];
+    }
+    
+
+
+
+
+    public function getHorseOddsFinderCourseDistStats(Request $request)
+    {
+        $course = $request->query('course');
+        $dist   = (int) $request->query('dist');
+
+        if (!$course || !$dist) {
+            return response()->json(['error' => 'course と dist は必須です'], 400);
+        }
+
+        $stats = $this->_calcCourseDistStats($course, $dist);
+
+        if ($stats === null) {
+            return response()->json(['data' => [
+                'course'        => $course,
+                'dist'          => $dist,
+                'race_count'    => 0,
+                'by_popularity' => [],
+                'tan_ranking'   => [],
+                'fuku_ranking'  => [],
+            ]]);
+        }
+
+        return response()->json(['data' => $stats]);
+    }
+
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Claude AIの使用
 
@@ -2001,30 +2161,8 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
 
 
 
-/**
- * AI分析用のプロンプト文字列を組み立てる
- *
- * 以下の4テーブルを参照してプロンプトを生成する。
- *   - t_horse_odds_finder_races                    : レース基本情報（開催・レース名など）
- *   - t_horse_odds_finder_horses                   : 出走馬情報（馬番・馬名）
- *   - t_horse_odds_finder_odds                     : 単勝・複勝オッズ（計測開始前: 999分前, 発走6分前）
- *   - t_horse_odds_finder_popularity_rank_median   : 類似レースの人気順別中央値オッズ
- *
- * オッズが両方揃っている馬だけを分析対象とし、変動率（%）を算出してプロンプトに含める。
- * 人気順は発走6分前の単勝オッズ昇順で決定する。
- *
- * ①オッズ間断層：人気順K+1の単勝オッズ ÷ 人気順Kの単勝オッズ（999分前・6分前の2時点）
- * ②期待数値：類似レース中央値オッズ ÷ 人気順Kの単勝オッズ（999分前・6分前の2時点）
- *
- * レースが存在しないか、分析対象馬が0頭の場合は null を返す。
- *
- * @param  string $targetDate    対象日付（Y-m-d）
- * @param  string $targetKaisuu  開催回数
- * @param  string $targetBasho   場コード（t_horse_odds_finder_races.basho）
- * @param  string $targetDay     開催日次
- * @param  string $targetRace    レース番号
- * @return string|null  プロンプト文字列、または null（データ不足時）
- */
+
+
 private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, $targetDay, $targetRace, $gapHorseNums, $upsetPickupHorseNums)
 {
     // ─── レース存在確認 ───────────────────────────────────────────────
@@ -2090,10 +2228,8 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     // ─── プロンプト用データの組み立て ────────────────────────────────
     $promptHorses = [];
     foreach ($oddsByNum as $num => $o) {
-        // 片方でも欠けている、またはベースオッズが0の馬はスキップ（0除算防止）
         if ($o['odds_base'] === null || $o['odds_6'] === null || $o['odds_base'] == 0) continue;
 
-        // 単勝変動率（%）= (6分前オッズ - ベースオッズ) / ベースオッズ × 100
         $changeRate = round(($o['odds_6'] - $o['odds_base']) / $o['odds_base'] * 100, 1);
         if ($changeRate < 0) {
             $changeLabel = '下落 ' . abs($changeRate) . '%';
@@ -2103,7 +2239,6 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             $changeLabel = '変化なし';
         }
 
-        // 複勝変動率（最小値ベース）
         $fukuChangeLabel = '－';
         if ($o['fuku_min_base'] && $o['fuku_min_6'] && $o['fuku_min_base'] > 0) {
             $fukuChange = round(($o['fuku_min_6'] - $o['fuku_min_base']) / $o['fuku_min_base'] * 100, 1);
@@ -2116,35 +2251,31 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             }
         }
 
-        // 単複比（単勝6分前 ÷ 複勝最小6分前）
         $tanpukuRatio = '－';
         if ($o['fuku_min_6'] && $o['fuku_min_6'] > 0) {
             $tanpukuRatio = round($o['odds_6'] / $o['fuku_min_6'], 1) . '倍';
         }
 
-        // 馬名が取れない場合は「馬{番号}」で代替
         $name = isset($horses[$num]) ? $horses[$num]->name : '馬' . $num;
 
         $promptHorses[] = [
-            'num'            => $num,
-            'name'           => $name,
-            'odds_base'      => $o['odds_base'],
-            'odds_6'         => $o['odds_6'],
-            'change_label'   => $changeLabel,
-            'fuku_min_6'     => $o['fuku_min_6'],
-            'fuku_max_6'     => $o['fuku_max_6'],
-            'fuku_change'    => $fukuChangeLabel,
-            'tanpuku_ratio'  => $tanpukuRatio,
+            'num'           => $num,
+            'name'          => $name,
+            'odds_base'     => $o['odds_base'],
+            'odds_6'        => $o['odds_6'],
+            'change_label'  => $changeLabel,
+            'fuku_min_6'    => $o['fuku_min_6'],
+            'fuku_max_6'    => $o['fuku_max_6'],
+            'fuku_change'   => $fukuChangeLabel,
+            'tanpuku_ratio' => $tanpukuRatio,
         ];
     }
 
-    // 分析対象馬が1頭もいなければプロンプト生成不可
     if (empty($promptHorses)) {
         return null;
     }
 
     // ─── 人気順の決定（6分前の単勝オッズ昇順） ───────────────────────
-    // 同オッズの場合は馬番昇順を維持
     usort($promptHorses, function ($a, $b) {
         if ($a['odds_6'] !== $b['odds_6']) {
             return $a['odds_6'] <=> $b['odds_6'];
@@ -2152,15 +2283,12 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         return $a['num'] <=> $b['num'];
     });
 
-    // 人気順インデックスを付与（1始まり）
-    $horseCount = count($promptHorses);
     foreach ($promptHorses as $i => &$h) {
         $h['popularity'] = $i + 1;
     }
     unset($h);
 
     // ─── 馬番順テーブルの組み立て ────────────────────────────────────
-    // 表示は馬番順に戻す
     $displayHorses = $promptHorses;
     usort($displayHorses, fn($a, $b) => $a['num'] <=> $b['num']);
 
@@ -2181,7 +2309,27 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     }
     $table = implode("\n", $lines);
 
-    // ─── ③ 過去のレース情報から絞り込んだ馬番（forecast_nums）の取得 ──
+    // ─── コース・距離別の過去統計をプロンプトに追加 ──────────────────
+    // _calcCourseDistStats() を再利用して二重実装を避ける
+    $courseDistText = '';
+    $stats = $this->_calcCourseDistStats($race->course, (int) $race->dist);
+
+    if ($stats !== null && !empty($stats['tan_ranking']) && !empty($stats['fuku_ranking'])) {
+        $tanStr  = collect($stats['tan_ranking'])
+            ->map(fn($v) => $v['popularity_rank'] . '番人気(' . $v['tan_recovery_rate'] . '%)')
+            ->implode(' > ');
+        $fukuStr = collect($stats['fuku_ranking'])
+            ->map(fn($v) => $v['popularity_rank'] . '番人気(' . $v['fuku_recovery_rate'] . '%)')
+            ->implode(' > ');
+
+        $courseDistText = "\n"
+            . '【' . $race->course . $race->dist . 'm の過去' . $stats['race_count'] . 'レース統計】' . "\n"
+            . '単勝回収率が高い人気順位：' . $tanStr . "\n"
+            . '複勝回収率が高い人気順位：' . $fukuStr . "\n"
+            . 'この傾向を踏まえて、今日の出走馬の人気順位と照らし合わせて予想してください。' . "\n";
+    }
+
+    // ─── 過去のレース情報から絞り込んだ馬番（forecast_nums）の取得 ──
     $forecastNums = DB::table('t_horse_odds_finder_forecast_from_last_race')
         ->where('date',       $targetDate)
         ->where('kaisuu',     $race->kaisuu)
@@ -2204,6 +2352,8 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         . 'レース: ' . $raceNum . ' ' . $raceName . "\n\n"
         . '単勝・複勝オッズデータ（計測開始前から発走6分前）' . "\n"
         . $table . "\n\n"
+        . $courseDistText
+        . "\n\n"
         . ((!empty($gapHorseNums) || !empty($upsetPickupHorseNums) || !empty($forecastNums))
             ? ('なお、オッズ分析にあたり、下記の注目馬番も参考にしてください。' . "\n"
                 . (!empty($upsetPickupHorseNums) ? '特に、②の期待数値の馬番はかなり結果を出せているので、重点的に注視してください。' . "\n" : '')
@@ -2229,6 +2379,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         . '5. 人気馬＋穴馬のワイド1点勝負をする場合に選ぶとしたら、どの組み合わせを選ぶか' . "\n"
         . '6. このレースに1000円使うとしたら、どういう馬券を購入するか' . "\n"
         . '7. このレースの総評（混戦か本命か、買い方の方向性）' . "\n"
+        . '8. このレースへの参加推奨度をA,B,Cの三段階で教えてください。' . "\n"
         . '※1000円分の馬券購入の件は、当たり前ですが、馬券は100円単位です。' . "\n"
         . "\n"
         . '分析の観点：' . "\n"
