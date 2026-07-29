@@ -100,12 +100,8 @@ Route::get('getHorseOddsFinderPopularityRankMedian', [ApiController::class, 'get
 // 全馬の最高着順時の馬体重を返す（ベストパフォーマンス時の体重把握用）
 Route::get('getHorseOddsFinderBestHorseWeight', [ApiController::class, 'getHorseOddsFinderBestHorseWeight']);
 
-
-
-
-
 Route::get('getHorseOddsFinderCourseDistStats', [ApiController::class, 'getHorseOddsFinderCourseDistStats']);
 
+Route::get('getHorseOddsFinderHorseScores', [ApiController::class, 'getHorseOddsFinderHorseScores']);
 
-
-
+Route::get('getHorseOddsFinderJockeyScores', [ApiController::class, 'getHorseOddsFinderJockeyScores']);

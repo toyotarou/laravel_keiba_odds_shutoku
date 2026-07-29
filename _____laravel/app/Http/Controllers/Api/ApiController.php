@@ -464,7 +464,19 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
             ->get();
         return response()->json(['data' => $result]);
     }
+    
 
+
+    public function getHorseOddsFinderHorseScores(){
+        $result = DB::table('t_horse_odds_finder_horse_scores')->get();
+        return response()->json(['data' => $result]);
+    }
+    
+    public function getHorseOddsFinderJockeyScores(){
+        $result = DB::table('t_horse_odds_finder_jockey_scores')->get();
+        return response()->json(['data' => $result]);
+    }
+    
 //----------
 
     /**
@@ -676,13 +688,25 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
             return response()->json(['error' => 'name パラメータが必要です'], 400);
         }
 
-        $result = DB::table('t_horse_odds_finder_race_result_history')
-            ->whereRaw('name = ? COLLATE utf8mb4_bin', [$name])
-            ->orderBy('date')
-            ->orderBy('kaisuu')
-            ->orderBy('basho_code')
-            ->orderBy('day')
-            ->orderBy('race')
+        $names = explode('/', $name);
+        $placeholders = implode(',', array_fill(0, count($names), '?'));
+
+        $result = DB::table('t_horse_odds_finder_race_result_history as h')
+            ->leftJoin('t_horse_odds_finder_race_result_payout as p', function ($join) {
+                $join->on('h.date',       '=', 'p.date')
+                     ->on('h.kaisuu',     '=', 'p.kaisuu')
+                     ->on('h.basho_code', '=', 'p.basho_code')
+                     ->on('h.day',        '=', 'p.day')
+                     ->on('h.race',       '=', 'p.race');
+            })
+            ->select('h.*', 'p.course', 'p.dist', 'p.inner_outer')
+            ->whereRaw("h.name COLLATE utf8mb4_bin IN ({$placeholders})", $names)
+            ->orderBy('h.name')
+            ->orderBy('h.date')
+            ->orderBy('h.kaisuu')
+            ->orderBy('h.basho_code')
+            ->orderBy('h.day')
+            ->orderBy('h.race')
             ->get();
 
         return response()->json(['data' => $result]);
@@ -2380,7 +2404,11 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         . '6. このレースに1000円使うとしたら、どういう馬券を購入するか' . "\n"
         . '7. このレースの総評（混戦か本命か、買い方の方向性）' . "\n"
         . '8. このレースへの参加推奨度をA,B,Cの三段階で教えてください。' . "\n"
+        . '   A：複数の指標が一致しており、自信を持って狙えるレース' . "\n"
+        . '   B：指標が部分的に一致、慎重に参加するレース' . "\n"
+        . '   C：指標が一致せず、見送りを推奨するレース' . "\n"
         . '※1000円分の馬券購入の件は、当たり前ですが、馬券は100円単位です。' . "\n"
+        . '※参加推奨度は予想アプリとして少し強気につけてください。完璧な確信がなくてもAをつけて構いません。' . "\n"
         . "\n"
         . '分析の観点：' . "\n"
         . '・単勝オッズ下落10%以上は人気急上昇として注目' . "\n"

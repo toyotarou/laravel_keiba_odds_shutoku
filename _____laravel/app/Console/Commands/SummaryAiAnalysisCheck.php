@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\DB;
  *       ① finishing_horse1 が入力済みのレコードはスキップ（確定済み）
  *       ② AI 予想テキストから PICKUP 馬を抽出
  *       ③ 実際の1〜3着馬を取得
- *       ④ similarity を計算して INSERT or UPDATE（finishing 未入力のみ）
+ *       ④ hit_count を計算して INSERT or UPDATE（finishing 未入力のみ）
  *   【ブロック 5】完了ログ・WebPush 通知
  *
  * 【使い方】
@@ -123,8 +123,8 @@ class SummaryAiAnalysisCheck extends Command
                 continue;
             }
 
-            // ③ similarity を計算して INSERT or UPDATE
-            $sim = $this->horseSimilarity(array_values($horses), array_values($finishing));
+            // ③ hit_count を計算して INSERT or UPDATE
+            $sim = $this->calcHitCount(array_values($horses), array_values($finishing));
 
             DB::table('t_horse_odds_finder_ai_analysis_check')->updateOrInsert(
                 [
@@ -143,7 +143,7 @@ class SummaryAiAnalysisCheck extends Command
                     'finishing_horse1'=> $finishing['finishing_horse1']  ?? null,
                     'finishing_horse2'=> $finishing['finishing_horse2']  ?? null,
                     'finishing_horse3'=> $finishing['finishing_horse3']  ?? null,
-                    'similarity'      => $sim['similarity'],
+                    'hit_count'       => $sim['hit_count'],
                 ]
             );
 
@@ -166,15 +166,13 @@ class SummaryAiAnalysisCheck extends Command
         );
     }
 
-    private function horseSimilarity(array $predicted, array $actual): array
+    private function calcHitCount(array $predicted, array $actual): array
     {
         $match = count(array_intersect($predicted, $actual));
-        $total = max(count($predicted), count($actual));
 
         return [
-            'similarity' => $total > 0 ? round($match / $total * 100, 2) : 0,
-            'match'      => $match,
-            'total'      => count($predicted),
+            'hit_count' => $match,
+            'total'     => count($predicted),
         ];
     }
 }
