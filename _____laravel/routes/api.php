@@ -21,10 +21,6 @@ Route::get('getHorseOddsFinderHorses', [ApiController::class, 'getHorseOddsFinde
 // オッズ時系列一覧（単勝・複勝、発走N分前ごとの記録）を返す
 Route::get('getHorseOddsFinderOdds', [ApiController::class, 'getHorseOddsFinderOdds']);
 
-// レース情報（旧スクレイピングデータ）を返す
-Route::get('getHorseOddsFinderNetkeibaRaces', [ApiController::class, 'getHorseOddsFinderNetkeibaRaces']);
-// オッズ情報（旧スクレイピングデータ）を返す
-Route::get('getHorseOddsFinderNetkeibaOdds', [ApiController::class, 'getHorseOddsFinderNetkeibaOdds']);
 // オッズ取得タイミング一覧（各レースを何分前に取得したかの記録）を返す
 Route::get('getHorseOddsFinderOddsGetTiming', [ApiController::class, 'getHorseOddsFinderOddsGetTiming']);
 
@@ -59,9 +55,6 @@ Route::post('changePushNotifierUserDelete', [ApiController::class, 'changePushNo
 
 // 年別・人気順位別のレース結果履歴を返す（year・popularity_rank で絞り込み）
 Route::get('getHorseOddsFinderRaceResultHistory', [ApiController::class, 'getHorseOddsFinderRaceResultHistory']);
-// 人気順位別の平均成績（勝率・複勝率・回収率の平均）を返す
-Route::get('getHorseOddsFinderPopularityRankAverage', [ApiController::class, 'getHorseOddsFinderPopularityRankAverage']);
-
 // 年別のレース一覧を返す（結果履歴テーブルからレース単位に集約）
 Route::get('getHorseOddsFinderRaceResultHistoryRaceList', [ApiController::class, 'getHorseOddsFinderRaceResultHistoryRaceList']);
 // 指定1レースの全馬結果（着順・オッズ・人気）を返す
@@ -92,6 +85,7 @@ Route::get('getHorseOddsFinderAiAnalysis', [ApiController::class, 'getHorseOddsF
 Route::get('getHorseOddsFinderShutsubaHistory', [ApiController::class, 'getHorseOddsFinderShutsubaHistory']);
 
 // 指定レースの出走馬ごとにコース×距離別の過去成績・脚質を返す
+// ⚠️ TODO: Flutter未使用（これ使うの？）　2026.7.30
 Route::get('getHorseOddsFinderCourseDistHistory', [ApiController::class, 'getHorseOddsFinderCourseDistHistory']);
 
 // レースごとの人気順位別オッズ中央値（類似レース統計）を返す
@@ -100,8 +94,12 @@ Route::get('getHorseOddsFinderPopularityRankMedian', [ApiController::class, 'get
 // 全馬の最高着順時の馬体重を返す（ベストパフォーマンス時の体重把握用）
 Route::get('getHorseOddsFinderBestHorseWeight', [ApiController::class, 'getHorseOddsFinderBestHorseWeight']);
 
+// ⚠️ TODO: Flutter未使用（これ使うの？） 2026.7.30
 Route::get('getHorseOddsFinderCourseDistStats', [ApiController::class, 'getHorseOddsFinderCourseDistStats']);
 
 Route::get('getHorseOddsFinderHorseScores', [ApiController::class, 'getHorseOddsFinderHorseScores']);
 
 Route::get('getHorseOddsFinderJockeyScores', [ApiController::class, 'getHorseOddsFinderJockeyScores']);
+
+// ⚠️ TODO: Flutter未使用（これ使うの？） 2026.7.30
+Route::get('getHorseOddsFinderExpectedValueScore', [ApiController::class, 'getHorseOddsFinderExpectedValueScore']);

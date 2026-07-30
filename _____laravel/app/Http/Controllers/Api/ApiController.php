@@ -295,48 +295,6 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
     }
     
     /**
-     * レース情報（旧スクレイピングデータ）を取得する
-     *
-     * t_horse_odds_finder_netkeiba_races の全件を返す。
-     *
-     * @return \Illuminate\Http\JsonResponse  { data: [...] }
-     */
-    public function getHorseOddsFinderNetkeibaRaces()
-    {
-        $result = DB::table('t_horse_odds_finder_netkeiba_races')
-            ->orderBy('date')
-            ->orderBy('kaisuu')
-            ->orderBy('basho')
-            ->orderBy('day')
-            ->orderBy('race')
-            ->get();
-
-        return response()->json(['data' => $result]);
-    }
-
-    /**
-     * オッズ情報（旧スクレイピングデータ）を取得する
-     *
-     * t_horse_odds_finder_netkeiba_odds の全件を返す。
-     *
-     * @return \Illuminate\Http\JsonResponse  { data: [...] }
-     */
-    public function getHorseOddsFinderNetkeibaOdds()
-    {
-        $result = DB::table('t_horse_odds_finder_netkeiba_odds')
-            ->orderBy('date')
-            ->orderBy('kaisuu')
-            ->orderBy('basho')
-            ->orderBy('day')
-            ->orderBy('race')
-            ->orderBy('num')
-            ->orderBy('minutes_before_start')
-            ->get();
-
-        return response()->json(['data' => $result]);
-    }
-
-    /**
      * オッズ取得タイミング一覧を取得する
      *
      * t_horse_odds_finder_odds_get_timing の全件を返す。
@@ -425,22 +383,6 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
     
 
     
-    /**
-     * 人気順位別の平均成績を取得する
-     *
-     * t_horse_odds_finder_popularity_rank_average の全件を返す。
-     * 各人気順位（1番人気・2番人気…）の勝率・複勝率平均などが含まれる。
-     *
-     * @return \Illuminate\Http\JsonResponse  { data: [...] }
-     */
-    public function getHorseOddsFinderPopularityRankAverage()
-    {
-        $result = DB::table('t_horse_odds_finder_popularity_rank_average')
-            ->orderBy('popularity_rank')
-            ->get();
-        return response()->json(['data' => $result]);
-    }
-
 
 
     /**
@@ -1087,445 +1029,505 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
         return response()->json(['data' => $result]);
     }
 
-    /**
-     * コース×距離別 過去成績 API
-     *
-     * ─────────────────────────────────────────────────────────────
-     * 【このAPIの目的】
-     *   今日出走する馬が、同じコース（芝/ダート）×同じ距離で
-     *   過去にどんなレースをしてきたかを返す。
-     *   「この馬はダート1700mを走ったことがあるか」
-     *   「あるなら何秒で走ったか、どんな位置取りだったか」を
-     *   一発で取得できる予想補助ツール。
-     *
-     * 【予想への使い方】
-     *   1. has_experience=false の馬は当コース・距離が未経験 → 適性未知
-     *   2. time_rank=1（最速タイム）の馬はスピード実績が最も高い
-     *   3. running_style で今日の展開を読む
-     *      → 逃げ馬が多い = ハイペース = 差し・追い込み有利
-     *      → 逃げ馬が少ない = スロー = 先行馬有利
-     *   4. avg_last_surge がプラスの馬は直線で追い込む末脚型
-     *      → 差しが決まる展開になれば一発あり
-     *      → マイナスが大きい馬は直線でバテる傾向 → 消し候補
-     *
-     * 【レスポンス構造】
-     *   race              → 対象レースの基本情報（コース・距離含む）
-     *   data[]            → 出走馬ごとの情報
-     *     has_experience  → このコース×距離の経験があるか (bool)
-     *     best_time_sec   → 同コース×距離での最速タイム（秒）例: 104.3
-     *     time_rank       → 経験馬の中での最速タイム順位（1=最速）
-     *     running_style   → 脚質: 逃/先/中/差/追（null=経験なし）
-     *     avg_last_surge  → 直線での平均伸び順位数
-     *                       プラス = 追い込み型（差しが決まると爆発）
-     *                       マイナス = バテ型（末脚が続かない）
-     *                       0付近 = 位置取りそのまま
-     *     course_dist_stats → 同コース×距離の勝率・複勝率・平均着順
-     *     records[]       → 同コース×距離での過去全レース明細
-     *       corner_1〜4   → 各コーナー通過時点の順位
-     *       last_surge    → そのレースの直線での伸び（corner_4 - finishing_position）
-     *       time_sec      → タイムを秒換算した数値（比較・ソート用）
-     *
-     * 【クエリパラメータ】
-     *   date   = 対象日付 例: 2026-07-18 （省略時は今日）
-     *   kaisuu = 開催回数  例: 2
-     *   basho  = 場コード  例: 03
-     *   day    = 開催日次  例: 7
-     *   race   = レース番号 例: 10
-     *
-     * 【参照テーブル】
-     *   t_horse_odds_finder_races          → 今日のレース情報（course, dist を取得）
-     *   t_horse_odds_finder_horses         → 今日の出走馬リスト
-     *   t_horse_odds_finder_shutsuba_history → 各馬の過去出走履歴
-     *
-     * 【dist の形式について】
-     *   shutsuba_history.dist は "1700ダ", "1200芝", "3200芝ダ" のような文字列。
-     *   数字部分 = 距離(m)、文字部分 = コース種別。
-     *   REGEXP_REPLACE で数字を抜き出して races.dist と突き合わせる。
-     * ─────────────────────────────────────────────────────────────
-     */
-    public function getHorseOddsFinderCourseDistHistory(Request $request)
-    {
-        $date   = $request->query('date', date('Y-m-d'));
-        $kaisuu = $request->query('kaisuu');
-        $basho  = $request->query('basho');
-        $day    = $request->query('day');
-        $race   = $request->query('race');
 
-        // ── ① 今日のレース情報を取得（course と dist を知るため） ────────────
-        // t_horse_odds_finder_races に course="芝"/"ダート", dist=1700 のように入っている
-        $raceRow = DB::table('t_horse_odds_finder_races')
-            ->where('date',   $date)
-            ->where('kaisuu', $kaisuu)
-            ->where('basho',  $basho)
-            ->where('day',    $day)
-            ->where('race',   intval($race))
-            ->first();
 
-        if (!$raceRow) {
-            return response()->json(['error' => 'レースが見つかりません'], 404);
-        }
 
-        // 今日のレースのコース種別・距離（過去履歴の絞り込みキーになる）
-        $targetCourse = $raceRow->course; // "芝" or "ダート"
-        $targetDist   = (int) $raceRow->dist;
 
-        // ── ② 今日の出走馬一覧を取得 ─────────────────────────────────────────
-        $horses = DB::table('t_horse_odds_finder_horses')
-            ->where('date',   $date)
-            ->where('kaisuu', $kaisuu)
-            ->where('basho',  $basho)
-            ->where('day',    $day)
-            ->where('race',   intval($race))
-            ->orderBy('waku')
-            ->orderBy('num')
-            ->get();
 
-        if ($horses->isEmpty()) {
-            return response()->json(['error' => '出走馬が見つかりません'], 404);
-        }
 
-        $horseNames = $horses->pluck('name')->toArray();
 
-        // ── ③ 過去履歴を「同コース×同距離」に絞って一括取得 ──────────────────
-        //
-        // shutsuba_history.dist は "1700ダ", "1200芝" のような文字列なので
-        //   ・REGEXP_REPLACE で数字だけ抜き出して距離を比較
-        //   ・LIKE でコース種別（芝 or ダ）を絞る
-        //
-        // ダート = "ダ" を含む（"1700ダ" など）
-        // 芝    = "芝" を含む（"1200芝", 障害の "3200芝ダ" も含まれるが許容）
-        $courseLike = ($targetCourse === 'ダート') ? '%ダ%' : '%芝%';
 
-        $histories = DB::table('t_horse_odds_finder_shutsuba_history')
-            ->whereIn('name', $horseNames)
-            ->whereRaw("REGEXP_REPLACE(dist, '[^0-9]', '') = ?", [(string) $targetDist])
-            ->where('dist', 'LIKE', $courseLike)
-            ->orderBy('name')
-            ->orderBy('date', 'desc') // 新しい順（records は直近が先頭）
-            ->get();
 
-        // 馬名をキーにした連想配列に変換（後のループで O(1) アクセスするため）
-        $historyByName = [];
-        foreach ($histories as $h) {
-            $historyByName[$h->name][] = $h;
-        }
 
-        // ── ④ ヘルパークロージャ ─────────────────────────────────────────────
 
-        // タイム文字列 "1:44.3" を秒（float）に変換する
-        // 変換できない（null・空・形式違い）場合は null を返す
-        $parseTimeSec = function (?string $time): ?float {
-            if (!$time || !preg_match('/^(\d+):(\d+\.\d+)$/', trim($time), $m)) {
-                return null;
-            }
-            return (int)$m[1] * 60 + (float)$m[2];
-        };
 
-        // 最終コーナー通過順位の「頭数比率」から脚質を分類する
-        //   ratio = corner_4 / num_horses（0に近いほど前、1に近いほど後ろ）
-        //   0.00〜0.10 → 逃（ほぼ先頭）
-        //   0.11〜0.35 → 先（先行集団）
-        //   0.36〜0.60 → 中（中団）
-        //   0.61〜0.80 → 差（後方から差す）
-        //   0.81〜1.00 → 追（最後方からの追い込み）
-        $classifyStyle = function (?float $ratio): ?string {
-            if ($ratio === null) return null;
-            if ($ratio <= 0.10) return '逃';
-            if ($ratio <= 0.35) return '先';
-            if ($ratio <= 0.60) return '中';
-            if ($ratio <= 0.80) return '差';
-            return '追';
-        };
 
-        // ── ⑤ 直近5走を全馬まとめて一括取得（コース・距離問わず） ────────────
-        // 今の調子（上昇/下降傾向）を見るために全距離・全コースの直近5走を取得する。
-        // N+1 を避けるため、全出走馬の名前でまとめて取り、後でグループ化する。
-        $recentAllHistories = DB::table('t_horse_odds_finder_shutsuba_history')
-            ->whereIn('name', $horseNames)
-            ->whereNotNull('finishing_position')
-            ->orderBy('name')
-            ->orderBy('date', 'desc')
-            ->orderBy('id', 'desc')
-            ->get();
 
-        // 馬名ごとに直近5走だけ残す
-        $recentByName = [];
-        foreach ($recentAllHistories as $r) {
-            if (!isset($recentByName[$r->name])) {
-                $recentByName[$r->name] = [];
-            }
-            if (count($recentByName[$r->name]) < 5) {
-                $recentByName[$r->name][] = $r;
-            }
-        }
 
-        // ── ⑥ 馬ごとに集計 ───────────────────────────────────────────────────
-        $data = [];
-        foreach ($horses as $horse) {
-            $name    = $horse->name;
-            $records = $historyByName[$name] ?? []; // 同コース×同距離の過去レース一覧
 
-            $total       = count($records);
-            $win         = 0;   // 1着回数
-            $top3        = 0;   // 3着以内回数（複勝圏内）
-            $finishSum   = 0;   // 着順の合計（平均着順の計算用）
-            $bestTimeSec = null; // このコース×距離での最速タイム（秒）
 
-            // 脚質算出用：corner_4 / num_horses の平均を取る
-            $styleRatioSum = 0.0;
-            $styleCount    = 0;
 
-            // 直線伸び算出用：(corner_4 - finishing_position) の平均を取る
-            //   プラス = 直線で前の馬を抜いた（追い込み）
-            //   マイナス = 直線で後ろの馬に抜かれた（バテ）
-            $surgeSum   = 0.0;
-            $surgeCount = 0;
 
-            // 馬場状態別成績集計用
-            // 例: ['良' => ['total'=>3,'win'=>1,'top3'=>2], '稍重' => [...], ...]
-            $conditionStats = [];
 
-            foreach ($records as $r) {
-                // 着順集計
-                if (!is_null($r->finishing_position)) {
-                    if ($r->finishing_position == 1) $win++;
-                    if ($r->finishing_position <= 3) $top3++;
-                    $finishSum += $r->finishing_position;
-                }
 
-                // 最速タイム更新（秒換算して比較）
-                $sec = $parseTimeSec($r->time);
-                if ($sec !== null && ($bestTimeSec === null || $sec < $bestTimeSec)) {
-                    $bestTimeSec = $sec;
-                }
 
-                // 脚質：最終コーナー順位 ÷ 出走頭数 を積み上げる
-                if (!is_null($r->corner_4) && !is_null($r->num_horses) && $r->num_horses > 0) {
-                    $styleRatioSum += $r->corner_4 / $r->num_horses;
-                    $styleCount++;
-                }
 
-                // 直線での伸び：最終コーナー順位 - 最終着順
-                //   例) corner_4=5, finishing_position=3 → +2（2頭抜いた）
-                //   例) corner_4=3, finishing_position=7 → -4（4頭に抜かれた）
-                if (!is_null($r->corner_4) && !is_null($r->finishing_position)) {
-                    $surgeSum += ($r->corner_4 - $r->finishing_position);
-                    $surgeCount++;
-                }
 
-                // 馬場状態別成績を集計
-                // condition は "良", "稍重", "重", "不良" など
-                // 障害レースは "稍重/重" のように複合表記になる場合があるが、そのまま格納する
-                if (!empty($r->condition) && !is_null($r->finishing_position)) {
-                    $cond = $r->condition;
-                    if (!isset($conditionStats[$cond])) {
-                        $conditionStats[$cond] = ['total' => 0, 'win' => 0, 'top3' => 0];
-                    }
-                    $conditionStats[$cond]['total']++;
-                    if ($r->finishing_position == 1) $conditionStats[$cond]['win']++;
-                    if ($r->finishing_position <= 3) $conditionStats[$cond]['top3']++;
-                }
-            }
 
-            // 平均比率から脚質文字列に変換
-            $avgStyleRatio = $styleCount > 0 ? $styleRatioSum / $styleCount : null;
-            $runningStyle  = $classifyStyle($avgStyleRatio);
 
-            // 直線での平均伸び順位数（小数第1位まで）
-            $avgLastSurge = $surgeCount > 0 ? round($surgeSum / $surgeCount, 1) : null;
 
-            // 馬場状態別に複勝率を付与し、最も複勝率が高い条件を best_condition として返す
-            $bestCondition     = null;
-            $bestConditionRate = -1;
-            $conditionStatsOut = [];
-            foreach ($conditionStats as $cond => $cs) {
-                $rate = $cs['total'] > 0 ? round($cs['top3'] / $cs['total'] * 100, 1) : 0;
-                $conditionStatsOut[$cond] = [
-                    'total'     => $cs['total'],
-                    'win'       => $cs['win'],
-                    'top3'      => $cs['top3'],
-                    'top3_rate' => $rate,
-                ];
-                if ($rate > $bestConditionRate) {
-                    $bestConditionRate = $rate;
-                    $bestCondition     = $cond;
-                }
-            }
 
-            // 直近5走の着順リストと調子トレンドを算出
-            // recent_form: 新しい順に並んだ着順の配列 例: [1, 3, 5, 2, 8]
-            $recentRecords = $recentByName[$name] ?? [];
-            $recentForm    = array_map(fn($r) => $r->finishing_position, $recentRecords);
 
-            // recent_trend: 直近5走の前半2走と後半2走の平均着順を比較してトレンドを判定
-            //   "上昇" = 最近の方が着順が良い（数字が小さい）
-            //   "下降" = 最近の方が着順が悪い（数字が大きい）
-            //   "安定" = ほぼ変化なし（差が1着順以内）
-            //   null   = データが3走未満で判定不能
-            $recentTrend = null;
-            if (count($recentForm) >= 3) {
-                $newer = array_slice($recentForm, 0, 2); // 直近2走
-                $older = array_slice($recentForm, -2);   // 最古2走
-                $newerAvg = array_sum($newer) / count($newer);
-                $olderAvg = array_sum($older) / count($older);
-                $diff = $olderAvg - $newerAvg; // プラス=最近の方が着順良い
-                if ($diff > 1)       $recentTrend = '上昇';
-                elseif ($diff < -1)  $recentTrend = '下降';
-                else                 $recentTrend = '安定';
-            }
 
-            // 騎手変更フラグ
-            // 同コース×距離で最も直近のレースの騎手と今日の騎手を比較する。
-            // 騎手名には "▲", "△", "☆" などの見習いマーク が付く場合があるため除去して比較。
-            $stripMark    = fn(?string $j): string => preg_replace('/^[▲△☆★◇◆]+/', '', (string)$j);
-            $lastJockey   = !empty($records) ? $stripMark($records[0]->jockey) : null;
-            $todayJockey  = $stripMark($horse->jockey);
-            $jockeyChanged = ($lastJockey !== null && $lastJockey !== $todayJockey);
 
-            $data[] = [
-                // ── 馬の基本情報 ──
-                'waku'   => $horse->waku,
-                'num'    => $horse->num,
-                'name'   => $name,
-                'jockey' => $horse->jockey,
 
-                // ── 適性判定フィールド ──
-                // has_experience: このコース×距離の出走経験があるか
-                //   false の馬は適性が完全に未知。予想では注意が必要。
-                'has_experience' => $total > 0,
+/**
+ * コース×距離別 過去成績 API
+ *
+ * ─────────────────────────────────────────────────────────────
+ * 【このAPIの目的】
+ *   今日出走する馬が、同じコース（芝/ダート）×同じ距離で
+ *   過去にどんなレースをしてきたかを返す。
+ *   「この馬はダート1700mを走ったことがあるか」
+ *   「あるなら何秒で走ったか、どんな位置取りだったか」を
+ *   一発で取得できる予想補助ツール。
+ *
+ * 【予想への使い方】
+ *   1. has_experience=false の馬は当コース・距離が未経験 → 適性未知
+ *   2. time_rank=1（最速タイム）の馬はスピード実績が最も高い
+ *   3. running_style で今日の展開を読む
+ *      → 逃げ馬が多い = ハイペース = 差し・追い込み有利
+ *      → 逃げ馬が少ない = スロー = 先行馬有利
+ *   4. avg_last_surge がプラスの馬は直線で追い込む末脚型
+ *      → 差しが決まる展開になれば一発あり
+ *      → マイナスが大きい馬は直線でバテる傾向 → 消し候補
+ *
+ * 【レスポンス構造】
+ *   race              → 対象レースの基本情報（コース・距離含む）
+ *   data[]            → 出走馬ごとの情報
+ *     has_experience  → このコース×距離の経験があるか (bool)
+ *     best_time_sec   → 同コース×距離での最速タイム（秒）例: 104.3
+ *     time_rank       → 経験馬の中での最速タイム順位（1=最速）
+ *     running_style   → 脚質: 逃/先/中/差/追（null=経験なし）
+ *     avg_last_surge  → 直線での平均伸び順位数
+ *                       プラス = 追い込み型（差しが決まると爆発）
+ *                       マイナス = バテ型（末脚が続かない）
+ *                       0付近 = 位置取りそのまま
+ *     course_dist_stats → 同コース×距離の勝率・複勝率・平均着順
+ *     records[]       → 同コース×距離での過去全レース明細
+ *       corner_1〜4   → 各コーナー通過時点の順位
+ *       last_surge    → そのレースの直線での伸び（corner_4 - finishing_position）
+ *       time_sec      → タイムを秒換算した数値（比較・ソート用）
+ *
+ * 【クエリパラメータ】
+ *   date   = 対象日付 例: 2026-07-18 （省略時は今日）
+ *   kaisuu = 開催回数  例: 2
+ *   basho  = 場コード  例: 03
+ *   day    = 開催日次  例: 7
+ *   race   = レース番号 例: 10
+ *
+ * 【参照テーブル】
+ *   t_horse_odds_finder_races          → 今日のレース情報（course, dist を取得）
+ *   t_horse_odds_finder_horses         → 今日の出走馬リスト
+ *   t_horse_odds_finder_shutsuba_history → 各馬の過去出走履歴
+ *
+ * 【dist の形式について】
+ *   shutsuba_history.dist は "1700ダ", "1200芝", "3200芝ダ" のような文字列。
+ *   数字部分 = 距離(m)、文字部分 = コース種別。
+ *   REGEXP_REPLACE で数字を抜き出して races.dist と突き合わせる。
+ * ─────────────────────────────────────────────────────────────
+ */
+// ⚠️ TODO: Flutter未使用（これ使うの？）
+public function getHorseOddsFinderCourseDistHistory(Request $request)
+{
+$date   = $request->query('date', date('Y-m-d'));
+$kaisuu = $request->query('kaisuu');
+$basho  = $request->query('basho');
+$day    = $request->query('day');
+$race   = $request->query('race');
 
-                // best_time_sec: 同コース×距離での最速タイム（秒）
-                //   タイムが速い馬ほどこの条件でのスピード実績がある。
-                //   ただし馬場状態・メンバーレベルが違う点は考慮が必要。
-                'best_time_sec' => $bestTimeSec,
+// ── ① 今日のレース情報を取得（course と dist を知るため） ────────────
+// t_horse_odds_finder_races に course="芝"/"ダート", dist=1700 のように入っている
+$raceRow = DB::table('t_horse_odds_finder_races')
+->where('date',   $date)
+->where('kaisuu', $kaisuu)
+->where('basho',  $basho)
+->where('day',    $day)
+->where('race',   intval($race))
+->first();
 
-                // time_rank: 経験馬の中での最速タイム順位（1=最速）
-                //   null = 経験なしのため圏外
-                'time_rank' => null, // 後のステップ⑦で付与する
+if (!$raceRow) {
+return response()->json(['error' => 'レースが見つかりません'], 404);
+}
 
-                // running_style: 脚質（逃/先/中/差/追）
-                //   同コース×距離でのcorner_4平均位置から算出。
-                //   予想での使い方：
-                //     今日のレースで「逃」が多い → ハイペース → 差し・追い込み有利
-                //     今日のレースで「逃」が少ない → スロー → 先行馬有利
-                //   null = 経験なしのため不明
-                'running_style' => $runningStyle,
+// 今日のレースのコース種別・距離（過去履歴の絞り込みキーになる）
+$targetCourse = $raceRow->course; // "芝" or "ダート"
+$targetDist   = (int) $raceRow->dist;
 
-                // avg_last_surge: 直線での平均伸び順位数
-                //   プラス: 追い込み型（末脚がある）→ 差しが決まる展開で狙い目
-                //   マイナス: バテ型（直線で失速）→ 消し候補
-                //   0付近: 位置取りをそのまま維持するタイプ
-                //   null = 経験なしのため不明
-                'avg_last_surge' => $avgLastSurge,
+// ── ② 今日の出走馬一覧を取得 ─────────────────────────────────────────
+$horses = DB::table('t_horse_odds_finder_horses')
+->where('date',   $date)
+->where('kaisuu', $kaisuu)
+->where('basho',  $basho)
+->where('day',    $day)
+->where('race',   intval($race))
+->orderBy('waku')
+->orderBy('num')
+->get();
 
-                // jockey_changed: 同コース×距離の前走から騎手が変わったか
-                //   true = 変わった → 脚質・running_style が参考にならない可能性あり
-                //   false = 同じ騎手 → 過去データの信頼性が高い
-                //   null = 比較できる過去データなし（経験なし馬）
-                'jockey_changed' => $total > 0 ? $jockeyChanged : null,
+if ($horses->isEmpty()) {
+return response()->json(['error' => '出走馬が見つかりません'], 404);
+}
 
-                // best_condition: このコース×距離で最も複勝率が高い馬場状態
-                //   例: "稍重" → 稍重で特に好走している
-                //   今日の馬場状態と照合して予想の参考にする
-                //   null = 経験なしのため不明
-                'best_condition' => $bestCondition,
+$horseNames = $horses->pluck('name')->toArray();
 
-                // condition_stats: 馬場状態別の成績内訳
-                //   キー = 馬場状態（良/稍重/重/不良）
-                //   値   = {total, win, top3, top3_rate}
-                //   null = 経験なしのため空
-                'condition_stats' => !empty($conditionStatsOut) ? $conditionStatsOut : null,
+// ── ③ 過去履歴を「同コース×同距離」に絞って一括取得 ──────────────────
+//
+// shutsuba_history.dist は "1700ダ", "1200芝" のような文字列なので
+//   ・REGEXP_REPLACE で数字だけ抜き出して距離を比較
+//   ・LIKE でコース種別（芝 or ダ）を絞る
+//
+// ダート = "ダ" を含む（"1700ダ" など）
+// 芝    = "芝" を含む（"1200芝", 障害の "3200芝ダ" も含まれるが許容）
+$courseLike = ($targetCourse === 'ダート') ? '%ダ%' : '%芝%';
 
-                // recent_form: コース・距離問わず直近5走の着順（新しい順）
-                //   例: [1, 3, 5, 2, 8] → 直近1走が1着、2走前が3着...
-                //   今の馬の調子を把握するために使う
-                'recent_form' => $recentForm,
+$histories = DB::table('t_horse_odds_finder_shutsuba_history')
+->whereIn('name', $horseNames)
+->whereRaw("REGEXP_REPLACE(dist, '[^0-9]', '') = ?", [(string) $targetDist])
+->where('dist', 'LIKE', $courseLike)
+->orderBy('name')
+->orderBy('date', 'desc') // 新しい順（records は直近が先頭）
+->get();
 
-                // recent_trend: 直近5走の調子トレンド
-                //   "上昇" = 最近の方が着順が良い（上り調子）→ 狙い目
-                //   "下降" = 最近の方が着順が悪い（下り調子）→ 注意
-                //   "安定" = ほぼ変化なし
-                //   null   = データ不足（3走未満）
-                'recent_trend' => $recentTrend,
+// 馬名をキーにした連想配列に変換（後のループで O(1) アクセスするため）
+$historyByName = [];
+foreach ($histories as $h) {
+$historyByName[$h->name][] = $h;
+}
 
-                // ── 同コース×距離の成績サマリー ──
-                'course_dist_stats' => [
-                    'course'        => $targetCourse,
-                    'dist'          => $targetDist,
-                    'total'         => $total,                // 同条件での出走回数
-                    'win'           => $win,                  // 1着回数
-                    'top3'          => $top3,                 // 3着以内回数
-                    'win_rate'      => $total > 0 ? round($win  / $total * 100, 1) : null, // 勝率(%)
-                    'top3_rate'     => $total > 0 ? round($top3 / $total * 100, 1) : null, // 複勝率(%)
-                    'avg_finishing' => $total > 0 ? round($finishSum / $total, 1)  : null, // 平均着順
-                ],
+// ── ④ ヘルパークロージャ ─────────────────────────────────────────────
 
-                // ── 同コース×距離の過去レース明細（新しい順） ──
-                'records' => array_map(fn($r) => [
-                    'date'               => $r->date,
-                    'basho'              => $r->basho,
-                    'race'               => $r->race,
-                    'race_name'          => $r->race_name,
-                    'dist_raw'           => $r->dist,            // 元の文字列 例: "1700ダ"
-                    'dist'               => (int) preg_replace('/[^0-9]/', '', (string)$r->dist), // 距離(m) 例: 1700
-                    'course'             => preg_replace('/[0-9]/', '', (string)$r->dist) ?: null, // コース種別 例: "ダ", "芝", "芝ダ"
-                    'finishing_position' => $r->finishing_position,
-                    'num_horses'         => $r->num_horses,
-                    'popularity'         => $r->popularity,       // 人気順位
-                    'jockey'             => $r->jockey,
-                    'condition'          => $r->condition,        // 馬場状態（良/稍重/重/不良）
-                    'time'               => $r->time,             // タイム文字列 例: "1:44.3"
-                    'time_sec'           => $parseTimeSec($r->time), // タイム（秒）例: 104.3
-                    'last_3f'            => $r->last_3f,          // 上がり3ハロンタイム
-                    'grade'              => $r->grade,
-                    // ── コーナー通過順位 ──
-                    // 位置取りの変化を追える。1コーナーから4コーナーにかけて
-                    // 順位が上がれば前に行った、下がれば後退したことを示す。
-                    'corner_1'           => $r->corner_1,
-                    'corner_2'           => $r->corner_2,
-                    'corner_3'           => $r->corner_3,
-                    'corner_4'           => $r->corner_4,
-                    // last_surge: 直線での伸び（corner_4 - finishing_position）
-                    //   プラス = 直線で前の馬を抜いた
-                    //   マイナス = 直線で後ろの馬に抜かれた（バテ）
-                    'last_surge' => (!is_null($r->corner_4) && !is_null($r->finishing_position))
-                                    ? ($r->corner_4 - $r->finishing_position)
-                                    : null,
-                ], $records),
-            ];
-        }
+// タイム文字列 "1:44.3" を秒（float）に変換する
+// 変換できない（null・空・形式違い）場合は null を返す
+$parseTimeSec = function (?string $time): ?float {
+if (!$time || !preg_match('/^(\d+):(\d+\.\d+)$/', trim($time), $m)) {
+return null;
+}
+return (int)$m[1] * 60 + (float)$m[2];
+};
 
-        // ── ⑦ time_rank を付与 ──────────────────────────────────────────────
-        // best_time_sec が null でない馬（経験あり）だけを取り出してタイム昇順でソートし、
-        // 順位を各馬に付与する。経験なし馬は time_rank=null のまま。
-        $experienced = array_filter($data, fn($h) => $h['best_time_sec'] !== null);
-        usort($experienced, fn($a, $b) => $a['best_time_sec'] <=> $b['best_time_sec']);
-        $rank = 1;
-        $rankedNums = [];
-        foreach ($experienced as $h) {
-            $rankedNums[$h['num']] = $rank++;
-        }
-        foreach ($data as &$h) {
-            $h['time_rank'] = $rankedNums[$h['num']] ?? null;
-        }
-        unset($h);
+// 最終コーナー通過順位の「頭数比率」から脚質を分類する
+//   ratio = corner_4 / num_horses（0に近いほど前、1に近いほど後ろ）
+//   0.00〜0.10 → 逃（ほぼ先頭）
+//   0.11〜0.35 → 先（先行集団）
+//   0.36〜0.60 → 中（中団）
+//   0.61〜0.80 → 差（後方から差す）
+//   0.81〜1.00 → 追（最後方からの追い込み）
+$classifyStyle = function (?float $ratio): ?string {
+if ($ratio === null) return null;
+if ($ratio <= 0.10) return '逃';
+if ($ratio <= 0.35) return '先';
+if ($ratio <= 0.60) return '中';
+if ($ratio <= 0.80) return '差';
+return '追';
+};
 
-        return response()->json([
-            'race' => [
-                'date'       => $raceRow->date,
-                'kaisuu'     => $raceRow->kaisuu,
-                'basho'      => $raceRow->basho,
-                'basho_name' => $raceRow->basho_name,
-                'day'        => $raceRow->day,
-                'race'       => $raceRow->race,
-                'race_name'  => $raceRow->race_name,
-                'course'     => $targetCourse,
-                'dist'       => $targetDist,
-            ],
-            'data' => $data,
-        ]);
-    }
-    
+// ── ⑤ 直近5走を全馬まとめて一括取得（コース・距離問わず） ────────────
+// 今の調子（上昇/下降傾向）を見るために全距離・全コースの直近5走を取得する。
+// N+1 を避けるため、全出走馬の名前でまとめて取り、後でグループ化する。
+$recentAllHistories = DB::table('t_horse_odds_finder_shutsuba_history')
+->whereIn('name', $horseNames)
+->whereNotNull('finishing_position')
+->orderBy('name')
+->orderBy('date', 'desc')
+->orderBy('id', 'desc')
+->get();
+
+// 馬名ごとに直近5走だけ残す
+$recentByName = [];
+foreach ($recentAllHistories as $r) {
+if (!isset($recentByName[$r->name])) {
+$recentByName[$r->name] = [];
+}
+if (count($recentByName[$r->name]) < 5) {
+$recentByName[$r->name][] = $r;
+}
+}
+
+// ── ⑥ 馬ごとに集計 ───────────────────────────────────────────────────
+$data = [];
+foreach ($horses as $horse) {
+$name    = $horse->name;
+$records = $historyByName[$name] ?? []; // 同コース×同距離の過去レース一覧
+
+$total       = count($records);
+$win         = 0;   // 1着回数
+$top3        = 0;   // 3着以内回数（複勝圏内）
+$finishSum   = 0;   // 着順の合計（平均着順の計算用）
+$bestTimeSec = null; // このコース×距離での最速タイム（秒）
+
+// 脚質算出用：corner_4 / num_horses の平均を取る
+$styleRatioSum = 0.0;
+$styleCount    = 0;
+
+// 直線伸び算出用：(corner_4 - finishing_position) の平均を取る
+//   プラス = 直線で前の馬を抜いた（追い込み）
+//   マイナス = 直線で後ろの馬に抜かれた（バテ）
+$surgeSum   = 0.0;
+$surgeCount = 0;
+
+// 馬場状態別成績集計用
+// 例: ['良' => ['total'=>3,'win'=>1,'top3'=>2], '稍重' => [...], ...]
+$conditionStats = [];
+
+foreach ($records as $r) {
+// 着順集計
+if (!is_null($r->finishing_position)) {
+if ($r->finishing_position == 1) $win++;
+if ($r->finishing_position <= 3) $top3++;
+$finishSum += $r->finishing_position;
+}
+
+// 最速タイム更新（秒換算して比較）
+$sec = $parseTimeSec($r->time);
+if ($sec !== null && ($bestTimeSec === null || $sec < $bestTimeSec)) {
+$bestTimeSec = $sec;
+}
+
+// 脚質：最終コーナー順位 ÷ 出走頭数 を積み上げる
+if (!is_null($r->corner_4) && !is_null($r->num_horses) && $r->num_horses > 0) {
+$styleRatioSum += $r->corner_4 / $r->num_horses;
+$styleCount++;
+}
+
+// 直線での伸び：最終コーナー順位 - 最終着順
+//   例) corner_4=5, finishing_position=3 → +2（2頭抜いた）
+//   例) corner_4=3, finishing_position=7 → -4（4頭に抜かれた）
+if (!is_null($r->corner_4) && !is_null($r->finishing_position)) {
+$surgeSum += ($r->corner_4 - $r->finishing_position);
+$surgeCount++;
+}
+
+// 馬場状態別成績を集計
+// condition は "良", "稍重", "重", "不良" など
+// 障害レースは "稍重/重" のように複合表記になる場合があるが、そのまま格納する
+if (!empty($r->condition) && !is_null($r->finishing_position)) {
+$cond = $r->condition;
+if (!isset($conditionStats[$cond])) {
+$conditionStats[$cond] = ['total' => 0, 'win' => 0, 'top3' => 0];
+}
+$conditionStats[$cond]['total']++;
+if ($r->finishing_position == 1) $conditionStats[$cond]['win']++;
+if ($r->finishing_position <= 3) $conditionStats[$cond]['top3']++;
+}
+}
+
+// 平均比率から脚質文字列に変換
+$avgStyleRatio = $styleCount > 0 ? $styleRatioSum / $styleCount : null;
+$runningStyle  = $classifyStyle($avgStyleRatio);
+
+// 直線での平均伸び順位数（小数第1位まで）
+$avgLastSurge = $surgeCount > 0 ? round($surgeSum / $surgeCount, 1) : null;
+
+// 馬場状態別に複勝率を付与し、最も複勝率が高い条件を best_condition として返す
+$bestCondition     = null;
+$bestConditionRate = -1;
+$conditionStatsOut = [];
+foreach ($conditionStats as $cond => $cs) {
+$rate = $cs['total'] > 0 ? round($cs['top3'] / $cs['total'] * 100, 1) : 0;
+$conditionStatsOut[$cond] = [
+'total'     => $cs['total'],
+'win'       => $cs['win'],
+'top3'      => $cs['top3'],
+'top3_rate' => $rate,
+];
+if ($rate > $bestConditionRate) {
+$bestConditionRate = $rate;
+$bestCondition     = $cond;
+}
+}
+
+// 直近5走の着順リストと調子トレンドを算出
+// recent_form: 新しい順に並んだ着順の配列 例: [1, 3, 5, 2, 8]
+$recentRecords = $recentByName[$name] ?? [];
+$recentForm    = array_map(fn($r) => $r->finishing_position, $recentRecords);
+
+// recent_trend: 直近5走の前半2走と後半2走の平均着順を比較してトレンドを判定
+//   "上昇" = 最近の方が着順が良い（数字が小さい）
+//   "下降" = 最近の方が着順が悪い（数字が大きい）
+//   "安定" = ほぼ変化なし（差が1着順以内）
+//   null   = データが3走未満で判定不能
+$recentTrend = null;
+if (count($recentForm) >= 3) {
+$newer = array_slice($recentForm, 0, 2); // 直近2走
+$older = array_slice($recentForm, -2);   // 最古2走
+$newerAvg = array_sum($newer) / count($newer);
+$olderAvg = array_sum($older) / count($older);
+$diff = $olderAvg - $newerAvg; // プラス=最近の方が着順良い
+if ($diff > 1)       $recentTrend = '上昇';
+elseif ($diff < -1)  $recentTrend = '下降';
+else                 $recentTrend = '安定';
+}
+
+// 騎手変更フラグ
+// 同コース×距離で最も直近のレースの騎手と今日の騎手を比較する。
+// 騎手名には "▲", "△", "☆" などの見習いマーク が付く場合があるため除去して比較。
+$stripMark    = fn(?string $j): string => preg_replace('/^[▲△☆★◇◆]+/', '', (string)$j);
+$lastJockey   = !empty($records) ? $stripMark($records[0]->jockey) : null;
+$todayJockey  = $stripMark($horse->jockey);
+$jockeyChanged = ($lastJockey !== null && $lastJockey !== $todayJockey);
+
+$data[] = [
+// ── 馬の基本情報 ──
+'waku'   => $horse->waku,
+'num'    => $horse->num,
+'name'   => $name,
+'jockey' => $horse->jockey,
+
+// ── 適性判定フィールド ──
+// has_experience: このコース×距離の出走経験があるか
+//   false の馬は適性が完全に未知。予想では注意が必要。
+'has_experience' => $total > 0,
+
+// best_time_sec: 同コース×距離での最速タイム（秒）
+//   タイムが速い馬ほどこの条件でのスピード実績がある。
+//   ただし馬場状態・メンバーレベルが違う点は考慮が必要。
+'best_time_sec' => $bestTimeSec,
+
+// time_rank: 経験馬の中での最速タイム順位（1=最速）
+//   null = 経験なしのため圏外
+'time_rank' => null, // 後のステップ⑦で付与する
+
+// running_style: 脚質（逃/先/中/差/追）
+//   同コース×距離でのcorner_4平均位置から算出。
+//   予想での使い方：
+//     今日のレースで「逃」が多い → ハイペース → 差し・追い込み有利
+//     今日のレースで「逃」が少ない → スロー → 先行馬有利
+//   null = 経験なしのため不明
+'running_style' => $runningStyle,
+
+// avg_last_surge: 直線での平均伸び順位数
+//   プラス: 追い込み型（末脚がある）→ 差しが決まる展開で狙い目
+//   マイナス: バテ型（直線で失速）→ 消し候補
+//   0付近: 位置取りをそのまま維持するタイプ
+//   null = 経験なしのため不明
+'avg_last_surge' => $avgLastSurge,
+
+// jockey_changed: 同コース×距離の前走から騎手が変わったか
+//   true = 変わった → 脚質・running_style が参考にならない可能性あり
+//   false = 同じ騎手 → 過去データの信頼性が高い
+//   null = 比較できる過去データなし（経験なし馬）
+'jockey_changed' => $total > 0 ? $jockeyChanged : null,
+
+// best_condition: このコース×距離で最も複勝率が高い馬場状態
+//   例: "稍重" → 稍重で特に好走している
+//   今日の馬場状態と照合して予想の参考にする
+//   null = 経験なしのため不明
+'best_condition' => $bestCondition,
+
+// condition_stats: 馬場状態別の成績内訳
+//   キー = 馬場状態（良/稍重/重/不良）
+//   値   = {total, win, top3, top3_rate}
+//   null = 経験なしのため空
+'condition_stats' => !empty($conditionStatsOut) ? $conditionStatsOut : null,
+
+// recent_form: コース・距離問わず直近5走の着順（新しい順）
+//   例: [1, 3, 5, 2, 8] → 直近1走が1着、2走前が3着...
+//   今の馬の調子を把握するために使う
+'recent_form' => $recentForm,
+
+// recent_trend: 直近5走の調子トレンド
+//   "上昇" = 最近の方が着順が良い（上り調子）→ 狙い目
+//   "下降" = 最近の方が着順が悪い（下り調子）→ 注意
+//   "安定" = ほぼ変化なし
+//   null   = データ不足（3走未満）
+'recent_trend' => $recentTrend,
+
+// ── 同コース×距離の成績サマリー ──
+'course_dist_stats' => [
+'course'        => $targetCourse,
+'dist'          => $targetDist,
+'total'         => $total,                // 同条件での出走回数
+'win'           => $win,                  // 1着回数
+'top3'          => $top3,                 // 3着以内回数
+'win_rate'      => $total > 0 ? round($win  / $total * 100, 1) : null, // 勝率(%)
+'top3_rate'     => $total > 0 ? round($top3 / $total * 100, 1) : null, // 複勝率(%)
+'avg_finishing' => $total > 0 ? round($finishSum / $total, 1)  : null, // 平均着順
+],
+
+// ── 同コース×距離の過去レース明細（新しい順） ──
+'records' => array_map(fn($r) => [
+'date'               => $r->date,
+'basho'              => $r->basho,
+'race'               => $r->race,
+'race_name'          => $r->race_name,
+'dist_raw'           => $r->dist,            // 元の文字列 例: "1700ダ"
+'dist'               => (int) preg_replace('/[^0-9]/', '', (string)$r->dist), // 距離(m) 例: 1700
+'course'             => preg_replace('/[0-9]/', '', (string)$r->dist) ?: null, // コース種別 例: "ダ", "芝", "芝ダ"
+'finishing_position' => $r->finishing_position,
+'num_horses'         => $r->num_horses,
+'popularity'         => $r->popularity,       // 人気順位
+'jockey'             => $r->jockey,
+'condition'          => $r->condition,        // 馬場状態（良/稍重/重/不良）
+'time'               => $r->time,             // タイム文字列 例: "1:44.3"
+'time_sec'           => $parseTimeSec($r->time), // タイム（秒）例: 104.3
+'last_3f'            => $r->last_3f,          // 上がり3ハロンタイム
+'grade'              => $r->grade,
+// ── コーナー通過順位 ──
+// 位置取りの変化を追える。1コーナーから4コーナーにかけて
+// 順位が上がれば前に行った、下がれば後退したことを示す。
+'corner_1'           => $r->corner_1,
+'corner_2'           => $r->corner_2,
+'corner_3'           => $r->corner_3,
+'corner_4'           => $r->corner_4,
+// last_surge: 直線での伸び（corner_4 - finishing_position）
+//   プラス = 直線で前の馬を抜いた
+//   マイナス = 直線で後ろの馬に抜かれた（バテ）
+'last_surge' => (!is_null($r->corner_4) && !is_null($r->finishing_position))
+? ($r->corner_4 - $r->finishing_position)
+: null,
+], $records),
+];
+}
+
+// ── ⑦ time_rank を付与 ──────────────────────────────────────────────
+// best_time_sec が null でない馬（経験あり）だけを取り出してタイム昇順でソートし、
+// 順位を各馬に付与する。経験なし馬は time_rank=null のまま。
+$experienced = array_filter($data, fn($h) => $h['best_time_sec'] !== null);
+usort($experienced, fn($a, $b) => $a['best_time_sec'] <=> $b['best_time_sec']);
+$rank = 1;
+$rankedNums = [];
+foreach ($experienced as $h) {
+$rankedNums[$h['num']] = $rank++;
+}
+foreach ($data as &$h) {
+$h['time_rank'] = $rankedNums[$h['num']] ?? null;
+}
+unset($h);
+
+return response()->json([
+'race' => [
+'date'       => $raceRow->date,
+'kaisuu'     => $raceRow->kaisuu,
+'basho'      => $raceRow->basho,
+'basho_name' => $raceRow->basho_name,
+'day'        => $raceRow->day,
+'race'       => $raceRow->race,
+'race_name'  => $raceRow->race_name,
+'course'     => $targetCourse,
+'dist'       => $targetDist,
+],
+'data' => $data,
+]);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     /**
@@ -1964,30 +1966,228 @@ return response()->json(['data' => [
 
 
 
-    public function getHorseOddsFinderCourseDistStats(Request $request)
-    {
-        $course = $request->query('course');
-        $dist   = (int) $request->query('dist');
 
-        if (!$course || !$dist) {
-            return response()->json(['error' => 'course と dist は必須です'], 400);
-        }
 
-        $stats = $this->_calcCourseDistStats($course, $dist);
 
-        if ($stats === null) {
-            return response()->json(['data' => [
-                'course'        => $course,
-                'dist'          => $dist,
-                'race_count'    => 0,
-                'by_popularity' => [],
-                'tan_ranking'   => [],
-                'fuku_ranking'  => [],
-            ]]);
-        }
 
-        return response()->json(['data' => $stats]);
-    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ⚠️ TODO: Flutter未使用（これ使うの？）
+public function getHorseOddsFinderCourseDistStats(Request $request)
+{
+$course = $request->query('course');
+$dist   = (int) $request->query('dist');
+
+if (!$course || !$dist) {
+return response()->json(['error' => 'course と dist は必須です'], 400);
+}
+
+$stats = $this->_calcCourseDistStats($course, $dist);
+
+if ($stats === null) {
+return response()->json(['data' => [
+'course'        => $course,
+'dist'          => $dist,
+'race_count'    => 0,
+'by_popularity' => [],
+'tan_ranking'   => [],
+'fuku_ranking'  => [],
+]]);
+}
+
+return response()->json(['data' => $stats]);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * 指定レースの期待値スコアを取得する
+ *
+ * date・kaisuu・basho・day・race で1レースを特定し、
+ * 6分前オッズを基に人気順を算出、過去回収率テーブルと掛け合わせて
+ * 馬番ごとの期待値スコアを返す。
+ *
+ * 期待値スコア = 人気順別回収率(%) × 6分前オッズ ÷ 100
+ * スコアが1.0以上で理論上プラス期待値、高いほど妙味あり。
+ *
+ * クエリパラメータ:
+ *   date   = 対象日付 例: 2026-07-25
+ *   kaisuu = 開催回数 例: 1
+ *   basho  = 場コード 例: 01
+ *   day    = 開催日次 例: 1
+ *   race   = レース番号 例: 1
+ *
+ * @param  Request $request
+ * @return \Illuminate\Http\JsonResponse  { data: [...] }
+ */
+// ⚠️ TODO: Flutter未使用（これ使うの？） 2026.7.30
+public function getHorseOddsFinderExpectedValueScore(Request $request)
+{
+$date   = $request->query('date');
+$kaisuu = $request->query('kaisuu');
+$basho  = $request->query('basho');
+$day    = $request->query('day');
+$race   = $request->query('race');
+
+if (!$date || !$kaisuu || !$basho || !$day || !$race) {
+return response()->json(['error' => 'date, kaisuu, basho, day, race は必須です'], 400);
+}
+
+$sql = "
+SELECT
+o.num,
+CAST(o.odds AS DECIMAL(10,1))                                        AS current_odds,
+pop_rank.popularity_rank                                             AS calc_popularity_rank,
+rr.recovery_rate,
+ROUND(rr.recovery_rate * CAST(o.odds AS DECIMAL(10,1)) / 100, 2)    AS expected_value_score
+FROM t_horse_odds_finder_odds o
+
+INNER JOIN (
+SELECT
+date, kaisuu, basho, day, race, num,
+RANK() OVER (
+PARTITION BY date, kaisuu, basho, day, race
+ORDER BY CAST(odds AS DECIMAL(10,1)) ASC
+) AS popularity_rank
+FROM t_horse_odds_finder_odds
+WHERE minutes_before_start = 6
+AND odds IS NOT NULL
+AND odds != ''
+AND date   = ?
+AND kaisuu = ?
+AND basho  = ?
+AND day    = ?
+AND race   = ?
+) pop_rank
+ON  o.date    = pop_rank.date
+AND o.kaisuu  = pop_rank.kaisuu
+AND o.basho   = pop_rank.basho
+AND o.day     = pop_rank.day
+AND o.race    = pop_rank.race
+AND o.num     = pop_rank.num
+
+INNER JOIN (
+SELECT
+popularity_rank,
+ROUND(
+SUM(CASE WHEN finishing_position = 1 THEN CAST(tan AS DECIMAL(10,1)) ELSE 0 END)
+/ COUNT(*) * 100
+, 1) AS recovery_rate
+FROM t_horse_odds_finder_race_result_history
+WHERE tan IS NOT NULL
+AND tan != ''
+GROUP BY popularity_rank
+) rr
+ON rr.popularity_rank = pop_rank.popularity_rank
+
+WHERE o.minutes_before_start = 6
+AND o.odds IS NOT NULL
+AND o.odds != ''
+AND o.date   = ?
+AND o.kaisuu = ?
+AND o.basho  = ?
+AND o.day    = ?
+AND o.race   = ?
+
+ORDER BY expected_value_score DESC
+";
+
+$bindings = [
+$date, $kaisuu, $basho, $day, $race,
+$date, $kaisuu, $basho, $day, $race,
+];
+
+$result = DB::select($sql, $bindings);
+
+return response()->json(['data' => $result]);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
