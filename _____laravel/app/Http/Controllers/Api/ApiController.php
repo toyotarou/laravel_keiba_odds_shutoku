@@ -2189,6 +2189,176 @@ return response()->json(['data' => $result]);
 
 
 
+/**
+ * 指定レースの期待値スコアを返す（SQL④ オッズ帯方式）
+ *
+ * ─────────────────────────────────────────────────────────────
+ * 【このAPIの目的と設計思想】
+ *   「過去に同じオッズ帯の馬は何割勝ったか」という統計を使い、
+ *   6分前オッズと掛け合わせて期待値を算出する。
+ *   スコアが1.0以上の馬は長期的にプラスが期待できる「買い目候補」。
+ *
+ * 【期待値スコアの計算式】
+ *   単勝期待値スコア = 過去同オッズ帯の実勝率(%) ÷ 100 × 6分前単勝オッズ
+ *   複勝期待値スコア = 過去同オッズ帯の実3着内率(%) ÷ 100 × 6分前複勝オッズ中間値
+ *
+ *   → 単勝・複勝ともに 1.0 以上が理論上のプラス圏
+ *
+ * 【「オッズ帯」の定義】
+ *   FLOOR(確定単勝オッズ) でグルーピング。
+ *   例: 23.6倍 → 23倍帯、1.7倍 → 1倍帯
+ *   サンプル数が30件未満の帯は除外（信頼性確保）。
+ *
+ * 【タイプ A（リアルタイム）の理由】
+ *   6分前オッズはレースごとに毎回変わるため、キャッシュ不可。
+ *   Flutter から kaisuu / basho / day / race を渡してリアルタイムで取得する。
+ *
+ * 【クエリパラメータ（全て必須）】
+ *   date   = 対象日付   例: 2026-07-25
+ *   kaisuu = 開催回数   例: 2    ※ TEXT型のため文字列で渡すこと
+ *   basho  = 場コード   例: 07   ※ TEXT型のため文字列で渡すこと（ゼロ埋め）
+ *   day    = 開催日次   例: 1    ※ TEXT型のため文字列で渡すこと
+ *   race   = レース番号 例: 2
+ *
+ * 【レスポンス構造】
+ *   data[]: 単勝期待値スコア降順で全馬を返す
+ *     num              → 馬番
+ *     popularity_rank  → 人気順（6分前オッズ昇順の RANK）
+ *     current_odds     → 6分前単勝オッズ
+ *     fuku_min         → 6分前複勝オッズ（最小）
+ *     fuku_max         → 6分前複勝オッズ（最大）
+ *     win_rate_pct     → 過去同オッズ帯の実勝率(%)
+ *     place_rate_pct   → 過去同オッズ帯の実3着内率(%)
+ *     sample_count     → 参考サンプル数
+ *     tan_ev_score     → 単勝期待値スコア（1.0超え = 買い目候補）
+ *     fuku_ev_score    → 複勝期待値スコア（1.0超え = 買い目候補）
+ * ─────────────────────────────────────────────────────────────
+ *
+ * @param  Request $request
+ * @return \Illuminate\Http\JsonResponse  { data: [...] }
+ */
+public function getHorseOddsFinderKitaichi(Request $request)
+{
+$date   = $request->query('date');
+$kaisuu = $request->query('kaisuu');
+$basho  = $request->query('basho');
+$day    = $request->query('day');
+$race   = $request->query('race');
+
+// ── バリデーション ──────────────────────────────────────────────────
+if (!$date || !$kaisuu || !$basho || !$day || !$race) {
+return response()->json([
+'error' => 'date, kaisuu, basho, day, race は全て必須です'
+], 400);
+}
+
+// ── SQL④（オッズ帯方式・人気順付き） ─────────────────────────────
+//
+// WITH odds_baseline:
+//   t_horse_odds_finder_race_result_history の全履歴から
+//   「確定単勝オッズ帯ごとの実勝率・実3着内率」を集計。
+//   HAVING COUNT(*) >= 30 でサンプル不足の帯を除外。
+//
+// メインクエリ:
+//   指定レースの6分前オッズを取得し、odds_baseline と結合。
+//   RANK() OVER で人気順を動的に計算（history不要）。
+//
+// ※ t_horse_odds_finder_odds の kaisuu / basho / day は TEXT型。
+//   文字列として比較すること（'2', '07', '1' のように）。
+//
+$sql = "
+WITH odds_baseline AS (
+SELECT
+FLOOR(CAST(tan AS DECIMAL(10,1)))              AS odds_floor,
+COUNT(*)                                        AS sample_count,
+ROUND(AVG(finishing_position = 1) * 100, 2)    AS win_rate_pct,
+ROUND(AVG(finishing_position <= 3) * 100, 2)   AS place_rate_pct,
+AVG(finishing_position = 1)                     AS win_rate,
+AVG(finishing_position <= 3)                    AS place_rate
+FROM t_horse_odds_finder_race_result_history
+WHERE finishing_position IS NOT NULL
+AND finishing_position > 0
+AND tan REGEXP '^[0-9]'
+AND CAST(tan AS DECIMAL(10,1)) BETWEEN 1.0 AND 199.9
+GROUP BY odds_floor
+HAVING COUNT(*) >= 30
+)
+SELECT
+o.num                                                                AS num,
+RANK() OVER (
+ORDER BY CAST(o.odds AS DECIMAL(10,1)) ASC
+)                                                                    AS popularity_rank,
+CAST(o.odds     AS DECIMAL(10,1))                                   AS current_odds,
+CAST(o.fuku_min AS DECIMAL(10,1))                                   AS fuku_min,
+CAST(o.fuku_max AS DECIMAL(10,1))                                   AS fuku_max,
+b.win_rate_pct,
+b.place_rate_pct,
+b.sample_count,
+ROUND(
+b.win_rate * CAST(o.odds AS DECIMAL(10,1))
+, 3)                                                                 AS tan_ev_score,
+ROUND(
+b.place_rate
+* (CAST(o.fuku_min AS DECIMAL(10,1))
++ CAST(o.fuku_max AS DECIMAL(10,1))) / 2
+, 3)                                                                 AS fuku_ev_score
+FROM t_horse_odds_finder_odds o
+JOIN odds_baseline b
+ON FLOOR(CAST(o.odds AS DECIMAL(10,1))) = b.odds_floor
+WHERE o.date                 = ?
+AND o.kaisuu               = ?
+AND o.basho                = ?
+AND o.day                  = ?
+AND o.race                 = ?
+AND o.minutes_before_start = 6
+AND o.odds    REGEXP '^[0-9]'
+AND o.fuku_min REGEXP '^[0-9]'
+AND o.fuku_max REGEXP '^[0-9]'
+ORDER BY tan_ev_score DESC
+";
+
+$result = DB::select($sql, [
+$date,
+$kaisuu,
+$basho,
+$day,
+intval($race),
+]);
+
+// ── レスポンス ──────────────────────────────────────────────────────
+// データが空の場合は minutes_before_start = 6 のオッズが未収録の可能性。
+// Flutter 側でエラーとして扱わず「データなし」として表示すること。
+return response()->json(['data' => $result]);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

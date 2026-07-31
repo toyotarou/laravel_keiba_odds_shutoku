@@ -103,3 +103,5 @@ Route::get('getHorseOddsFinderJockeyScores', [ApiController::class, 'getHorseOdd
 
 // ⚠️ TODO: Flutter未使用（これ使うの？） 2026.7.30
 Route::get('getHorseOddsFinderExpectedValueScore', [ApiController::class, 'getHorseOddsFinderExpectedValueScore']);
+
+Route::get('getHorseOddsFinderKitaichi', [ApiController::class, 'getHorseOddsFinderKitaichi']);
