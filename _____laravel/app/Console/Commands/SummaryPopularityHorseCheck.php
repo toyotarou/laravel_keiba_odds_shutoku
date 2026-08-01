@@ -139,7 +139,7 @@ class SummaryPopularityHorseCheck extends Command
             $popularity = [];
             foreach ($raceStartOdds as $v) {
                 $medianIdx = (int)$v['num'] - 1;
-                if (isset($median[$medianIdx])) {
+                if (isset($median[$medianIdx]) && (float)$v['odds'] > 0) {
                     $popularity[] = ['rate' => (float)$median[$medianIdx] / (float)$v['odds'], 'num' => $v['num']];
                 }
             }

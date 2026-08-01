@@ -300,7 +300,7 @@ class SummaryForecastFromLastRace extends Command
                             'content-type'      => 'application/json',
                         ])->timeout(120)->post('https://api.anthropic.com/v1/messages', [
                             'model'      => 'claude-haiku-4-5',
-                            'max_tokens' => 64,
+                            'max_tokens' => 4096,
                             'messages'   => [
                                 ['role' => 'user', 'content' => $item['prompt']],
                             ],
@@ -391,7 +391,7 @@ class SummaryForecastFromLastRace extends Command
                             'content-type'      => 'application/json',
                         ])->timeout(120)->post('https://api.anthropic.com/v1/messages', [
                             'model'      => 'claude-haiku-4-5',
-                            'max_tokens' => 64,
+                            'max_tokens' => 4096,
                             'messages'   => [
                                 ['role' => 'user', 'content' => $item['prompt']],
                             ],
