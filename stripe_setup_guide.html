@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stripe（ストライプ）登録のお願い</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      font-size: 18px;
+      line-height: 1.8;
+    }
+
+    .cover {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      color: white;
+      text-align: center;
+      padding: 60px 30px;
+    }
+
+    .cover h1 {
+      font-size: 32px;
+      margin-bottom: 16px;
+      letter-spacing: 2px;
+    }
+
+    .cover .subtitle {
+      font-size: 20px;
+      opacity: 0.85;
+      margin-bottom: 30px;
+    }
+
+    .cover .time-badge {
+      display: inline-block;
+      background: #e94560;
+      color: white;
+      padding: 10px 28px;
+      border-radius: 50px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .important-box {
+      background: #fff3cd;
+      border-left: 6px solid #ffc107;
+      margin: 30px auto;
+      max-width: 800px;
+      padding: 24px 30px;
+      border-radius: 0 12px 12px 0;
+    }
+
+    .important-box h2 {
+      color: #856404;
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+
+    .important-box p {
+      color: #533f03;
+      font-size: 17px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px 20px 60px;
+    }
+
+    .step-section {
+      background: white;
+      border-radius: 16px;
+      margin-bottom: 32px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      padding: 24px 28px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+
+    .step-number {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: bold;
+      color: white;
+      flex-shrink: 0;
+      margin-right: 18px;
+    }
+
+    .step-number.blue { background: #4361ee; }
+    .step-number.green { background: #2ec4b6; }
+    .step-number.orange { background: #f77f00; }
+    .step-number.red { background: #e63946; }
+
+    .step-title {
+      font-size: 22px;
+      font-weight: bold;
+      color: #1a1a2e;
+    }
+
+    .step-body {
+      padding: 28px;
+    }
+
+    .action-item {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      background: #f8f9ff;
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+
+    .action-icon {
+      font-size: 28px;
+      margin-right: 16px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .action-text {
+      font-size: 17px;
+      line-height: 1.9;
+    }
+
+    .action-text strong {
+      color: #4361ee;
+      font-size: 19px;
+    }
+
+    .url-box {
+      background: #1a1a2e;
+      color: #7fd8e8;
+      padding: 16px 22px;
+      border-radius: 10px;
+      font-size: 20px;
+      text-align: center;
+      margin: 16px 0;
+      letter-spacing: 1px;
+      font-weight: bold;
+    }
+
+    .warning-inline {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-top: 12px;
+      font-size: 16px;
+      color: #533f03;
+    }
+
+    .warning-inline::before {
+      content: "⚠️ ";
+    }
+
+    .info-inline {
+      background: #e8f4fd;
+      border: 2px solid #90caf9;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-top: 12px;
+      font-size: 16px;
+      color: #1565c0;
+    }
+
+    .info-inline::before {
+      content: "💡 ";
+    }
+
+    .need-list {
+      background: #f8f9ff;
+      border-radius: 12px;
+      padding: 22px 24px;
+      margin-bottom: 20px;
+    }
+
+    .need-list h3 {
+      font-size: 18px;
+      color: #4361ee;
+      margin-bottom: 14px;
+    }
+
+    .need-list li {
+      list-style: none;
+      padding: 8px 0;
+      border-bottom: 1px dashed #ddd;
+      font-size: 17px;
+    }
+
+    .need-list li:last-child { border-bottom: none; }
+
+    .need-list li::before {
+      content: "✅ ";
+    }
+
+    .finish-box {
+      background: linear-gradient(135deg, #2ec4b6, #4361ee);
+      color: white;
+      text-align: center;
+      padding: 40px 30px;
+      border-radius: 16px;
+      margin-top: 32px;
+    }
+
+    .finish-box h2 {
+      font-size: 26px;
+      margin-bottom: 16px;
+    }
+
+    .finish-box p {
+      font-size: 18px;
+      opacity: 0.9;
+    }
+
+    .info-inline { margin-top: 12px; }
+
+    h2.section-intro {
+      font-size: 17px;
+      color: #666;
+      font-weight: normal;
+      margin-bottom: 20px;
+      line-height: 1.7;
+    }
+
+    .contact-box {
+      background: #1a1a2e;
+      color: white;
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-top: 12px;
+      font-size: 17px;
+      line-height: 1.9;
+    }
+  </style>
+</head>
+<body>
+
+<!-- 表紙 -->
+<div class="cover">
+  <h1>🏇 Stripe（ストライプ）登録のお願い</h1>
+  <p class="subtitle">馬願力 有料機能の売上を受け取るための<br>オンライン決済サービスの登録手順です</p>
+  <div class="time-badge">⏱ 所要時間：約15〜20分</div>
+</div>
+
+<div class="container">
+
+  <!-- はじめに -->
+  <div class="important-box" style="margin-top: 32px;">
+    <h2>📋 はじめにお読みください</h2>
+    <p>
+      この説明書の通りに進めていただければ大丈夫です。<br>
+      難しいことは一切ありません。<br><br>
+      <strong>わからないことがあれば、作業を止めてすぐご連絡ください。</strong><br>
+      無理に進めなくて大丈夫です。
+    </p>
+  </div>
+
+  <!-- 準備するもの -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-number blue" style="font-size:28px;">📦</div>
+      <div class="step-title">事前に用意するもの</div>
+    </div>
+    <div class="step-body">
+      <div class="need-list">
+        <h3>登録に必要なもの（全部で4つ）</h3>
+        <ul>
+          <li>メールアドレス（普段使っているもの）</li>
+          <li>スマートフォン（SMS認証に使います）</li>
+          <li>運転免許証 または マイナンバーカード</li>
+          <li>振込先の銀行口座情報（通帳またはキャッシュカード）</li>
+        </ul>
+      </div>
+      <div class="info-inline">
+        カード情報や暗証番号は一切不要です。口座番号と支店名だけわかれば大丈夫です。
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-number blue">1</div>
+      <div class="step-title">Stripeのページを開く</div>
+    </div>
+    <div class="step-body">
+      <div class="action-item">
+        <div class="action-icon">🌐</div>
+        <div class="action-text">
+          パソコンかスマホで、インターネットのブラウザ（ChromeやSafari）を開いてください。<br>
+          検索せずに、アドレスバーに直接↓を入力してください。
+          <div class="url-box">stripe.com</div>
+        </div>
+      </div>
+      <div class="action-item">
+        <div class="action-icon">🖱️</div>
+        <div class="action-text">
+          ページが開いたら、右上の<strong>「今すぐ始める」または「Start now」</strong>というボタンをクリックしてください。
+        </div>
+      </div>
+      <div class="warning-inline">
+        検索サイト（Google等）で「stripe」と検索すると広告が出ることがあります。必ずアドレスバーに直接「stripe.com」と入力してください。
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-number blue">2</div>
+      <div class="step-title">アカウントを作る（無料）</div>
+    </div>
+    <div class="step-body">
+      <h2 class="section-intro">登録フォームが表示されます。以下の通りに入力してください。</h2>
+
+      <div class="action-item">
+        <div class="action-icon">✉️</div>
+        <div class="action-text">
+          <strong>メールアドレス</strong><br>
+          普段使っているメールアドレスを入力してください。<br>
+          後で確認メールが届きます。
+        </div>
+      </div>
+
+      <div class="action-item">
+        <div class="action-icon">🔒</div>
+        <div class="action-text">
+          <strong>パスワード</strong><br>
+          このStripe用に新しいパスワードを決めてください。<br>
+          英語の大文字・小文字・数字を混ぜた8文字以上がおすすめです。<br>
+          <span style="color:#e63946; font-size:16px;">※必ずどこかにメモしておいてください。</span>
+        </div>
+      </div>
+
+      <div class="action-item">
+        <div class="action-icon">🇯🇵</div>
+        <div class="action-text">
+          <strong>国の選択</strong><br>
+          「日本（Japan）」を選んでください。
+        </div>
+      </div>
+
+      <div class="action-item">
+        <div class="action-icon">▶️</div>
+        <div class="action-text">
+          入力が終わったら<strong>「アカウントを作成」</strong>ボタンを押してください。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-number green">3</div>
+      <div class="step-title">メールを確認する</div>
+    </div>
+    <div class="step-body">
+      <div class="action-item">
+        <div class="action-icon">📧</div>
+        <div class="action-text">
+          登録したメールアドレスに「Stripe」からメールが届きます。<br>
+          メールを開いて<strong>「メールアドレスを確認する」</strong>というボタンをクリックしてください。
+        </div>
+      </div>
+      <div class="info-inline">
+        メールが見当たらない場合は「迷惑メール」フォルダも確認してみてください。
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-number green">4</div>
+      <div class="step-title">スマホでSMS認証をする</div>
+    </div>
+    <div class="step-body">
+      <div class="action-item">
+        <div class="action-icon">📱</div>
+        <div class="action-text">
+          電話番号の入力を求められます。<br>
+          スマートフォンの電話番号（090-xxxx-xxxx など）を入力してください。
+        </div>
+      </div>
+      <div class="action-item">
+        <div class="action-icon">💬</div>
+        <div class="action-text">
+          するとスマホにSMS（ショートメッセージ）が届きます。<br>
+          届いた<strong>6桁の数字</strong>を画面に入力してください。
+        </div>
+      </div>
+      <div class="warning-inline">
+        この6桁の数字は他人に絶対教えないでください。Stripeが電話で聞くことはありません。
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-number orange">5</div>
+      <div class="step-title">ビジネス情報を入力する</div>
+    </div>
+    <div class="step-body">
+      <h2 class="section-intro">売上を受け取るための情報を入力します。難しくないので順番に進めてください。</h2>
+
+      <div class="action-item">
+        <div class="action-icon">👤</div>
+        <div class="action-text">
+          <strong>ビジネスの種類</strong><br>
+          「個人 / 個人事業主」を選んでください。<br>
+          <span style="color:#666; font-size:16px;">（会社を作っていない場合はこちらです）</span>
+        </div>
+      </div>
+
+      <div class="action-item">
+        <div class="action-icon">🏢</div>
+        <div class="action-text">
+          <strong>業種</strong><br>
+          「ソフトウェア」または「エンターテインメント」を選んでください。<br>
+          どちらでも問題ありません。
+        </div>
+      </div>
+
+      <div class="action-item">
+        <div class="action-icon">🌐</div>
+        <div class="action-text">
+          <strong>ウェブサイト</strong><br>
+          馬願力のURLを入力してください。わからない場合はそのままにして次へ進んでください。
+        </div>
+      </div>
+
+      <div class="action-item">
+        <div class="action-icon">📝</div>
+        <div class="action-text">
+          <strong>商品・サービスの説明</strong><br>
+          以下をそのままコピーして入力してもOKです：<br>
+          <span style="background:#f0f0f0; padding: 4px 10px; border-radius:6px; font-size:16px; display:inline-block; margin-top:6px;">競馬予想サポートアプリの月額サービス</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 6 -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-number orange">6</div>
+      <div class="step-title">本人確認をする</div>
+    </div>
+    <div class="step-body">
+      <h2 class="section-intro">売上を受け取るためには、本人確認が必要です。運転免許証またはマイナンバーカードを用意してください。</h2>
+
+      <div class="action-item">
+        <div class="action-icon">🪪</div>
+        <div class="action-text">
+          <strong>氏名・生年月日・住所</strong><br>
+          免許証やマイナンバーカードに記載されている通りに入力してください。
+        </div>
+      </div>
+
+      <div class="action-item">
+        <div class="action-icon">📸</div>
+        <div class="action-text">
+          <strong>身分証明書の写真</strong><br>
+          スマホで撮影するよう求められます。<br>
+          免許証の表面・裏面を、明るい場所で撮影してください。
+        </div>
+      </div>
+
+      <div class="info-inline">
+        写真はなるべく明るい場所で、カードが画面いっぱいに映るように撮ると認証が通りやすいです。
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 7 -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-number red">7</div>
+      <div class="step-title">銀行口座を登録する</div>
+    </div>
+    <div class="step-body">
+      <h2 class="section-intro">売上の振込先として、ご自身の銀行口座を登録します。通帳またはキャッシュカードを手元に置いてください。</h2>
+
+      <div class="action-item">
+        <div class="action-icon">🏦</div>
+        <div class="action-text">
+          <strong>銀行名</strong><br>
+          口座のある銀行名を入力してください。<br>
+          例：三菱UFJ銀行、ゆうちょ銀行、地方銀行など
+        </div>
+      </div>
+
+      <div class="action-item">
+        <div class="action-icon">🔢</div>
+        <div class="action-text">
+          <strong>支店番号・口座番号</strong><br>
+          通帳の1ページ目に書いてある番号を入力してください。
+        </div>
+      </div>
+
+      <div class="action-item">
+        <div class="action-icon">📋</div>
+        <div class="action-text">
+          <strong>口座名義</strong><br>
+          通帳に書いてある名前（カタカナ）をそのまま入力してください。
+        </div>
+      </div>
+
+      <div class="warning-inline">
+        入力するのは「口座番号・支店番号・口座名義」だけです。ATMで使う暗証番号（4桁の数字）は絶対に入力しないでください。
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 8 -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-number red">8</div>
+      <div class="step-title">確認して完了！</div>
+    </div>
+    <div class="step-body">
+      <div class="action-item">
+        <div class="action-icon">✅</div>
+        <div class="action-text">
+          最後に入力内容の確認画面が出ます。<br>
+          内容を確認して<strong>「完了」または「Submit」</strong>ボタンを押してください。
+        </div>
+      </div>
+      <div class="action-item">
+        <div class="action-icon">📱</div>
+        <div class="action-text">
+          完了すると、登録したメールアドレスに確認メールが届きます。
+        </div>
+      </div>
+      <div class="info-inline">
+        本人確認の審査に1〜2日かかる場合があります。審査が完了するとメールでお知らせが届きます。
+      </div>
+    </div>
+  </div>
+
+  <!-- 完了 -->
+  <div class="finish-box">
+    <h2>🎉 登録完了です！お疲れ様でした！</h2>
+    <p>
+      登録が完了したら、下記にご連絡ください。<br>
+      あとの設定はすべてこちらで行います。
+    </p>
+  </div>
+
+  <!-- 連絡先 -->
+  <div class="step-section" style="margin-top: 32px;">
+    <div class="step-header">
+      <div class="step-number blue" style="font-size:28px;">📞</div>
+      <div class="step-title">困ったときは</div>
+    </div>
+    <div class="step-body">
+      <p style="font-size:17px; margin-bottom: 16px;">
+        途中でわからなくなったり、エラーが出たり、<br>
+        <strong>何かあればすぐに連絡してください。</strong><br>
+        一緒に確認します。無理に進めないでください。
+      </p>
+      <div class="contact-box">
+        担当：<strong style="font-size:20px;">豊田</strong><br>
+        ※LINE または 電話でご連絡ください
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

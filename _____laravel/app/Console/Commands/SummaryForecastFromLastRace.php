@@ -241,6 +241,13 @@ class SummaryForecastFromLastRace extends Command
                     . "出力形式の例: " . implode('|', range(1, $pickupCount)) . "\n"
                     . '見出し・太字・箇条書き・説明文・前置きは一切不要です。数字と「|」以外の文字を含めないでください。' . "\n\n";
 
+                // プロンプトをファイルに出力
+                file_put_contents(
+                    '/var/www/horse_odds_finder/public/forecast_from_last_race/'
+                    . $race->date . '_' . $race->basho_name . '_' . $race->race . 'R.txt',
+                    $prompt
+                );
+                
                 $pending[] = ['race' => $race, 'prompt' => $prompt];
                 $this->line("  [収集] {$race->basho_name} {$race->race}R（{$race->num_horses}頭 → 候補{$pickupCount}頭）");
             }
