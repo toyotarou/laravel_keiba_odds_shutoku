@@ -47,7 +47,7 @@ class SummaryRacesIntrospection extends Command
             // 1〜3着の馬番を先読み（date_kaisuu_basho_code_day_race_着順 → 馬番）
             // ─────────────────────────────────────────────────────────────────
             $raceResult = [];
-            $result2 = DB::table('t_horse_odds_finder_race_result_history')
+            $finishingRows = DB::table('t_horse_odds_finder_race_result_history')
                 ->whereIn('finishing_position', [1, 2, 3])
                 ->orderBy('date')
                 ->orderBy('kaisuu')
@@ -57,12 +57,38 @@ class SummaryRacesIntrospection extends Command
                 ->orderBy('finishing_position')
                 ->get();
 
-            foreach ($result2 as $v2) {
-                $raceResult["{$v2->date}_{$v2->kaisuu}_{$v2->basho_code}_{$v2->day}_{$v2->race}_{$v2->finishing_position}"] = $v2->num;
+            foreach ($finishingRows as $finishingRow) {
+                $raceResult["{$finishingRow->date}_{$finishingRow->kaisuu}_{$finishingRow->basho_code}_{$finishingRow->day}_{$finishingRow->race}_{$finishingRow->finishing_position}"] = $finishingRow->num;
             }
 
             $this->info('  → 着順先読み: ' . count($raceResult) . ' 件');
             $this->info('');
+
+            // ─────────────────────────────────────────────────────────────────
+            // AI分析からピックアップ馬を先読み（date_kaisuu_basho_code_day_race → 馬番[]）
+            // ─────────────────────────────────────────────────────────────────
+            $pickupHorses = [];
+            $aiAnalysisRows = DB::table('t_horse_odds_finder_ai_analysis')
+                ->orderBy('date')
+                ->orderBy('kaisuu')
+                ->orderBy('basho_code')
+                ->orderBy('day')
+                ->orderBy('race')
+                ->get();
+
+            foreach ($aiAnalysisRows as $aiAnalysisRow) {
+                if (preg_match('/^PICKUP:(.+)$/mu', $aiAnalysisRow->analysis_text, $m)) {
+                    $parts = explode('/', trim($m[1]));
+                    foreach ($parts as $part) {
+                        $cols = explode('|', $part);
+                        $pickupHorses["{$aiAnalysisRow->date}_{$aiAnalysisRow->kaisuu}_{$aiAnalysisRow->basho_code}_{$aiAnalysisRow->day}_{$aiAnalysisRow->race}"][] = isset($cols[0]) ? trim($cols[0]) : '';
+                    }
+                }
+            }
+
+            $this->info('  → ピックアップ馬先読み: ' . count($pickupHorses) . ' レース');
+            $this->info('');
+
 
             // ─────────────────────────────────────────────────────────────────
             // 対象レース取得（odds_tan_before_24 / odds_tan_before_6 が揃っているもの）
@@ -78,8 +104,8 @@ WHERE (date, kaisuu, basho, day, race) NOT IN (
 )
 ORDER BY date, kaisuu, basho, day, race;
 ";
-            $result     = DB::select($sql);
-            $totalRaces = count($result);
+            $targetRaces = DB::select($sql);
+            $totalRaces  = count($targetRaces);
             $this->info("  → 対象レース: {$totalRaces} 件");
             $this->info('');
 
@@ -93,58 +119,63 @@ ORDER BY date, kaisuu, basho, day, race;
 
             $pending = [];
 
-            foreach ($result as $k => $v) {
+            foreach ($targetRaces as $race) {
 
                 $exists = DB::table('t_horse_odds_finder_race_introspection')
-                    ->where('date',      $v->date)
-                    ->where('kaisuu',    $v->kaisuu)
-                    ->where('basho_code', $v->basho)
-                    ->where('day',       $v->day)
-                    ->where('race',      $v->race)
+                    ->where('date',       $race->date)
+                    ->where('kaisuu',     $race->kaisuu)
+                    ->where('basho_code', $race->basho)
+                    ->where('day',        $race->day)
+                    ->where('race',       $race->race)
                     ->exists();
 
                 if ($exists) {
-                    $this->line("  [スキップ] {$v->basho_name} {$v->race}R（処理済み）");
+                    $this->line("  [スキップ] {$race->basho_name} {$race->race}R（処理済み）");
                     $totalSkipped++;
                     continue;
                 }
 
-                $result3 = DB::table('t_horse_odds_finder_summary')
-                    ->where('date',   $v->date)
-                    ->where('kaisuu', $v->kaisuu)
-                    ->where('basho',  $v->basho)
-                    ->where('day',    $v->day)
-                    ->where('race',   $v->race)
+                $oddsRows = DB::table('t_horse_odds_finder_summary')
+                    ->where('date',   $race->date)
+                    ->where('kaisuu', $race->kaisuu)
+                    ->where('basho',  $race->basho)
+                    ->where('day',    $race->day)
+                    ->where('race',   $race->race)
                     ->get();
 
                 $oddsStrings = [];
-                foreach ($result3 as $v3) {
+                foreach ($oddsRows as $oddsRow) {
                     $oddsStrings[] = strtr($oddsTemplate, [
-                        'NUM'    => $v3->num,
-                        'NAME'   => $v3->horse_name,
-                        'ODDS30' => $v3->odds_tan_before_24,
-                        'ODDS21' => $v3->odds_tan_before_21,
-                        'ODDS18' => $v3->odds_tan_before_18,
-                        'ODDS15' => $v3->odds_tan_before_15,
-                        'ODDS12' => $v3->odds_tan_before_12,
-                        'ODDS9'  => $v3->odds_tan_before_9,
-                        'ODDS6'  => $v3->odds_tan_before_6,
+                        'NUM'    => $oddsRow->num,
+                        'NAME'   => $oddsRow->horse_name,
+                        'ODDS30' => $oddsRow->odds_tan_before_24,
+                        'ODDS21' => $oddsRow->odds_tan_before_21,
+                        'ODDS18' => $oddsRow->odds_tan_before_18,
+                        'ODDS15' => $oddsRow->odds_tan_before_15,
+                        'ODDS12' => $oddsRow->odds_tan_before_12,
+                        'ODDS9'  => $oddsRow->odds_tan_before_9,
+                        'ODDS6'  => $oddsRow->odds_tan_before_6,
                     ]);
                 }
 
                 $raceInfoStr = strtr($raceInfoTemplate, [
-                    'DATE'      => $v->date,
-                    'KAISUU'    => $v->kaisuu,
-                    'BASHO_NAME'=> $v->basho_name,
-                    'RACE'      => $v->race,
-                    'RACE_NAME' => $v->race_name,
+                    'DATE'      => $race->date,
+                    'KAISUU'    => $race->kaisuu,
+                    'BASHO_NAME'=> $race->basho_name,
+                    'RACE'      => $race->race,
+                    'RACE_NAME' => $race->race_name,
                     'ODDS_INFO' => implode('/', $oddsStrings),
-                    'RESULT1'   => $raceResult["{$v->date}_{$v->kaisuu}_{$v->basho}_{$v->day}_{$v->race}_1"] ?? '?',
-                    'RESULT2'   => $raceResult["{$v->date}_{$v->kaisuu}_{$v->basho}_{$v->day}_{$v->race}_2"] ?? '?',
-                    'RESULT3'   => $raceResult["{$v->date}_{$v->kaisuu}_{$v->basho}_{$v->day}_{$v->race}_3"] ?? '?',
+                    'RESULT1'   => $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_1"] ?? '?',
+                    'RESULT2'   => $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_2"] ?? '?',
+                    'RESULT3'   => $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_3"] ?? '?',
                 ]);
 
-                $prompt = implode("\n", [
+                // ─────────────────────────────────────────────────────────────────
+                // プロンプト組み立て（ピックアップ馬がある場合は予想を差し替え）
+                // ─────────────────────────────────────────────────────────────────
+                $raceKey = "{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}";
+
+                $msgs = [
                     "あなたは競馬のオッズ分析の専門家です。",
                     "",
                     "以下は、あるレースにおける各馬の単勝オッズ推移（レース開始30分前〜6分前）と、実際の着順結果（結果）です。",
@@ -182,17 +213,26 @@ ORDER BY date, kaisuu, basho, day, race;
                     "",
                     "【レースデータ】",
                     $raceInfoStr,
-                ]);
+                ];
+
+                if (isset($pickupHorses[$raceKey])) {
+                    $msgs[] = "";
+                    $msgs[] = "以下は、別工程のAI分析でピックアップ馬として選出された馬番です。";
+                    $msgs[] = "「## 予想」をこの馬番に差し替えたうえで、「## 分析」を作成してください。";
+                    $msgs[] = implode(", ", $pickupHorses[$raceKey]);
+                }
+
+                $prompt = implode("\n", $msgs);
 
                 // プロンプトをファイルに出力
                 file_put_contents(
                     '/var/www/horse_odds_finder/public/race_introspection/'
-                    . $v->date . '_' . $v->basho_name . '_' . $v->race . 'R.txt',
+                    . $race->date . '_' . $race->basho_name . '_' . $race->race . 'R.txt',
                     $prompt
                 );
 
-                $pending[] = ['race' => $v, 'prompt' => $prompt];
-                $this->line("  [収集] {$v->basho_name} {$v->race}R");
+                $pending[] = ['race' => $race, 'prompt' => $prompt];
+                $this->line("  [収集] {$race->basho_name} {$race->race}R");
             }
 
             $this->info('');
