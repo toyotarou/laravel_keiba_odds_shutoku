@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Services\AnthropicService;
 use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -39,13 +39,23 @@ class SummaryRacesIntrospection extends Command
     private const BATCH_SIZE      = 5;
     private const BATCH_SLEEP_SEC = 8;
 
+    public function __construct(private AnthropicService $anthropic)
+    {
+        parent::__construct();
+    }
+
     public function handle(): void
     {
         // 多重起動防止
         $lockFile = sys_get_temp_dir() . '/keiba_summaryRacesIntrospection.lock';
         if (file_exists($lockFile)) {
-            $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
-            return;
+            $pid = (int) file_get_contents($lockFile);
+            if ($pid > 0 && posix_kill($pid, 0)) {
+                $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
+                return;
+            }
+            $this->warn("ロックファイルの残骸を削除して続行します (PID: {$pid})");
+            unlink($lockFile);
         }
         file_put_contents($lockFile, getmypid());
         register_shutdown_function(fn() => @unlink($lockFile));
@@ -271,7 +281,6 @@ ORDER BY date, kaisuu, basho, day, race;
             // ─────────────────────────────────────────────────────────────────
             // BATCH_SIZE 件ずつ Http::pool() で並列送信 → 結果処理
             // ─────────────────────────────────────────────────────────────────
-            $apiKey       = config('services.anthropic.api_key');
             $batches      = array_chunk($pending, self::BATCH_SIZE);
             $retryTargets = [];
 
@@ -286,21 +295,7 @@ ORDER BY date, kaisuu, basho, day, race;
 
                 $this->info("[フェーズ2] バッチ {$batchNum}/{$batchTotal} — " . count($batch) . " 件を並列送信中...");
 
-                $responses = Http::pool(function ($pool) use ($batch, $apiKey) {
-                    return array_map(fn($item) =>
-                        $pool->withHeaders([
-                            'x-api-key'         => $apiKey,
-                            'anthropic-version' => '2023-06-01',
-                            'content-type'      => 'application/json',
-                        ])->timeout(120)->post('https://api.anthropic.com/v1/messages', [
-                            'model'      => 'claude-haiku-4-5',
-                            'max_tokens' => 4096,
-                            'messages'   => [
-                                ['role' => 'user', 'content' => $item['prompt']],
-                            ],
-                        ])
-                    , $batch);
-                });
+                $responses = $this->anthropic->sendPool(array_column($batch, 'prompt'));
 
                 $this->info("[フェーズ3] バッチ {$batchNum}/{$batchTotal} — 結果処理中...");
 
@@ -331,7 +326,7 @@ ORDER BY date, kaisuu, basho, day, race;
                         continue;
                     }
 
-                    $introspection = trim($response->json('content.0.text') ?? '');
+                    $introspection = $this->anthropic->extractText($response);
 
                     if ($introspection === '') {
                         Log::error('SummaryRacesIntrospection: レスポンス空', ['label' => $label]);
@@ -371,17 +366,7 @@ ORDER BY date, kaisuu, basho, day, race;
                         $this->line("  [試行 {$attempt}/3] {$label} — {$waitSec}秒待機...");
                         sleep($waitSec);
 
-                        $response = Http::withHeaders([
-                            'x-api-key'         => $apiKey,
-                            'anthropic-version' => '2023-06-01',
-                            'content-type'      => 'application/json',
-                        ])->timeout(120)->post('https://api.anthropic.com/v1/messages', [
-                            'model'      => 'claude-haiku-4-5',
-                            'max_tokens' => 4096,
-                            'messages'   => [
-                                ['role' => 'user', 'content' => $item['prompt']],
-                            ],
-                        ]);
+                        $response = $this->anthropic->send($item['prompt']);
 
                         if (in_array($response->status(), [429, 529])) {
                             $this->warn("  [試行 {$attempt}/3] {$label} — まだ HTTP {$response->status()}");
@@ -397,7 +382,7 @@ ORDER BY date, kaisuu, basho, day, race;
                             break;
                         }
 
-                        $introspection = trim($response->json('content.0.text') ?? '');
+                        $introspection = $this->anthropic->extractText($response);
 
                         if ($introspection === '') {
                             Log::error('SummaryRacesIntrospection: リトライ レスポンス空', [

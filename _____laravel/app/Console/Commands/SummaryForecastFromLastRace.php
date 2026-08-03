@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Services\AnthropicService;
 use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -50,6 +50,11 @@ class SummaryForecastFromLastRace extends Command
     // バッチ間の待機秒数
     private const BATCH_SLEEP_SEC = 3;
 
+    public function __construct(private AnthropicService $anthropic)
+    {
+        parent::__construct();
+    }
+
     public function handle(): void
     {
         // ─────────────────────────────────────────────────────────────────
@@ -66,8 +71,13 @@ class SummaryForecastFromLastRace extends Command
         // ─────────────────────────────────────────────────────────────────
         $lockFile = sys_get_temp_dir() . '/keiba_summaryForecastFromLastRace_' . str_replace('-', '', $date) . '.lock';
         if (file_exists($lockFile)) {
-            $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
-            return;
+            $pid = (int) file_get_contents($lockFile);
+            if ($pid > 0 && posix_kill($pid, 0)) {
+                $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
+                return;
+            }
+            $this->warn("ロックファイルの残骸を削除して続行します (PID: {$pid})");
+            unlink($lockFile);
         }
         file_put_contents($lockFile, getmypid());
         register_shutdown_function(fn() => @unlink($lockFile));
@@ -226,20 +236,40 @@ class SummaryForecastFromLastRace extends Command
                     ? 5
                     : 6);
 
-                $prompt = 'あなたは競馬オッズ分析の専門家です。' . "\n\n"
-                    . 'レース情報' . "\n"
-                    . '日付: ' . $race->date . "\n"
-                    . '開催: ' . $race->basho_name . "\n"
-                    . 'レース: ' . $race->race . ' ' . $race->race_name . "\n"
-                    . $race->course . ' / ' . $race->dist . 'm'
-                    . (is_null($race->inner_outer) ? '' : ' / ' . $race->inner_outer)
-                    . "\n\n"
-                    . '下記はこのレースに出走する馬の情報になります。' . "\n"
-                    . implode("\n", $horseInfoList) . "\n\n"
-                    . "過去の出走情報から判断して、可能性のある馬を{$pickupCount}頭選んでください。" . "\n"
-                    . '回答は選んだ馬番を「|」区切りの数字のみで出力してください。' . "\n"
-                    . "出力形式の例: " . implode('|', range(1, $pickupCount)) . "\n"
-                    . '見出し・太字・箇条書き・説明文・前置きは一切不要です。数字と「|」以外の文字を含めないでください。' . "\n\n";
+                // ↓ 旧: 文字列連結版（コメントアウト）
+                // $prompt = 'あなたは競馬オッズ分析の専門家です。' . "\n\n"
+                //     . 'レース情報' . "\n"
+                //     . '日付: ' . $race->date . "\n"
+                //     . '開催: ' . $race->basho_name . "\n"
+                //     . 'レース: ' . $race->race . ' ' . $race->race_name . "\n"
+                //     . $race->course . ' / ' . $race->dist . 'm'
+                //     . (is_null($race->inner_outer) ? '' : ' / ' . $race->inner_outer)
+                //     . "\n\n"
+                //     . '下記はこのレースに出走する馬の情報になります。' . "\n"
+                //     . implode("\n", $horseInfoList) . "\n\n"
+                //     . "過去の出走情報から判断して、可能性のある馬を{$pickupCount}頭選んでください。" . "\n"
+                //     . '回答は選んだ馬番を「|」区切りの数字のみで出力してください。' . "\n"
+                //     . "出力形式の例: " . implode('|', range(1, $pickupCount)) . "\n"
+                //     . '見出し・太字・箇条書き・説明文・前置きは一切不要です。数字と「|」以外の文字を含めないでください。' . "\n\n";
+
+                $lines = [
+                    'あなたは競馬オッズ分析の専門家です。',
+                    '',
+                    'レース情報',
+                    '日付: ' . $race->date,
+                    '開催: ' . $race->basho_name,
+                    'レース: ' . $race->race . ' ' . $race->race_name,
+                    $race->course . ' / ' . $race->dist . 'm' . (is_null($race->inner_outer) ? '' : ' / ' . $race->inner_outer),
+                    '',
+                    '下記はこのレースに出走する馬の情報になります。',
+                    implode("\n", $horseInfoList),
+                    '',
+                    "過去の出走情報から判断して、可能性のある馬を{$pickupCount}頭選んでください。",
+                    '回答は選んだ馬番を「|」区切りの数字のみで出力してください。',
+                    "出力形式の例: " . implode('|', range(1, $pickupCount)),
+                    '見出し・太字・箇条書き・説明文・前置きは一切不要です。数字と「|」以外の文字を含めないでください。',
+                ];
+                $prompt = implode("\n", $lines);
 
                 // プロンプトをファイルに出力
                 file_put_contents(
@@ -277,7 +307,6 @@ class SummaryForecastFromLastRace extends Command
             // 引っかかる可能性があるため、BATCH_SIZE 件ずつバッチ分割して送信する。
             // バッチ間には BATCH_SLEEP_SEC 秒待機し、トークン消費レートを抑える。
             // ─────────────────────────────────────────────────────────────
-            $apiKey       = config('services.anthropic.api_key');
             $batches      = array_chunk($pending, self::BATCH_SIZE);
             $retryTargets = [];
 
@@ -292,21 +321,7 @@ class SummaryForecastFromLastRace extends Command
 
                 $this->info("[フェーズ2] バッチ {$batchNum}/{$batchTotal} — " . count($batch) . " 件を並列送信中...");
 
-                $responses = Http::pool(function ($pool) use ($batch, $apiKey) {
-                    return array_map(fn ($item) =>
-                        $pool->withHeaders([
-                            'x-api-key'         => $apiKey,
-                            'anthropic-version' => '2023-06-01',
-                            'content-type'      => 'application/json',
-                        ])->timeout(120)->post('https://api.anthropic.com/v1/messages', [
-                            'model'      => 'claude-haiku-4-5',
-                            'max_tokens' => 4096,
-                            'messages'   => [
-                                ['role' => 'user', 'content' => $item['prompt']],
-                            ],
-                        ])
-                    , $batch);
-                });
+                $responses = $this->anthropic->sendPool(array_column($batch, 'prompt'));
 
                 $this->info("[フェーズ3] バッチ {$batchNum}/{$batchTotal} — 結果処理中...");
 
@@ -340,7 +355,7 @@ class SummaryForecastFromLastRace extends Command
                         continue;
                     }
 
-                    $rawText      = $response->json('content.0.text') ?? '';
+                    $rawText      = $this->anthropic->extractText($response);
                     $forecastNums = $this->parseForecastNums($rawText);
 
                     if ($forecastNums === null) {
@@ -385,17 +400,7 @@ class SummaryForecastFromLastRace extends Command
                         $this->line("  [試行 {$attempt}/3] {$label} — {$waitSec}秒待機...");
                         sleep($waitSec);
 
-                        $response = Http::withHeaders([
-                            'x-api-key'         => $apiKey,
-                            'anthropic-version' => '2023-06-01',
-                            'content-type'      => 'application/json',
-                        ])->timeout(120)->post('https://api.anthropic.com/v1/messages', [
-                            'model'      => 'claude-haiku-4-5',
-                            'max_tokens' => 4096,
-                            'messages'   => [
-                                ['role' => 'user', 'content' => $item['prompt']],
-                            ],
-                        ]);
+                        $response = $this->anthropic->send($item['prompt']);
 
                         if (in_array($response->status(), [429, 529])) {
                             $this->warn("  [試行 {$attempt}/3] {$label} — まだ HTTP {$response->status()}");
@@ -410,7 +415,7 @@ class SummaryForecastFromLastRace extends Command
                             break;
                         }
 
-                        $rawText      = $response->json('content.0.text') ?? '';
+                        $rawText      = $this->anthropic->extractText($response);
                         $forecastNums = $this->parseForecastNums($rawText);
 
                         if ($forecastNums === null) {

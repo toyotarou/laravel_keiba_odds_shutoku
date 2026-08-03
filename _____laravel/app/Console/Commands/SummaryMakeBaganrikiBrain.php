@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Services\AnthropicService;
 use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -38,6 +38,11 @@ class SummaryMakeBaganrikiBrain extends Command
     private const BRAIN_DIR  = '/var/www/horse_odds_finder/public/baganriki_brain';
     private const BRAIN_FILE = self::BRAIN_DIR . '/baganriki_brain.txt';
 
+    public function __construct(private AnthropicService $anthropic)
+    {
+        parent::__construct();
+    }
+
     public function handle(): void
     {
         // ─────────────────────────────────────────────────────────────────
@@ -45,8 +50,15 @@ class SummaryMakeBaganrikiBrain extends Command
         // ─────────────────────────────────────────────────────────────────
         $lockFile = sys_get_temp_dir() . '/keiba_makeBaganrikiBrain.lock';
         if (file_exists($lockFile)) {
-            $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
-            return;
+            $pid = (int) file_get_contents($lockFile);
+            if ($pid > 0 && posix_kill($pid, 0)) {
+                // PIDが実際に生きているプロセス → 多重起動なので終了
+                $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
+                return;
+            }
+            // PIDが死んでいる → 前回が強制終了された残骸なので削除して続行
+            $this->warn("ロックファイルの残骸を削除して続行します (PID: {$pid})");
+            unlink($lockFile);
         }
         file_put_contents($lockFile, getmypid());
         register_shutdown_function(fn() => @unlink($lockFile));
@@ -119,7 +131,6 @@ class SummaryMakeBaganrikiBrain extends Command
             // ─────────────────────────────────────────────────────────────────
             // 【ブロック 4】30件ずつループで Claude API に送信・$latestBrainText に蓄積
             // ─────────────────────────────────────────────────────────────────
-            $apiKey         = config('services.anthropic.api_key');
             $latestBrainText = '';
             $processedIds   = [];
 
@@ -202,17 +213,7 @@ class SummaryMakeBaganrikiBrain extends Command
 
                 $this->info("[ループ {$batchIndex}/" . ($batchCount - 1) . "] API 送信中... (今回 " . count($batchAnalyses) . " 件 / プロンプト " . number_format(mb_strlen($prompt)) . " 文字)");
 
-                $response = Http::withHeaders([
-                    'x-api-key'         => $apiKey,
-                    'anthropic-version' => '2023-06-01',
-                    'content-type'      => 'application/json',
-                ])->timeout(120)->post('https://api.anthropic.com/v1/messages', [
-                    'model'      => 'claude-haiku-4-5',
-                    'max_tokens' => 4096,
-                    'messages'   => [
-                        ['role' => 'user', 'content' => $prompt],
-                    ],
-                ]);
+                $response = $this->anthropic->send($prompt);
 
                 $loopElapsed = round(microtime(true) - $loopStartedAt, 1);
 
@@ -227,7 +228,7 @@ class SummaryMakeBaganrikiBrain extends Command
                     break;
                 }
 
-                $latestBrainText = trim($response->json('content.0.text') ?? '');
+                $latestBrainText = $this->anthropic->extractText($response);
 
                 if ($latestBrainText === '') {
                     Log::error('SummaryMakeBaganrikiBrain: レスポンス空', ['loop' => $batchIndex]);

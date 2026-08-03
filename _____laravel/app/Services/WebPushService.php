@@ -42,20 +42,28 @@ class WebPushService
     // 内部送信処理
     private function sendToSubscriptions($subscriptions, string $title, string $body, string $url = 'https://baganriki.com/horse_odds_finder/'): void
     {
-        $accessToken = $this->getAccessToken();
+        $sentCount = 0;
 
-        foreach ($subscriptions as $row) {
-            $this->sendFcmV1($row, $title, $body, $url, $accessToken);
+        try {
+            if ($subscriptions->isNotEmpty()) {
+                $accessToken = $this->getAccessToken();
+                foreach ($subscriptions as $row) {
+                    $this->sendFcmV1($row, $title, $body, $url, $accessToken);
+                    $sentCount++;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error('WebPush送信エラー: ' . $e->getMessage());
+        } finally {
+            // 送信ログを記録（送信失敗・subscription空でも必ず記録する）
+            DB::table('t_horse_odds_finder_push_send_logs')->insert([
+                'title'      => $title,
+                'body'       => $body,
+                'url'        => $url,
+                'sent_count' => $sentCount,
+                'sent_at'    => now(),
+            ]);
         }
-
-        // 送信ログを記録
-        DB::table('t_horse_odds_finder_push_send_logs')->insert([
-            'title'      => $title,
-            'body'       => $body,
-            'url'        => $url,
-            'sent_count' => $subscriptions->count(),
-            'sent_at'    => now(),
-        ]);
     }
 
     private function getAccessToken(): string

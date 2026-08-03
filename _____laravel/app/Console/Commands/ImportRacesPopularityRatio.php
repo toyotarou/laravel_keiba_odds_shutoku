@@ -51,8 +51,13 @@ class ImportRacesPopularityRatio extends Command
         // ─────────────────────────────────────────────────────────────────
         $lockFile = sys_get_temp_dir() . '/keiba_ImportRacesPopularityRatio.lock';
         if (file_exists($lockFile)) {
-            $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
-            return;
+            $pid = (int) file_get_contents($lockFile);
+            if ($pid > 0 && posix_kill($pid, 0)) {
+                $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
+                return;
+            }
+            $this->warn("ロックファイルの残骸を削除して続行します (PID: {$pid})");
+            unlink($lockFile);
         }
         file_put_contents($lockFile, getmypid());
         register_shutdown_function(fn() => @unlink($lockFile));
