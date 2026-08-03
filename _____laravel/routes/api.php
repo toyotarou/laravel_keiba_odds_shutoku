@@ -105,3 +105,5 @@ Route::get('getHorseOddsFinderJockeyScores', [ApiController::class, 'getHorseOdd
 Route::get('getHorseOddsFinderExpectedValueScore', [ApiController::class, 'getHorseOddsFinderExpectedValueScore']);
 
 Route::get('getHorseOddsFinderKitaichi', [ApiController::class, 'getHorseOddsFinderKitaichi']);
+
+Route::get('getHorseOddsFinderRaceIntrospection', [ApiController::class, 'getHorseOddsFinderRaceIntrospection']);

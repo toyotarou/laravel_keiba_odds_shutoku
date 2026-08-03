@@ -419,6 +419,22 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
         return response()->json(['data' => $result]);
     }
     
+
+
+    public function getHorseOddsFinderRaceIntrospection()
+    {
+        $result = DB::table('t_horse_odds_finder_race_introspection')
+            ->orderBy('date')
+            ->orderBy('kaisuu')
+            ->orderBy('basho_code')
+            ->orderBy('day')
+            ->orderBy('race')
+            ->get();
+        return response()->json(['data' => $result]);
+    }
+    
+
+    
 //----------
 
     /**
@@ -1607,6 +1623,8 @@ return response()->json(['data' => $result]);
  *                       honmei  : 単勝5倍未満  （本命）
  *                       chu_ana : 5倍以上15倍未満（中穴）
  *                       daiana  : 15倍以上      （大穴）
+ *   baganriki_brain → 馬眼力の脳みそ（baganriki_brain.txt の中身）
+ *                     ファイルが無い場合は空文字を返す
  *
  * 【odds_drop_rate の算出条件】
  *   - 30分前と3分前の両オッズが数値で記録されていること
@@ -1614,10 +1632,11 @@ return response()->json(['data' => $result]);
  *   - 最終着順が記録済みであること
  * ─────────────────────────────────────────────────────────────
  *
- * @return \Illuminate\Http\JsonResponse  { data: { odds_get_timing: "...", odds_drop_rate: {...} } }
+ * @return \Illuminate\Http\JsonResponse  { data: { odds_get_timing: "...", odds_drop_rate: {...}, baganriki_brain: "..." } }
  */
 public function getHorseOddsFinderConfigs()
 {
+//========================================================//
 $sql = "
 SELECT
 CASE
@@ -1638,10 +1657,16 @@ $rows = DB::select($sql);
 
 $oddsDropRate = ['honmei' => null, 'chu_ana' => null, 'daiana' => null];
 foreach ($rows as $row) {$oddsDropRate[$row->odds_band] = (float) $row->rate;}
+//========================================================//
+
+// ─── 馬眼力の脳みそ（判断基準）を読み出し
+$brainFile      = public_path('baganriki_brain/baganriki_brain.txt');
+$baganrikiBrain = file_exists($brainFile) ? trim(file_get_contents($brainFile)) : '';
 
 return response()->json(['data' => [
-'odds_get_timing' => implode('|', Constants::ODDS_GET_TIMING),
-'odds_drop_rate'  => $oddsDropRate,
+'odds_get_timing'  => implode('|', Constants::ODDS_GET_TIMING),
+'odds_drop_rate'   => $oddsDropRate,
+'baganriki_brain'  => $baganrikiBrain,
 ]]);
 }
 
