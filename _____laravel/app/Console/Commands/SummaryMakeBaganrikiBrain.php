@@ -86,9 +86,10 @@ class SummaryMakeBaganrikiBrain extends Command
                 })
                 ->get();
 
-            $introspections   = [];
-            $introspectionIds = [];
-            $zeroMovementIds  = [];
+            $introspections     = [];
+            $introspectionMeta  = []; // 各エントリの的中数
+            $introspectionIds   = [];
+            $zeroMovementIds    = [];
 
             foreach ($dbRows as $dbRow) {
                 if (!str_contains($dbRow->introspection, '## 分析')) {
@@ -102,8 +103,21 @@ class SummaryMakeBaganrikiBrain extends Command
                     continue;
                 }
 
-                $introspections[]   = trim(explode('## 分析', $dbRow->introspection, 2)[1]);
-                $introspectionIds[] = $dbRow->id;
+                // ## 結果 セクションから的中数をカウント
+                $hitCount = 0;
+                if (str_contains($dbRow->introspection, '## 結果')) {
+                    $resultPart = explode('## 結果', $dbRow->introspection, 2)[1] ?? '';
+                    if (str_contains($resultPart, '## 分析')) {
+                        $resultPart = explode('## 分析', $resultPart, 2)[0];
+                    }
+                    $hitCount = substr_count($resultPart, '（的中）');
+                }
+
+                // 的中タグ + 分析テキストのみ（概念的なパターン抽出が目的のため馬番・馬名は不要）
+                $analysisText        = trim(explode('## 分析', $dbRow->introspection, 2)[1]);
+                $introspections[]    = "[的中{$hitCount}/3]\n{$analysisText}";
+                $introspectionMeta[] = $hitCount;
+                $introspectionIds[]  = $dbRow->id;
             }
 
             if (!empty($zeroMovementIds)) {
@@ -136,10 +150,14 @@ class SummaryMakeBaganrikiBrain extends Command
 
             for ($batchIndex = 0; $batchIndex < $batchCount; $batchIndex++) {
 
-                $batchAnalyses = array_slice($introspections, $batchIndex * self::DEVIDE_NUM, self::DEVIDE_NUM);
-                $batchText     = implode("\n\n\n", $batchAnalyses);
+                $batchAnalyses  = array_slice($introspections,    $batchIndex * self::DEVIDE_NUM, self::DEVIDE_NUM);
+                $batchHitCounts = array_slice($introspectionMeta, $batchIndex * self::DEVIDE_NUM, self::DEVIDE_NUM);
+                $batchHits      = array_sum($batchHitCounts);
+                $batchTotal     = count($batchAnalyses) * 3;
+                $hitRate        = $batchTotal > 0 ? round($batchHits / $batchTotal * 100, 1) : 0;
 
-                $dataSection = "今回の要約内容:{$batchText}";
+                $batchText   = implode("\n\n---\n\n", $batchAnalyses);
+                $dataSection = "今回の要約内容（{$batchHits}/{$batchTotal}頭的中・的中率{$hitRate}%）:\n{$batchText}";
 
                 if ($batchIndex === 0) {
                     if (file_exists(self::BRAIN_FILE)) {
@@ -159,11 +177,15 @@ class SummaryMakeBaganrikiBrain extends Command
                     "を整理・統合して、次のレース予想にそのまま使える判断基準（脳みそ）を作ることです。",
                     "",
                     "【入力の説明】",
-                    "・「今回の要約内容」: 今回新たに追加された30件前後のレース振り返りです。",
+                    "・「今回の要約内容」: 今回新たに追加されたレース振り返り（分析テキスト）です。",
+                    "  各エントリの冒頭に [的中X/3] というタグがついています。AIが1〜3着に予想した3頭のうち、何頭が実際に的中したかを示します。",
+                    "  ・[的中3/3] や [的中2/3] のエントリは「よく当たった例」です。その分析に書かれている考え方を特に重視してください。",
+                    "  ・[的中0/3] や [的中1/3] のエントリは「外れた例」です。その分析に書かれている失敗の理由を深く読み解いてください。",
                     "・「保存されている要約内容」または「前回の要約内容」: これまでに積み上げてきた判断基準です。初回はまだ存在しません。",
                     "",
                     "【あなたがやること】",
-                    "1. 「今回の要約内容」を読み込み、的中・不的中それぞれの根拠にあるパターンを抽出してください。",
+                    "1. 各エントリの [的中X/3] タグと分析テキストを照合し、当たり・外れのパターンを抽象的な原則として抽出してください。",
+                    "   （馬名・馬番など個別の情報ではなく、どんなレースでも使える「考え方・原則」を抽出する）",
                     "2. 「保存されている要約内容」または「前回の要約内容」がある場合は、それと今回の抽出内容をマージして、より精度の高い判断基準に磨き上げてください。",
                     "3. 似た内容は統合し、矛盾する内容は「条件によって使い分ける」形で整理してください。",
                     "4. すべての記述は、次のレース予想の場面でそのまま使える「具体的な行動指針」として書いてください（例: ○倍未満なら1着候補として優先する、オッズ差が○倍以内の場合は変動が小さい方を優先する、など）。",
@@ -211,7 +233,7 @@ class SummaryMakeBaganrikiBrain extends Command
 
                 $loopStartedAt = microtime(true);
 
-                $this->info("[ループ {$batchIndex}/" . ($batchCount - 1) . "] API 送信中... (今回 " . count($batchAnalyses) . " 件 / プロンプト " . number_format(mb_strlen($prompt)) . " 文字)");
+                $this->info("[ループ {$batchIndex}/" . ($batchCount - 1) . "] API 送信中... (今回 " . count($batchAnalyses) . " 件 / 的中率 {$hitRate}% ({$batchHits}/{$batchTotal}) / プロンプト " . number_format(mb_strlen($prompt)) . " 文字)");
 
                 $response = $this->anthropic->send($prompt);
 
