@@ -8,6 +8,28 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * SummaryRacesIntrospection
+ *
+ * 【概要】
+ *   過去のレースデータ（単勝オッズ推移・実際の着順）を Claude API に送信し、
+ *   予想と反省（振り返り）を生成して t_horse_odds_finder_race_introspection に保存する。
+ *   処理済みレースはスキップ。BATCH_SIZE 件ずつ並列送信し、TPM 制限を回避する。
+ *   429/529 エラーは指数バックオフで最大3回リトライする。
+ *
+ * 【処理フロー】
+ *   【ブロック 1】多重起動防止（ロックファイル）
+ *   【ブロック 2】着順・ピックアップ馬の先読み
+ *   【ブロック 3】対象レース取得（オッズデータが揃っているもの）
+ *   【フェーズ 1】プロンプト収集（処理済みレースはスキップ）
+ *   【フェーズ 2】BATCH_SIZE 件ずつ Http::pool() で並列送信
+ *   【フェーズ 3】レスポンス処理・DB 保存
+ *   【フェーズ 4】429/529 リトライ（指数バックオフ・逐次）
+ *   【ブロック 9】完了サマリー・WebPush 通知（finally で必ず実行）
+ *
+ * 【使い方】
+ *   php artisan keiba:SummaryRacesIntrospection
+ */
 class SummaryRacesIntrospection extends Command
 {
     protected $signature   = 'keiba:SummaryRacesIntrospection';

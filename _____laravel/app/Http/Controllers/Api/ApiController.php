@@ -2480,22 +2480,31 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
             $prompt
         );
 
+        // ─── 脳みそ（判断基準）の読み込み ────────────────────────────────────
+        $brainFile = public_path('baganriki_brain/baganriki_brain.txt');
+        $brain     = file_exists($brainFile) ? trim(file_get_contents($brainFile)) : '';
+
         // ─── Claude API 呼び出し（529 Overloaded 時は指数バックオフでリトライ） ──
         $maxAttempts = 3;
         $aiResponse  = null;
+
+        $apiPayload = [
+            'model'      => 'claude-haiku-4-5',
+            'max_tokens' => 4096,
+            'messages'   => [
+                ['role' => 'user', 'content' => $prompt],
+            ],
+        ];
+        if ($brain !== '') {
+            $apiPayload['system'] = $brain;
+        }
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             $aiResponse = \Illuminate\Support\Facades\Http::withHeaders([
                 'x-api-key'         => config('services.anthropic.api_key'),
                 'anthropic-version' => '2023-06-01',
                 'content-type'      => 'application/json',
-            ])->timeout(30)->post('https://api.anthropic.com/v1/messages', [
-                'model'      => 'claude-haiku-4-5',
-                'max_tokens' => 4096,
-                'messages'   => [
-                    ['role' => 'user', 'content' => $prompt],
-                ],
-            ]);
+            ])->timeout(30)->post('https://api.anthropic.com/v1/messages', $apiPayload);
 
             if ($aiResponse->status() !== 529) {
                 break;
