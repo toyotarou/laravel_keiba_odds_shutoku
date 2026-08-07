@@ -75,6 +75,12 @@ class SummaryRacesIntrospection extends Command
             $this->info('バッチ間隔   : ' . self::BATCH_SLEEP_SEC . ' 秒');
             $this->info('');
 
+            // ─── 馬眼力の脳みそ（判断基準）の読み込み ──────────────────────────────
+            $brainFile = public_path('baganriki_brain/baganriki_brain.txt');
+            $brain     = file_exists($brainFile) ? trim(file_get_contents($brainFile)) : '';
+            $this->info('  → 馬眼力ブレイン: ' . ($brain !== '' ? '読み込み済み' : 'ファイルなし'));
+            $this->info('');
+
             // ─────────────────────────────────────────────────────────────────
             // 1〜3着の馬番を先読み（date_kaisuu_basho_code_day_race_着順 → 馬番）
             // ─────────────────────────────────────────────────────────────────
@@ -146,7 +152,8 @@ ORDER BY date, kaisuu, basho, day, race;
             // ─────────────────────────────────────────────────────────────────
             $this->info('[フェーズ1] プロンプト収集中...');
 
-            $raceInfoTemplate = "日付:DATE___回数:KAISUU___場所名:BASHO_NAME___レース:RACE___レース名:RACE_NAME___オッズ情報:ODDS_INFO___結果:RESULT1, RESULT2, RESULT3";
+            // ★ 結果はオッズ情報と分離し、独立したセクションとして渡す（混同防止）
+            $raceInfoTemplate = "日付:DATE___回数:KAISUU___場所名:BASHO_NAME___レース:RACE___レース名:RACE_NAME___オッズ情報:ODDS_INFO";
             $oddsTemplate     = "馬番:NUM___馬名:NAME___レース開始X分前オッズ:(30)ODDS30|(21)ODDS21|(18)ODDS18|(15)ODDS15|(12)ODDS12|(9)ODDS9|(6)ODDS6";
 
             $pending = [];
@@ -162,7 +169,7 @@ ORDER BY date, kaisuu, basho, day, race;
                     ->exists();
 
                 if ($exists) {
-                    $this->line("  [スキップ] {$race->basho_name} {$race->race}R（処理済み）");
+                    $this->line("  [スキップ] {$race->date} {$race->basho_name} {$race->kaisuu}回{$race->day}日目 {$race->race}R（処理済み）");
                     $totalSkipped++;
                     continue;
                 }
@@ -190,46 +197,63 @@ ORDER BY date, kaisuu, basho, day, race;
                     ]);
                 }
 
-                $raceInfoStr = strtr($raceInfoTemplate, [
-                    'DATE'      => $race->date,
-                    'KAISUU'    => $race->kaisuu,
-                    'BASHO_NAME'=> $race->basho_name,
-                    'RACE'      => $race->race,
-                    'RACE_NAME' => $race->race_name,
-                    'ODDS_INFO' => implode('/', $oddsStrings),
-                    'RESULT1'   => $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_1"] ?? '?',
-                    'RESULT2'   => $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_2"] ?? '?',
-                    'RESULT3'   => $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_3"] ?? '?',
+                // オッズ情報のみ（結果は含めない）
+                $oddsInfoStr = strtr($raceInfoTemplate, [
+                    'DATE'       => $race->date,
+                    'KAISUU'     => $race->kaisuu,
+                    'BASHO_NAME' => $race->basho_name,
+                    'RACE'       => $race->race,
+                    'RACE_NAME'  => $race->race_name,
+                    'ODDS_INFO'  => implode('/', $oddsStrings),
                 ]);
+
+                // 実際の着順（独立変数として管理）
+                $actualResult1 = $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_1"] ?? '?';
+                $actualResult2 = $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_2"] ?? '?';
+                $actualResult3 = $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_3"] ?? '?';
+
+                // 着順データが1つでも欠けている場合はスキップ
+                // （バリデーション・自動補正の根拠がなく、不正データが入るリスクがある）
+                if ($actualResult1 === '?' || $actualResult2 === '?' || $actualResult3 === '?') {
+                    Log::warning('SummaryRacesIntrospection: 着順データ不足のためスキップ', [
+                        'label' => "{$race->basho_name} {$race->race}R",
+                        'r1'    => $actualResult1,
+                        'r2'    => $actualResult2,
+                        'r3'    => $actualResult3,
+                    ]);
+                    $this->warn("  [スキップ] {$race->date} {$race->basho_name} {$race->kaisuu}回{$race->day}日目 {$race->race}R — 着順データ不足（r1={$actualResult1}, r2={$actualResult2}, r3={$actualResult3}）");
+                    $totalSkipped++;
+                    continue;
+                }
 
                 // ─────────────────────────────────────────────────────────────────
                 // プロンプト組み立て（ピックアップ馬がある場合は予想を差し替え）
                 // ─────────────────────────────────────────────────────────────────
                 $raceKey = "{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}";
 
+                $hasPickup = isset($pickupHorses[$raceKey]);
+
                 $msgs = [
                     "あなたは競馬のオッズ分析の専門家です。",
                     "",
-                    "以下は、あるレースにおける各馬の単勝オッズ推移（レース開始30分前〜6分前）と、実際の着順結果（結果）です。",
+                    "以下のレースについて、オッズ推移の分析と振り返りを行ってください。",
                     "",
-                    "【重要：このタスクの目的について】",
-                    "このタスクは、予測を正しく当てることを目的としていません。",
-                    "目的は「なぜ間違えたのか」を深く考えることです。",
-                    "正解することよりも、間違えた理由を丁寧に分析することの方がはるかに重要です。",
-                    "この分析は、今後のAIによる競馬予測の精度を改善するための「思考の是正」として活用されます。",
-                    "予測が当たった場合も、たまたま当たったのか・根拠があって当たったのかを区別してください。",
-                    "とにかく「外れた理由の分析」に最大限の思考を注いでください。",
+                    "【このタスクの目的】",
+                    "予測を当てることではなく、「なぜ間違えたのか」を深く考えることが目的です。",
+                    "この分析は、今後のAI競馬予測の精度向上のための「思考の是正」として活用されます。",
+                    "予測が当たった場合も、たまたまか根拠があったかを区別してください。",
                     "",
                     "【手順】",
-                    "1. まず「結果」の部分は見ずに、オッズ推移だけをもとに、あなたが予測する1〜3着を述べてください。",
-                    "2. 次に「結果」と照合し、予測が当たった馬・外れた馬を整理してください。",
-                    "3. 外れた馬については、なぜオッズ推移から正しく予測できなかったのか、どのような思考が判断を誤らせたのかを詳しく分析してください。",
-                    "   （例：オッズが安定していたため過剰人気と見抜けなかった、急落した馬を信頼しすぎた、変動のない穴馬を軽視した など）",
+                    "1. 【単勝オッズ推移データ】のみを見て、1〜3着を予測してください。",
+                    "2. 【実際のレース着順】を確認し、予測と照合してください。",
+                    "3. 外れた馬については、なぜオッズ推移から正しく予測できなかったかを詳しく分析してください。",
                     "",
-                    "【出力フォーマット】",
-                    "画面表示アプリでそのままパース・表示するため、以下のMarkdown構造を厳守してください。",
-                    "見出し文字列（## 予想 / ## 結果 / ## 分析）は一切変更しないでください。装飾や前置き・後書きも不要です。",
+                    "【出力フォーマット（厳守）】",
+                    "このフォーマットは画面表示アプリがそのままパースします。",
+                    "見出し（## 予想 / ## 結果 / ## 分析）は一切変更しないでください。",
+                    "前置き・後書き・補足コメントは不要です。フォーマット通りに出力してください。",
                     "",
+                    "─────────────────────────────",
                     "## 予想",
                     "1着: ○番 馬名",
                     "2着: ○番 馬名",
@@ -238,20 +262,48 @@ ORDER BY date, kaisuu, basho, day, race;
                     "## 結果",
                     "1着: ○番（的中/不的中）",
                     "2着: ○番（的中/不的中）",
-                    "3着: ○番（的中/不的中）",
+                    "3着: ○番（不的中）",
                     "",
                     "## 分析",
-                    "4〜5行の文章で簡潔にまとめてください。箇条書きは不要です。当たった場合もたまたまか根拠があったかに触れつつ、外れた理由の分析を中心に記述してください。",
+                    "分析テキスト（4〜5行の文章。箇条書き不要）",
+                    "─────────────────────────────",
                     "",
-                    "【レースデータ】",
-                    $raceInfoStr,
+                    "【## 結果 の書き方（最重要）】",
+                    "## 結果 の「○番」には、【実際のレース着順】の馬番をそのまま転記してください。",
+                    "「予想した馬番」ではありません。「実際に走って着順がついた馬番」です。",
+                    "的中 = その着順の実際の馬番が、## 予想 で予測した同じ着順の馬番と一致する",
+                    "不的中 = 一致しない",
+                    "",
+                    "【記入例】",
+                    "  予想: 1着=10番、2着=1番、3着=9番",
+                    "  実際: 1着=4番、2着=1番、3着=11番",
+                    "  → 正しい ## 結果 の記載:",
+                    "    1着: 4番（不的中）   ← 実際の1着は4番。予想は10番なので不一致",
+                    "    2着: 1番（的中）     ← 実際の2着は1番。予想も1番なので一致",
+                    "    3着: 11番（不的中）  ← 実際の3着は11番。予想は9番なので不一致",
+                    "",
                 ];
 
-                if (isset($pickupHorses[$raceKey])) {
+                if ($hasPickup) {
+                    $msgs[] = "【ピックアップ馬について】";
+                    $msgs[] = "別工程のAI分析でピックアップ馬が選出されています。";
+                    $msgs[] = "「## 予想」はオッズ推移での予測ではなく、このピックアップ馬番を使用してください。";
+                    $msgs[] = "「## 結果」は通常通り、【実際のレース着順】の馬番を記載し、ピックアップ馬番と照合して的中/不的中を判定してください。";
+                    $msgs[] = "ピックアップ馬番: " . implode(", ", $pickupHorses[$raceKey]);
                     $msgs[] = "";
-                    $msgs[] = "以下は、別工程のAI分析でピックアップ馬として選出された馬番です。";
-                    $msgs[] = "「## 予想」をこの馬番に差し替えたうえで、「## 分析」を作成してください。";
-                    $msgs[] = implode(", ", $pickupHorses[$raceKey]);
+                }
+
+                $msgs[] = "【単勝オッズ推移データ】";
+                $msgs[] = $oddsInfoStr;
+                $msgs[] = "";
+                $msgs[] = "【実際のレース着順】（## 結果 にはこの馬番を転記すること）";
+                $msgs[] = "1着: {$actualResult1}番";
+                $msgs[] = "2着: {$actualResult2}番";
+                $msgs[] = "3着: {$actualResult3}番";
+
+                if ($brain !== '') {
+                    $msgs[] = '';
+                    $msgs[] = 'あなたの馬眼力ブレインに蓄積された知識と判断基準を最大限に発揮して、今日もベストな予想を頼みます！全力でお願いします！！';
                 }
 
                 $prompt = implode("\n", $msgs);
@@ -263,8 +315,15 @@ ORDER BY date, kaisuu, basho, day, race;
                     $prompt
                 );
 
-                $pending[] = ['race' => $race, 'prompt' => $prompt];
-                $this->line("  [収集] {$race->basho_name} {$race->race}R");
+                // 実際の着順もセットで保持（バリデーション・自動補正に使用）
+                $pending[] = [
+                    'race'   => $race,
+                    'prompt' => $prompt,
+                    'r1'     => $actualResult1,
+                    'r2'     => $actualResult2,
+                    'r3'     => $actualResult3,
+                ];
+                $this->line("  [収集] {$race->date} {$race->basho_name} {$race->kaisuu}回{$race->day}日目 {$race->race}R");
             }
 
             $this->info('');
@@ -295,13 +354,13 @@ ORDER BY date, kaisuu, basho, day, race;
 
                 $this->info("[フェーズ2] バッチ {$batchNum}/{$batchTotal} — " . count($batch) . " 件を並列送信中...");
 
-                $responses = $this->anthropic->sendPool(array_column($batch, 'prompt'));
+                $responses = $this->anthropic->sendPool(array_column($batch, 'prompt'), $brain !== '' ? $brain : null);
 
                 $this->info("[フェーズ3] バッチ {$batchNum}/{$batchTotal} — 結果処理中...");
 
                 foreach ($batch as $itemIndex => $item) {
                     $race     = $item['race'];
-                    $label    = "{$race->basho_name} {$race->race}R";
+                    $label    = "{$race->date} {$race->basho_name} {$race->kaisuu}回{$race->day}日目 {$race->race}R";
                     $response = $responses[$itemIndex];
 
                     if ($response instanceof \Throwable) {
@@ -333,6 +392,16 @@ ORDER BY date, kaisuu, basho, day, race;
                         $totalFailed++;
                         continue;
                     }
+
+                    // ─── バリデーション → 自動補正 ───────────────────────────────
+                    $introspection = $this->validateAndCorrect(
+                        $introspection, $item['r1'], $item['r2'], $item['r3'], $label
+                    );
+                    if ($introspection === null) {
+                        $totalFailed++;
+                        continue;
+                    }
+                    // ─────────────────────────────────────────────────────────────
 
                     try {
                         $this->storeResult($race, $introspection);
@@ -366,7 +435,7 @@ ORDER BY date, kaisuu, basho, day, race;
                         $this->line("  [試行 {$attempt}/3] {$label} — {$waitSec}秒待機...");
                         sleep($waitSec);
 
-                        $response = $this->anthropic->send($item['prompt']);
+                        $response = $this->anthropic->send($item['prompt'], $brain !== '' ? $brain : null);
 
                         if (in_array($response->status(), [429, 529])) {
                             $this->warn("  [試行 {$attempt}/3] {$label} — まだ HTTP {$response->status()}");
@@ -392,6 +461,17 @@ ORDER BY date, kaisuu, basho, day, race;
                             $totalFailed++;
                             break;
                         }
+
+                        // ─── バリデーション → 自動補正 ────────────────────────────
+                        $introspection = $this->validateAndCorrect(
+                            $introspection, $item['r1'], $item['r2'], $item['r3'], $label
+                        );
+                        if ($introspection === null) {
+                            $giveUp = true;
+                            $totalFailed++;
+                            break;
+                        }
+                        // ─────────────────────────────────────────────────────────
 
                         try {
                             $this->storeResult($race, $introspection);
@@ -451,5 +531,173 @@ ORDER BY date, kaisuu, basho, day, race;
             'race_name'     => $race->race_name,
             'introspection' => $introspection,
         ]);
+    }
+
+    /**
+     * バリデーション → 自動補正 のパイプライン。
+     *
+     * 1. validateIntrospection() でフォーマットと的中ラベルを検証
+     * 2. 問題なければそのまま返す
+     * 3. 問題があれば autoCorrectResultSection() で ## 結果 を強制再構築
+     * 4. 再構築後に再検証し、通れば補正済みテキストを返す
+     * 5. それでも通らなければ null を返してスキップ（絶対に不正データをDBに入れない）
+     *
+     * @return string|null 保存して良いテキスト。null の場合はスキップ
+     */
+    private function validateAndCorrect(
+        string $introspection,
+        string $r1, string $r2, string $r3,
+        string $label
+    ): ?string {
+        // まずそのまま検証
+        if ($this->validateIntrospection($introspection, $r1, $r2, $r3)) {
+            return $introspection;
+        }
+
+        // 検証失敗 → 自動補正を試みる
+        Log::warning('SummaryRacesIntrospection: ## 結果 の検証失敗。自動補正を試みます。', [
+            'label' => $label,
+            'r1'    => $r1,
+            'r2'    => $r2,
+            'r3'    => $r3,
+        ]);
+        $this->warn("  [自動補正] {$label} — ## 結果 が不正なため自動補正します");
+
+        $corrected = $this->autoCorrectResultSection($introspection, $r1, $r2, $r3);
+        if ($corrected === null) {
+            Log::error('SummaryRacesIntrospection: 自動補正不能（セクション構造が壊れている）', [
+                'label' => $label,
+                'raw'   => mb_substr($introspection, 0, 500),
+            ]);
+            $this->error("  [スキップ] {$label} — 自動補正不能。DBには保存しません。");
+            return null;
+        }
+
+        // 補正後に再検証
+        if ($this->validateIntrospection($corrected, $r1, $r2, $r3)) {
+            Log::info('SummaryRacesIntrospection: 自動補正成功', ['label' => $label]);
+            $this->warn("  [自動補正完了] {$label}");
+            return $corrected;
+        }
+
+        // 再検証も失敗
+        Log::error('SummaryRacesIntrospection: 自動補正後も検証失敗', [
+            'label'     => $label,
+            'corrected' => mb_substr($corrected, 0, 500),
+        ]);
+        $this->error("  [スキップ] {$label} — 補正後も検証失敗。DBには保存しません。");
+        return null;
+    }
+
+    /**
+     * APIレスポンスの ## 結果 セクションが正しいかを検証する。
+     *
+     * 正しい条件:
+     *   - ## 予想 / ## 結果 / ## 分析 の3セクションが存在する
+     *   - ## 結果 の各着順に「実際の着順の馬番」が記載されている
+     *   - 的中/不的中ラベルが予想馬番との比較結果と一致している
+     */
+    private function validateIntrospection(
+        string $introspection,
+        string $r1, string $r2, string $r3
+    ): bool {
+        // 3セクション必須チェック
+        if (!str_contains($introspection, '## 予想')) return false;
+        if (!str_contains($introspection, '## 結果')) return false;
+        if (!str_contains($introspection, '## 分析')) return false;
+
+        // ## 予想 から予測馬番を取得
+        $yosoPart = explode('## 予想', $introspection, 2)[1] ?? '';
+        if (str_contains($yosoPart, '## 結果')) {
+            $yosoPart = explode('## 結果', $yosoPart, 2)[0];
+        }
+        $predictedNums = [];
+        foreach ([1, 2, 3] as $pos) {
+            if (preg_match("/{$pos}着:\s*(\d+)番/u", $yosoPart, $m)) {
+                $predictedNums[$pos] = $m[1];
+            }
+        }
+
+        // ## 結果 セクション抽出
+        $resultPart = explode('## 結果', $introspection, 2)[1] ?? '';
+        if (str_contains($resultPart, '## 分析')) {
+            $resultPart = explode('## 分析', $resultPart, 2)[0];
+        }
+
+        // 実際の着順馬番と的中ラベルを検証
+        $actualResults = [1 => $r1, 2 => $r2, 3 => $r3];
+        foreach ($actualResults as $pos => $actualNum) {
+            if ($actualNum === '?') continue; // 着順データなしはスキップ
+
+            // 実際の馬番がその着順に記載されているか
+            if (!preg_match("/{$pos}着:\s*{$actualNum}番/u", $resultPart)) {
+                return false;
+            }
+
+            // 的中/不的中ラベルが正しいか
+            $predicted = $predictedNums[$pos] ?? null;
+            if ($predicted !== null) {
+                $isHit         = ($predicted === $actualNum);
+                $expectedLabel = $isHit ? '（的中）' : '（不的中）';
+                if (!preg_match("/{$pos}着:\s*{$actualNum}番{$expectedLabel}/u", $resultPart)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * ## 結果 セクションを実際の着順データで強制的に正しい内容に書き換える。
+     * ## 予想 の馬番と実際の着順を比較して的中/不的中を正確に判定する。
+     *
+     * @return string|null 補正後テキスト。セクション構造が壊れていて補正不能な場合は null
+     */
+    private function autoCorrectResultSection(
+        string $introspection,
+        string $r1, string $r2, string $r3
+    ): ?string {
+        if (!str_contains($introspection, '## 予想')
+            || !str_contains($introspection, '## 結果')
+            || !str_contains($introspection, '## 分析')) {
+            return null;
+        }
+
+        // ## 予想 から予測馬番を取得
+        $yosoPart = explode('## 予想', $introspection, 2)[1] ?? '';
+        if (str_contains($yosoPart, '## 結果')) {
+            $yosoPart = explode('## 結果', $yosoPart, 2)[0];
+        }
+        $predictedNums = [];
+        foreach ([1, 2, 3] as $pos) {
+            if (preg_match("/{$pos}着:\s*(\d+)番/u", $yosoPart, $m)) {
+                $predictedNums[$pos] = $m[1];
+            }
+        }
+
+        // ## 結果 を正しい内容で構築
+        $actualResults = [1 => $r1, 2 => $r2, 3 => $r3];
+        $resultLines   = [];
+        foreach ([1, 2, 3] as $pos) {
+            $actualNum = $actualResults[$pos];
+            if ($actualNum === '?') {
+                $resultLines[] = "{$pos}着: ?番（判定不能）";
+                continue;
+            }
+            $predicted     = $predictedNums[$pos] ?? null;
+            $isHit         = ($predicted !== null && $predicted === $actualNum);
+            $label         = $isHit ? '（的中）' : '（不的中）';
+            $resultLines[] = "{$pos}着: {$actualNum}番{$label}";
+        }
+
+        $correctedResultSection = implode("\n", $resultLines);
+
+        // ## 結果 ～ ## 分析 の間を新しい内容で置き換え
+        $before      = explode('## 結果', $introspection, 2)[0];
+        $afterResult = explode('## 結果', $introspection, 2)[1] ?? '';
+        $after       = '## 分析' . (explode('## 分析', $afterResult, 2)[1] ?? '');
+
+        return $before . "## 結果\n" . $correctedResultSection . "\n\n" . $after;
     }
 }

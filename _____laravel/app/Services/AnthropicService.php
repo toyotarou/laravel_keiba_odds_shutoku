@@ -78,15 +78,15 @@ class AnthropicService
      * @param  string[]  $prompts  プロンプト配列（インデックス順で結果が返る）
      * @return array<int, Response|\Throwable>
      */
-    public function sendPool(array $prompts, int $timeout = self::TIMEOUT): array
+    public function sendPool(array $prompts, ?string $system = null, int $timeout = self::TIMEOUT): array
     {
         $headers = $this->headers();
-        return Http::pool(function ($pool) use ($prompts, $headers, $timeout) {
+        return Http::pool(function ($pool) use ($prompts, $headers, $system, $timeout) {
             return array_map(
                 fn(string $prompt) => $pool
                     ->withHeaders($headers)
                     ->timeout($timeout)
-                    ->post(self::API_URL, $this->payload($prompt)),
+                    ->post(self::API_URL, $this->payload($prompt, $system)),
                 $prompts
             );
         });
