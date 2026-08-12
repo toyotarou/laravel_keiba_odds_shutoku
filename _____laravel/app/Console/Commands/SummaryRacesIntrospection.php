@@ -33,7 +33,7 @@ use Illuminate\Support\Facades\Log;
 class SummaryRacesIntrospection extends Command
 {
     protected $signature   = 'keiba:SummaryRacesIntrospection';
-    protected $description = 'claude apiを使って、レースの予想と反省をする';
+    protected $description = 'claude apiを使って、レースの有力馬選出の振り返りをする';
 
     // 450件を一度に送ると TPM 制限に引っかかるため小さめに設定
     private const BATCH_SIZE      = 5;
@@ -50,7 +50,11 @@ class SummaryRacesIntrospection extends Command
         $lockFile = sys_get_temp_dir() . '/keiba_summaryRacesIntrospection.lock';
         if (file_exists($lockFile)) {
             $pid = (int) file_get_contents($lockFile);
-            if ($pid > 0 && posix_kill($pid, 0)) {
+            $isRunning = $pid > 0 && (
+                (function_exists('posix_kill') && posix_kill($pid, 0))
+                || file_exists("/proc/{$pid}")
+            );
+            if ($isRunning) {
                 $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
                 return;
             }
@@ -115,12 +119,10 @@ class SummaryRacesIntrospection extends Command
                 ->get();
 
             foreach ($aiAnalysisRows as $aiAnalysisRow) {
-                if (preg_match('/^PICKUP:(.+)$/mu', $aiAnalysisRow->analysis_text, $m)) {
-                    $parts = explode('/', trim($m[1]));
-                    foreach ($parts as $part) {
-                        $cols = explode('|', $part);
-                        $pickupHorses["{$aiAnalysisRow->date}_{$aiAnalysisRow->kaisuu}_{$aiAnalysisRow->basho_code}_{$aiAnalysisRow->day}_{$aiAnalysisRow->race}"][] = isset($cols[0]) ? trim($cols[0]) : '';
-                    }
+                // 「馬番：X、馬名：...」形式から馬番を抽出
+                if (preg_match_all('/^馬番：(\d+)/mu', $aiAnalysisRow->analysis_text, $m) && !empty($m[1])) {
+                    $key = "{$aiAnalysisRow->date}_{$aiAnalysisRow->kaisuu}_{$aiAnalysisRow->basho_code}_{$aiAnalysisRow->day}_{$aiAnalysisRow->race}";
+                    $pickupHorses[$key] = $m[1];
                 }
             }
 
@@ -182,6 +184,10 @@ ORDER BY date, kaisuu, basho, day, race;
                     ->where('race',   $race->race)
                     ->get();
 
+                // 頭立て数からピックアップ頭数を決定
+                $horseCount  = $oddsRows->count();
+                $pickupCount = $horseCount <= 8 ? 4 : ($horseCount <= 13 ? 5 : 6);
+
                 $oddsStrings = [];
                 foreach ($oddsRows as $oddsRow) {
                     $oddsStrings[] = strtr($oddsTemplate, [
@@ -239,56 +245,37 @@ ORDER BY date, kaisuu, basho, day, race;
                     "以下のレースについて、オッズ推移の分析と振り返りを行ってください。",
                     "",
                     "【このタスクの目的】",
-                    "予測を当てることではなく、「なぜ間違えたのか」を深く考えることが目的です。",
-                    "この分析は、今後のAI競馬予測の精度向上のための「思考の是正」として活用されます。",
-                    "予測が当たった場合も、たまたまか根拠があったかを区別してください。",
+                    "目的は結果を当てることではなく、「なぜ間違えたのか」を深く考えることです。",
+                    "この分析は、今後のAI競馬予測の精度向上に向けた、馬の選出プロセスの改善に活用されます。",
+                    "予測が当たった場合も、偶然か根拠に基づくものかを区別してください。",
                     "",
                     "【手順】",
-                    "1. 【単勝オッズ推移データ】のみを見て、1〜3着を予測してください。",
-                    "2. 【実際のレース着順】を確認し、予測と照合してください。",
-                    "3. 外れた馬については、なぜオッズ推移から正しく予測できなかったかを詳しく分析してください。",
+                    "1. 【単勝オッズ推移データ】のみを見て、有力馬を{$pickupCount}頭ピックアップしてください。",
+                    "2. 【実際のレース着順】を確認し、{$pickupCount}頭の選出馬の中に、1着から3着が何頭含まれているか照合してください。",
+                    "3. 3頭が含まれていない場合は、なぜオッズ推移から有力馬を正しく見極められなかったのか、詳しく分析してください。",
                     "",
                     "【出力フォーマット（厳守）】",
                     "このフォーマットは画面表示アプリがそのままパースします。",
-                    "見出し（## 予想 / ## 結果 / ## 分析）は一切変更しないでください。",
+                    "見出し（## ピックアップ / ## 結果 / ## 分析）は一切変更しないでください。",
                     "前置き・後書き・補足コメントは不要です。フォーマット通りに出力してください。",
                     "",
                     "─────────────────────────────",
-                    "## 予想",
-                    "1着: ○番 馬名",
-                    "2着: ○番 馬名",
-                    "3着: ○番 馬名",
+                    "## ピックアップ",
+                    "○番 馬名",
                     "",
                     "## 結果",
-                    "1着: ○番（的中/不的中）",
-                    "2着: ○番（的中/不的中）",
-                    "3着: ○番（不的中）",
+                    "{$pickupCount}頭中Y頭が合致",
                     "",
                     "## 分析",
                     "分析テキスト（4〜5行の文章。箇条書き不要）",
                     "─────────────────────────────",
-                    "",
-                    "【## 結果 の書き方（最重要）】",
-                    "## 結果 の「○番」には、【実際のレース着順】の馬番をそのまま転記してください。",
-                    "「予想した馬番」ではありません。「実際に走って着順がついた馬番」です。",
-                    "的中 = その着順の実際の馬番が、## 予想 で予測した同じ着順の馬番と一致する",
-                    "不的中 = 一致しない",
-                    "",
-                    "【記入例】",
-                    "  予想: 1着=10番、2着=1番、3着=9番",
-                    "  実際: 1着=4番、2着=1番、3着=11番",
-                    "  → 正しい ## 結果 の記載:",
-                    "    1着: 4番（不的中）   ← 実際の1着は4番。予想は10番なので不一致",
-                    "    2着: 1番（的中）     ← 実際の2着は1番。予想も1番なので一致",
-                    "    3着: 11番（不的中）  ← 実際の3着は11番。予想は9番なので不一致",
                     "",
                 ];
 
                 if ($hasPickup) {
                     $msgs[] = "【ピックアップ馬について】";
                     $msgs[] = "別工程のAI分析でピックアップ馬が選出されています。";
-                    $msgs[] = "「## 予想」はオッズ推移での予測ではなく、このピックアップ馬番を使用してください。";
-                    $msgs[] = "「## 結果」は通常通り、【実際のレース着順】の馬番を記載し、ピックアップ馬番と照合して的中/不的中を判定してください。";
+                    $msgs[] = "ピックアップ馬がある場合は、新たに選出せず、以下の馬番をそのまま使用してください。";
                     $msgs[] = "ピックアップ馬番: " . implode(", ", $pickupHorses[$raceKey]);
                     $msgs[] = "";
                 }
@@ -296,14 +283,12 @@ ORDER BY date, kaisuu, basho, day, race;
                 $msgs[] = "【単勝オッズ推移データ】";
                 $msgs[] = $oddsInfoStr;
                 $msgs[] = "";
-                $msgs[] = "【実際のレース着順】（## 結果 にはこの馬番を転記すること）";
-                $msgs[] = "1着: {$actualResult1}番";
-                $msgs[] = "2着: {$actualResult2}番";
-                $msgs[] = "3着: {$actualResult3}番";
+                $msgs[] = "【実際の入賞馬】";
+                $msgs[] = "{$actualResult1}番、{$actualResult2}番、{$actualResult3}番";
 
                 if ($brain !== '') {
                     $msgs[] = '';
-                    $msgs[] = 'あなたの馬眼力ブレインに蓄積された知識と判断基準を最大限に発揮して、今日もベストな予想を頼みます！全力でお願いします！！';
+                    $msgs[] = 'あなたの馬眼力ブレインに蓄積された知識と判断基準を最大限に発揮して、今日もベストな分析を頼みます！全力でお願いします！！';
                 }
 
                 $prompt = implode("\n", $msgs);
@@ -593,30 +578,34 @@ ORDER BY date, kaisuu, basho, day, race;
      * APIレスポンスの ## 結果 セクションが正しいかを検証する。
      *
      * 正しい条件:
-     *   - ## 予想 / ## 結果 / ## 分析 の3セクションが存在する
-     *   - ## 結果 の各着順に「実際の着順の馬番」が記載されている
-     *   - 的中/不的中ラベルが予想馬番との比較結果と一致している
+     *   - ## ピックアップ / ## 結果 / ## 分析 の3セクションが存在する
+     *   - ## ピックアップ に馬番が1頭以上記載されている
+     *   - ## 結果 が「X頭中Y頭が合致」形式で、合致数が実際の入賞馬と一致している
      */
     private function validateIntrospection(
         string $introspection,
         string $r1, string $r2, string $r3
     ): bool {
         // 3セクション必須チェック
-        if (!str_contains($introspection, '## 予想')) return false;
+        if (!str_contains($introspection, '## ピックアップ')) return false;
         if (!str_contains($introspection, '## 結果')) return false;
         if (!str_contains($introspection, '## 分析')) return false;
 
-        // ## 予想 から予測馬番を取得
-        $yosoPart = explode('## 予想', $introspection, 2)[1] ?? '';
-        if (str_contains($yosoPart, '## 結果')) {
-            $yosoPart = explode('## 結果', $yosoPart, 2)[0];
+        // ## ピックアップ から馬番を取得
+        $pickupPart = explode('## ピックアップ', $introspection, 2)[1] ?? '';
+        if (str_contains($pickupPart, '## 結果')) {
+            $pickupPart = explode('## 結果', $pickupPart, 2)[0];
         }
-        $predictedNums = [];
-        foreach ([1, 2, 3] as $pos) {
-            if (preg_match("/{$pos}着:\s*(\d+)番/u", $yosoPart, $m)) {
-                $predictedNums[$pos] = $m[1];
-            }
-        }
+        preg_match_all('/(\d+)番/u', $pickupPart, $matches);
+        $pickupNums = $matches[1] ?? [];
+
+        if (empty($pickupNums)) return false;
+
+        $pickupCount = count($pickupNums);
+
+        // 実際の入賞馬と照合して正しい合致数を算出
+        $actualNums = array_filter([$r1, $r2, $r3], fn($n) => $n !== '?');
+        $matchCount = count(array_intersect($pickupNums, array_values($actualNums)));
 
         // ## 結果 セクション抽出
         $resultPart = explode('## 結果', $introspection, 2)[1] ?? '';
@@ -624,33 +613,20 @@ ORDER BY date, kaisuu, basho, day, race;
             $resultPart = explode('## 分析', $resultPart, 2)[0];
         }
 
-        // 実際の着順馬番と的中ラベルを検証
-        $actualResults = [1 => $r1, 2 => $r2, 3 => $r3];
-        foreach ($actualResults as $pos => $actualNum) {
-            if ($actualNum === '?') continue; // 着順データなしはスキップ
-
-            // 実際の馬番がその着順に記載されているか
-            if (!preg_match("/{$pos}着:\s*{$actualNum}番/u", $resultPart)) {
-                return false;
-            }
-
-            // 的中/不的中ラベルが正しいか
-            $predicted = $predictedNums[$pos] ?? null;
-            if ($predicted !== null) {
-                $isHit         = ($predicted === $actualNum);
-                $expectedLabel = $isHit ? '（的中）' : '（不的中）';
-                if (!preg_match("/{$pos}着:\s*{$actualNum}番{$expectedLabel}/u", $resultPart)) {
-                    return false;
-                }
-            }
+        // 「X頭中Y頭が合致」形式かつ数値が正しいかチェック
+        if (!preg_match('/(\d+)頭中(\d+)頭が合致/u', $resultPart, $m)) {
+            return false;
+        }
+        if ((int)$m[1] !== $pickupCount || (int)$m[2] !== $matchCount) {
+            return false;
         }
 
         return true;
     }
 
     /**
-     * ## 結果 セクションを実際の着順データで強制的に正しい内容に書き換える。
-     * ## 予想 の馬番と実際の着順を比較して的中/不的中を正確に判定する。
+     * ## 結果 セクションを正しい合致数で強制的に書き換える。
+     * ## ピックアップ の馬番と実際の入賞馬を比較して合致数を再計算する。
      *
      * @return string|null 補正後テキスト。セクション構造が壊れていて補正不能な場合は null
      */
@@ -658,40 +634,28 @@ ORDER BY date, kaisuu, basho, day, race;
         string $introspection,
         string $r1, string $r2, string $r3
     ): ?string {
-        if (!str_contains($introspection, '## 予想')
+        if (!str_contains($introspection, '## ピックアップ')
             || !str_contains($introspection, '## 結果')
             || !str_contains($introspection, '## 分析')) {
             return null;
         }
 
-        // ## 予想 から予測馬番を取得
-        $yosoPart = explode('## 予想', $introspection, 2)[1] ?? '';
-        if (str_contains($yosoPart, '## 結果')) {
-            $yosoPart = explode('## 結果', $yosoPart, 2)[0];
+        // ## ピックアップ から馬番を取得
+        $pickupPart = explode('## ピックアップ', $introspection, 2)[1] ?? '';
+        if (str_contains($pickupPart, '## 結果')) {
+            $pickupPart = explode('## 結果', $pickupPart, 2)[0];
         }
-        $predictedNums = [];
-        foreach ([1, 2, 3] as $pos) {
-            if (preg_match("/{$pos}着:\s*(\d+)番/u", $yosoPart, $m)) {
-                $predictedNums[$pos] = $m[1];
-            }
-        }
+        preg_match_all('/(\d+)番/u', $pickupPart, $matches);
+        $pickupNums = $matches[1] ?? [];
+
+        if (empty($pickupNums)) return null;
+
+        $pickupCount = count($pickupNums);
+        $actualNums  = array_filter([$r1, $r2, $r3], fn($n) => $n !== '?');
+        $matchCount  = count(array_intersect($pickupNums, array_values($actualNums)));
 
         // ## 結果 を正しい内容で構築
-        $actualResults = [1 => $r1, 2 => $r2, 3 => $r3];
-        $resultLines   = [];
-        foreach ([1, 2, 3] as $pos) {
-            $actualNum = $actualResults[$pos];
-            if ($actualNum === '?') {
-                $resultLines[] = "{$pos}着: ?番（判定不能）";
-                continue;
-            }
-            $predicted     = $predictedNums[$pos] ?? null;
-            $isHit         = ($predicted !== null && $predicted === $actualNum);
-            $label         = $isHit ? '（的中）' : '（不的中）';
-            $resultLines[] = "{$pos}着: {$actualNum}番{$label}";
-        }
-
-        $correctedResultSection = implode("\n", $resultLines);
+        $correctedResultSection = "{$pickupCount}頭中{$matchCount}頭が合致";
 
         // ## 結果 ～ ## 分析 の間を新しい内容で置き換え
         $before      = explode('## 結果', $introspection, 2)[0];

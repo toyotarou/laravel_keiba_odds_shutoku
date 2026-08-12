@@ -56,7 +56,15 @@ class SummaryPopularityRankAverage extends Command
         $lockFile = sys_get_temp_dir() . '/keiba_summaryPopularityRankAverage.lock';
         if (file_exists($lockFile)) {
             $pid = (int) file_get_contents($lockFile);
-            if ($pid > 0 && posix_kill($pid, 0)) {
+            $isRunning = $pid > 0 && (
+
+                (function_exists('posix_kill') && posix_kill($pid, 0))
+
+                || file_exists("/proc/{$pid}")
+
+            );
+
+            if ($isRunning) {
                 $this->warn('別のプロセスが実行中のため終了します: ' . $lockFile);
                 return;
             }

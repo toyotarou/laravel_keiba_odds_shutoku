@@ -1,0 +1,724 @@
+CREATE TABLE `t_horse_odds_finder_ai_analysis` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` date DEFAULT NULL,
+  `kaisuu` int DEFAULT NULL,
+  `basho` text,
+  `basho_code` char(2) DEFAULT NULL,
+  `day` int DEFAULT NULL,
+  `race` int DEFAULT NULL,
+  `race_name` text,
+  `analysis_text` text,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ai_analysis` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=71 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_ai_analysis_check` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` date DEFAULT NULL,
+  `kaisuu` int DEFAULT NULL,
+  `basho` text,
+  `basho_code` char(2) DEFAULT NULL,
+  `day` int DEFAULT NULL,
+  `race` int DEFAULT NULL,
+  `race_name` text,
+  `pickup_horse1` text,
+  `pickup_horse2` text,
+  `pickup_horse3` text,
+  `finishing_horse1` text,
+  `finishing_horse2` text,
+  `finishing_horse3` text,
+  `hit_count` int DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ai_analysis` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=163 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_fcm_tokens` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(255) NOT NULL,
+  `fcm_token` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `fcm_token` (`fcm_token`),
+  KEY `user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_forecast_from_last_race` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `basho_name` text,
+  `day` text,
+  `race` text,
+  `forecast_nums` text,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=64 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_horse_scores` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` text,
+  `count` int DEFAULT NULL,
+  `score` int DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2317 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_horses` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `basho_name` text,
+  `day` text,
+  `race` int DEFAULT NULL,
+  `waku` int DEFAULT NULL,
+  `num` int DEFAULT NULL,
+  `name` text,
+  `horse_url` text,
+  `jockey` text,
+  `trainer` text,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=928 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_jockey_scores` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` text,
+  `count` int DEFAULT NULL,
+  `score` int DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=115 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_line_users` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `line_users_user_id_unique` (`user_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_login_users` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(255) DEFAULT NULL,
+  `password` varchar(255) DEFAULT NULL,
+  `is_delete` int DEFAULT '0',
+  `email` text,
+  `is_verified` int DEFAULT NULL,
+  `verify_token` text,
+  `token_expires_at` datetime DEFAULT NULL,
+  `is_admin` int DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_id` (`user_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_netkeiba_odds` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `day` text,
+  `race` int DEFAULT NULL,
+  `num` int DEFAULT NULL,
+  `odds` text,
+  `fuku_min` text,
+  `fuku_max` text,
+  `minutes_before_start` int DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_netkeiba_races` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `basho_name` text,
+  `day` text,
+  `race_id` text,
+  `race` int DEFAULT NULL,
+  `race_name` text,
+  `start_time` text,
+  `num_horses` int DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_odds` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `day` text,
+  `race` int DEFAULT NULL,
+  `num` int DEFAULT NULL,
+  `odds` text,
+  `fuku_min` text,
+  `fuku_max` text,
+  `minutes_before_start` int DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=8125 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_odds_get_timing` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `day` text,
+  `race` int DEFAULT NULL,
+  `timing` int DEFAULT NULL,
+  `get_datetime` text,
+  `odds_from` text,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=630 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_odds_wide` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `day` text,
+  `race` int DEFAULT NULL,
+  `uma1` int DEFAULT NULL,
+  `uma2` int DEFAULT NULL,
+  `odds_min` text,
+  `odds_max` text,
+  `minutes_before_start` int DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_popularity_horse_check` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `day` text,
+  `race` int DEFAULT NULL,
+  `popularity_horse1` text,
+  `popularity_horse2` text,
+  `popularity_horse3` text,
+  `popularity_horse4` text,
+  `popularity_horse5` text,
+  `popularity_horse6` text,
+  `finishing_horse1` text,
+  `finishing_horse2` text,
+  `finishing_horse3` text,
+  `hit_count` int DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=184 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_popularity_rank_average` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `popularity_rank` int DEFAULT NULL,
+  `odds_average` text,
+  `count` int DEFAULT NULL,
+  `start_date` text,
+  `end_date` text,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_popularity_rank_median` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `basho_name` text,
+  `day` text,
+  `race` int DEFAULT NULL,
+  `race_name` text,
+  `median_01` text,
+  `median_02` text,
+  `median_03` text,
+  `median_04` text,
+  `median_05` text,
+  `median_06` text,
+  `median_07` text,
+  `median_08` text,
+  `median_09` text,
+  `median_10` text,
+  `median_11` text,
+  `median_12` text,
+  `median_13` text,
+  `median_14` text,
+  `median_15` text,
+  `median_16` text,
+  `median_17` text,
+  `median_18` text,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=61 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_push_send_logs` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `body` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `url` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `sent_count` int NOT NULL DEFAULT '0',
+  `sent_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_sent_at` (`sent_at`)
+) ENGINE=InnoDB AUTO_INCREMENT=238 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_push_subscriptions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(255) NOT NULL,
+  `endpoint` text NOT NULL,
+  `p256dh` varchar(512) NOT NULL,
+  `auth` varchar(255) NOT NULL,
+  `is_delete` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_endpoint` (`endpoint`(512))
+) ENGINE=InnoDB AUTO_INCREMENT=180 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_race_introspection` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` int DEFAULT NULL,
+  `basho` text,
+  `basho_code` char(2) DEFAULT NULL,
+  `day` int DEFAULT NULL,
+  `race` int DEFAULT NULL,
+  `race_name` text,
+  `introspection` text,
+  `finish` int DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=552 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_race_result_history` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` date DEFAULT NULL,
+  `kaisuu` int DEFAULT NULL,
+  `basho` text,
+  `basho_code` char(2) DEFAULT NULL,
+  `day` int DEFAULT NULL,
+  `race` int DEFAULT NULL,
+  `race_name` text,
+  `num` int DEFAULT NULL,
+  `name` text,
+  `tan` text,
+  `fuku_min` text,
+  `fuku_max` text,
+  `popularity_rank` int DEFAULT NULL,
+  `finishing_position` int DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_race_horse` (`date`,`kaisuu`,`basho_code`,`day`,`race`,`num`),
+  KEY `idx_pop_date` (`popularity_rank`,`date`)
+) ENGINE=InnoDB AUTO_INCREMENT=197119 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_race_result_payout` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` date DEFAULT NULL,
+  `kaisuu` int DEFAULT NULL,
+  `basho` text,
+  `basho_code` char(2) DEFAULT NULL,
+  `day` int DEFAULT NULL,
+  `race` int DEFAULT NULL,
+  `race_name` text,
+  `course` text,
+  `dist` int DEFAULT NULL,
+  `inner_outer` text,
+  `tan` text,
+  `fuku` text,
+  `waku` text,
+  `wide` text,
+  `umaren` text,
+  `umatan` text,
+  `trio` text,
+  `trifecta` text,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_race_payout` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=12222 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_race_results` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `basho_name` text,
+  `day` text,
+  `race` int DEFAULT NULL,
+  `race_name` text,
+  `num` int DEFAULT NULL,
+  `horse_name` text,
+  `result` int DEFAULT NULL,
+  `notified_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=915 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_races` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `basho_name` text,
+  `day` text,
+  `race` int DEFAULT NULL,
+  `race_name` text,
+  `course` text,
+  `dist` int DEFAULT NULL,
+  `inner_outer` text,
+  `start_time` text,
+  `num_horses` int DEFAULT NULL,
+  `popularity_ratio` text,
+  `popularity_ratio_table_ids` text,
+  `popularity_ratio_match_percent` text,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=73 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_races_popularity_ratio` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `basho_name` text,
+  `day` text,
+  `race` int DEFAULT NULL,
+  `race_name` text,
+  `num_horses` int DEFAULT NULL,
+  `popularity_ratio` text,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=12328 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_schedules` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` text,
+  `kaisuu` text,
+  `basho` text,
+  `basho_name` text,
+  `day` int DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_shutsuba_history` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) DEFAULT NULL,
+  `date` date DEFAULT NULL,
+  `basho` text,
+  `basho_code` char(2) DEFAULT NULL,
+  `race` int DEFAULT NULL,
+  `race_name` varchar(100) DEFAULT NULL,
+  `grade` varchar(20) DEFAULT NULL,
+  `finishing_position` int DEFAULT NULL,
+  `num_horses` int DEFAULT NULL,
+  `gate` int DEFAULT NULL,
+  `popularity` int DEFAULT NULL,
+  `jockey` varchar(50) DEFAULT NULL,
+  `burden_weight` varchar(10) DEFAULT NULL,
+  `dist` varchar(20) DEFAULT NULL,
+  `time` varchar(20) DEFAULT NULL,
+  `condition` varchar(20) DEFAULT NULL,
+  `horse_weight` varchar(10) DEFAULT NULL,
+  `corner_1` int DEFAULT NULL,
+  `corner_2` int DEFAULT NULL,
+  `corner_3` int DEFAULT NULL,
+  `corner_4` int DEFAULT NULL,
+  `last_3f` varchar(20) DEFAULT NULL,
+  `fin_horse` varchar(50) DEFAULT NULL,
+  `fin_time_diff` varchar(10) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_shutsuba_history` (`name`,`date`,`basho_code`),
+  KEY `idx_shutsuba_history_name` (`name`),
+  KEY `idx_shutsuba_history_date` (`date`,`basho_code`)
+) ENGINE=InnoDB AUTO_INCREMENT=10943 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_summary` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `horse_name` varchar(100) DEFAULT NULL,
+  `date` varchar(10) DEFAULT NULL,
+  `kaisuu` varchar(10) DEFAULT NULL,
+  `basho` varchar(10) DEFAULT NULL,
+  `basho_name` varchar(20) DEFAULT NULL,
+  `day` varchar(10) DEFAULT NULL,
+  `race` int DEFAULT NULL,
+  `race_name` varchar(200) DEFAULT NULL,
+  `waku` int DEFAULT NULL,
+  `num` int DEFAULT NULL,
+  `odds_tan_before_24` varchar(20) DEFAULT NULL,
+  `odds_tan_before_21` varchar(20) DEFAULT NULL,
+  `odds_tan_before_18` varchar(20) DEFAULT NULL,
+  `odds_tan_before_15` varchar(20) DEFAULT NULL,
+  `odds_tan_before_12` varchar(20) DEFAULT NULL,
+  `odds_tan_before_9` varchar(20) DEFAULT NULL,
+  `odds_tan_before_6` varchar(20) DEFAULT NULL,
+  `odds_tan_before_3` varchar(20) DEFAULT NULL,
+  `odds_tan_before_0` varchar(20) DEFAULT NULL,
+  `result` int DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_race_search` (`date`,`kaisuu`,`basho`,`day`,`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=8260 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+
+
+

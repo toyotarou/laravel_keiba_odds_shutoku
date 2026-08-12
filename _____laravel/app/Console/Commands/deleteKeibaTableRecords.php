@@ -120,6 +120,10 @@ class DeleteKeibaTableRecords extends Command
             '/var/www/horse_odds_finder/storage/logs/summaryPopularityRankMedian.log',
             '/var/www/horse_odds_finder/storage/logs/SummaryCalculateHorseScore.log',
             '/var/www/horse_odds_finder/storage/logs/SummaryCalculateJockeyScore.log',
+            '/var/www/horse_odds_finder/storage/logs/SummaryRacesIntrospection.log',
+            '/var/www/horse_odds_finder/storage/logs/summaryForecastFromLastRace.log',
+
+            '/var/www/horse_odds_finder/storage/logs/makeBaganrikiBrain.log',
 
             '/var/www/horse_odds_finder/scripts/keibaOddsGetJraRaceResult.log',
             '/var/www/horse_odds_finder/scripts/keibaOddsGetSchedule.log',
@@ -151,6 +155,13 @@ class DeleteKeibaTableRecords extends Command
             $this->info("{$forecastFile} を削除しました。");
         }
         $this->info('forecast_from_last_race/*.txt の削除完了（' . count($forecastFiles) . '件）');
+        
+        $raceIntrospectionFiles = glob('/var/www/horse_odds_finder/public/race_introspection/*.txt') ?: [];
+        foreach ($raceIntrospectionFiles as $raceIntrospectionFile) {
+            unlink($raceIntrospectionFile);
+            $this->info("{$raceIntrospectionFile} を削除しました。");
+        }
+        $this->info('race_introspection/*.txt の削除完了（' . count($raceIntrospectionFiles) . '件）');
         
         // ─────────────────────────────────────────────────────────────────
         // 【ブロック 3】WebPush 通知

@@ -2419,15 +2419,15 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
     $gapHorseNums   = $request->query('gapHorseNums');
     $upsetPickupHorseNums   = $request->query('upsetPickupHorseNums');
 
-    // ─── 注目馬の抽出ロジック ─────────────────────────────────────────
-    // AIにプロンプトで "PICKUP:馬番|馬名/..." 形式の最終行を出力させているので、
-    // その行だけを抜き出す。形式が固定されているため自由文のパースより確実。
-    $parsePickupHorses = function (string $text): string {
-        if (preg_match('/^PICKUP:(.+)$/mu', $text, $m)) {
-            return trim($m[1]);
-        }
-        return '';
-    };
+// // ─── 注目馬の抽出ロジック ─────────────────────────────────────────
+// // AIにプロンプトで "PICKUP:馬番|馬名/..." 形式の最終行を出力させているので、
+// // その行だけを抜き出す。形式が固定されているため自由文のパースより確実。
+// $parsePickupHorses = function (string $text): string {
+//     if (preg_match('/^PICKUP:(.+)$/mu', $text, $m)) {
+//         return trim($m[1]);
+//     }
+//     return '';
+// };
 
     // ─── キャッシュ確認 ───────────────────────────────────────────────
     // 同一レースの分析がすでに保存済みであればDBから即返す。
@@ -2441,15 +2441,21 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
         ->first();
 
     if ($cached) {
-        // DBの analysis_text には PICKUP: 行が含まれているので、レスポンスでは除去して返す
+
+// DBの analysis_text には PICKUP: 行が含まれているので、レスポンスでは除去して返す
+
         return response()->json(['data' => [
             'date'          => $date,
             'kaisuu'        => $kaisuu,
             'basho_code'    => $basho,
             'day'           => $day,
             'race'          => $race,
-            'analysis_text' => trim(preg_replace('/^PICKUP:.+$/mu', '', $cached->analysis_text)),
-            'pickup_horse'  => $parsePickupHorses($cached->analysis_text),
+
+// 'analysis_text' => trim(preg_replace('/^PICKUP:.+$/mu', '', $cached->analysis_text)),
+// 'pickup_horse'  => $parsePickupHorses($cached->analysis_text),
+
+'analysis_text' => trim($cached->analysis_text),
+
         ]]);
     }
 
@@ -2478,8 +2484,12 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
                 'basho_code'    => $basho,
                 'day'           => $day,
                 'race'          => $race,
-                'analysis_text' => trim(preg_replace('/^PICKUP:.+$/mu', '', $cached->analysis_text)),
-                'pickup_horse'  => $parsePickupHorses($cached->analysis_text),
+
+                // 'analysis_text' => trim(preg_replace('/^PICKUP:.+$/mu', '', $cached->analysis_text)),
+                // 'pickup_horse'  => $parsePickupHorses($cached->analysis_text),
+
+'analysis_text' => trim($cached->analysis_text),
+
             ]]);
         }
 
@@ -2539,8 +2549,10 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
 
         $rawText = $this->anthropic->extractText($aiResponse);
 
-        $pickupHorse  = $parsePickupHorses($rawText);
-        $analysisText = trim(preg_replace('/^PICKUP:.+$/mu', '', $rawText));
+// $pickupHorse  = $parsePickupHorses($rawText);
+// $analysisText = trim(preg_replace('/^PICKUP:.+$/mu', '', $rawText));
+
+$analysisText = trim($rawText);
 
         // ─── 分析結果をDBに保存（次回以降はキャッシュから返す） ──────────
         DB::table('t_horse_odds_finder_ai_analysis')->insertOrIgnore([
@@ -2561,7 +2573,9 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
             'day'           => $day,
             'race'          => $race,
             'analysis_text' => $analysisText,
-            'pickup_horse'  => $pickupHorse,
+
+// 'pickup_horse'  => $pickupHorse,
+
         ]]);
 
     } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
@@ -2704,11 +2718,16 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     $displayHorses = $promptHorses;
     usort($displayHorses, fn($a, $b) => $a['num'] <=> $b['num']);
 
+    // 頭立て数からピックアップ頭数を決定
+    $horseCount  = count($displayHorses);
+    $pickupCount = $horseCount <= 8 ? 4 : ($horseCount <= 13 ? 5 : 6);
+
     $lines = [];
     foreach ($displayHorses as $h) {
         $lines[] = sprintf(
-            '%2d番 %-12s  単勝: %5.1f倍→%5.1f倍(%s)  複勝: %4.1f-%4.1f倍(%s)  単複比: %s',
+            '%2d番(%2d人気) %-12s  単勝: %5.1f倍→%5.1f倍(%s)  複勝: %4.1f-%4.1f倍(%s)  単複比: %s',
             $h['num'],
+            $h['popularity'],
             $h['name'],
             $h['odds_base'],
             $h['odds_6'],
@@ -2720,26 +2739,6 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         );
     }
     $table = implode("\n", $lines);
-
-    // ─── コース・距離別の過去統計をプロンプトに追加 ──────────────────
-    // _calcCourseDistStats() を再利用して二重実装を避ける
-    $courseDistText = '';
-    $stats = $this->_calcCourseDistStats($race->course, (int) $race->dist);
-
-    if ($stats !== null && !empty($stats['tan_ranking']) && !empty($stats['fuku_ranking'])) {
-        $tanStr  = collect($stats['tan_ranking'])
-            ->map(fn($v) => $v['popularity_rank'] . '番人気(' . $v['tan_recovery_rate'] . '%)')
-            ->implode(' > ');
-        $fukuStr = collect($stats['fuku_ranking'])
-            ->map(fn($v) => $v['popularity_rank'] . '番人気(' . $v['fuku_recovery_rate'] . '%)')
-            ->implode(' > ');
-
-        $courseDistText = "\n"
-            . '【' . $race->course . $race->dist . 'm の過去' . $stats['race_count'] . 'レース統計】' . "\n"
-            . '単勝回収率が高い人気順位：' . $tanStr . "\n"
-            . '複勝回収率が高い人気順位：' . $fukuStr . "\n"
-            . 'この傾向を踏まえて、今日の出走馬の人気順位と照らし合わせて予想してください。' . "\n";
-    }
 
     // ─── 過去のレース情報から絞り込んだ馬番（forecast_nums）の取得 ──
     $forecastNums = DB::table('t_horse_odds_finder_forecast_from_last_race')
@@ -2756,57 +2755,6 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     $raceNum   = $race->race . 'R';
     $raceName  = $race->race_name ?? '';
 
-    // ↓ 旧: 文字列連結版（コメントアウト）
-    // return 'あなたは競馬オッズ分析の専門家です。' . "\n"
-    //     . '有料公開するものなので、正しい日本語で返してください。' . "\n\n"
-    //     . 'レース情報' . "\n"
-    //     . '日付: ' . $targetDate . "\n"
-    //     . '開催: ' . $raceLabel . "\n"
-    //     . 'レース: ' . $raceNum . ' ' . $raceName . "\n\n"
-    //     . '単勝・複勝オッズデータ（計測開始前から発走6分前）' . "\n"
-    //     . $table . "\n\n"
-    //     . $courseDistText
-    //     . "\n\n"
-    //     . ((!empty($gapHorseNums) || !empty($upsetPickupHorseNums) || !empty($forecastNums))
-    //         ? ('なお、オッズ分析にあたり、下記の注目馬番も参考にしてください。' . "\n"
-    //             . (!empty($upsetPickupHorseNums) ? '特に、②の期待数値の馬番はかなり結果を出せているので、重点的に注視してください。' . "\n" : '')
-    //             . "\n"
-    //             . '①　オッズ間断層の調査から絞り込んだ馬番「' . $gapHorseNums . '」（1|2|...のようにパイプで区切られている）' . "\n"
-    //             . 'オッズ間断層とは、隣り合う人気順間のオッズの比率（次の人気順のオッズ ÷ この人気順のオッズ）です。' . "\n"
-    //             . '比率が2以上の場合、「断層が発生している」と判断し、断層上の馬に注目しています。' . "\n\n"
-    //             . (!empty($upsetPickupHorseNums)
-    //                 ? ('②　期待数値の調査から絞り込んだ馬番「' . $upsetPickupHorseNums . '」（1|2|...のようにパイプで区切られている）' . "\n"
-    //                     . '期待数値とは、過去の類似レースにおける人気順別の中央値オッズを、今回のレースの同人気順のオッズで割った値です。' . "\n\n")
-    //                 : '')
-    //             . (!empty($forecastNums)
-    //                 ? ('③　過去のレース情報から絞り込んだ馬番「' . $forecastNums . '」（1|2|...のようにパイプで区切られている）' . "\n"
-    //                     . '過去の出走情報をAIに渡して、レースの頭数に応じて馬番を絞り込んだ値です（8頭以下は4頭、13頭以下は5頭、14頭以上は6頭に絞り込み）。' . "\n\n")
-    //                 : ''))
-    //         : '')
-    //     . '分析依頼' . "\n"
-    //     . 'オッズ推移から以下を教えてください。' . "\n"
-    //     . '1. 勝つ確率が高そうな馬（最大3頭）と理由' . "\n"
-    //     . '2. 積極的に消してよい馬と理由' . "\n"
-    //     . '3. 複勝・ワイドで狙える馬（単複比・複勝変動に注目）' . "\n"
-    //     . '4. 中穴の単勝1点勝負をするとしたら、どの馬を選ぶか' . "\n"
-    //     . '5. 人気馬＋穴馬のワイド1点勝負をする場合に選ぶとしたら、どの組み合わせを選ぶか' . "\n"
-    //     . '6. このレースに1000円使うとしたら、どういう馬券を購入するか' . "\n"
-    //     . '7. このレースの総評（混戦か本命か、買い方の方向性）' . "\n"
-    //     . '※1000円分の馬券購入の件は、当たり前ですが、馬券は100円単位です。' . "\n"
-    //     . "\n"
-    //     . '分析の観点：' . "\n"
-    //     . '・単勝オッズ下落10%以上は人気急上昇として注目' . "\n"
-    //     . '・単複比が高い馬＝勝ちにくいが3着以内には絡みやすい' . "\n"
-    //     . '・複勝の最小・最大の幅が広い馬＝市場の評価が割れている不安定な馬' . "\n"
-    //     . '・複勝の最小・最大の幅が狭い馬＝安定して3着以内が期待されている馬' . "\n"
-    //     . '・複勝オッズが下落している馬は3着以内の信頼度が高い' . "\n"
-    //     . '日本語・箇条書きで簡潔にまとめてください。' . "\n\n"
-    //     . '【必須】回答の最後の行に、必ず以下の形式だけで注目馬を出力してください。' . "\n"
-    //     . '他の文章や説明は一切付けず、この1行だけを最終行にしてください。' . "\n"
-    //     . 'PICKUP:馬番|馬名|おすすめ度/馬番|馬名|おすすめ度/馬番|馬名|おすすめ度' . "\n"
-    //     . '例）PICKUP:3|トーアマリシテン|99/6|モスクロッサー|99/5|フェイトライン|99' . "\n"
-    //     . '※画面表示に影響するので、この形を守ってください。';
-
     $lines = [
         'あなたは競馬オッズ分析の専門家です。',
         '有料公開するものなので、正しい日本語で返してください。',
@@ -2818,8 +2766,6 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '',
         '単勝・複勝オッズデータ（計測開始前から発走6分前）',
         $table,
-        '',
-        $courseDistText,
         '',
     ];
 
@@ -2847,15 +2793,19 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
 
     $lines = array_merge($lines, [
         '分析依頼',
-        'オッズ推移から以下を教えてください。',
-        '1. 勝つ確率が高そうな馬（最大3頭）と理由',
-        '2. 積極的に消してよい馬と理由',
-        '3. 複勝・ワイドで狙える馬（単複比・複勝変動に注目）',
-        '4. 中穴の単勝1点勝負をするとしたら、どの馬を選ぶか',
-        '5. 人気馬＋穴馬のワイド1点勝負をする場合に選ぶとしたら、どの組み合わせを選ぶか',
-        '6. このレースに1000円使うとしたら、どういう馬券を購入するか',
-        '7. このレースの総評（混戦か本命か、買い方の方向性）',
-        '※1000円分の馬券購入の件は、当たり前ですが、馬券は100円単位です。',
+        "オッズ推移から注目馬を{$pickupCount}頭選出してください。",
+        '',
+        '【出力フォーマット（厳守）】',
+        'このフォーマットは画面表示アプリがそのままパースします。',
+        '前置き・後書き・補足コメントは不要です。フォーマット通りに出力してください。',
+        '',
+        '─────────────────────────────',
+        '馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：XXXXXXXXXXXXXXXXXXXXXXXXXXXX（4〜5行の文章。箇条書き不要）',
+        '─────────────────────────────',
+        '',
+        'おすすめ度は100点満点で、オッズ推移・単複比・断層・期待数値などを総合して判断した信頼度を記してください。',
+        'おすすめ度の降順で、レスポンスをソートしてください。',
+        '人気順は上記テーブルの「X人気」欄の値をそのまま出力してください。自分で計算しないでください。',
         '',
         '分析の観点：',
         '・単勝オッズ下落10%以上は人気急上昇として注目',
@@ -2863,12 +2813,8 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '・複勝の最小・最大の幅が広い馬＝市場の評価が割れている不安定な馬',
         '・複勝の最小・最大の幅が狭い馬＝安定して3着以内が期待されている馬',
         '・複勝オッズが下落している馬は3着以内の信頼度が高い',
-        '日本語・箇条書きで簡潔にまとめてください。',
         '',
-        '【必須】回答の最後の行に、必ず以下の形式だけで注目馬を出力してください。',
-        '他の文章や説明は一切付けず、この1行だけを最終行にしてください。',
-        'PICKUP:馬番|馬名|おすすめ度/馬番|馬名|おすすめ度/馬番|馬名|おすすめ度',
-        '例）PICKUP:3|トーアマリシテン|99/6|モスクロッサー|99/5|フェイトライン|99',
+        "選出馬は必ず「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」の形式で{$pickupCount}頭分出力してください。",
         '※画面表示に影響するので、この形を守ってください。',
     ]);
 
