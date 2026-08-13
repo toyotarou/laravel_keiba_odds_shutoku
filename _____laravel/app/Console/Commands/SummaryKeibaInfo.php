@@ -348,6 +348,16 @@ class SummaryKeibaInfo extends Command
         $this->info('========== keiba:summary 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
 
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryKeibaInfo::handle\n投入:{$inserted}、飛:{$skipped}、履歴:{$historyCount}");
+        $newsValue = [];
+        if($inserted == 0){
+            $newsValue[] = "SKIP";
+        }else{
+            $newsValue[] = "投入:{$inserted}、";
+            $newsValue[] = "飛:{$skipped}、";
+            $newsValue[] = "履歴:{$historyCount}";
+        }
+        $news = implode("", $newsValue);
+        
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryKeibaInfo::handle\n{$news}");
     }
 }

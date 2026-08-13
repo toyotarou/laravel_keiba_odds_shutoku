@@ -342,8 +342,19 @@ class ImportKeibaRaceResultPayout extends Command
             $this->info('');
             $this->info('========== keiba:importRaceResultPayout 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
-
-            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaRaceResultPayout::handle\n{$status}\n対象年月:{$yearmonth}、開催:{$totalKaisai}、レース:{$totalSaved}");
+            
+            $newsValue = [];
+            if($totalSaved == 0){
+                $newsValue[] = "SKIP";
+            }else{
+                $newsValue[] = $status;
+                $newsValue[] = "対象年月:{$yearmonth}、";
+                $newsValue[] = "開催:{$totalKaisai}、";
+                $newsValue[] = "レース:{$totalSaved}";
+            }
+            $news = implode("", $newsValue);
+            
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaRaceResultPayout::handle\n{$news}");
         }
     }
 }

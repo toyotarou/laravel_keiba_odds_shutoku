@@ -145,7 +145,7 @@ class SummaryMakeBaganrikiBrain extends Command
 
             if ($totalIntrospections === 0) {
                 $this->info('処理対象なし。スキップします。');
-                $status = '対象レコードなし（スキップ）';
+                $status = 'SKIP';
                 return;
             }
 
@@ -351,10 +351,16 @@ class SummaryMakeBaganrikiBrain extends Command
             $this->info('========== keiba:makeBaganrikiBrain 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
 
-            (new WebPushService())->sendPushNotifierDeveloperNews(
-                'develop',
-                "SummaryMakeBaganrikiBrain::handle\n{$status}\nループ:{$totalLoops}回、失敗:{$totalFailed}回、finish更新:{$totalFinished}件"
-            );
+            $newsValue = [];
+            $newsValue[] = $status;
+            if($status != "SKIP"){
+                $newsValue[] = "ループ:{$totalLoops}回、";
+                $newsValue[] = "失敗:{$totalFailed}回、";
+                $newsValue[] = "finish更新:{$totalFinished}件";
+            }
+            $news = implode("", $newsValue);
+            
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryMakeBaganrikiBrain::handle\n{$news}");
         }
     }
 

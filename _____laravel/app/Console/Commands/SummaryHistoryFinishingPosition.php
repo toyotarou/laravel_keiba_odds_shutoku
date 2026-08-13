@@ -250,6 +250,16 @@ class SummaryHistoryFinishingPosition extends Command
         $this->info('========== keiba:summaryHistoryFinishingPosition 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
 
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryHistoryFinishingPosition::handle\n対象年月:{$yearmonth}、開催:{$totalKaisai}、頭数:{$totalUpdated}");
+        $newsValue = [];
+        if($totalKaisai == 0){
+            $newsValue[] = "SKIP";
+        }else{
+            $newsValue[] = "対象年月:{$yearmonth}、";
+            $newsValue[] = "開催:{$totalKaisai}、";
+            $newsValue[] = "頭数:{$totalUpdated}";
+        }
+        $news = implode("", $newsValue);
+        
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryHistoryFinishingPosition::handle\n{$news}");
     }
 }

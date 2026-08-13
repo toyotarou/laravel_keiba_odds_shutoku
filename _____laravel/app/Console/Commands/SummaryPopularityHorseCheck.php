@@ -83,7 +83,7 @@ class SummaryPopularityHorseCheck extends Command
             $this->info('');
             (new WebPushService())->sendPushNotifierDeveloperNews(
                 'develop',
-                'SummaryPopularityHorseCheck::handle' . "\n" . '処理対象なし（空振り）'
+                'SummaryPopularityHorseCheck::handle' . "\n" . 'SKIP'
             );
             return;
         }
@@ -218,9 +218,16 @@ class SummaryPopularityHorseCheck extends Command
         $this->info("処理時間: {$elapsed} 秒");
         $this->info('');
 
-        (new WebPushService())->sendPushNotifierDeveloperNews(
-            'develop',
-            "SummaryPopularityHorseCheck::handle\n挿入:{$insertedCount}件 スキップ:{$skippedCount}件 time:{$elapsed}"
-        );
+        $newsValue = [];
+        if($insertedCount == 0){
+            $newsValue[] = "SKIP";
+        }else{
+            $newsValue[] = "挿入:{$insertedCount}件、";
+            $newsValue[] = "スキップ:{$skippedCount}件、";
+            $newsValue[] = "time:{$elapsed}";
+        }
+        $news = implode("", $newsValue);
+        
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryPopularityHorseCheck::handle\n{$news}");
     }
 }

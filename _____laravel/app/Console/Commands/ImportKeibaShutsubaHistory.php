@@ -149,7 +149,7 @@ class ImportKeibaShutsubaHistory extends Command
 
             if (empty($kaisaiList)) {
                 $this->warn('対象開催なし（' . $targetDate . ' の出馬表がまだ確定していないか、開催がありません）。');
-                $status = '対象開催なし';
+                $status = 'SKIP';
                 return;
             }
 
@@ -351,11 +351,16 @@ class ImportKeibaShutsubaHistory extends Command
             $this->info('========== keiba:importShutsubaHistory 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
 
-            (new WebPushService())->sendPushNotifierDeveloperNews(
-                'develop',
-                "ImportKeibaShutsubaHistory::handle\n{$status}\n対象日:{$targetDate}、開催:{$totalKaisai}、保存:{$totalSaved}件" .
-                ($failedCount > 0 ? "\n失敗: " . implode(', ', $failedList) : '')
-            );
+            $newsValue = [];
+            $newsValue[] = $status;
+            if($status != 'SKIP'){
+                $newsValue[] = "対象日:{$targetDate}、";
+                $newsValue[] = "開催:{$totalKaisai}、";
+                $newsValue[] = "保存:{$totalSaved}件";
+            }
+            $news = implode("", $newsValue);
+            
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaShutsubaHistory::handle\n{$news}");
         }
     }
 }

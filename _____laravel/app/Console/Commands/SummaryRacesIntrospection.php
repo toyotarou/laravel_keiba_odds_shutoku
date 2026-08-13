@@ -315,7 +315,7 @@ ORDER BY date, kaisuu, basho, day, race;
 
             if (empty($pending)) {
                 $this->info('未処理レースなし。API 送信をスキップします。');
-                $status = '全レース処理済み（スキップ）';
+                $status = 'SKIP';
                 return;
             }
 
@@ -497,10 +497,16 @@ ORDER BY date, kaisuu, basho, day, race;
             $this->info('========== keiba:SummaryRacesIntrospection 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
 
-            (new WebPushService())->sendPushNotifierDeveloperNews(
-                'develop',
-                "SummaryRacesIntrospection::handle\n{$status}\nレース:{$totalRaces}件、成功:{$totalSuccess}件、失敗:{$totalFailed}件"
-            );
+            $newsValue = [];
+            $newsValue[] = $status;
+            if($status != "SKIP"){
+                $newsValue[] = "レース:{$totalRaces}件、";
+                $newsValue[] = "成功:{$totalSuccess}件、";
+                $newsValue[] = "失敗:{$totalFailed}件";
+            }
+            $news = implode("", $newsValue);
+            
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryRacesIntrospection::handle\n{$news}");
         }
     }
 

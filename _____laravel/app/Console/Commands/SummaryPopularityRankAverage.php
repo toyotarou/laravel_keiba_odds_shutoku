@@ -131,7 +131,7 @@ class SummaryPopularityRankAverage extends Command
             $this->info('');
             (new WebPushService())->sendPushNotifierDeveloperNews(
                 'develop',
-                'SummaryPopularityRankAverage::handle' . "\n" . '追加対象なし（空振り）'
+                'SummaryPopularityRankAverage::handle' . "\n" . 'SKIP'
             );
             return;
         }

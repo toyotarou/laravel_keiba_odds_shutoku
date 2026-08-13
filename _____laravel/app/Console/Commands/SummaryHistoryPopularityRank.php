@@ -182,6 +182,16 @@ class SummaryHistoryPopularityRank extends Command
         $this->info("処理時間     : {$elapsed} 秒");
         $this->info('');
 
-        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryHistoryPopularityRank::handle\nR:{$updatedRaces}、H:{$updatedHorses}、time:{$elapsed}");
+        $newsValue = [];
+        if($updatedRaces == 0){
+            $newsValue[] = "SKIP";
+        }else{
+            $newsValue[] = "R:{$updatedRaces}、";
+            $newsValue[] = "H:{$updatedHorses}、";
+            $newsValue[] = "time:{$elapsed}";
+        }
+        $news = implode("", $newsValue);
+        
+        (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryHistoryPopularityRank::handle\n{$news}");
     }
 }

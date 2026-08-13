@@ -87,7 +87,7 @@ class SummaryAiAnalysisCheck extends Command
             $this->info('');
             (new WebPushService())->sendPushNotifierDeveloperNews(
                 'develop',
-                'SummaryAiAnalysisCheck::handle' . "\n" . '処理対象なし（空振り）'
+                'SummaryAiAnalysisCheck::handle' . "\n" . 'SKIP'
             );
             return;
         }

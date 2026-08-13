@@ -133,7 +133,7 @@ class ImportKeibaPayoutInnerOuter extends Command
 
             if ($totalTarget === 0) {
                 $this->info('  → 未設定レコードなし。mjs 実行をスキップします。');
-                $status = '対象レコードなし（スキップ）';
+                $status = 'SKIP';
                 return;
             }
 
@@ -230,10 +230,16 @@ class ImportKeibaPayoutInnerOuter extends Command
             $this->info('========== keiba:importPayoutInnerOuter 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
 
-            (new WebPushService())->sendPushNotifierDeveloperNews(
-                'develop',
-                "ImportKeibaPayoutInnerOuter::handle\n{$status}\n対象年月:{$yearmonth}、対象:{$totalTarget}件、更新:{$totalUpdated}件"
-            );
+            $newsValue = [];
+            $newsValue[] = $status;
+            if($status != 'SKIP'){
+                $newsValue[] = "対象年月:{$yearmonth}、";
+                $newsValue[] = "対象:{$totalTarget}件、";
+                $newsValue[] = "更新:{$totalUpdated}件";
+            }
+            $news = implode("", $newsValue);
+            
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaPayoutInnerOuter::handle\n{$news}");
         }
     }
 }

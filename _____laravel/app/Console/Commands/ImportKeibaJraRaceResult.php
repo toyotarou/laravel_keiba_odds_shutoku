@@ -81,7 +81,7 @@ class ImportKeibaJraRaceResult extends Command
 
             if ($todayRaces->isEmpty()) {
                 $this->warn('本日のレースが存在しません。終了します。');
-                $status = '本日レースなし（スキップ）';
+                $status = 'SKIP';
                 return;
             }
 
@@ -213,8 +213,18 @@ class ImportKeibaJraRaceResult extends Command
             $this->info("終了理由: {$status}");
             $this->info('========== keiba:importJraRaceResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
-
-            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaJraRaceResult::handle\n{$status}\n更新:{$updated}、飛:{$skipped}、results挿入:{$insertedResults}");
+            
+            $newsValue = [];
+            $newsValue[] = $status;
+            if($status != 'SKIP'){
+                $newsValue[] = "更新:{$updated}、";
+                $newsValue[] = "飛:{$skipped}、";
+                $newsValue[] = "results挿入:{$insertedResults}";
+            }
+            $news = implode("", $newsValue);
+            
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaJraRaceResult::handle\n{$news}");
+            
         }
     }
 

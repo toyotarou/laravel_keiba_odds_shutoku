@@ -332,7 +332,18 @@ class ImportKeibaSchedule extends Command
             $this->info('========== keiba:importSchedule 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
 
-            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaSchedule::handle\n{$status}\nS:{$cnt_schedule}、R:{$cnt_race}、H:{$cnt_horse}");
+            $newsValue = [];
+            if($cnt_schedule == 0){
+                $newsValue[] = "SKIP";
+            }else{
+                $newsValue[] = $status;
+                $newsValue[] = "S:{$cnt_schedule}";
+                $newsValue[] = "R:{$cnt_race}、";
+                $newsValue[] = "H:{$cnt_horse}";
+            }
+            $news = implode("", $newsValue);
+            
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaSchedule::handle\n{$news}");
         }
 
         return 0;
