@@ -2789,6 +2789,26 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     }
     $gapTable = implode("\n", $gapTableLines);
 
+    // ─── 厳選穴レース：条件2の計算 ────────────────────────────────
+    // 「6番人気以内の隣接間に断層（比率2.00以上）が2つ以上あるか」
+    // 成立 → false(0) 確定。条件1より優先。
+    // $promptHorses は人気順ソート済みなのでそのまま使う。
+    $gapCountInTop6 = 0;
+    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
+        $upper = $promptHorses[$i];
+        $lower = $promptHorses[$i + 1];
+        if ($upper['popularity'] <= 6 && $upper['odds_6'] > 0) {
+            $ratio = $lower['odds_6'] / $upper['odds_6'];
+            if ($ratio >= 2.0) {
+                $gapCountInTop6++;
+            }
+        }
+    }
+    $condition2Met = $gapCountInTop6 >= 2;
+    $condition2Desc = $condition2Met
+        ? "成立（6番人気以内に断層が{$gapCountInTop6}個あるため 0 確定）"
+        : "不成立（6番人気以内の断層は{$gapCountInTop6}個）";
+
     // ─── 過去のレース情報から絞り込んだ馬番（forecast_nums）の取得 ──
     $forecastNums = DB::table('t_horse_odds_finder_forecast_from_last_race')
         ->where('date',       $targetDate)
@@ -2853,8 +2873,18 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '前置き・後書き・補足コメントは不要です。フォーマット通りに出力してください。',
         '',
         '─────────────────────────────',
+        '厳選穴レース|1または0',
         '馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：XXXXXXXXXXXXXXXXXXXXXXXXXXXX（4〜5行の文章。箇条書き不要）',
         '─────────────────────────────',
+        '',
+        '【厳選穴レースの判定ルール】',
+        '選出が終わったあと、以下のルールで「厳選穴レース|1」または「厳選穴レース|0」を出力の先頭1行目に必ず入れてください。',
+        '・条件A: 選出した馬の中に6〜10番人気の馬が1頭以上いる → 1（おすすめ）',
+        '・条件B: 6番人気以内の隣接間に断層（比率2.00以上）が2つ以上ある → 0に上書き',
+        '・条件AとBが両方成立 → 0',
+        '・条件Aのみ成立 → 1',
+        '・それ以外 → 0',
+        "条件B（PHP算出済み）: {$condition2Desc}",
         '',
         'おすすめ度は100点満点で、オッズ推移・単複比・断層・期待数値などを総合して判断した信頼度を記してください。',
         'おすすめ度の降順で、レスポンスをソートしてください。',
@@ -2867,7 +2897,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '・複勝の最小・最大の幅が狭い馬＝安定して3着以内が期待されている馬',
         '・複勝オッズが下落している馬は3着以内の信頼度が高い',
         '',
-        "選出馬は必ず「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」の形式で{$pickupCount}頭分出力してください。",
+        "選出馬は必ず「厳選穴レース|X」を1行目に、続けて「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」の形式で{$pickupCount}頭分出力してください。",
         '※画面表示に影響するので、この形を守ってください。',
     ]);
 

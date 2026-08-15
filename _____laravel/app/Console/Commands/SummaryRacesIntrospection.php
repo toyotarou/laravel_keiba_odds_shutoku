@@ -156,7 +156,7 @@ ORDER BY date, kaisuu, basho, day, race;
 
             // ★ 結果はオッズ情報と分離し、独立したセクションとして渡す（混同防止）
             $raceInfoTemplate = "日付:DATE___回数:KAISUU___場所名:BASHO_NAME___レース:RACE___レース名:RACE_NAME___オッズ情報:ODDS_INFO";
-            $oddsTemplate     = "馬番:NUM___馬名:NAME___レース開始X分前オッズ:(30)ODDS30|(21)ODDS21|(18)ODDS18|(15)ODDS15|(12)ODDS12|(9)ODDS9|(6)ODDS6";
+            $oddsTemplate     = "馬番:NUM___馬名:NAME___レース開始X分前オッズ:(30)ODDS30|(21)ODDS21|(18)ODDS18|(15)ODDS15|(12)ODDS12|(9)ODDS9|(6)ODDS6___複勝(6分前):FUKU_MIN-FUKU_MAX倍";
 
             $pending = [];
 
@@ -184,24 +184,72 @@ ORDER BY date, kaisuu, basho, day, race;
                     ->where('race',   $race->race)
                     ->get();
 
+                // 複勝オッズ（6分前）を t_horse_odds_finder_odds から取得
+                // ※ summaryテーブルには fuku 列がないため別テーブルから引く
+                $fukuRows = DB::table('t_horse_odds_finder_odds')
+                    ->where('date',                 $race->date)
+                    ->where('kaisuu',               $race->kaisuu)
+                    ->where('basho',                $race->basho)
+                    ->where('day',                  $race->day)
+                    ->where('race',                 $race->race)
+                    ->where('minutes_before_start', 6)
+                    ->get();
+
+                $fukuByNum = [];
+                foreach ($fukuRows as $fukuRow) {
+                    $fukuByNum[(int)$fukuRow->num] = [
+                        'fuku_min' => $fukuRow->fuku_min,
+                        'fuku_max' => $fukuRow->fuku_max,
+                    ];
+                }
+
                 // 頭立て数からピックアップ頭数を決定
                 $horseCount  = $oddsRows->count();
                 $pickupCount = $horseCount <= 8 ? 4 : ($horseCount <= 13 ? 5 : 6);
 
                 $oddsStrings = [];
                 foreach ($oddsRows as $oddsRow) {
+                    $fuku    = $fukuByNum[(int)$oddsRow->num] ?? null;
+                    $fukuMin = ($fuku && $fuku['fuku_min'] !== null && $fuku['fuku_min'] !== '') ? $fuku['fuku_min'] : '-';
+                    $fukuMax = ($fuku && $fuku['fuku_max'] !== null && $fuku['fuku_max'] !== '') ? $fuku['fuku_max'] : '-';
+
                     $oddsStrings[] = strtr($oddsTemplate, [
-                        'NUM'    => $oddsRow->num,
-                        'NAME'   => $oddsRow->horse_name,
-                        'ODDS30' => $oddsRow->odds_tan_before_24,
-                        'ODDS21' => $oddsRow->odds_tan_before_21,
-                        'ODDS18' => $oddsRow->odds_tan_before_18,
-                        'ODDS15' => $oddsRow->odds_tan_before_15,
-                        'ODDS12' => $oddsRow->odds_tan_before_12,
-                        'ODDS9'  => $oddsRow->odds_tan_before_9,
-                        'ODDS6'  => $oddsRow->odds_tan_before_6,
+                        'NUM'      => $oddsRow->num,
+                        'NAME'     => $oddsRow->horse_name,
+                        'ODDS30'   => $oddsRow->odds_tan_before_24,
+                        'ODDS21'   => $oddsRow->odds_tan_before_21,
+                        'ODDS18'   => $oddsRow->odds_tan_before_18,
+                        'ODDS15'   => $oddsRow->odds_tan_before_15,
+                        'ODDS12'   => $oddsRow->odds_tan_before_12,
+                        'ODDS9'    => $oddsRow->odds_tan_before_9,
+                        'ODDS6'    => $oddsRow->odds_tan_before_6,
+                        'FUKU_MIN' => $fukuMin,
+                        'FUKU_MAX' => $fukuMax,
                     ]);
                 }
+
+                // 断層値を計算（6分前オッズ昇順 = 人気順 で並べた隣接馬間の比率）
+                $sortedByOdds = $oddsRows
+                    ->filter(fn($r) => is_numeric($r->odds_tan_before_6) && (float)$r->odds_tan_before_6 > 0)
+                    ->sortBy(fn($r) => (float)$r->odds_tan_before_6)
+                    ->values();
+
+                $gapLines = [];
+                for ($gi = 0; $gi < count($sortedByOdds) - 1; $gi++) {
+                    $upper      = $sortedByOdds[$gi];
+                    $lower      = $sortedByOdds[$gi + 1];
+                    $upperOdds  = (float)$upper->odds_tan_before_6;
+                    $lowerOdds  = (float)$lower->odds_tan_before_6;
+                    $ratio      = round($lowerOdds / $upperOdds, 2);
+                    $flag       = $ratio >= 2.0 ? ' ★断層' : '';
+                    $gapLines[] = sprintf(
+                        ' %d番(%s)%.1f倍 → %d番(%s)%.1f倍  比率:%.2f%s',
+                        $upper->num, $upper->horse_name, $upperOdds,
+                        $lower->num, $lower->horse_name, $lowerOdds,
+                        $ratio, $flag
+                    );
+                }
+                $gapTable = implode("\n", $gapLines);
 
                 // オッズ情報のみ（結果は含めない）
                 $oddsInfoStr = strtr($raceInfoTemplate, [
@@ -282,6 +330,10 @@ ORDER BY date, kaisuu, basho, day, race;
 
                 $msgs[] = "【単勝オッズ推移データ】";
                 $msgs[] = $oddsInfoStr;
+                $msgs[] = "";
+                $msgs[] = "【断層値（6分前オッズ人気順・隣接馬間の比率）】";
+                $msgs[] = "比率2.0以上の箇所に★断層を付与。断層の有無は市場の評価分断を示す。";
+                $msgs[] = $gapTable;
                 $msgs[] = "";
                 $msgs[] = "【実際の入賞馬】";
                 $msgs[] = "{$actualResult1}番、{$actualResult2}番、{$actualResult3}番";
