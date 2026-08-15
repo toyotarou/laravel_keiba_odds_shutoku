@@ -88,7 +88,7 @@ class DeleteKeibaTableRecords extends Command
         $this->info('テーブルデータ削除処理 ── 完了');
 
         // ─────────────────────────────────────────────────────────────────
-        // 【ブロック 2】ログファイルを削除（15ファイル）
+        // 【ブロック 2】ログファイルを削除
         //   file_exists() で存在チェックしてから unlink() する。
         //   存在しないファイルはスキップ（エラーにしない）。
         // ─────────────────────────────────────────────────────────────────
@@ -113,16 +113,17 @@ class DeleteKeibaTableRecords extends Command
             '/var/www/horse_odds_finder/storage/logs/repairStartTime.log',
 
             '/var/www/horse_odds_finder/storage/logs/summaryKeibaInfo.log',
-            '/var/www/horse_odds_finder/storage/logs/SummaryHistoryPopularityRank.log',
+            '/var/www/horse_odds_finder/storage/logs/summaryHistoryPopularityRank.log',
             '/var/www/horse_odds_finder/storage/logs/summaryHistoryFinishingPosition.log',
             '/var/www/horse_odds_finder/storage/logs/summaryPopularityRankAverage.log',
             '/var/www/horse_odds_finder/storage/logs/summaryRacesPopularityRatio.log',
             '/var/www/horse_odds_finder/storage/logs/summaryPopularityRankMedian.log',
+            '/var/www/horse_odds_finder/storage/logs/summaryForecastFromLastRace.log',
+            
             '/var/www/horse_odds_finder/storage/logs/SummaryCalculateHorseScore.log',
             '/var/www/horse_odds_finder/storage/logs/SummaryCalculateJockeyScore.log',
             '/var/www/horse_odds_finder/storage/logs/SummaryRacesIntrospection.log',
-            '/var/www/horse_odds_finder/storage/logs/summaryForecastFromLastRace.log',
-
+            
             '/var/www/horse_odds_finder/storage/logs/makeBaganrikiBrain.log',
 
             '/var/www/horse_odds_finder/scripts/keibaOddsGetJraRaceResult.log',

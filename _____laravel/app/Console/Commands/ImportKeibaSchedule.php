@@ -337,7 +337,7 @@ class ImportKeibaSchedule extends Command
                 $newsValue[] = "SKIP";
             }else{
                 $newsValue[] = $status;
-                $newsValue[] = "S:{$cnt_schedule}";
+                $newsValue[] = "S:{$cnt_schedule}、";
                 $newsValue[] = "R:{$cnt_race}、";
                 $newsValue[] = "H:{$cnt_horse}";
             }

@@ -36,11 +36,11 @@ class AnthropicService
     /**
      * 単発送信（リトライなし）
      */
-    public function send(string $prompt, ?string $system = null, int $timeout = self::TIMEOUT): Response
+    public function send(string $prompt, ?string $system = null, int $maxTokens = self::MAX_TOKENS, int $timeout = self::TIMEOUT): Response
     {
         return Http::withHeaders($this->headers())
             ->timeout($timeout)
-            ->post(self::API_URL, $this->payload($prompt, $system));
+            ->post(self::API_URL, $this->payload($prompt, $system, $maxTokens));
     }
 
     /**
@@ -55,11 +55,12 @@ class AnthropicService
         ?string $system      = null,
         int     $maxAttempts = 3,
         int     $sleepBase   = 2,
-        int     $timeout     = self::TIMEOUT
+        int     $timeout     = self::TIMEOUT,
+        int     $maxTokens   = self::MAX_TOKENS
     ): Response {
         $response = null;
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            $response = $this->send($prompt, $system, $timeout);
+            $response = $this->send($prompt, $system, $maxTokens, $timeout);
 
             if (!in_array($response->status(), [429, 529])) {
                 break;
@@ -78,15 +79,15 @@ class AnthropicService
      * @param  string[]  $prompts  プロンプト配列（インデックス順で結果が返る）
      * @return array<int, Response|\Throwable>
      */
-    public function sendPool(array $prompts, ?string $system = null, int $timeout = self::TIMEOUT): array
+    public function sendPool(array $prompts, ?string $system = null, int $timeout = self::TIMEOUT, int $maxTokens = self::MAX_TOKENS): array
     {
         $headers = $this->headers();
-        return Http::pool(function ($pool) use ($prompts, $headers, $system, $timeout) {
+        return Http::pool(function ($pool) use ($prompts, $headers, $system, $timeout, $maxTokens) {
             return array_map(
                 fn(string $prompt) => $pool
                     ->withHeaders($headers)
                     ->timeout($timeout)
-                    ->post(self::API_URL, $this->payload($prompt, $system)),
+                    ->post(self::API_URL, $this->payload($prompt, $system, $maxTokens)),
                 $prompts
             );
         });
@@ -111,11 +112,11 @@ class AnthropicService
         ];
     }
 
-    private function payload(string $prompt, ?string $system = null): array
+    private function payload(string $prompt, ?string $system = null, int $maxTokens = self::MAX_TOKENS): array
     {
         $payload = [
             'model'      => self::MODEL,
-            'max_tokens' => self::MAX_TOKENS,
+            'max_tokens' => $maxTokens,
             'messages'   => [
                 ['role' => 'user', 'content' => $prompt],
             ],

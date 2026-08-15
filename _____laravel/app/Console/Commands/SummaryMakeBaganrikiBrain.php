@@ -275,7 +275,7 @@ class SummaryMakeBaganrikiBrain extends Command
 
                 $this->info("[ループ {$batchIndex}/" . ($batchCount - 1) . "] API 送信中... (今回 " . count($batchAnalyses) . " 件 / 一致率 {$hitRate}% ({$batchHits}/{$batchTotal}) / プロンプト " . number_format(mb_strlen($prompt)) . " 文字)");
 
-                $response = $this->anthropic->send($prompt);
+                $response = $this->anthropic->send($prompt, maxTokens: 16384);
 
                 $loopElapsed = round(microtime(true) - $loopStartedAt, 1);
 

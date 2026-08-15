@@ -2515,7 +2515,7 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
 
         // ─── プロンプトをファイルに出力（デバッグ・履歴用） ──────────────
         file_put_contents(
-            public_path('prompt/prompt_' . date('Y-m-d_H-i-s') . '.data'),
+            public_path("prompt/prompt_{$date}_{$kaisuu}_{$basho}_{$day}_{$race}.data"),
             $prompt
         );
 

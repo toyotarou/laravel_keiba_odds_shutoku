@@ -295,8 +295,7 @@ ORDER BY date, kaisuu, basho, day, race;
 
                 // プロンプトをファイルに出力
                 file_put_contents(
-                    '/var/www/horse_odds_finder/public/race_introspection/'
-                    . $race->date . '_' . $race->basho_name . '_' . $race->race . 'R.txt',
+                    "/var/www/horse_odds_finder/public/race_introspection/introspection_{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}.txt",
                     $prompt
                 );
 
@@ -525,6 +524,21 @@ ORDER BY date, kaisuu, basho, day, race;
     }
 
     /**
+     * 丸囲み数字（①〜⑳）を通常の半角数字に変換する。
+     * AIが「④番」のように出力した場合でも正規表現がマッチするようにするための前処理。
+     */
+    private function normalizeCircledNumbers(string $text): string
+    {
+        $map = [
+            '①' => '1',  '②' => '2',  '③' => '3',  '④' => '4',  '⑤' => '5',
+            '⑥' => '6',  '⑦' => '7',  '⑧' => '8',  '⑨' => '9',  '⑩' => '10',
+            '⑪' => '11', '⑫' => '12', '⑬' => '13', '⑭' => '14', '⑮' => '15',
+            '⑯' => '16', '⑰' => '17', '⑱' => '18', '⑲' => '19', '⑳' => '20',
+        ];
+        return strtr($text, $map);
+    }
+
+    /**
      * バリデーション → 自動補正 のパイプライン。
      *
      * 1. validateIntrospection() でフォーマットと的中ラベルを検証
@@ -597,11 +611,12 @@ ORDER BY date, kaisuu, basho, day, race;
         if (!str_contains($introspection, '## 結果')) return false;
         if (!str_contains($introspection, '## 分析')) return false;
 
-        // ## ピックアップ から馬番を取得
+        // ## ピックアップ から馬番を取得（丸囲み数字も正規化して対応）
         $pickupPart = explode('## ピックアップ', $introspection, 2)[1] ?? '';
         if (str_contains($pickupPart, '## 結果')) {
             $pickupPart = explode('## 結果', $pickupPart, 2)[0];
         }
+        $pickupPart = $this->normalizeCircledNumbers($pickupPart);
         preg_match_all('/(\d+)番/u', $pickupPart, $matches);
         $pickupNums = $matches[1] ?? [];
 
@@ -646,11 +661,12 @@ ORDER BY date, kaisuu, basho, day, race;
             return null;
         }
 
-        // ## ピックアップ から馬番を取得
+        // ## ピックアップ から馬番を取得（丸囲み数字も正規化して対応）
         $pickupPart = explode('## ピックアップ', $introspection, 2)[1] ?? '';
         if (str_contains($pickupPart, '## 結果')) {
             $pickupPart = explode('## 結果', $pickupPart, 2)[0];
         }
+        $pickupPart = $this->normalizeCircledNumbers($pickupPart);
         preg_match_all('/(\d+)番/u', $pickupPart, $matches);
         $pickupNums = $matches[1] ?? [];
 
