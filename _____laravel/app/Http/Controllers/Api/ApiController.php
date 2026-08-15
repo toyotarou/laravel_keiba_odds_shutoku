@@ -2768,6 +2768,27 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     }
     $table = implode("\n", $lines);
 
+    // ─── 断層テーブルの計算 ──────────────────────────────────────────────
+    // 断層値 = 直下人気馬のオッズ ÷ 直上人気馬のオッズ
+    // $promptHorses は人気順ソート済みなのでそのまま使う
+    $gapTableLines = [];
+    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
+        $upper = $promptHorses[$i];     // 人気上位
+        $lower = $promptHorses[$i + 1]; // 人気下位
+        if ($upper['odds_6'] > 0) {
+            $gapRatio       = round($lower['odds_6'] / $upper['odds_6'], 2);
+            $gapFlag        = $gapRatio >= 2.0 ? '  ★断層' : '';
+            $gapTableLines[] = sprintf(
+                ' %d人気(%d番)%5.1f倍 → %d人気(%d番)%5.1f倍  比率: %.2f%s',
+                $upper['popularity'], $upper['num'], $upper['odds_6'],
+                $lower['popularity'], $lower['num'], $lower['odds_6'],
+                $gapRatio,
+                $gapFlag
+            );
+        }
+    }
+    $gapTable = implode("\n", $gapTableLines);
+
     // ─── 過去のレース情報から絞り込んだ馬番（forecast_nums）の取得 ──
     $forecastNums = DB::table('t_horse_odds_finder_forecast_from_last_race')
         ->where('date',       $targetDate)
@@ -2794,6 +2815,10 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '',
         '単勝・複勝オッズデータ（計測開始前〜発走6分前・全時点）',
         $table,
+        '',
+        '断層テーブル（6分前単勝オッズ・隣接人気順間の比率）',
+        '※比率が2.00以上の箇所を「断層あり」と判断しています',
+        $gapTable,
         '',
     ];
 
