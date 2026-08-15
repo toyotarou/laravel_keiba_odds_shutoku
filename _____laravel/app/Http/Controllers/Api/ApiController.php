@@ -2615,48 +2615,49 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         ->get()
         ->keyBy('num');
 
-    // ─── オッズ取得（計測開始前=999分前 と 6分前の2時点のみ） ─────────
+    // ─── オッズ取得（計測開始前〜6分前の全時点） ───────────────────────
+    // 999 = 計測開始前ベース（ODDS_DB_FIRST）
+    // ODDS_GET_TIMING から 6分前〜21分前の中間時点を抽出して追加
+    $midTimings   = array_values(array_filter(Constants::ODDS_GET_TIMING, fn($t) => $t >= 6 && $t < 30));
+    $fetchTimings = array_merge([Constants::ODDS_DB_FIRST], $midTimings);
+    // = [999, 21, 18, 15, 12, 9, 6]
+
     $oddsRows = DB::table('t_horse_odds_finder_odds')
         ->where('date',   $targetDate)
         ->where('kaisuu', $race->kaisuu)
         ->where('basho',  $race->basho)
         ->where('day',    $race->day)
         ->where('race',   $race->race)
-        ->whereIn('minutes_before_start', [999, 6])
+        ->whereIn('minutes_before_start', $fetchTimings)
         ->get();
 
-    // ─── 馬番ごとに2時点のオッズをまとめる ──────────────────────────
+    // ─── 馬番ごとに全時点のオッズをまとめる ──────────────────────────
+    // tan[timing]      = 単勝オッズ
+    // fuku_min[timing] = 複勝最小オッズ
+    // fuku_max[timing] = 複勝最大オッズ
     $oddsByNum = [];
     foreach ($oddsRows as $row) {
-        $num = $row->num;
+        $num    = $row->num;
+        $timing = $row->minutes_before_start;
         if (!isset($oddsByNum[$num])) {
-            $oddsByNum[$num] = [
-                'odds_base'     => null,
-                'odds_6'        => null,
-                'fuku_min_base' => null,
-                'fuku_max_base' => null,
-                'fuku_min_6'    => null,
-                'fuku_max_6'    => null,
-            ];
+            $oddsByNum[$num] = ['tan' => [], 'fuku_min' => [], 'fuku_max' => []];
         }
-        if ($row->minutes_before_start == 999) {
-            $oddsByNum[$num]['odds_base']     = floatval($row->odds);
-            $oddsByNum[$num]['fuku_min_base'] = floatval($row->fuku_min);
-            $oddsByNum[$num]['fuku_max_base'] = floatval($row->fuku_max);
-        }
-        if ($row->minutes_before_start == 6) {
-            $oddsByNum[$num]['odds_6']        = floatval($row->odds);
-            $oddsByNum[$num]['fuku_min_6']    = floatval($row->fuku_min);
-            $oddsByNum[$num]['fuku_max_6']    = floatval($row->fuku_max);
-        }
+        $oddsByNum[$num]['tan'][$timing]      = floatval($row->odds);
+        $oddsByNum[$num]['fuku_min'][$timing] = floatval($row->fuku_min);
+        $oddsByNum[$num]['fuku_max'][$timing] = floatval($row->fuku_max);
     }
 
     // ─── プロンプト用データの組み立て ────────────────────────────────
     $promptHorses = [];
     foreach ($oddsByNum as $num => $o) {
-        if ($o['odds_base'] === null || $o['odds_6'] === null || $o['odds_base'] == 0) continue;
+        $tanBase = $o['tan'][Constants::ODDS_DB_FIRST] ?? null;
+        $tan6    = $o['tan'][6] ?? null;
 
-        $changeRate = round(($o['odds_6'] - $o['odds_base']) / $o['odds_base'] * 100, 1);
+        // 計測開始前と6分前が両方なければスキップ
+        if ($tanBase === null || $tan6 === null || $tanBase == 0) continue;
+
+        // 単勝の変化率（計測開始前 → 6分前）
+        $changeRate = round(($tan6 - $tanBase) / $tanBase * 100, 1);
         if ($changeRate < 0) {
             $changeLabel = '下落 ' . abs($changeRate) . '%';
         } elseif ($changeRate > 0) {
@@ -2665,9 +2666,14 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             $changeLabel = '変化なし';
         }
 
+        // 複勝の変化率（計測開始前 → 6分前）
+        $fukuMinBase = $o['fuku_min'][Constants::ODDS_DB_FIRST] ?? null;
+        $fukuMin6    = $o['fuku_min'][6] ?? null;
+        $fukuMax6    = $o['fuku_max'][6] ?? null;
+
         $fukuChangeLabel = '－';
-        if ($o['fuku_min_base'] && $o['fuku_min_6'] && $o['fuku_min_base'] > 0) {
-            $fukuChange = round(($o['fuku_min_6'] - $o['fuku_min_base']) / $o['fuku_min_base'] * 100, 1);
+        if ($fukuMinBase && $fukuMin6 && $fukuMinBase > 0) {
+            $fukuChange = round(($fukuMin6 - $fukuMinBase) / $fukuMinBase * 100, 1);
             if ($fukuChange < 0) {
                 $fukuChangeLabel = '下落 ' . abs($fukuChange) . '%';
             } elseif ($fukuChange > 0) {
@@ -2677,9 +2683,10 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             }
         }
 
+        // 単複比（6分前）
         $tanpukuRatio = '－';
-        if ($o['fuku_min_6'] && $o['fuku_min_6'] > 0) {
-            $tanpukuRatio = round($o['odds_6'] / $o['fuku_min_6'], 1) . '倍';
+        if ($fukuMin6 && $fukuMin6 > 0) {
+            $tanpukuRatio = round($tan6 / $fukuMin6, 1) . '倍';
         }
 
         $name = isset($horses[$num]) ? $horses[$num]->name : '馬' . $num;
@@ -2687,11 +2694,14 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $promptHorses[] = [
             'num'           => $num,
             'name'          => $name,
-            'odds_base'     => $o['odds_base'],
-            'odds_6'        => $o['odds_6'],
+            'tan_series'    => $o['tan'],      // 全時点の単勝オッズ
+            'fuku_min_series' => $o['fuku_min'], // 全時点の複勝最小オッズ
+            'fuku_max_series' => $o['fuku_max'], // 全時点の複勝最大オッズ
+            'odds_base'     => $tanBase,       // 人気順ソート用
+            'odds_6'        => $tan6,          // 人気順ソート用
             'change_label'  => $changeLabel,
-            'fuku_min_6'    => $o['fuku_min_6'],
-            'fuku_max_6'    => $o['fuku_max_6'],
+            'fuku_min_6'    => $fukuMin6,
+            'fuku_max_6'    => $fukuMax6,
             'fuku_change'   => $fukuChangeLabel,
             'tanpuku_ratio' => $tanpukuRatio,
         ];
@@ -2722,21 +2732,39 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     $horseCount  = count($displayHorses);
     $pickupCount = $horseCount <= 8 ? 4 : ($horseCount <= 13 ? 5 : 6);
 
+    // 時点ラベル（999 = 計測開始前ベース）
+    $timingLabels = [
+        Constants::ODDS_DB_FIRST => '計測前',
+        21 => '21分',
+        18 => '18分',
+        15 => '15分',
+        12 => '12分',
+        9  => ' 9分',
+        6  => ' 6分',
+    ];
+
     $lines = [];
     foreach ($displayHorses as $h) {
-        $lines[] = sprintf(
-            '%2d番(%2d人気) %-12s  単勝: %5.1f倍→%5.1f倍(%s)  複勝: %4.1f-%4.1f倍(%s)  単複比: %s',
-            $h['num'],
-            $h['popularity'],
-            $h['name'],
-            $h['odds_base'],
-            $h['odds_6'],
-            $h['change_label'],
-            $h['fuku_min_6'] ?? 0,
-            $h['fuku_max_6'] ?? 0,
-            $h['fuku_change'],
-            $h['tanpuku_ratio']
-        );
+        // 単勝時系列（計測開始前→21分→18分→…→6分前）
+        $tanParts = [];
+        foreach ($timingLabels as $timing => $label) {
+            if (isset($h['tan_series'][$timing])) {
+                $tanParts[] = "[{$label}]" . number_format($h['tan_series'][$timing], 1);
+            }
+        }
+        $tanLine = implode('→', $tanParts) . '倍（' . $h['change_label'] . '）';
+
+        // 複勝（計測前と6分前のみ表示）
+        $fukuMinBase = $h['fuku_min_series'][Constants::ODDS_DB_FIRST] ?? null;
+        $fukuBase    = $fukuMinBase ? number_format($fukuMinBase, 1) . '倍' : '－';
+        $fuku6       = ($h['fuku_min_6'] && $h['fuku_max_6'])
+            ? number_format($h['fuku_min_6'], 1) . '-' . number_format($h['fuku_max_6'], 1) . '倍'
+            : '－';
+
+        $lines[] = sprintf('%2d番(%2d人気) %s', $h['num'], $h['popularity'], $h['name']);
+        $lines[] = '  単勝: ' . $tanLine;
+        $lines[] = '  複勝: 計測前' . $fukuBase . '→6分前' . $fuku6 . '（' . $h['fuku_change'] . '）  単複比: ' . $h['tanpuku_ratio'];
+        $lines[] = '';
     }
     $table = implode("\n", $lines);
 
@@ -2764,7 +2792,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '開催: ' . $raceLabel,
         'レース: ' . $raceNum . ' ' . $raceName,
         '',
-        '単勝・複勝オッズデータ（計測開始前から発走6分前）',
+        '単勝・複勝オッズデータ（計測開始前〜発走6分前・全時点）',
         $table,
         '',
     ];
