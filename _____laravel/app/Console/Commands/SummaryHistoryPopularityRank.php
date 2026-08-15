@@ -175,7 +175,6 @@ class SummaryHistoryPopularityRank extends Command
         $elapsed = round(microtime(true) - $now, 1);
         $this->info('');
         $this->info('========== keiba:summaryHistoryPopularityRank 終了 ' . date('Y-m-d H:i:s') . ' ==========');
-        $this->info("対象年月     : " . $yearmonth);
         $this->info("処理レース数 : {$updatedRaces} レース");
         $this->info("スキップ     : {$skippedRaces} レース（ランク設定済み）");
         $this->info("更新頭数     : {$updatedHorses} 頭");

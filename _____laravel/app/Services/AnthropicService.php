@@ -30,7 +30,7 @@ class AnthropicService
     private const API_URL     = 'https://api.anthropic.com/v1/messages';
     private const API_VERSION = '2023-06-01';
     private const MODEL       = 'claude-haiku-4-5';
-    private const MAX_TOKENS  = 4096;
+    private const MAX_TOKENS  = 16384;
     private const TIMEOUT     = 120;
 
     /**

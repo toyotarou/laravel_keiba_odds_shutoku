@@ -99,6 +99,29 @@ class SummaryMakeBaganrikiBrain extends Command
             $introspectionIds   = [];
             $zeroMovementIds    = [];
 
+            // ── 全レースの着順データを先読み ──────────────────────────────────
+            // t_horse_odds_finder_race_result_history.basho_code = introspection.basho_code
+            $allResults = [];
+            DB::table('t_horse_odds_finder_race_result_history')
+                ->whereIn('finishing_position', [1, 2, 3])
+                ->get(['date', 'kaisuu', 'basho_code', 'day', 'race', 'finishing_position', 'num'])
+                ->each(function ($r) use (&$allResults) {
+                    $key = "{$r->date}_{$r->kaisuu}_{$r->basho_code}_{$r->day}_{$r->race}";
+                    $allResults[$key][$r->finishing_position] = (string) $r->num;
+                });
+
+            // ── 全レースの6分前オッズを先読み ────────────────────────────────
+            // t_horse_odds_finder_summary.basho = introspection.basho_code（同値）
+            $allOdds6 = [];
+            DB::table('t_horse_odds_finder_summary')
+                ->whereNotNull('odds_tan_before_6')
+                ->where('odds_tan_before_6', '!=', '')
+                ->get(['date', 'kaisuu', 'basho', 'day', 'race', 'num', 'odds_tan_before_6'])
+                ->each(function ($r) use (&$allOdds6) {
+                    $key = "{$r->date}_{$r->kaisuu}_{$r->basho}_{$r->day}_{$r->race}";
+                    $allOdds6[$key][(string) $r->num] = (float) $r->odds_tan_before_6;
+                });
+
             foreach ($dbRows as $dbRow) {
                 if (!str_contains($dbRow->introspection, '## 分析')) {
                     continue;
@@ -126,8 +149,63 @@ class SummaryMakeBaganrikiBrain extends Command
                 }
 
                 // 選出タグ + 分析テキストのみ（概念的なパターン抽出が目的のため馬番・馬名は不要）
-                $analysisText        = trim(explode('## 分析', $dbRow->introspection, 2)[1]);
-                $introspections[]    = "[{$pickupTotal}頭中{$hitCount}頭が合致]\n{$analysisText}";
+                $analysisText = trim(explode('## 分析', $dbRow->introspection, 2)[1]);
+
+                // ── ## ピックアップ から選出馬番を抽出 ──────────────────────────
+                $pickedNums = [];
+                if (str_contains($dbRow->introspection, '## ピックアップ')) {
+                    $pp = explode('## ピックアップ', $dbRow->introspection, 2)[1] ?? '';
+                    if (str_contains($pp, '## 結果')) {
+                        $pp = explode('## 結果', $pp, 2)[0];
+                    }
+                    preg_match_all('/(\d+)番/u', $pp, $pm);
+                    $pickedNums = array_map('strval', $pm[1] ?? []);
+                }
+
+                // ── 選出馬・入賞馬のオッズ文脈を組み立て ──────────────────────
+                $raceKey    = "{$dbRow->date}_{$dbRow->kaisuu}_{$dbRow->basho_code}_{$dbRow->day}_{$dbRow->race}";
+                $oddsMap    = $allOdds6[$raceKey]   ?? []; // num(string) => odds(float)
+                $resultsMap = $allResults[$raceKey] ?? []; // position => num(string)
+
+                $oddsContext = '';
+
+                if (!empty($pickedNums) && !empty($oddsMap)) {
+                    $parts = [];
+                    foreach ($pickedNums as $n) {
+                        $o       = isset($oddsMap[$n]) ? number_format($oddsMap[$n], 1) . '倍' : '?倍';
+                        $parts[] = "{$n}番={$o}";
+                    }
+                    $oddsContext .= '選出馬(6分前オッズ): ' . implode(', ', $parts) . "\n";
+                }
+
+                if (!empty($resultsMap)) {
+                    $parts          = [];
+                    $highOddsHit    = [];
+                    $highOddsMissed = [];
+                    for ($pos = 1; $pos <= 3; $pos++) {
+                        $num = $resultsMap[$pos] ?? null;
+                        if ($num === null) continue;
+                        $odds    = isset($oddsMap[$num]) ? number_format($oddsMap[$num], 1) . '倍' : '?倍';
+                        $parts[] = "{$pos}着={$num}番({$odds})";
+                        if (isset($oddsMap[$num]) && $oddsMap[$num] >= 10.0) {
+                            if (in_array($num, $pickedNums)) {
+                                $highOddsHit[]    = "{$num}番({$odds})";
+                            } else {
+                                $highOddsMissed[] = "{$num}番({$odds})";
+                            }
+                        }
+                    }
+                    $oddsContext .= '入賞馬(6分前オッズ): ' . implode(', ', $parts) . "\n";
+                    if (!empty($highOddsHit)) {
+                        $oddsContext .= '穴馬的中(10倍以上): ' . implode(', ', $highOddsHit) . "\n";
+                    }
+                    if (!empty($highOddsMissed)) {
+                        $oddsContext .= '穴馬見落とし(10倍以上): ' . implode(', ', $highOddsMissed) . "\n";
+                    }
+                }
+
+                $enrichedText        = $oddsContext !== '' ? $oddsContext . $analysisText : $analysisText;
+                $introspections[]    = "[{$pickupTotal}頭中{$hitCount}頭が合致]\n{$enrichedText}";
                 $introspectionMeta[] = ['pickup' => $pickupTotal, 'hit' => $hitCount];
                 $introspectionIds[]  = $dbRow->id;
             }
@@ -206,6 +284,9 @@ class SummaryMakeBaganrikiBrain extends Command
                     "  X頭選出したうち、実際の1〜3着に何頭含まれていたかを示します。",
                     "  ・[X頭中X頭が合致] や [X頭中Y頭が合致（Y≧2）] は「よく選べた例」です。その目線・考え方を特に重視してください。",
                     "  ・[X頭中0頭が合致] や [X頭中1頭が合致] は「見落とした例」です。何が足りなかったかを読み解いてください。",
+                    "  ・各エントリには「選出馬(6分前オッズ)」「入賞馬(6分前オッズ)」も付いています。実際の数字を見ながら判断してください。",
+                    "  ・「穴馬的中(10倍以上)」が付いているエントリは、高オッズ馬を正しく見つけた成功例です。そのオッズ推移の何が決め手だったかを特に重視してください。",
+                    "  ・「穴馬見落とし(10倍以上)」が付いているエントリは、高オッズ馬を見逃した失敗例です。なぜ選べなかったのかを重点的に考えてください。",
                     "・「保存されている要約内容」または「前回の要約内容」: これまでに積み上げてきた判断基準です。初回はまだ存在しません。",
                     "",
                     "【あなたがやること】",
@@ -275,7 +356,7 @@ class SummaryMakeBaganrikiBrain extends Command
 
                 $this->info("[ループ {$batchIndex}/" . ($batchCount - 1) . "] API 送信中... (今回 " . count($batchAnalyses) . " 件 / 一致率 {$hitRate}% ({$batchHits}/{$batchTotal}) / プロンプト " . number_format(mb_strlen($prompt)) . " 文字)");
 
-                $response = $this->anthropic->send($prompt, maxTokens: 16384);
+                $response = $this->anthropic->send($prompt);
 
                 $loopElapsed = round(microtime(true) - $loopStartedAt, 1);
 

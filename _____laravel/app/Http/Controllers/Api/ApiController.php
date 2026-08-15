@@ -2523,17 +2523,17 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
         $brainFile = public_path('baganriki_brain/baganriki_brain.txt');
         $brain     = file_exists($brainFile) ? trim(file_get_contents($brainFile)) : '';
 
-        // 脳みそがある場合、プロンプトにもエールを添えて活用を促す
+        // 脳みそがある場合、プロンプト末尾に参考情報として追加（システムプロンプトには使わない）
         if ($brain !== '') {
-            $prompt .= "\n\n" . 'あなたの馬眼力ブレインに蓄積された知識と判断基準を最大限に発揮して、今日もベストな予想を頼みます！全力でお願いします！！';
+            $prompt .= "\n\n参考情報：以下は過去のレース分析から導き出した判断基準です。あくまで参考として、目の前のオッズデータを優先して判断してください。\n" . $brain;
         }
 
         $prompt .= "\n\n" . '※画面の表示幅の問題があるので、テーブルは使わないでください。';
-        
+
         // ─── Claude API 呼び出し（529 Overloaded 時は指数バックオフでリトライ） ──
         $aiResponse = $this->anthropic->sendWithRetry(
             prompt:      $prompt,
-            system:      $brain !== '' ? $brain : null,
+            system:      null,
             maxAttempts: 3,
             sleepBase:   2,
             timeout:     30,
@@ -2756,7 +2756,10 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
 
         // 複勝（計測前と6分前のみ表示）
         $fukuMinBase = $h['fuku_min_series'][Constants::ODDS_DB_FIRST] ?? null;
-        $fukuBase    = $fukuMinBase ? number_format($fukuMinBase, 1) . '倍' : '－';
+        $fukuMaxBase = $h['fuku_max_series'][Constants::ODDS_DB_FIRST] ?? null;
+        $fukuBase    = ($fukuMinBase && $fukuMaxBase)
+            ? number_format($fukuMinBase, 1) . '-' . number_format($fukuMaxBase, 1) . '倍'
+            : ($fukuMinBase ? number_format($fukuMinBase, 1) . '倍' : '－');
         $fuku6       = ($h['fuku_min_6'] && $h['fuku_max_6'])
             ? number_format($h['fuku_min_6'], 1) . '-' . number_format($h['fuku_max_6'], 1) . '倍'
             : '－';
