@@ -774,7 +774,7 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
      *   馬券購入の参考情報として使用する。
      *
      * 【絞り込み条件（2つ全て満たす馬のみ）】
-     *   1. place_rate 50%以上   → 2回に1回は3着以内に来ている
+     *   1. place_rate 50%以上   → 2回に1回は5着以内に来ている
      *   2. 類似レース2件以上    → 1件だけでは信頼性が低いので除外
      *
      * 【処理の流れ】
@@ -809,7 +809,7 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
         //   race  = レース番号 例: 3 （省略時は全レース）
         //
         // 絞り込み条件（2つ全て満たす馬のみ）:
-        //   1. place_rate 50%以上   → 2回に1回は3着以内に来ている
+        //   1. place_rate 50%以上   → 2回に1回は5着以内に来ている
         //   2. 類似レース2件以上    → 1件だけでは信頼性が低いので除外
         // =====================================================
 
@@ -927,7 +927,7 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
 
                     $stats[$pop]['total']++;
                     if ($h->finishing_position == 1) $stats[$pop]['win']++;
-                    if ($h->finishing_position <= 3) $stats[$pop]['place']++;
+                    if ($h->finishing_position <= 5) $stats[$pop]['place']++;
                     $stats[$pop]['tan_sum']  += floatval($h->tan);
                     $stats[$pop]['fuku_sum'] += floatval($h->fuku_min);
                 }
@@ -969,18 +969,18 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
                 $placeCount   = $s['place'];
 
                 if ($winCount > 0) {
-                    $resultComment = "過去{$similarCount}件の類似レースで{$pop}番人気の馬は複勝圏内{$placeCount}回、うち1着は{$winCount}回でした。";
+                    $resultComment = "過去{$similarCount}件の類似レースで{$pop}番人気の馬は5着以内{$placeCount}回、うち1着は{$winCount}回でした。";
                 } else {
-                    $resultComment = "過去{$similarCount}件の類似レースで{$pop}番人気の馬は複勝圏内{$placeCount}回、1着はありませんでした。";
+                    $resultComment = "過去{$similarCount}件の類似レースで{$pop}番人気の馬は5着以内{$placeCount}回、1着はありませんでした。";
                 }
 
-                // --- 複勝率に応じたコメント ---
+                // --- 5着以内率に応じたコメント ---
                 if ($placeRate >= 100) {
-                    $placeComment = "複勝率100%と、類似レースでは必ず馬券圏内に入っています。";
+                    $placeComment = "5着以内率100%と、類似レースでは必ず掲示板に入っています。";
                 } elseif ($placeRate >= 75) {
-                    $placeComment = "複勝率{$placeRate}%と、類似レースでは高い確率で馬券圏内に入っています。";
+                    $placeComment = "5着以内率{$placeRate}%と、類似レースでは高い確率で掲示板に入っています。";
                 } else {
-                    $placeComment = "複勝率{$placeRate}%です。";
+                    $placeComment = "5着以内率{$placeRate}%です。";
                 }
 
                 $analysis = $oddsComment . $resultComment . $placeComment;
@@ -2724,6 +2724,27 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     }
     unset($h);
 
+    // ─── OPI（Over Popularity Index）計算 ──────────────────────────────
+    // OPI = 人気順位別の過去平均単勝オッズ ÷ 今回の6分前単勝オッズ
+    //   OPI > 1.0 → 過去同人気より今回は低オッズ（過剰人気・妙味少）
+    //   OPI < 1.0 → 過去同人気より今回は高オッズ（妙味あり）
+    //   OPI ≒ 1.0 → 歴史的平均並み
+    $popularityAvgRows = DB::table('t_horse_odds_finder_popularity_rank_average')->get();
+    $popularityAvgMap  = [];
+    foreach ($popularityAvgRows as $row) {
+        $popularityAvgMap[(int)$row->popularity_rank] = floatval($row->odds_average);
+    }
+
+    foreach ($promptHorses as &$h) {
+        $avgOdds = $popularityAvgMap[$h['popularity']] ?? null;
+        if ($avgOdds && $h['odds_6'] > 0) {
+            $h['opi'] = round($avgOdds / $h['odds_6'], 2);
+        } else {
+            $h['opi'] = null;
+        }
+    }
+    unset($h);
+
     // ─── 馬番順テーブルの組み立て ────────────────────────────────────
     $displayHorses = $promptHorses;
     usort($displayHorses, fn($a, $b) => $a['num'] <=> $b['num']);
@@ -2764,14 +2785,24 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             ? number_format($h['fuku_min_6'], 1) . '-' . number_format($h['fuku_max_6'], 1) . '倍'
             : '－';
 
+        // OPI表示
+        if ($h['opi'] !== null) {
+            $opiVal  = number_format($h['opi'], 2);
+            $opiNote = $h['opi'] >= 1.2 ? '過剰人気' : ($h['opi'] <= 0.8 ? '妙味あり' : '平均並み');
+            $opiLine = "  OPI: {$opiVal}（{$opiNote}）  ※人気順{$h['popularity']}番の過去平均オッズ" . number_format($popularityAvgMap[$h['popularity']] ?? 0, 1) . "倍÷現在" . number_format($h['odds_6'], 1) . "倍";
+        } else {
+            $opiLine = "  OPI: －";
+        }
+
         $lines[] = sprintf('%2d番(%2d人気) %s', $h['num'], $h['popularity'], $h['name']);
         $lines[] = '  単勝: ' . $tanLine;
         $lines[] = '  複勝: 計測前' . $fukuBase . '→6分前' . $fuku6 . '（' . $h['fuku_change'] . '）  単複比: ' . $h['tanpuku_ratio'];
+        $lines[] = $opiLine;
         $lines[] = '';
     }
     $table = implode("\n", $lines);
 
-    // ─── 断層テーブルの計算 ──────────────────────────────────────────────
+    // ─── 単勝断層テーブルの計算 ──────────────────────────────────────────────
     // 断層値 = 直下人気馬のオッズ ÷ 直上人気馬のオッズ
     // $promptHorses は人気順ソート済みなのでそのまま使う
     $gapTableLines = [];
@@ -2792,6 +2823,35 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     }
     $gapTable = implode("\n", $gapTableLines);
 
+    // ─── 複勝断層テーブルの計算 ──────────────────────────────────────────────
+    // 複勝オッズ（6分前 fuku_min）で人気順ソートし、隣接間の断層を算出する
+    $fukuSortedHorses = array_values(
+        array_filter($promptHorses, fn($h) => isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0)
+    );
+    usort($fukuSortedHorses, fn($a, $b) => $a['fuku_min_6'] <=> $b['fuku_min_6']);
+
+    $fukuGapDetails    = []; // 複勝断層生データ（ratio≥2.0）：タイプ判定に使用
+    $fukuGapTableLines = [];
+    for ($i = 0; $i < count($fukuSortedHorses) - 1; $i++) {
+        $upper = $fukuSortedHorses[$i];
+        $lower = $fukuSortedHorses[$i + 1];
+        if ($upper['fuku_min_6'] > 0) {
+            $gapRatio = round($lower['fuku_min_6'] / $upper['fuku_min_6'], 2);
+            $gapFlag  = $gapRatio >= 2.0 ? '  ★断層' : '';
+            if ($gapRatio >= 2.0) {
+                $fukuGapDetails[] = ['upper_pos' => $i + 1, 'lower_pos' => $i + 2, 'ratio' => $gapRatio];
+            }
+            $fukuGapTableLines[] = sprintf(
+                ' 複%d位(%d番)%5.1f倍 → 複%d位(%d番)%5.1f倍  比率: %.2f%s',
+                $i + 1, $upper['num'], $upper['fuku_min_6'],
+                $i + 2, $lower['num'], $lower['fuku_min_6'],
+                $gapRatio,
+                $gapFlag
+            );
+        }
+    }
+    $fukuGapTable = implode("\n", $fukuGapTableLines);
+
     // ─── 厳選穴レース：条件2の計算 ────────────────────────────────
     // 「6番人気以内の隣接間に断層（比率2.00以上）が2つ以上あるか」
     // 成立 → false(0) 確定。条件1より優先。
@@ -2811,6 +2871,63 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     $condition2Desc = $condition2Met
         ? "成立（6番人気以内に断層が{$gapCountInTop6}個あるため 0 確定）"
         : "不成立（6番人気以内の断層は{$gapCountInTop6}個）";
+
+    // ─── 断層構造タイプ判定（PHP算出・AI入力として渡す） ──────────────────
+    // 単勝断層の生データを収集（タイプ判定用）
+    $tanGapAll    = []; // 全断層(ratio≥2.0)
+    $tanGapTop6   = []; // 6番人気以内の断層
+    $tanGapStrong = []; // 6番人気以内かつratio≥2.5の強断層
+    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
+        $u = $promptHorses[$i];
+        $l = $promptHorses[$i + 1];
+        if ($u['odds_6'] > 0 && $l['odds_6'] > 0) {
+            $r = round($l['odds_6'] / $u['odds_6'], 2);
+            if ($r >= 2.0) {
+                $entry = ['upper_pop' => $u['popularity'], 'lower_pop' => $l['popularity'], 'ratio' => $r];
+                $tanGapAll[] = $entry;
+                if ($u['popularity'] <= 6) {
+                    $tanGapTop6[] = $entry;
+                    if ($r >= 2.5) $tanGapStrong[] = $entry;
+                }
+            }
+        }
+    }
+
+    $tanHasGap  = count($tanGapAll) > 0;
+    $fukuHasGap = count($fukuGapDetails) > 0;
+
+    // A: 二重断層・上位完結型
+    if (count($tanGapTop6) >= 2 && count($tanGapStrong) >= 1) {
+        $gapType      = 'A';
+        $gapTypeDesc  = '二重断層・上位完結型（6番人気以内に断層' . count($tanGapTop6) . 'か所、うち比率2.5以上' . count($tanGapStrong) . 'か所）';
+        $gapTypeGuide = '6番人気以内を本候補の中心に。断層下側でも複勝への継続流入や類似好成績があれば補欠として残す。';
+
+    // E: 単勝・複勝断層の矛盾（どちらか一方にだけ断層）
+    } elseif ($tanHasGap !== $fukuHasGap) {
+        $gapType      = 'E';
+        $gapTypeDesc  = '判定困難型（単勝断層' . ($tanHasGap ? 'あり' : 'なし') . '・複勝断層' . ($fukuHasGap ? 'あり' : 'なし') . 'で矛盾）';
+        $gapTypeGuide = '断層より複勝オッズの継続的な動きと相対的な変化率を優先して判断すること。';
+
+    // B: 上位断層型（top6に断層1か所）
+    } elseif (count($tanGapTop6) === 1) {
+        $e            = $tanGapTop6[0];
+        $gapType      = 'B';
+        $gapTypeDesc  = '上位断層型（' . $e['upper_pop'] . '〜' . $e['lower_pop'] . '番人気間に断層、比率' . $e['ratio'] . '）';
+        $gapTypeGuide = '断層上側グループを中心に。断層が拡大中なら上側重視、縮小中なら下側からの浮上に注意。';
+
+    // C: 中間断層型（断層はあるがtop6外）
+    } elseif ($tanHasGap) {
+        $e            = $tanGapAll[0];
+        $gapType      = 'C';
+        $gapTypeDesc  = '中間断層型（' . $e['upper_pop'] . '〜' . $e['lower_pop'] . '番人気間に断層、比率' . $e['ratio'] . '）';
+        $gapTypeGuide = '断層上側を中心グループ、下側を穴グループとして評価。断層拡大と上側への複勝流入が同時確認できれば上側重視。';
+
+    // D: 断層なし・混戦型
+    } else {
+        $gapType      = 'D';
+        $gapTypeDesc  = '断層なし・混戦型（2.0以上の断層なし）';
+        $gapTypeGuide = '上位人気だけで本候補を固めない。複勝支持・変化率・単複人気差を重視し、6〜10番人気も通常比較に含める。';
+    }
 
     // ─── 過去のレース情報から絞り込んだ馬番（forecast_nums）の取得 ──
     $forecastNums = DB::table('t_horse_odds_finder_forecast_from_last_race')
@@ -2839,11 +2956,28 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '単勝・複勝オッズデータ（計測開始前〜発走6分前・全時点）',
         $table,
         '',
-        '断層テーブル（6分前単勝オッズ・隣接人気順間の比率）',
+        '単勝断層テーブル（6分前単勝オッズ・隣接人気順間の比率）',
         '※比率が2.00以上の箇所を「断層あり」と判断しています',
         $gapTable,
         '',
+        '複勝断層テーブル（6分前複勝最小オッズ・隣接複勝人気順間の比率）',
+        '※単勝断層と複勝断層が同じ位置に出ている場合は断層の信頼度が上がります',
+        '※矛盾する場合（単勝にあるが複勝にない、またはその逆）は複勝断層を優先してください',
+        $fukuGapTable,
+        '',
     ];
+
+    $lines[] = '【断層構造タイプ（PHP算出済み）】';
+    $lines[] = "タイプ{$gapType}：{$gapTypeDesc}";
+    $lines[] = "選出方針：{$gapTypeGuide}";
+    $lines[] = '';
+    $lines[] = '※ タイプ別の詳細ルール';
+    $lines[] = 'A（二重断層・上位完結型）: 断層上側を中心に。断層下側は自動除外せず、複勝流入が強ければ補欠候補に。';
+    $lines[] = 'B（上位断層型）: 断層上側グループが中心。断層拡大中は上側重視、縮小中は下側の浮上を警戒。';
+    $lines[] = 'C（中間断層型）: 断層上側=中心グループ、断層下側=穴グループ。複勝流入の方向で判断を補正。';
+    $lines[] = 'D（断層なし・混戦型）: 複勝支持・変化率・単複人気差を重視。6〜10番人気も均等に比較。';
+    $lines[] = 'E（判定困難型）: 断層は参考程度。複勝の継続的な動きを最優先で評価。';
+    $lines[] = '';
 
     if (!empty($gapHorseNums) || !empty($upsetPickupHorseNums) || !empty($forecastNums)) {
         $lines[] = 'なお、オッズ分析にあたり、下記の注目馬番も参考にしてください。';
@@ -2869,6 +3003,13 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
 
     $lines = array_merge($lines, [
         '分析依頼',
+        '',
+        '【このシステムの目的（最重要）】',
+        'このシステムの目的は「当てること」ではなく「回収率を上げること」です。',
+        '1〜3番人気ばかりを正確に当てても、オッズが低いため回収率は上がりません。',
+        '「来そうかどうか（信頼度）」と「そのオッズで買う価値があるか（妙味）」を必ず両方考えてください。',
+        '信頼度が同等の馬が複数いる場合は、オッズが高い馬（妙味がある馬）を優先して選出してください。',
+        '',
         "オッズ推移から注目馬を{$pickupCount}頭選出してください。",
         '',
         '【出力フォーマット（厳守）】',
@@ -2889,16 +3030,39 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '・それ以外 → 0',
         "条件B（PHP算出済み）: {$condition2Desc}",
         '',
-        'おすすめ度は100点満点で、オッズ推移・単複比・断層・期待数値などを総合して判断した信頼度を記してください。',
-        'おすすめ度の降順で、レスポンスをソートしてください。',
+        '【おすすめ度の計算方法】',
+        'おすすめ度は100点満点で、以下の2軸を合算して判断してください。',
+        '',
+        '■ 信頼度（60点分）: この馬が5着以内に来そうか',
+        '　複勝オッズの継続下落・断層上側への所属・単複ともに流入継続　→ 高評価',
+        '　オッズが一時的に動いただけ・複勝が上昇傾向・断層下側　→ 低評価',
+        '',
+        '■ 妙味（40点分）: そのオッズで買う価値があるか',
+        '　複勝オッズ1.5倍未満　→ 妙味 5点以下（来ても儲からない）',
+        '　複勝オッズ1.5〜2.5倍　→ 妙味 10〜20点',
+        '　複勝オッズ2.5〜4倍　→ 妙味 20〜30点',
+        '　複勝オッズ4〜7倍　→ 妙味 30〜38点',
+        '　複勝オッズ7倍以上かつ継続的な資金流入あり　→ 妙味 38〜40点',
+        '',
+        'おすすめ度（信頼度＋妙味）の降順でソートしてください。',
         '人気順は上記テーブルの「X人気」欄の値をそのまま出力してください。自分で計算しないでください。',
         '',
+        '【選出ルール】',
+        '・選出した馬が全員4番人気以内の場合、選出理由の最後に必ず「※妙味補足：〜（なぜ高人気馬だけになったか1行で）」を追記してください',
+        '・6〜10番人気でオッズが継続下落している馬は、信頼度・妙味ともに積極的に加点してください',
+        '・複勝オッズが1.3倍以下の馬は、断層の最上位または複勝継続下落でない限りおすすめ度を下げてください',
+        '・一時的なオッズ急落（すぐ戻った）は過大評価しないでください',
+        '',
         '分析の観点：',
-        '・単勝オッズ下落10%以上は人気急上昇として注目',
+        '・複勝オッズの動きを単勝より重視してください。複勝は「来るかどうか」を市場が評価している数値です',
+        '・単勝より複勝で継続的に資金が入っている馬を高く評価してください',
+        '・単勝断層と複勝断層が同じ位置に出ている場合は、その断層を強いシグナルとして扱ってください',
+        '・単勝オッズ下落10%以上は人気急上昇として注目（ただし単発の急落は過大評価しない）',
         '・単複比が高い馬＝勝ちにくいが3着以内には絡みやすい',
         '・複勝の最小・最大の幅が広い馬＝市場の評価が割れている不安定な馬',
         '・複勝の最小・最大の幅が狭い馬＝安定して3着以内が期待されている馬',
         '・複勝オッズが下落している馬は3着以内の信頼度が高い',
+        '・OPI（Over Popularity Index）の見方: OPI>1.2は過去同人気より低オッズ＝市場が過大評価している可能性（妙味低）、OPI<0.8は過去同人気より高オッズ＝市場が過小評価している可能性（妙味高）。妙味スコアの補正材料として活用してください',
         '',
         "選出馬は必ず「厳選穴レース|X」を1行目に、続けて「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」の形式で{$pickupCount}頭分出力してください。",
         '※画面表示に影響するので、この形を守ってください。',
