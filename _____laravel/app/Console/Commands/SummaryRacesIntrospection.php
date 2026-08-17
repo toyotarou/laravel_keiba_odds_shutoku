@@ -307,7 +307,7 @@ ORDER BY date, kaisuu, basho, day, race;
                     "3. 振り返りでは以下を必ず考えてください：",
                     "   ・入賞した高オッズ馬（6番人気以降）を選べたか、選べなかった場合はなぜか",
                     "   ・選出した馬が全員低オッズ（複勝2倍未満）だった場合、回収率の観点で問題がなかったか",
-                    "   ・オッズ推移のどのシグナルが「市場の見落とし」を示していたか
+                    "   ・オッズ推移のどのシグナルが「市場の見落とし」を示していたか",
                     "",
                     "【出力フォーマット（厳守）】",
                     "このフォーマットは画面表示アプリがそのままパースします。",
@@ -360,11 +360,12 @@ ORDER BY date, kaisuu, basho, day, race;
 
                 // 実際の着順もセットで保持（バリデーション・自動補正に使用）
                 $pending[] = [
-                    'race'   => $race,
-                    'prompt' => $prompt,
-                    'r1'     => $actualResult1,
-                    'r2'     => $actualResult2,
-                    'r3'     => $actualResult3,
+                    'race'         => $race,
+                    'prompt'       => $prompt,
+                    'r1'           => $actualResult1,
+                    'r2'           => $actualResult2,
+                    'r3'           => $actualResult3,
+                    'pickupHorses' => $hasPickup ? array_map('strval', $pickupHorses[$raceKey]) : [],
                 ];
                 $this->line("  [収集] {$race->date} {$race->basho_name} {$race->kaisuu}回{$race->day}日目 {$race->race}R");
             }
@@ -438,7 +439,8 @@ ORDER BY date, kaisuu, basho, day, race;
 
                     // ─── バリデーション → 自動補正 ───────────────────────────────
                     $introspection = $this->validateAndCorrect(
-                        $introspection, $item['r1'], $item['r2'], $item['r3'], $label
+                        $introspection, $item['r1'], $item['r2'], $item['r3'], $label,
+                        $item['pickupHorses'] ?? []
                     );
                     if ($introspection === null) {
                         $totalFailed++;
@@ -507,7 +509,8 @@ ORDER BY date, kaisuu, basho, day, race;
 
                         // ─── バリデーション → 自動補正 ────────────────────────────
                         $introspection = $this->validateAndCorrect(
-                            $introspection, $item['r1'], $item['r2'], $item['r3'], $label
+                            $introspection, $item['r1'], $item['r2'], $item['r3'], $label,
+                            $item['pickupHorses'] ?? []
                         );
                         if ($introspection === null) {
                             $giveUp = true;
@@ -598,6 +601,59 @@ ORDER BY date, kaisuu, basho, day, race;
     }
 
     /**
+     * セクションヘッダーを正規化する（スペースなし「##ピックアップ」→「## ピックアップ」など）。
+     */
+    private function normalizeSectionHeaders(string $text): string
+    {
+        $text = str_replace('##ピックアップ', '## ピックアップ', $text);
+        $text = str_replace('## 　ピックアップ', '## ピックアップ', $text); // 全角スペース
+        $text = str_replace('##結果', '## 結果', $text);
+        $text = str_replace('##分析', '## 分析', $text);
+        return $text;
+    }
+
+    /**
+     * ピックアップセクションから馬番を抽出する（複数フォールバックあり）。
+     *
+     * フォールバック順:
+     *   1. 「X番」パターン（例: ○3番 ホゲホゲ）
+     *   2. ○●◎ + 数字パターン（例: ○3 ホゲホゲ、番なし）
+     *   3. 行頭の数字 + 日本語（例: 3 ホゲホゲ）
+     *
+     * @param  string $pickupPart  ## ピックアップ ～ ## 結果 の間のテキスト
+     * @param  array  $knownNums   既知のピックアップ馬番（フォールバック用）
+     * @return array<string>       馬番の文字列配列
+     */
+    private function extractPickupNums(string $pickupPart, array $knownNums = []): array
+    {
+        $pickupPart = $this->normalizeCircledNumbers($pickupPart);
+
+        // パターン1: X番
+        preg_match_all('/(\d+)番/u', $pickupPart, $matches);
+        $nums = $matches[1] ?? [];
+        if (!empty($nums)) return $nums;
+
+        // パターン2: ○●◎△▲ + 数字（番なし）
+        preg_match_all('/^[○●◎◯△▲＊]\s*(\d{1,2})\b/mu', $pickupPart, $matches);
+        $nums = $matches[1] ?? [];
+        if (!empty($nums)) return $nums;
+
+        // パターン3: 行頭の 1〜18 の数字 + スペース + 日本語文字
+        preg_match_all('/^\s*(\d{1,2})\s+[ァ-ヶー一-龥]/mu', $pickupPart, $matches);
+        $nums = array_filter($matches[1] ?? [], fn($n) => (int)$n >= 1 && (int)$n <= 18);
+        $nums = array_values($nums);
+        if (!empty($nums)) return $nums;
+
+        // 最終フォールバック: 既知のピックアップ馬番（hasPickup=true の場合）
+        if (!empty($knownNums)) {
+            Log::warning('SummaryRacesIntrospection: ピックアップ馬番の抽出に失敗。既知馬番でフォールバック。');
+            return array_map('strval', $knownNums);
+        }
+
+        return [];
+    }
+
+    /**
      * バリデーション → 自動補正 のパイプライン。
      *
      * 1. validateIntrospection() でフォーマットと的中ラベルを検証
@@ -606,15 +662,20 @@ ORDER BY date, kaisuu, basho, day, race;
      * 4. 再構築後に再検証し、通れば補正済みテキストを返す
      * 5. それでも通らなければ null を返してスキップ（絶対に不正データをDBに入れない）
      *
+     * @param  array  $knownPickupHorses hasPickup=true の場合の既知ピックアップ馬番（フォールバック用）
      * @return string|null 保存して良いテキスト。null の場合はスキップ
      */
     private function validateAndCorrect(
         string $introspection,
         string $r1, string $r2, string $r3,
-        string $label
+        string $label,
+        array  $knownPickupHorses = []
     ): ?string {
+        // セクションヘッダーを正規化（スペースなし等の表記ゆれを吸収）
+        $introspection = $this->normalizeSectionHeaders($introspection);
+
         // まずそのまま検証
-        if ($this->validateIntrospection($introspection, $r1, $r2, $r3)) {
+        if ($this->validateIntrospection($introspection, $r1, $r2, $r3, $knownPickupHorses)) {
             return $introspection;
         }
 
@@ -627,18 +688,19 @@ ORDER BY date, kaisuu, basho, day, race;
         ]);
         $this->warn("  [自動補正] {$label} — ## 結果 が不正なため自動補正します");
 
-        $corrected = $this->autoCorrectResultSection($introspection, $r1, $r2, $r3);
+        $corrected = $this->autoCorrectResultSection($introspection, $r1, $r2, $r3, $knownPickupHorses);
         if ($corrected === null) {
             Log::error('SummaryRacesIntrospection: 自動補正不能（セクション構造が壊れている）', [
-                'label' => $label,
-                'raw'   => mb_substr($introspection, 0, 500),
+                'label'          => $label,
+                'raw'            => mb_substr($introspection, 0, 500),
+                'knownPickupNums' => $knownPickupHorses,
             ]);
             $this->error("  [スキップ] {$label} — 自動補正不能。DBには保存しません。");
             return null;
         }
 
         // 補正後に再検証
-        if ($this->validateIntrospection($corrected, $r1, $r2, $r3)) {
+        if ($this->validateIntrospection($corrected, $r1, $r2, $r3, $knownPickupHorses)) {
             Log::info('SummaryRacesIntrospection: 自動補正成功', ['label' => $label]);
             $this->warn("  [自動補正完了] {$label}");
             return $corrected;
@@ -660,24 +722,25 @@ ORDER BY date, kaisuu, basho, day, race;
      *   - ## ピックアップ / ## 結果 / ## 分析 の3セクションが存在する
      *   - ## ピックアップ に馬番が1頭以上記載されている
      *   - ## 結果 が「X頭中Y頭が合致」形式で、合致数が実際の入賞馬と一致している
+     *
+     * @param  array  $knownPickupHorses hasPickup=true の場合の既知ピックアップ馬番（フォールバック用）
      */
     private function validateIntrospection(
         string $introspection,
-        string $r1, string $r2, string $r3
+        string $r1, string $r2, string $r3,
+        array  $knownPickupHorses = []
     ): bool {
         // 3セクション必須チェック
         if (!str_contains($introspection, '## ピックアップ')) return false;
         if (!str_contains($introspection, '## 結果')) return false;
         if (!str_contains($introspection, '## 分析')) return false;
 
-        // ## ピックアップ から馬番を取得（丸囲み数字も正規化して対応）
+        // ## ピックアップ から馬番を取得（フォールバック付き）
         $pickupPart = explode('## ピックアップ', $introspection, 2)[1] ?? '';
         if (str_contains($pickupPart, '## 結果')) {
             $pickupPart = explode('## 結果', $pickupPart, 2)[0];
         }
-        $pickupPart = $this->normalizeCircledNumbers($pickupPart);
-        preg_match_all('/(\d+)番/u', $pickupPart, $matches);
-        $pickupNums = $matches[1] ?? [];
+        $pickupNums = $this->extractPickupNums($pickupPart, $knownPickupHorses);
 
         if (empty($pickupNums)) return false;
 
@@ -708,11 +771,13 @@ ORDER BY date, kaisuu, basho, day, race;
      * ## 結果 セクションを正しい合致数で強制的に書き換える。
      * ## ピックアップ の馬番と実際の入賞馬を比較して合致数を再計算する。
      *
+     * @param  array  $knownPickupHorses hasPickup=true の場合の既知ピックアップ馬番（フォールバック用）
      * @return string|null 補正後テキスト。セクション構造が壊れていて補正不能な場合は null
      */
     private function autoCorrectResultSection(
         string $introspection,
-        string $r1, string $r2, string $r3
+        string $r1, string $r2, string $r3,
+        array  $knownPickupHorses = []
     ): ?string {
         if (!str_contains($introspection, '## ピックアップ')
             || !str_contains($introspection, '## 結果')
@@ -720,14 +785,12 @@ ORDER BY date, kaisuu, basho, day, race;
             return null;
         }
 
-        // ## ピックアップ から馬番を取得（丸囲み数字も正規化して対応）
+        // ## ピックアップ から馬番を取得（フォールバック付き）
         $pickupPart = explode('## ピックアップ', $introspection, 2)[1] ?? '';
         if (str_contains($pickupPart, '## 結果')) {
             $pickupPart = explode('## 結果', $pickupPart, 2)[0];
         }
-        $pickupPart = $this->normalizeCircledNumbers($pickupPart);
-        preg_match_all('/(\d+)番/u', $pickupPart, $matches);
-        $pickupNums = $matches[1] ?? [];
+        $pickupNums = $this->extractPickupNums($pickupPart, $knownPickupHorses);
 
         if (empty($pickupNums)) return null;
 

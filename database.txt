@@ -815,3 +815,33 @@ CREATE TABLE `t_horse_odds_finder_summary` (
 
 =================================================================================
 
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_compute_odds_correction` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `popularity_rank` int NOT NULL COMMENT '人気順位（1〜18）',
+  `sample_count` int DEFAULT NULL COMMENT '集計サンプル数',
+  `avg_odds_6min` decimal(8,2) DEFAULT NULL COMMENT '6分前単勝オッズ平均',
+  `avg_odds_final` decimal(8,2) DEFAULT NULL COMMENT '確定単勝オッズ平均（レース結果のtan）',
+  `avg_correction_ratio` decimal(6,4) DEFAULT NULL COMMENT '補正係数平均（確定オッズ÷6分前オッズ）',
+  `std_correction_ratio` decimal(6,4) DEFAULT NULL COMMENT '補正誤差（標準偏差）',
+  `avg_win_probability` decimal(8,6) DEFAULT NULL COMMENT '支持確率平均（1÷確定オッズ）',
+  `start_date` date DEFAULT NULL COMMENT '集計対象期間（開始）',
+  `end_date` date DEFAULT NULL COMMENT '集計対象期間（終了）',
+  `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_popularity_rank` (`popularity_rank`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='6分前オッズから確定オッズへの補正係数テーブル';
+
+
+
+
+=================================================================================
+
+
