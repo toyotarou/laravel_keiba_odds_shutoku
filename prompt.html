@@ -340,8 +340,9 @@
       <div class="section">
         <div class="section-title">DeepSeekに何をさせているか</div>
         <div class="purpose">
-          ユーザーが「2nd AI」ボタンを押したタイミングで、<strong>Claude（1st AI）とは独立して同じレースを分析</strong>させる。<br><br>
-          1st AIは「正確さ・信頼度」重視のため、どうしても上位人気馬に偏りがちになる。そこで2nd AIには「<strong>オッズ推移に根拠があれば中穴・大穴も積極的に取り上げる</strong>」という少し違う視点を与えている。目的は、1st AIが見落としやすい穴馬を補完すること。
+          ユーザーが「2nd AI」ボタンを押したタイミングで、<strong>1st AI（Claude）とは完全に独立して</strong>同じレースを分析させる。<br><br>
+          プロンプトは2nd AI側が自前でDBから生成するため、<strong>1st AIが実行済みかどうかに関係なく動作する</strong>。1st AIの結果に依存しない独立した仕組みになっている。<br><br>
+          1st AIは「正確さ・信頼度」重視のため上位人気馬に偏りがちになる。2nd AIには「<strong>オッズ推移に根拠があれば中穴・大穴も積極的に取り上げる</strong>」という視点を与えており、1st AIが見落としやすい穴馬を補完する役割を担っている。
         </div>
       </div>
 
@@ -360,12 +361,20 @@
       <hr>
 
       <div class="section">
-        <div class="section-title">渡すデータ（1st AIと同じ、ただし一部除外）</div>
+        <div class="section-title">ユーザープロンプト（DeepSeekに渡す分析データ）</div>
+        <p style="font-size:0.82rem; color:#64748b; margin-bottom:8px;">
+          1st AIと同じデータ構成でDBから自前生成する。ただし以下を意図的に除外している。
+        </p>
         <ul class="plain">
-          <li>単勝・複勝オッズ推移、OPI、断層テーブル、断層構造タイプ</li>
-          <li>過去のレース情報・コース統計</li>
-          <li><strong>厳選穴レース判定ロジックは除外</strong>（2nd AI独自の視点で穴馬を見つけてもらうため）</li>
+          <li>単勝・複勝オッズ推移（全時点）、OPI、推定確定オッズ</li>
+          <li>単勝・複勝断層テーブル、断層構造タイプ A〜E</li>
+          <li>過去のレース情報から絞り込んだ注目馬番・コース統計</li>
+          <li><strong>除外：厳選穴レース判定ルール</strong> — 2nd AI独自の視点で穴馬を見つけてもらうため</li>
+          <li><strong>除外：出力の先頭行「厳選穴レース|1または0」</strong> — 2nd AIはこのフラグを出力しない</li>
         </ul>
+        <p style="font-size:0.82rem; color:#64748b; margin-top:8px;">
+          出力フォーマット（馬番・馬名・人気順・6分前オッズ・おすすめ度・選出理由）は1st AIと共通。アプリが同じパーサーで処理する。
+        </p>
       </div>
 
       <hr>

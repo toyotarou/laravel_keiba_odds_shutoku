@@ -7,6 +7,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 use App\Constants\Constants;
+use App\Events\BaganrikiOddsSent;
 
 /**
  * ImportKeibaOdds
@@ -329,6 +330,20 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
             $totalSec = number_format($totalMs / 1000, 2);
             $this->info("  [単複] DB保存完了 → {$saved} 頭分 (合計 {$totalSec}秒 / {$totalMs}ms)");
             $totalInserted += $saved;
+
+            // ─────────────────────────────────────────────────────────
+            // 【ブロック 10.5】WebSocket broadcast
+            //   DB保存完了後、Flutter側にオッズ更新を通知する。
+            //   $odds は Node.js から取得した [['num','tan','fuku_min','fuku_max'], ...] の配列。
+            // ─────────────────────────────────────────────────────────
+            broadcast(new BaganrikiOddsSent(
+                $race->date,
+                (string) $race->kaisuu,
+                $race->basho,
+                (string) $race->day,
+                $race->race,
+                $odds,
+            ));
 
             // ─────────────────────────────────────────────────────────────
             // 【ブロック 9】人気順位変動ログ出力
