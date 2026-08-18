@@ -325,6 +325,64 @@
   </div>
 
 
+  <!-- ① 2nd AI -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-number">① 補助 — レース直前（ユーザー操作時）</div>
+      <div class="card-title">2nd AI（DeepSeek）による独立分析</div>
+      <div class="card-meta">
+        <span class="badge badge-blue">ユーザー操作時</span>
+        <span class="file-label">DeepSeek-V3</span>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <div class="section">
+        <div class="section-title">DeepSeekに何をさせているか</div>
+        <div class="purpose">
+          ユーザーが「2nd AI」ボタンを押したタイミングで、<strong>Claude（1st AI）とは独立して同じレースを分析</strong>させる。<br><br>
+          1st AIは「正確さ・信頼度」重視のため、どうしても上位人気馬に偏りがちになる。そこで2nd AIには「<strong>オッズ推移に根拠があれば中穴・大穴も積極的に取り上げる</strong>」という少し違う視点を与えている。目的は、1st AIが見落としやすい穴馬を補完すること。
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">システムプロンプト（DeepSeekへの指示方針）</div>
+        <div class="box">
+          競馬のオッズ推移を分析して有力馬を絞り込む専門家です。<br>
+          ただし、人気上位馬だけを並べる予想は面白くありません。<br>
+          オッズ推移に確かな根拠があれば、中穴・大穴馬も積極的に取り上げてください。<br>
+          まじめに、しかし少し遊んでみてください。
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">渡すデータ（1st AIと同じ、ただし一部除外）</div>
+        <ul class="plain">
+          <li>単勝・複勝オッズ推移、OPI、断層テーブル、断層構造タイプ</li>
+          <li>過去のレース情報・コース統計</li>
+          <li><strong>厳選穴レース判定ロジックは除外</strong>（2nd AI独自の視点で穴馬を見つけてもらうため）</li>
+        </ul>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">結果の表示方法</div>
+        <ul class="plain">
+          <li>1st AIと共通して選ばれた馬 → メインリストに <strong>緑枠の「2nd AI理由」</strong> を追加表示</li>
+          <li>2nd AIのみが選んだ馬 → リスト下部に <strong>「補欠」バッジ付き</strong> で別表示</li>
+          <li>分析結果はサーバー側にキャッシュ。2回目以降はAPIへの通信なしで即返却</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+
   <!-- ② 振り返り -->
   <div class="card">
     <div class="card-header">
@@ -500,6 +558,14 @@
             <div class="tl-time">レース発走6分前（リアルタイム）</div>
             <div class="tl-label">① 有力馬を選出・おすすめ度を算出</div>
             <div class="tl-desc">④の候補馬番＋オッズ時系列＋断層分析＋OPIを統合してAIが最終選出。結果をアプリに表示。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-left"><div class="tl-dot" style="background:#3b82f6;"></div><div class="tl-line"></div></div>
+          <div class="tl-right">
+            <div class="tl-time">レース直前（ユーザーが「2nd AI」ボタンを押したとき）</div>
+            <div class="tl-label">① 補助 — DeepSeekによる独立分析</div>
+            <div class="tl-desc">①と同じデータを使ってDeepSeekが独自に選出。穴馬重視の視点で補欠候補を提示し、1st AIとの差分を表示する。</div>
           </div>
         </div>
         <div class="tl-item">

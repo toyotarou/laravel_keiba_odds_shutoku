@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use DB;
 
 use App\Constants\Constants;
@@ -2735,12 +2736,33 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $popularityAvgMap[(int)$row->popularity_rank] = floatval($row->odds_average);
     }
 
+    // ─── 補正係数の読み込み（t_horse_odds_finder_compute_odds_correction）──
+    // 推定確定オッズ = 6分前オッズ × avg_correction_ratio
+    // std_correction_ratio = 補正誤差（標準偏差）
+    $correctionRows = DB::table('t_horse_odds_finder_compute_odds_correction')->get();
+    $correctionMap  = [];
+    foreach ($correctionRows as $row) {
+        $correctionMap[(int)$row->popularity_rank] = $row;
+    }
+
     foreach ($promptHorses as &$h) {
         $avgOdds = $popularityAvgMap[$h['popularity']] ?? null;
         if ($avgOdds && $h['odds_6'] > 0) {
             $h['opi'] = round($avgOdds / $h['odds_6'], 2);
         } else {
             $h['opi'] = null;
+        }
+
+        // 推定確定オッズ
+        $corr = $correctionMap[$h['popularity']] ?? null;
+        if ($corr && $h['odds_6'] > 0) {
+            $h['estimated_final_odds'] = round($h['odds_6'] * floatval($corr->avg_correction_ratio), 2);
+            $h['correction_ratio']     = floatval($corr->avg_correction_ratio);
+            $h['correction_std']       = floatval($corr->std_correction_ratio);
+        } else {
+            $h['estimated_final_odds'] = null;
+            $h['correction_ratio']     = null;
+            $h['correction_std']       = null;
         }
     }
     unset($h);
@@ -2794,10 +2816,24 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             $opiLine = "  OPI: －";
         }
 
+        // 推定確定オッズ表示
+        if ($h['estimated_final_odds'] !== null) {
+            $estLine = sprintf(
+                '  推定確定オッズ: %.1f倍（±%.2f）  ※6分前%.1f倍×補正係数%.4f',
+                $h['estimated_final_odds'],
+                $h['correction_std'],
+                $h['odds_6'],
+                $h['correction_ratio']
+            );
+        } else {
+            $estLine = '  推定確定オッズ: －（補正データなし）';
+        }
+
         $lines[] = sprintf('%2d番(%2d人気) %s', $h['num'], $h['popularity'], $h['name']);
         $lines[] = '  単勝: ' . $tanLine;
         $lines[] = '  複勝: 計測前' . $fukuBase . '→6分前' . $fuku6 . '（' . $h['fuku_change'] . '）  単複比: ' . $h['tanpuku_ratio'];
         $lines[] = $opiLine;
+        $lines[] = $estLine;
         $lines[] = '';
     }
     $table = implode("\n", $lines);
@@ -3063,6 +3099,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '・複勝の最小・最大の幅が狭い馬＝安定して3着以内が期待されている馬',
         '・複勝オッズが下落している馬は3着以内の信頼度が高い',
         '・OPI（Over Popularity Index）の見方: OPI>1.2は過去同人気より低オッズ＝市場が過大評価している可能性（妙味低）、OPI<0.8は過去同人気より高オッズ＝市場が過小評価している可能性（妙味高）。妙味スコアの補正材料として活用してください',
+        '・推定確定オッズの見方: 過去の6分前→確定オッズの変動パターンから算出した「発走時点での最終オッズ予測値」です。6分前オッズより推定確定オッズが大きく下がる馬（補正係数<1）は直前にさらに人気が集中する傾向があり、信頼度の補強材料になります。逆に推定確定オッズが上がる馬（補正係数>1）は直前に売られる傾向があります。±の補正誤差が大きい馬は予測の振れ幅が大きいため参考程度に留めてください。妙味スコアを算出する際は、6分前オッズではなく推定確定オッズを基準にしてください',
         '',
         "選出馬は必ず「厳選穴レース|X」を1行目に、続けて「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」の形式で{$pickupCount}頭分出力してください。",
         '※画面表示に影響するので、この形を守ってください。',
@@ -3070,5 +3107,160 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
 
     return implode("\n", $lines);
 }
+
+
+
+/**
+ * DeepSeek による第2の AI 分析
+ *
+ * getHorseOddsFinderAiAnalysis で保存した .data ファイルを読み込み、
+ * DeepSeek API に投げて Claude とは独立した視点の予想を取得する。
+ * 【厳選穴レースの判定ルール】はDeepSeekには不要なので除去して送信する。
+ *
+ * @param  Request $request  date, kaisuu, basho, day, race
+ * @return \Illuminate\Http\JsonResponse
+ */
+public function getHorseOddsFinderSecondAiOpinion(Request $request)
+{
+    $date   = $request->query('date');
+    $kaisuu = $request->query('kaisuu');
+    $basho  = $request->query('basho');  // 場コード
+    $day    = $request->query('day');
+    $race   = $request->query('race');
+
+    // ─── キャッシュ確認 ───────────────────────────────────────────────
+    $cached = DB::table('t_horse_odds_finder_ai_analysis2')
+        ->where('date',       $date)
+        ->where('kaisuu',     $kaisuu)
+        ->where('basho_code', $basho)
+        ->where('day',        $day)
+        ->where('race',       $race)
+        ->first();
+
+    if ($cached) {
+        return response()->json(['data' => [
+            'date'          => $date,
+            'kaisuu'        => $kaisuu,
+            'basho_code'    => $basho,
+            'day'           => $day,
+            'race'          => $race,
+            'analysis_text' => trim($cached->analysis_text),
+        ]]);
+    }
+
+    // ─── 排他ロック（同一レースへの並行リクエスト防止） ──────────────
+    $lockKey = "ai_analysis2_{$date}_{$kaisuu}_{$basho}_{$day}_{$race}";
+    $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 120);
+
+    try {
+        $lock->block(60);
+
+        // ロック後に再度キャッシュ確認
+        $cached = DB::table('t_horse_odds_finder_ai_analysis2')
+            ->where('date',       $date)
+            ->where('kaisuu',     $kaisuu)
+            ->where('basho_code', $basho)
+            ->where('day',        $day)
+            ->where('race',       $race)
+            ->first();
+
+        if ($cached) {
+            return response()->json(['data' => [
+                'date'          => $date,
+                'kaisuu'        => $kaisuu,
+                'basho_code'    => $basho,
+                'day'           => $day,
+                'race'          => $race,
+                'analysis_text' => trim($cached->analysis_text),
+            ]]);
+        }
+
+        // ─── レース基本情報の取得（basho_name・race_name の保存用） ──────
+        $raceRow = DB::table('t_horse_odds_finder_races')
+            ->where('date',   $date)
+            ->where('kaisuu', $kaisuu)
+            ->where('basho',  $basho)
+            ->where('day',    $day)
+            ->where('race',   intval($race))
+            ->first();
+
+        if (!$raceRow) {
+            return response()->json(['error' => 'レースが見つかりません'], 404);
+        }
+
+        // ─── プロンプトの取得（.data ファイルがあれば再利用、なければ自力生成） ──
+        // getHorseOddsFinderAiAnalysis で保存した .data ファイルを優先して使い回す
+        // 例: /var/www/horse_odds_finder/public/prompt/prompt_2026-08-16_2_07_8_9.data
+        $filePath = public_path("prompt/prompt_{$date}_{$kaisuu}_{$basho}_{$day}_{$race}.data");
+
+        if (file_exists($filePath)) {
+            $oddsData = file_get_contents($filePath);
+        } else {
+            // .data ファイルがない場合はプロンプトを自力生成する
+            $oddsData = $this->_getAiAnalysisPrompt($date, $kaisuu, $basho, $day, $race, '', '');
+            if ($oddsData === null) {
+                return response()->json(['error' => 'プロンプト生成に失敗しました（レースまたはオッズデータが不足しています）'], 500);
+            }
+        }
+
+        // ─── DeepSeek 用にプロンプトを整形 ──────────────────────────────
+        // 【厳選穴レースの判定ルール】ブロックを除去
+        $oddsData = preg_replace('/【厳選穴レースの判定ルール】.*?(?=\nおすすめ度は)/s', '', $oddsData);
+        // 出力フォーマット内の「厳選穴レース|1または0」行を除去
+        $oddsData = preg_replace('/^厳選穴レース\|1または0\n?/m', '', $oddsData);
+        // 末尾の「選出馬は必ず「厳選穴レース|X」を1行目に〜」の行を除去
+        $oddsData = preg_replace('/^選出馬は必ず「厳選穴レース[^\n]*\n?/m', '', $oddsData);
+
+        // ─── DeepSeek API 呼び出し ────────────────────────────────────
+        $response = Http::timeout(60)->withHeaders([
+            'Authorization' => 'Bearer ' . env('DEEPSEEK_API_KEY'),
+        ])->post('https://api.deepseek.com/v1/chat/completions', [
+            'model'    => 'deepseek-chat',
+            'messages' => [
+                ['role' => 'system', 'content' => '競馬のオッズ推移を分析して有力馬を絞り込む専門家です。ただし、人気上位馬だけを並べる予想は面白くありません。オッズ推移に確かな根拠があれば、中穴・大穴馬も積極的に取り上げてください。まじめに、しかし少し遊んでみてください。'],
+                ['role' => 'user',   'content' => $oddsData],
+            ],
+        ]);
+
+        if ($response->failed()) {
+            \Log::error('DeepSeek API error', [
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+            return response()->json(['error' => 'DeepSeek AI分析に失敗しました'], 500);
+        }
+
+        $result       = $response->json();
+        $analysisText = trim($result['choices'][0]['message']['content'] ?? '');
+
+        // ─── 分析結果をDBに保存（次回以降はキャッシュから返す） ──────────
+        DB::table('t_horse_odds_finder_ai_analysis2')->insertOrIgnore([
+            'date'          => $date,
+            'kaisuu'        => $kaisuu,
+            'basho_code'    => $basho,
+            'basho'         => $raceRow->basho_name,
+            'day'           => $day,
+            'race'          => $race,
+            'race_name'     => $raceRow->race_name,
+            'analysis_text' => $analysisText,
+        ]);
+
+        return response()->json(['data' => [
+            'date'          => $date,
+            'kaisuu'        => $kaisuu,
+            'basho_code'    => $basho,
+            'day'           => $day,
+            'race'          => $race,
+            'analysis_text' => $analysisText,
+        ]]);
+
+    } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+        return response()->json(['error' => 'しばらくしてから再試行してください'], 503);
+    } finally {
+        $lock->release();
+    }
+}
+
+
 
 }
