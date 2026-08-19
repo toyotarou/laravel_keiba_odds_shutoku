@@ -2767,6 +2767,14 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $opiRecoveryMap[$row->opi_band . '|' . $row->popularity_band] = $row;
     }
 
+    // ─── 前半・後半フェーズパターン別回収率の読み込み ────────────────────
+    // キー: "{phase_pattern}|{popularity_band}" → 回収率・勝率・サンプル数
+    $phasePatternRows = DB::table('t_horse_odds_finder_phase_pattern_recovery')->get();
+    $phasePatternMap  = [];
+    foreach ($phasePatternRows as $row) {
+        $phasePatternMap[$row->phase_pattern . '|' . $row->popularity_band] = $row;
+    }
+
     foreach ($promptHorses as &$h) {
         $avgOdds = $popularityAvgMap[$h['popularity']] ?? null;
         if ($avgOdds && $h['odds_6'] > 0) {
@@ -2806,6 +2814,32 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $h['opi_recovery_rate'] = $or ? floatval($or->recovery_rate) : null;
         $h['opi_win_rate']      = $or ? floatval($or->win_rate)      : null;
         $h['opi_sample_count']  = $or ? intval($or->sample_count)    : null;
+
+        // フェーズパターン別回収率（前半・後半フェーズ方向 × 人気帯 でルックアップ）
+        // 前半: 計測開始前（999=ODDS_DB_FIRST）→ 12分前
+        // 後半: 12分前 → 6分前
+        $oddsStart = isset($h['tan_series'][Constants::ODDS_DB_FIRST]) && $h['tan_series'][Constants::ODDS_DB_FIRST] > 0
+            ? $h['tan_series'][Constants::ODDS_DB_FIRST]
+            : ($h['odds_base'] > 0 ? $h['odds_base'] : null);
+        $odds12    = isset($h['tan_series'][12]) && $h['tan_series'][12] > 0
+            ? $h['tan_series'][12]
+            : null;
+        if ($oddsStart && $odds12 && $h['odds_6'] > 0) {
+            $half1Rate = ($odds12 - $oddsStart) / $oddsStart * 100;
+            $half2Rate = ($h['odds_6'] - $odds12)  / $odds12   * 100;
+            $phasePat  = '前半' . $this->_getPhaseDirection($half1Rate)
+                       . '・後半' . $this->_getPhaseDirection($half2Rate);
+        } else {
+            $half1Rate = null;
+            $half2Rate = null;
+            $phasePat  = null;
+        }
+        $phaseKey = $phasePat ? ($phasePat . '|' . $popBand) : null;
+        $pp       = $phaseKey ? ($phasePatternMap[$phaseKey] ?? null) : null;
+        $h['phase_pattern']       = $phasePat;
+        $h['phase_recovery_rate'] = $pp ? floatval($pp->recovery_rate) : null;
+        $h['phase_win_rate']      = $pp ? floatval($pp->win_rate)      : null;
+        $h['phase_sample_count']  = $pp ? intval($pp->sample_count)    : null;
     }
     unset($h);
 
@@ -2912,8 +2946,29 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $lines[] = '  複勝: 計測前' . $fukuBase . '→6分前' . $fuku6 . '（' . $h['fuku_change'] . '）  単複比: ' . $h['tanpuku_ratio'];
         $lines[] = $opiLine;
         $lines[] = $estLine;
+        // フェーズパターン別回収率の表示
+        if ($h['phase_pattern'] !== null && $h['phase_recovery_rate'] !== null) {
+            $phasePatternLine = sprintf(
+                '  フェーズパターン別回収率（%s × %s）: 回収率%.1f%%  勝率%.1f%%  サンプル%d件',
+                $h['phase_pattern'],
+                $h['pop_band'],
+                $h['phase_recovery_rate'],
+                $h['phase_win_rate'],
+                $h['phase_sample_count']
+            );
+        } elseif ($h['phase_pattern'] !== null) {
+            $phasePatternLine = sprintf(
+                '  フェーズパターン別回収率（%s × %s）: －（データなし）',
+                $h['phase_pattern'],
+                $h['pop_band']
+            );
+        } else {
+            $phasePatternLine = '  フェーズパターン別回収率: －（オッズデータ不足）';
+        }
+
         $lines[] = $gapRecoveryLine;
         $lines[] = $opiRecoveryLine;
+        $lines[] = $phasePatternLine;
         $lines[] = '';
     }
     $table = implode("\n", $lines);
@@ -3180,7 +3235,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '・複勝オッズが下落している馬は3着以内の信頼度が高い',
         '・OPI（Over Popularity Index）の見方: OPI>1.2は過去同人気より低オッズ＝市場が過大評価している可能性（妙味低）、OPI<0.8は過去同人気より高オッズ＝市場が過小評価している可能性（妙味高）。妙味スコアの補正材料として活用してください',
         '・推定確定オッズの見方: 過去の6分前→確定オッズの変動パターンから算出した「発走時点での最終オッズ予測値」です。6分前オッズより推定確定オッズが大きく下がる馬（補正係数<1）は直前にさらに人気が集中する傾向があり、信頼度の補強材料になります。逆に推定確定オッズが上がる馬（補正係数>1）は直前に売られる傾向があります。±の補正誤差が大きい馬は予測の振れ幅が大きいため参考程度に留めてください。妙味スコアを算出する際は、6分前オッズではなく推定確定オッズを基準にしてください',
-        '・過去回収率・OPI帯別回収率の使い方: 各馬に表示されている「過去回収率」「OPI帯別回収率」は、勝率ではなく回収率（%）を妙味スコア判断の最重要指標として使ってください。回収率が100%を下回るパターン（例: 1〜3人気×変化なし = 83%）は、たとえ勝率が高くても長期的には損をするパターンです。妙味スコアを下げる材料として扱ってください。逆に回収率が110%以上のパターンは積極的に妙味を高く評価してください。1〜3番人気ばかりを選出して回収率の低い予想になることを厳に避けてください',
+        '・過去回収率・OPI帯別回収率・フェーズパターン別回収率の使い方: 各馬に表示されている「過去回収率」「OPI帯別回収率」「フェーズパターン別回収率」は、勝率ではなく回収率（%）を妙味スコア判断の最重要指標として使ってください。回収率が100%を下回るパターン（例: 1〜3人気×変化なし = 83%）は、たとえ勝率が高くても長期的には損をするパターンです。妙味スコアを下げる材料として扱ってください。逆に回収率が110%以上のパターンは積極的に妙味を高く評価してください。フェーズパターン別回収率は特に「前半下落・後半上昇（売り戻し）」や「前半上昇・後半下落（直前急落）」のような市場の急変パターンを捉えた重要シグナルです。1〜3番人気ばかりを選出して回収率の低い予想になることを厳に避けてください',
         '',
         "選出馬は必ず「厳選穴レース|X」を1行目に、続けて「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」の形式で{$pickupCount}頭分出力してください。",
         '※画面表示に影響するので、この形を守ってください。',
@@ -3291,6 +3346,38 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         $oddsData = preg_replace('/^厳選穴レース\|1または0\n?/m', '', $oddsData);
         // 末尾の「選出馬は必ず「厳選穴レース|X」を1行目に〜」の行を除去
         $oddsData = preg_replace('/^選出馬は必ず「厳選穴レース[^\n]*\n?/m', '', $oddsData);
+        // 回収率データの「使い方指示」行を除去（数値は残す。制約だけ取り除く）
+        $oddsData = preg_replace('/^・過去回収率[^\n]*\n?/m', '', $oddsData);
+        // 「おすすめ度の計算方法」固定スキームブロックを除去
+        $oddsData = preg_replace('/【おすすめ度の計算方法】.*?(?=\n選出馬|\n※|$)/s', '', $oddsData);
+        // 「このシステムの目的（最重要）」ブロックを除去
+        $oddsData = preg_replace('/【このシステムの目的（最重要）】.*?(?=\n選出馬|\n分析の観点|$)/s', '', $oddsData);
+        // 末尾の出力形式指示の頭数指定を緩和
+        $oddsData = preg_replace(
+            '/^(選出馬は必ず以下の形式で|オッズ推移から注目馬を)[^\n]*\n?/m',
+            '選出馬は以下の形式で、あなたが推したい頭数だけ出力してください（頭数は自由です）。' . "\n",
+            $oddsData
+        );
+
+        $systemPrompt = <<<'SYSTEM'
+あなたは競馬オッズ分析の専門家です。
+
+ただし、あなたは「2nd AI」として 1st AI とは独立した視点で分析することを期待されています。
+以下のルールはあなたには適用されません。自由に判断してください：
+
+・回収率データに縛られた選出（数値は参考程度。使っても使わなくても構いません）
+・おすすめ度の固定計算式（60点信頼度＋40点妙味という枠は不要です）
+・「1〜3人気を避けること」というバイアス（筋が通っていれば何人気でも選んでください）
+
+あなたに期待することは：
+・オッズの動きや市場の空気感を、あなた自身の感覚で読み解くこと
+・1st AI が見落としそうな角度・着眼点を大切にすること
+・「なんとなく面白い馬」という直感もロジックで語れるなら積極的に出すこと
+・人気馬でも根拠があれば選ぶ。穴馬でも根拠があれば選ぶ。忖度不要
+・まじめに、でも遊び心を持って
+
+有料公開するシステムなので、正しい日本語で返してください。
+SYSTEM;
 
         // ─── DeepSeek API 呼び出し ────────────────────────────────────
         $response = Http::timeout(60)->withHeaders([
@@ -3298,7 +3385,7 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         ])->post('https://api.deepseek.com/v1/chat/completions', [
             'model'    => 'deepseek-chat',
             'messages' => [
-                ['role' => 'system', 'content' => '競馬のオッズ推移を分析して有力馬を絞り込む専門家です。ただし、人気上位馬だけを並べる予想は面白くありません。オッズ推移に確かな根拠があれば、中穴・大穴馬も積極的に取り上げてください。まじめに、しかし少し遊んでみてください。'],
+                ['role' => 'system', 'content' => $systemPrompt],
                 ['role' => 'user',   'content' => $oddsData],
             ],
         ]);
@@ -3383,6 +3470,15 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         if ($opi <  1.30) return '1.15〜1.30';
         if ($opi <  1.50) return '1.30〜1.50';
         return '1.50以上';
+    }
+
+    // 変化率（%）からフェーズ方向の文字列を返す。
+    // SummaryOddsPhasePatternRecoveryRate の half1_label / half2_label 定義と完全一致させること。
+    private function _getPhaseDirection(float $rate): string
+    {
+        if ($rate <= -5.0) return '下落';
+        if ($rate <   5.0) return '横ばい';
+        return '上昇';
     }
 
 }

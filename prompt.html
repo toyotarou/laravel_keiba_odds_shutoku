@@ -278,6 +278,7 @@
           <li>推定確定オッズ（補正係数 × 6分前オッズ。人気順位ごとの過去乖離率から算出）</li>
           <li>過去回収率（変化率帯別）— 計測開始→6分前のオッズ変化率帯 × 人気帯 ごとの単勝回収率・勝率・サンプル数</li>
           <li>OPI帯別回収率 — OPI値を7帯に分類し、人気帯との組み合わせ（最大28通り）ごとの単勝回収率・勝率・サンプル数</li>
+          <li>フェーズパターン別回収率 — 前半・後半フェーズ方向9パターン × 人気帯（4区分）ごとの単勝回収率・勝率・サンプル数</li>
         </ul>
       </div>
 
@@ -328,6 +329,25 @@
         <div class="box">
           <div class="box-title">集計タイミング</div>
           毎日22:20 cron で <code style="font-size:0.8rem;">keiba:SummaryOpiRecoveryRate</code> コマンドが実行され、<code style="font-size:0.8rem;">t_horse_odds_finder_opi_recovery</code> テーブルを更新する。AIコストなし（純粋なSQL集計のみ）。
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">フェーズパターン別回収率とは</div>
+        <div class="box">
+          <div class="box-title">仕組み</div>
+          オッズ変動を「前半（計測開始→12分前）」と「後半（12分前→6分前）」の2段階に分け、各フェーズを <strong>下落（≤−5%）/ 横ばい（−5%〜5%）/ 上昇（≥5%）</strong> に判定。9パターン × 人気帯4区分の組み合わせで過去の単勝回収率・勝率・サンプル数を集計している。
+        </div>
+        <div class="box">
+          <div class="box-title">注目パターン</div>
+          <strong>前半下落・後半上昇（売り戻し）</strong>：早い段階で売れたが直前に手放された。見せかけの人気で実力が伴っていない可能性がある。<br>
+          <strong>前半上昇・後半下落（直前急落）</strong>：最初は無視されたが直前に急注目。インサイダー的な資金流入シグナルになりやすい。
+        </div>
+        <div class="box">
+          <div class="box-title">集計タイミング</div>
+          毎日21:30 cron で <code style="font-size:0.8rem;">keiba:SummaryOddsPhasePatternRecoveryRate</code> コマンドが実行され、<code style="font-size:0.8rem;">t_horse_odds_finder_phase_pattern_recovery</code> テーブルを更新する。AIコストなし（純粋なSQL集計のみ）。
         </div>
       </div>
 
@@ -407,7 +427,7 @@
         <div class="purpose">
           ユーザーが「2nd AI」ボタンを押したタイミングで、<strong>1st AI（Claude）とは完全に独立して</strong>同じレースを分析させる。<br><br>
           プロンプトは2nd AI側が自前でDBから生成するため、<strong>1st AIが実行済みかどうかに関係なく動作する</strong>。1st AIの結果に依存しない独立した仕組みになっている。<br><br>
-          1st AIは「正確さ・信頼度」重視のため上位人気馬に偏りがちになる。2nd AIには「<strong>オッズ推移に根拠があれば中穴・大穴も積極的に取り上げる</strong>」という視点を与えており、1st AIが見落としやすい穴馬を補完する役割を担っている。
+          1st AIは「回収率データに基づく厳密な評価」重視のため制約が多い。2nd AIはその制約を意図的に外し、<strong>「回収率縛りなし・点数計算式なし・人気バイアスなし・選出頭数自由」</strong> という完全フリーな視点で同じデータを読む。1st AIが見落としやすい穴馬の補完だけでなく、「人気馬でも筋が通っていれば選ぶ」という忖度なしの独自分析を担う。
         </div>
       </div>
 
@@ -416,10 +436,17 @@
       <div class="section">
         <div class="section-title">システムプロンプト（DeepSeekへの指示方針）</div>
         <div class="box">
-          競馬のオッズ推移を分析して有力馬を絞り込む専門家です。<br>
-          ただし、人気上位馬だけを並べる予想は面白くありません。<br>
-          オッズ推移に確かな根拠があれば、中穴・大穴馬も積極的に取り上げてください。<br>
-          まじめに、しかし少し遊んでみてください。
+          あなたは「2nd AI」として 1st AI とは独立した視点で分析することを期待されています。<br>
+          以下のルールはあなたには適用されません。自由に判断してください：<br><br>
+          ・回収率データに縛られた選出（数値は参考程度。使っても使わなくても構いません）<br>
+          ・おすすめ度の固定計算式（60点信頼度＋40点妙味という枠は不要です）<br>
+          ・「1〜3人気を避けること」というバイアス（筋が通っていれば何人気でも選んでください）<br><br>
+          あなたに期待することは：<br>
+          ・オッズの動きや市場の空気感を、あなた自身の感覚で読み解くこと<br>
+          ・1st AI が見落としそうな角度・着眼点を大切にすること<br>
+          ・「なんとなく面白い馬」という直感もロジックで語れるなら積極的に出すこと<br>
+          ・人気馬でも根拠があれば選ぶ。穴馬でも根拠があれば選ぶ。忖度不要<br>
+          ・まじめに、でも遊び心を持って
         </div>
       </div>
 
@@ -431,11 +458,14 @@
           1st AIと同じデータ構成でDBから自前生成する。ただし以下を意図的に除外している。
         </p>
         <ul class="plain">
-          <li>単勝・複勝オッズ推移（全時点）、OPI、推定確定オッズ</li>
+          <li>単勝・複勝オッズ推移（全時点）、OPI、推定確定オッズ、過去回収率数値</li>
           <li>単勝・複勝断層テーブル、断層構造タイプ A〜E</li>
           <li>過去のレース情報から絞り込んだ注目馬番・コース統計</li>
-          <li><strong>除外：厳選穴レース判定ルール</strong> — 2nd AI独自の視点で穴馬を見つけてもらうため</li>
-          <li><strong>除外：出力の先頭行「厳選穴レース|1または0」</strong> — 2nd AIはこのフラグを出力しない</li>
+          <li><strong>除外：厳選穴レース判定ルール＆フラグ出力</strong> — 2nd AI独自の視点で判断させるため</li>
+          <li><strong>除外：回収率データの「使い方指示」</strong> — 数値は渡すが「こう使え」という縛りは外す</li>
+          <li><strong>除外：おすすめ度の固定計算式</strong>（60点信頼度＋40点妙味） — 自由な評価軸を許容</li>
+          <li><strong>除外：「このシステムの目的は回収率」という目的指示</strong> — 当てにいっても構わない</li>
+          <li><strong>除外：選出頭数の指定</strong> — 何頭でも自由に選んでよい</li>
         </ul>
         <p style="font-size:0.82rem; color:#64748b; margin-top:8px;">
           出力フォーマット（馬番・馬名・人気順・6分前オッズ・おすすめ度・選出理由）は1st AIと共通。アプリが同じパーサーで処理する。
@@ -640,6 +670,14 @@
             <div class="tl-time">レース直前（ユーザーが「2nd AI」ボタンを押したとき）</div>
             <div class="tl-label">① 補助 — DeepSeekによる独立分析</div>
             <div class="tl-desc">①と同じデータを使ってDeepSeekが独自に選出。穴馬重視の視点で補欠候補を提示し、1st AIとの差分を表示する。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-left"><div class="tl-dot" style="background:#06b6d4;"></div><div class="tl-line"></div></div>
+          <div class="tl-right">
+            <div class="tl-time">毎日 21:30（夜間バッチ・AIコストなし）</div>
+            <div class="tl-label">フェーズパターン別回収率を集計・更新</div>
+            <div class="tl-desc">前半（計測開始→12分前）・後半（12分前→6分前）フェーズ方向の組み合わせ9パターン × 人気帯（4区分）ごとの単勝回収率・勝率をSQLで集計し、翌日の①プロンプトへ反映する。</div>
           </div>
         </div>
         <div class="tl-item">
