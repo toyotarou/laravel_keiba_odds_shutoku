@@ -758,7 +758,12 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
                 'umaren' => $result->umaren,
                 'umatan' => $result->umatan,
                 'trio' => $result->trio,
-                'trifecta' => $result->trifecta
+                'trifecta' => $result->trifecta,
+                
+                'grade' => $result->grade,
+                'course' => $result->course,
+                'dist' => $result->dist,
+                'inner_outer' => $result->inner_outer
             ];
         }
 

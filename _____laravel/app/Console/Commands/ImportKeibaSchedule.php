@@ -237,6 +237,7 @@ class ImportKeibaSchedule extends Command
                 'course'      => $r['course']      ?? '',
                 'dist'        => $r['dist']        ?? 0,
                 'inner_outer' => $r['inner_outer'] ?? null,
+                'grade'       => $r['grade']       ?? null,
             ], $racesFiltered);
 
             $horsesRows = array_map(fn($r) => [

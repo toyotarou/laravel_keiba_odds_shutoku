@@ -318,13 +318,28 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                     return i + 1;
                 })();
 
-                return { raceNum, rowIndex: i, raceName, startTime, hasTanpuku, tanpukuAttr };
+                // グレードアイコン（span.grade_icon img）からグレードを抽出
+                // keibaOddsGetRaceGrade.mjs の extractGrade と同じロジック
+                const gradeImg = row.querySelector('span.grade_icon img');
+                let grade = null;
+                if (gradeImg) {
+                    const file = (gradeImg.getAttribute('src') || '').split('/').pop();
+                    if      (file.includes('j_g1') || file.includes('j-g1') || file.includes('jg1')) grade = 'J-G1';
+                    else if (file.includes('j_g2') || file.includes('j-g2') || file.includes('jg2')) grade = 'J-G2';
+                    else if (file.includes('j_g3') || file.includes('j-g3') || file.includes('jg3')) grade = 'J-G3';
+                    else if (file.includes('_g1'))    grade = 'G1';
+                    else if (file.includes('_g2'))    grade = 'G2';
+                    else if (file.includes('_g3'))    grade = 'G3';
+                    else if (file.includes('listed')) grade = 'L';
+                }
+
+                return { raceNum, rowIndex: i, raceName, startTime, hasTanpuku, tanpukuAttr, grade };
             });
         });
 
         log(`  レース一覧: ${raceInfoList.length}件確認`);
         raceInfoList.forEach(ri =>
-            log(`    行${ri.rowIndex}: raceNum=${ri.raceNum} startTime=${ri.startTime} attr="${ri.tanpukuAttr.slice(0, 80)}"`)
+            log(`    行${ri.rowIndex}: raceNum=${ri.raceNum} startTime=${ri.startTime} grade=${ri.grade ?? '-'} attr="${ri.tanpukuAttr.slice(0, 80)}"`)
         );
 
         // ─────────────────────────────────────────────────────
@@ -348,6 +363,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                     race_name:  ri.raceName,
                     start_time: ri.startTime,
                     num_horses: 0,
+                    grade:      ri.grade,
                 });
                 continue;
             }
@@ -372,6 +388,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                     race_name:  ri.raceName,
                     start_time: ri.startTime,
                     num_horses: 0,
+                    grade:      ri.grade,
                 });
                 continue;
             }
@@ -485,6 +502,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                 dist:        rDist,
                 inner_outer: rInnerOuter,
                 num_horses:  horses.length,
+                grade:       ri.grade,
             });
 
             // horses テーブル用データを追加（馬ごとに1レコード）

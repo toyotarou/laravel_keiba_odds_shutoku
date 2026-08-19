@@ -107,7 +107,8 @@ class DeleteKeibaTableRecords extends Command
             '/var/www/horse_odds_finder/storage/logs/ImportRacesPopularityRatio.log',
             '/var/www/horse_odds_finder/storage/logs/importPayoutCourseDist.log',
             '/var/www/horse_odds_finder/storage/logs/importPayoutInnerOuter.log',
-            
+            '/var/www/horse_odds_finder/storage/logs/ImportKeibaPayoutGrade.log',
+
             '/var/www/horse_odds_finder/storage/logs/aiAnalysisCheck.log',
             '/var/www/horse_odds_finder/storage/logs/popularityHorseCheck.log',
             '/var/www/horse_odds_finder/storage/logs/repairStartTime.log',
@@ -133,7 +134,9 @@ class DeleteKeibaTableRecords extends Command
             '/var/www/horse_odds_finder/scripts/keibaOddsGetShutsuba.log',
             '/var/www/horse_odds_finder/scripts/keibaOddsGetTanpuku.log',
             '/var/www/horse_odds_finder/scripts/keibaOddsGetRaceCourseDist.log',
-            '/var/www/horse_odds_finder/scripts/keibaOddsGetRaceInnerOuter.log'
+            '/var/www/horse_odds_finder/scripts/keibaOddsGetRaceInnerOuter.log',
+            '/var/www/horse_odds_finder/scripts/keibaOddsCollectStartTime.log',
+            '/var/www/horse_odds_finder/scripts/keibaOddsGetRaceGrade.log'
         ];
         foreach ($logFiles as $logFile) {
             if (file_exists($logFile)) {
