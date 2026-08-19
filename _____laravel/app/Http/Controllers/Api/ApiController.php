@@ -2698,18 +2698,19 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $name = isset($horses[$num]) ? $horses[$num]->name : '馬' . $num;
 
         $promptHorses[] = [
-            'num'           => $num,
-            'name'          => $name,
-            'tan_series'    => $o['tan'],      // 全時点の単勝オッズ
+            'num'             => $num,
+            'name'            => $name,
+            'tan_series'      => $o['tan'],      // 全時点の単勝オッズ
             'fuku_min_series' => $o['fuku_min'], // 全時点の複勝最小オッズ
             'fuku_max_series' => $o['fuku_max'], // 全時点の複勝最大オッズ
-            'odds_base'     => $tanBase,       // 人気順ソート用
-            'odds_6'        => $tan6,          // 人気順ソート用
-            'change_label'  => $changeLabel,
-            'fuku_min_6'    => $fukuMin6,
-            'fuku_max_6'    => $fukuMax6,
-            'fuku_change'   => $fukuChangeLabel,
-            'tanpuku_ratio' => $tanpukuRatio,
+            'odds_base'       => $tanBase,       // 人気順ソート用
+            'odds_6'          => $tan6,          // 人気順ソート用
+            'change_label'    => $changeLabel,
+            'change_rate_raw' => $changeRate,    // 乖離帯判定用（計測開始→6分前の生の変化率）
+            'fuku_min_6'      => $fukuMin6,
+            'fuku_max_6'      => $fukuMax6,
+            'fuku_change'     => $fukuChangeLabel,
+            'tanpuku_ratio'   => $tanpukuRatio,
         ];
     }
 
@@ -2750,6 +2751,22 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $correctionMap[(int)$row->popularity_rank] = $row;
     }
 
+    // ─── 乖離別回収率の読み込み（t_horse_odds_finder_odds_gap_recovery）──
+    // キー: "{gap_band}|{popularity_band}" → 回収率・勝率・サンプル数
+    $gapRecoveryRows = DB::table('t_horse_odds_finder_odds_gap_recovery')->get();
+    $gapRecoveryMap  = [];
+    foreach ($gapRecoveryRows as $row) {
+        $gapRecoveryMap[$row->gap_band . '|' . $row->popularity_band] = $row;
+    }
+
+    // ─── OPI帯別回収率の読み込み（t_horse_odds_finder_opi_recovery）────
+    // キー: "{opi_band}|{popularity_band}" → 回収率・勝率・サンプル数
+    $opiRecoveryRows = DB::table('t_horse_odds_finder_opi_recovery')->get();
+    $opiRecoveryMap  = [];
+    foreach ($opiRecoveryRows as $row) {
+        $opiRecoveryMap[$row->opi_band . '|' . $row->popularity_band] = $row;
+    }
+
     foreach ($promptHorses as &$h) {
         $avgOdds = $popularityAvgMap[$h['popularity']] ?? null;
         if ($avgOdds && $h['odds_6'] > 0) {
@@ -2769,6 +2786,26 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             $h['correction_ratio']     = null;
             $h['correction_std']       = null;
         }
+
+        // 乖離別回収率（変化率帯 × 人気帯 でルックアップ）
+        $gapBand = $this->_getGapBand($h['change_rate_raw']);
+        $popBand = $this->_getPopularityBand($h['popularity']);
+        $gapKey  = $gapBand . '|' . $popBand;
+        $gr      = $gapRecoveryMap[$gapKey] ?? null;
+        $h['gap_band']          = $gapBand;
+        $h['pop_band']          = $popBand;
+        $h['gap_recovery_rate'] = $gr ? floatval($gr->recovery_rate) : null;
+        $h['gap_win_rate']      = $gr ? floatval($gr->win_rate)      : null;
+        $h['gap_sample_count']  = $gr ? intval($gr->sample_count)    : null;
+
+        // OPI帯別回収率（OPI帯 × 人気帯 でルックアップ）
+        $opiBand = $h['opi'] !== null ? $this->_getOpiBand($h['opi']) : '－';
+        $opiKey  = $opiBand . '|' . $popBand;
+        $or      = $opiRecoveryMap[$opiKey] ?? null;
+        $h['opi_band']          = $opiBand;
+        $h['opi_recovery_rate'] = $or ? floatval($or->recovery_rate) : null;
+        $h['opi_win_rate']      = $or ? floatval($or->win_rate)      : null;
+        $h['opi_sample_count']  = $or ? intval($or->sample_count)    : null;
     }
     unset($h);
 
@@ -2834,11 +2871,49 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             $estLine = '  推定確定オッズ: －（補正データなし）';
         }
 
+        // 乖離別回収率の表示
+        if ($h['gap_recovery_rate'] !== null) {
+            $gapRecoveryLine = sprintf(
+                '  過去回収率（%s × %s）: 回収率%.1f%%  勝率%.1f%%  サンプル%d件',
+                $h['gap_band'],
+                $h['pop_band'],
+                $h['gap_recovery_rate'],
+                $h['gap_win_rate'],
+                $h['gap_sample_count']
+            );
+        } else {
+            $gapRecoveryLine = sprintf(
+                '  過去回収率（%s × %s）: －（データなし）',
+                $h['gap_band'],
+                $h['pop_band']
+            );
+        }
+
+        // OPI帯別回収率の表示
+        if ($h['opi_recovery_rate'] !== null) {
+            $opiRecoveryLine = sprintf(
+                '  OPI帯別回収率（OPI%s × %s）: 回収率%.1f%%  勝率%.1f%%  サンプル%d件',
+                $h['opi_band'],
+                $h['pop_band'],
+                $h['opi_recovery_rate'],
+                $h['opi_win_rate'],
+                $h['opi_sample_count']
+            );
+        } else {
+            $opiRecoveryLine = sprintf(
+                '  OPI帯別回収率（OPI%s × %s）: －（データなし）',
+                $h['opi_band'],
+                $h['pop_band']
+            );
+        }
+
         $lines[] = sprintf('%2d番(%2d人気) %s', $h['num'], $h['popularity'], $h['name']);
         $lines[] = '  単勝: ' . $tanLine;
         $lines[] = '  複勝: 計測前' . $fukuBase . '→6分前' . $fuku6 . '（' . $h['fuku_change'] . '）  単複比: ' . $h['tanpuku_ratio'];
         $lines[] = $opiLine;
         $lines[] = $estLine;
+        $lines[] = $gapRecoveryLine;
+        $lines[] = $opiRecoveryLine;
         $lines[] = '';
     }
     $table = implode("\n", $lines);
@@ -3105,6 +3180,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '・複勝オッズが下落している馬は3着以内の信頼度が高い',
         '・OPI（Over Popularity Index）の見方: OPI>1.2は過去同人気より低オッズ＝市場が過大評価している可能性（妙味低）、OPI<0.8は過去同人気より高オッズ＝市場が過小評価している可能性（妙味高）。妙味スコアの補正材料として活用してください',
         '・推定確定オッズの見方: 過去の6分前→確定オッズの変動パターンから算出した「発走時点での最終オッズ予測値」です。6分前オッズより推定確定オッズが大きく下がる馬（補正係数<1）は直前にさらに人気が集中する傾向があり、信頼度の補強材料になります。逆に推定確定オッズが上がる馬（補正係数>1）は直前に売られる傾向があります。±の補正誤差が大きい馬は予測の振れ幅が大きいため参考程度に留めてください。妙味スコアを算出する際は、6分前オッズではなく推定確定オッズを基準にしてください',
+        '・過去回収率・OPI帯別回収率の使い方: 各馬に表示されている「過去回収率」「OPI帯別回収率」は、勝率ではなく回収率（%）を妙味スコア判断の最重要指標として使ってください。回収率が100%を下回るパターン（例: 1〜3人気×変化なし = 83%）は、たとえ勝率が高くても長期的には損をするパターンです。妙味スコアを下げる材料として扱ってください。逆に回収率が110%以上のパターンは積極的に妙味を高く評価してください。1〜3番人気ばかりを選出して回収率の低い予想になることを厳に避けてください',
         '',
         "選出馬は必ず「厳選穴レース|X」を1行目に、続けて「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」の形式で{$pickupCount}頭分出力してください。",
         '※画面表示に影響するので、この形を守ってください。',
@@ -3267,5 +3343,46 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
 }
 
 
+
+    // ─── 乖離帯判定ヘルパー ────────────────────────────────────────────────
+    // 計測開始→6分前の変化率（%）から変化率帯の文字列を返す。
+    // SummaryOddsGapRecoveryRate の gap_band 定義と完全一致させること。
+    private function _getGapBand(float $changeRate): string
+    {
+        if ($changeRate <= -30) return '30%以上下落';
+        if ($changeRate <= -20) return '20〜30%下落';
+        if ($changeRate <= -10) return '10〜20%下落';
+        if ($changeRate <= -5)  return '5〜10%下落';
+        if ($changeRate <   5)  return '±5%以内';
+        if ($changeRate <  10)  return '5〜10%上昇';
+        if ($changeRate <  20)  return '10〜20%上昇';
+        if ($changeRate <  30)  return '20〜30%上昇';
+        return '30%以上上昇';
+    }
+
+    // ─── 人気帯判定ヘルパー ────────────────────────────────────────────────
+    // 人気順位から人気帯の文字列を返す。
+    // SummaryOddsGapRecoveryRate の popularity_band 定義と完全一致させること。
+    private function _getPopularityBand(int $popularity): string
+    {
+        if ($popularity <= 3) return '1〜3人気';
+        if ($popularity <= 6) return '4〜6人気';
+        if ($popularity <= 9) return '7〜9人気';
+        return '10人気以上';
+    }
+
+    // ─── OPI帯判定ヘルパー ────────────────────────────────────────────────
+    // OPI値（= 人気順位別過去平均オッズ ÷ 今回6分前オッズ）から帯の文字列を返す。
+    // SummaryOpiRecoveryRate の opi_band 定義と完全一致させること。
+    private function _getOpiBand(float $opi): string
+    {
+        if ($opi <  0.70) return '0.70未満';
+        if ($opi <  0.85) return '0.70〜0.85';
+        if ($opi <  1.00) return '0.85〜1.00';
+        if ($opi <  1.15) return '1.00〜1.15';
+        if ($opi <  1.30) return '1.15〜1.30';
+        if ($opi <  1.50) return '1.30〜1.50';
+        return '1.50以上';
+    }
 
 }

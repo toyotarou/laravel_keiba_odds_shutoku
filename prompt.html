@@ -275,7 +275,60 @@
           <li>複勝断層テーブル（同上・複勝オッズベース）</li>
           <li>断層構造タイプ A〜E（PHP側で算出して渡す）</li>
           <li>注目馬番3種類（①断層上側馬、②期待数値上位馬、③過去出走AI選出馬）</li>
+          <li>推定確定オッズ（補正係数 × 6分前オッズ。人気順位ごとの過去乖離率から算出）</li>
+          <li>過去回収率（変化率帯別）— 計測開始→6分前のオッズ変化率帯 × 人気帯 ごとの単勝回収率・勝率・サンプル数</li>
+          <li>OPI帯別回収率 — OPI値を7帯に分類し、人気帯との組み合わせ（最大28通り）ごとの単勝回収率・勝率・サンプル数</li>
         </ul>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">過去回収率（変化率帯別）とは</div>
+        <div class="box">
+          <div class="box-title">仕組み</div>
+          計測開始時点（odds_tan_before_24）と発走6分前（odds_tan_before_6）のオッズを比較し、その変化率（%）を9つの帯に分類する。さらに6分前オッズの人気順位で4帯（1〜3・4〜6・7〜9・10以上）に分け、合計36通りの組み合わせごとに過去の単勝回収率・勝率・サンプル数を集計している。
+        </div>
+        <div class="box">
+          <div class="box-title">変化率帯（9区分）</div>
+          30%以上下落 ／ 20〜30%下落 ／ 10〜20%下落 ／ 5〜10%下落 ／ ±5%以内 ／ 5〜10%上昇 ／ 10〜20%上昇 ／ 20〜30%上昇 ／ 30%以上上昇
+        </div>
+        <div class="box">
+          <div class="box-title">Claudeへの渡し方（プロンプト内の表示例）</div>
+          <span style="font-family:'Courier New',monospace; font-size:0.82rem;">
+            過去回収率（10〜20%下落 × 1〜3人気）: 回収率82.4%&nbsp;&nbsp;勝率31.5%&nbsp;&nbsp;サンプル254件
+          </span><br>
+          この1行が各馬のデータブロックに追記される。Claudeはこの統計値を「このパターンの馬は過去どのくらい儲かっているか」の参考情報として活用する。
+        </div>
+        <div class="box">
+          <div class="box-title">集計タイミング</div>
+          毎日22:10 cron で <code style="font-size:0.8rem;">keiba:SummaryOddsGapRecoveryRate</code> コマンドが実行され、<code style="font-size:0.8rem;">t_horse_odds_finder_odds_gap_recovery</code> テーブルを更新する。AIコストなし（純粋なSQL集計のみ）。
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">OPI帯別回収率とは</div>
+        <div class="box">
+          <div class="box-title">仕組み</div>
+          OPI（= 人気順位別の過去平均6分前オッズ ÷ 今回の6分前オッズ）を7帯に分類し、人気帯（4区分）と組み合わせた最大28通りのパターンごとに過去の単勝回収率・勝率・サンプル数を集計している。
+        </div>
+        <div class="box">
+          <div class="box-title">OPI帯（7区分）</div>
+          0.70未満 ／ 0.70〜0.85 ／ 0.85〜1.00 ／ 1.00〜1.15 ／ 1.15〜1.30 ／ 1.30〜1.50 ／ 1.50以上
+        </div>
+        <div class="box">
+          <div class="box-title">Claudeへの渡し方（プロンプト内の表示例）</div>
+          <span style="font-family:'Courier New',monospace; font-size:0.82rem;">
+            OPI帯別回収率（OPI1.30〜1.50 × 4〜6人気）: 回収率118.7%&nbsp;&nbsp;勝率14.2%&nbsp;&nbsp;サンプル198件
+          </span><br>
+          変化率帯別回収率と合わせて同一馬のデータブロックに追記される。「OPIが高い（割安）かつ過去回収率も高い」パターンをAIが多角的に判断できる。
+        </div>
+        <div class="box">
+          <div class="box-title">集計タイミング</div>
+          毎日22:20 cron で <code style="font-size:0.8rem;">keiba:SummaryOpiRecoveryRate</code> コマンドが実行され、<code style="font-size:0.8rem;">t_horse_odds_finder_opi_recovery</code> テーブルを更新する。AIコストなし（純粋なSQL集計のみ）。
+        </div>
       </div>
 
       <hr>
@@ -306,6 +359,18 @@
           <li><span class="tag">D</span>断層なし・混戦型 — 複勝支持・変化率・6〜10番人気も均等比較</li>
           <li><span class="tag">E</span>単複矛盾型 — 複勝の継続的な動きを最優先</li>
         </ul>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">回収率データの使い方（重要）</div>
+        <div class="box" style="border-left: 3px solid #f59e0b;">
+          <div class="box-title" style="color:#b45309;">⚠️ 勝率ではなく回収率を判断軸にする</div>
+          過去回収率・OPI帯別回収率は、<strong>回収率（%）を妙味スコアの最重要指標</strong>として使うよう明示的に指示している。<br><br>
+          回収率100%未満のパターン（例: 1〜3人気×変化なし ≒ 83%）は、勝率が高くても長期的には損をするパターンとして妙味スコアを下げる。回収率110%以上のパターンは積極的に妙味を高く評価する。<br><br>
+          <strong>「1〜3番人気ばかりを選出して回収率の低い予想になることを厳に避けてください」</strong> という制約をプロンプトに明記している。
+        </div>
       </div>
 
       <hr>
@@ -575,6 +640,22 @@
             <div class="tl-time">レース直前（ユーザーが「2nd AI」ボタンを押したとき）</div>
             <div class="tl-label">① 補助 — DeepSeekによる独立分析</div>
             <div class="tl-desc">①と同じデータを使ってDeepSeekが独自に選出。穴馬重視の視点で補欠候補を提示し、1st AIとの差分を表示する。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-left"><div class="tl-dot" style="background:#06b6d4;"></div><div class="tl-line"></div></div>
+          <div class="tl-right">
+            <div class="tl-time">毎日 22:10（夜間バッチ・AIコストなし）</div>
+            <div class="tl-label">変化率帯別回収率を集計・更新</div>
+            <div class="tl-desc">計測開始→6分前のオッズ変化率帯 × 人気帯（36通り）ごとの単勝回収率・勝率をSQLで集計し、翌日の①プロンプトへ反映する。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-left"><div class="tl-dot" style="background:#06b6d4;"></div><div class="tl-line"></div></div>
+          <div class="tl-right">
+            <div class="tl-time">毎日 22:20（夜間バッチ・AIコストなし）</div>
+            <div class="tl-label">OPI帯別回収率を集計・更新</div>
+            <div class="tl-desc">OPI値を7帯に分類し、人気帯との組み合わせ（最大28通り）ごとの単勝回収率・勝率をSQLで集計し、翌日の①プロンプトへ反映する。</div>
           </div>
         </div>
         <div class="tl-item">
