@@ -3352,12 +3352,7 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         $oddsData = preg_replace('/【おすすめ度の計算方法】.*?(?=\n選出馬|\n※|$)/s', '', $oddsData);
         // 「このシステムの目的（最重要）」ブロックを除去
         $oddsData = preg_replace('/【このシステムの目的（最重要）】.*?(?=\n選出馬|\n分析の観点|$)/s', '', $oddsData);
-        // 末尾の出力形式指示の頭数指定を緩和
-        $oddsData = preg_replace(
-            '/^(選出馬は必ず以下の形式で|オッズ推移から注目馬を)[^\n]*\n?/m',
-            '選出馬は以下の形式で、あなたが推したい頭数だけ出力してください（頭数は自由です）。' . "\n",
-            $oddsData
-        );
+        // 選出頭数は1st AIと同じ $pickupCount を引き継ぐ（置換しない）
 
         $systemPrompt = <<<'SYSTEM'
 あなたは競馬オッズ分析の専門家です。
