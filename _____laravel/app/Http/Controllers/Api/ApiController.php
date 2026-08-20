@@ -3043,6 +3043,29 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         ? "成立（6番人気以内に断層が{$gapCountInTop6}個あるため 0 確定）"
         : "不成立（6番人気以内の断層は{$gapCountInTop6}個）";
 
+    // ─── 厳選穴レース：条件C（全馬の複勝最大値が低い・ガチガチレース） ─────
+    // どの馬が来ても複勝が安い = 馬券コストを回収できない → 0 確定
+    $fukuOddsAll   = array_filter(array_column($promptHorses, 'fuku_min_6'), fn($v) => $v > 0);
+    $maxFukuMin6   = $fukuOddsAll ? max($fukuOddsAll) : 0;
+    $condition3Met  = $maxFukuMin6 > 0 && $maxFukuMin6 < 3.5;
+    $condition3Desc = $condition3Met
+        ? "成立（全馬の6分前複勝最小オッズ最大値が{$maxFukuMin6}倍 < 3.5倍 → 0 確定）"
+        : "不成立（全馬の6分前複勝最小オッズ最大値: {$maxFukuMin6}倍）";
+
+    // ─── 厳選穴レース：条件D（1番人気の単勝が極端に低い・1強レース） ───────
+    // 1強レースは荒れる余地がなく、複勝でも配当が出ない → 0 確定
+    $firstPopOdds  = 0;
+    foreach ($promptHorses as $h) {
+        if ((int)($h['popularity'] ?? 0) === 1 && ($h['odds_6'] ?? 0) > 0) {
+            $firstPopOdds = $h['odds_6'];
+            break;
+        }
+    }
+    $condition4Met  = $firstPopOdds > 0 && $firstPopOdds < 2.0;
+    $condition4Desc = $condition4Met
+        ? "成立（1番人気の6分前単勝オッズが{$firstPopOdds}倍 < 2.0倍 → 0 確定）"
+        : "不成立（1番人気の6分前単勝オッズ: {$firstPopOdds}倍）";
+
     // ─── 断層構造タイプ判定（PHP算出・AI入力として渡す） ──────────────────
     // 単勝断層の生データを収集（タイプ判定用）
     $tanGapAll    = []; // 全断層(ratio≥2.0)
@@ -3194,12 +3217,24 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '',
         '【厳選穴レースの判定ルール】',
         '選出が終わったあと、以下のルールで「厳選穴レース|1」または「厳選穴レース|0」を出力の先頭1行目に必ず入れてください。',
-        '・条件A: 選出した馬の中に6〜10番人気の馬が1頭以上いる → 1（おすすめ）',
-        '・条件B: 6番人気以内の隣接間に断層（比率2.00以上）が2つ以上ある → 0に上書き',
-        '・条件AとBが両方成立 → 0',
-        '・条件Aのみ成立 → 1',
-        '・それ以外 → 0',
+        '',
+        '■ 0に強制する条件（以下のいずれか1つでも成立すれば「0」確定・条件Aより優先）',
+        '・条件B: 6番人気以内の隣接間に断層（比率2.00以上）が2つ以上ある（上位完結型）',
+        '・条件C: 全馬の6分前複勝最小オッズの最大値が3.5倍未満（ガチガチレース・どの馬が来ても安い）',
+        '・条件D: 1番人気の6分前単勝オッズが2.0倍未満（1強レース・荒れる余地なし）',
+        '',
+        '■ 1になる条件（B・C・D が全て不成立の場合のみ判定）',
+        '・条件A: 選出した馬の中に6〜10番人気の馬が1頭以上含まれている',
+        '',
+        '■ 判定の優先順位',
+        '条件B・C・D のいずれか1つでも成立 → 0（条件Aの結果を無視）',
+        '条件B・C・D が全て不成立 かつ 条件A成立 → 1',
+        'それ以外 → 0',
+        '',
+        '■ PHP算出済みの結果（必ずこの結果に従うこと・自分で再計算しないこと）',
         "条件B（PHP算出済み）: {$condition2Desc}",
+        "条件C（PHP算出済み）: {$condition3Desc}",
+        "条件D（PHP算出済み）: {$condition4Desc}",
         '',
         '【おすすめ度の計算方法】',
         'おすすめ度は100点満点で、以下の2軸を合算して判断してください。',
@@ -3353,6 +3388,12 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         // 「このシステムの目的（最重要）」ブロックを除去
         $oddsData = preg_replace('/【このシステムの目的（最重要）】.*?(?=\n選出馬|\n分析の観点|$)/s', '', $oddsData);
         // 選出頭数は1st AIと同じ $pickupCount を引き継ぐ（置換しない）
+
+        // ─── 2nd AI 用整形済みプロンプトをファイルに保存 ────────────────────
+        file_put_contents(
+            public_path("prompt_2nd/prompt_2nd_{$date}_{$kaisuu}_{$basho}_{$day}_{$race}.data"),
+            $oddsData
+        );
 
         $systemPrompt = <<<'SYSTEM'
 あなたは競馬オッズ分析の専門家です。

@@ -145,12 +145,12 @@ class DeleteKeibaTableRecords extends Command
             }
         }
 
-        $dataFiles = glob('/var/www/horse_odds_finder/public/prompt/*.data') ?: [];
-        foreach ($dataFiles as $dataFile) {
-            unlink($dataFile);
-            $this->info("{$dataFile} を削除しました。");
-        }
-        $this->info('prompt/*.data の削除完了（' . count($dataFiles) . '件）');
+        // $dataFiles = glob('/var/www/horse_odds_finder/public/prompt/*.data') ?: [];
+        // foreach ($dataFiles as $dataFile) {
+        //     unlink($dataFile);
+        //     $this->info("{$dataFile} を削除しました。");
+        // }
+        // $this->info('prompt/*.data の削除完了（' . count($dataFiles) . '件）');
         
         $forecastFiles = glob('/var/www/horse_odds_finder/public/forecast_from_last_race/*.txt') ?: [];
         foreach ($forecastFiles as $forecastFile) {
