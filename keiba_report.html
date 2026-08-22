@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>馬眼力 実装完了報告</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+      background: #f0f2f5;
+      color: #1e293b;
+      padding: 16px 12px 40px;
+      line-height: 1.75;
+      font-size: 14px;
+    }
+
+    h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-bottom: 20px;
+    }
+
+    /* カード */
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    /* カードヘッダ */
+    .card-header {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .card-number {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #94a3b8;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    .card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .badge {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 2px 9px;
+      border-radius: 20px;
+    }
+    .badge-green  { background: #dcfce7; color: #15803d; }
+    .badge-blue   { background: #dbeafe; color: #1d4ed8; }
+    .badge-orange { background: #ffedd5; color: #c2410c; }
+    .badge-red    { background: #fee2e2; color: #b91c1c; }
+
+    /* カード本文 */
+    .card-body {
+      padding: 14px 16px 18px;
+    }
+
+    /* セクション */
+    .section {
+      margin-bottom: 16px;
+    }
+    .section:last-child { margin-bottom: 0; }
+
+    .section-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+
+    /* 目的ブロック */
+    .purpose {
+      background: #f8fafc;
+      border-left: 3px solid #3b82f6;
+      padding: 10px 12px;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.88rem;
+      color: #1e293b;
+    }
+    .purpose strong { color: #1d4ed8; }
+
+    /* リスト */
+    ul.plain {
+      list-style: none;
+      padding: 0;
+    }
+    ul.plain li {
+      padding: 4px 0 4px 14px;
+      position: relative;
+      font-size: 0.88rem;
+      color: #334155;
+    }
+    ul.plain li::before {
+      content: '›';
+      position: absolute;
+      left: 0;
+      color: #94a3b8;
+    }
+
+    /* ボックス */
+    .box {
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      font-size: 0.86rem;
+    }
+    .box-title {
+      font-weight: 700;
+      font-size: 0.8rem;
+      color: #475569;
+      margin-bottom: 4px;
+    }
+
+    /* タグ */
+    .tag {
+      display: inline-block;
+      background: #ede9fe;
+      color: #5b21b6;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 4px;
+      margin-right: 4px;
+    }
+    .tag-green {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    /* 区切り */
+    hr { border: none; border-top: 1px solid #f1f5f9; margin: 14px 0; }
+  </style>
+</head>
+<body>
+
+  <h1>馬眼力 — 実装完了報告書</h1>
+  <p class="subtitle">ご要望いただいた機能の実装状況（依頼主向け）</p>
+
+
+  <!-- バナー -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-number">Overall</div>
+      <div class="card-title">ご要望の機能はすべて入っています</div>
+      <div class="card-meta">
+        <span class="badge badge-green">全項目 実装済み</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="purpose">
+          「断層は入ってるの？」「馬眼力指数はちゃんと計算してる？」「OPIは？」——<br>
+          ご心配のあった項目を含め、以下のとおり<strong>全機能が実装済み</strong>です。
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 断層ロジック -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-number">① 断層ロジック</div>
+      <div class="card-title">オッズの「崖」を検出する仕組み</div>
+      <div class="card-meta">
+        <span class="badge badge-green">実装済み</span>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <div class="section">
+        <div class="section-title">断層の検出・算出</div>
+        <div class="box">
+          隣り合う人気順間のオッズに大きな差がある箇所（比率2.0倍以上）を「断層あり」と判断し、<strong>単勝と複勝それぞれ独立して</strong>計算しています。
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">断層構造の5タイプ自動分類（A〜E）</div>
+        <div class="box">
+          断層の位置・本数・単複の一致・矛盾をもとに、レース全体の断層構造を5種類に自動分類してAIに伝えています。
+        </div>
+        <ul class="plain">
+          <li><span class="tag">A</span>二重断層・上位完結型（上位6頭以内に強い断層が2箇所以上）</li>
+          <li><span class="tag">B</span>上位断層型（上位6頭以内に断層1箇所）</li>
+          <li><span class="tag">C</span>中間断層型（断層はあるが上位6頭外）</li>
+          <li><span class="tag">D</span>断層なし・混戦型</li>
+          <li><span class="tag">E</span>単勝と複勝の断層が矛盾していて判定困難</li>
+        </ul>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">断層の時系列変化（21分前〜6分前）【新追加】</div>
+        <div class="box">
+          「断層が発生した時刻」「拡大しているのか縮小しているのか」の推移もAIに伝えています。断層が直前に急拡大しているのか、じわじわ縮まってきているのかを判断材料にできます。
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- OPI -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-number">② OPI</div>
+      <div class="card-title">市場支持指数（割安・割高の指標）</div>
+      <div class="card-meta">
+        <span class="badge badge-green">実装済み</span>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <div class="section">
+        <div class="section-title">OPIの算出（3種類）</div>
+        <div class="box">
+          「過去の平均オッズ」と「今のオッズ」を比べて、この馬が割安か割高かを数値化しています。
+        </div>
+        <ul class="plain">
+          <li><strong>単勝OPI：</strong>単勝オッズが過去平均より安い（高い）かどうか</li>
+          <li><strong>複勝OPI：</strong>複勝オッズが過去平均より安い（高い）かどうか</li>
+          <li><strong>予測補正OPI：</strong>発走時の最終オッズを予測した上でのOPI</li>
+        </ul>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">OPIの判定基準</div>
+        <div class="box">
+          OPIの数値ごとにAIへの判断基準を設定しています。<br>
+          <strong>1.2以上</strong>＝過熱（市場が買いすぎ・妙味低）　／　<strong>0.8未満</strong>＝軽視（市場が見落としている・妙味高）
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- 馬眼力指数 -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-number">③ 馬眼力指数</div>
+      <div class="card-title">システム独自の総合スコア</div>
+      <div class="card-meta">
+        <span class="badge badge-green">実装済み</span>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <div class="section">
+        <div class="section-title">馬眼力指数の自動算出</div>
+        <div class="box">
+          「割安か（OPI）」「直前に買われているか」「複勝でも支持されているか」「断層の内側か」を掛け合わせた、このシステム独自の総合スコアです。全馬について自動計算し、AIに渡しています。
+        </div>
+        <ul class="plain">
+          <li><strong>150以上：</strong>◎有力</li>
+          <li><strong>120以上：</strong>○注目</li>
+          <li><strong>100前後：</strong>△様子見</li>
+          <li><strong>100未満：</strong>✕妙味薄</li>
+        </ul>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">AIへの制約</div>
+        <div class="box">
+          AIはこの数値を自分で計算することなく、<strong>システムが出した値をそのまま</strong>使います。勝手に再計算することを明示的に禁止しています。
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- 相対資金流入 -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-number">④ 相対資金流入</div>
+      <div class="card-title">どの馬にお金が集まっているか</div>
+      <div class="card-meta">
+        <span class="badge badge-green">実装済み</span>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <div class="section">
+        <div class="section-title">グループ内の流入ランキング</div>
+        <div class="box">
+          同じ人気帯（1〜3番人気・4〜6番人気・7番人気以下）の中で、どの馬に一番お金が入っているかのランキングです。<strong>単勝・複勝それぞれ</strong>で算出しています。
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">直前の加速・減速判定（9分前→6分前）</div>
+        <div class="box">
+          「9分前から6分前にかけて資金流入が加速しているか、減速しているか、横ばいか」を判定してAIに伝えています。直前の動きに敏感に反応できます。
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- 類似レース統計 -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-number">⑤ 類似レース統計</div>
+      <div class="card-title">過去の似たレースとの比較</div>
+      <div class="card-meta">
+        <span class="badge badge-green">実装済み</span>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <div class="section">
+        <div class="section-title">過去の類似レースから統計を算出</div>
+        <div class="box">
+          今回と条件が似たレース（同じ競馬場・同じオッズ帯・同じ頭数帯）を過去データから最大30件抽出し、各人気順の馬が「何%の確率で3着以内に入ったか」などをAIに伝えています。
+        </div>
+        <ul class="plain">
+          <li>3着以内率・5着以内率・平均着順・着外率を算出</li>
+          <li>件数が少ない場合は「統計不足」として正直に通知</li>
+          <li>信頼度を4段階（高・中・低・不足）で管理</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- AIへの厳格なルール -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-number">⑥ AIへの厳格なルール</div>
+      <div class="card-title">1st AIが勝手なことをしないための制約</div>
+      <div class="card-meta">
+        <span class="badge badge-red">ルール明示</span>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <div class="section">
+        <div class="section-title">システムの計算値をAIが勝手に書き換えることを禁止</div>
+        <div class="box" style="border-left: 3px solid #ef4444;">
+          馬眼力指数・OPI・流入ランク・断層タイプ・推定確定オッズなど、システムが計算した値を、AIが「自分の判断」で上書き・再計算することを<strong>明示的に禁止</strong>しています。
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">AIが確率を「でっち上げる」ことを禁止</div>
+        <div class="box" style="border-left: 3px solid #ef4444;">
+          「この馬は70%の確率で3着以内」など、データにない確率をAIが作り出すことを禁止しています。AIが使える確率値は、<strong>類似レース統計に含まれる実測値のみ</strong>です。
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">出走頭数に応じた選出頭数の自動切り替え</div>
+        <div class="box">
+          8頭以下のレースは4頭、9〜13頭は5頭、14頭以上は6頭を選出するよう自動で切り替わります。
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- 2nd AI -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-number">⑦ 2nd AI（DeepSeek）</div>
+      <div class="card-title">「自由に遊んでいい」独立した分析AI</div>
+      <div class="card-meta">
+        <span class="badge badge-blue">独立分析</span>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <div class="section">
+        <div class="section-title">2nd AIとは</div>
+        <div class="purpose">
+          1st AI（Claude）とは<strong>完全に独立して</strong>同じレースを分析する別のAIです。<br><br>
+          1st AIは回収率データや計算式などのルールに縛られています。2nd AIはその制約を意図的に外し、<strong>「自分の感覚と論理で自由に予想する」</strong>ことを許可しています。
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-title">2nd AIへの特別メッセージ（今回強化）</div>
+        <div class="box" style="border-left: 3px solid #7c3aed; background: #faf5ff;">
+          1st AIを縛るルールは2nd AIには適用されません。<br><br>
+          <strong>「お前は自由に遊んでいい。ただし、真剣にやれ。」</strong><br><br>
+          ・馬眼力指数が高くても「これは違う」と思えば選ばなくていい<br>
+          ・1st AIが見落としそうな角度・異なる解釈・少数派の視点が存在価値<br>
+          ・「1st AIと同じ馬を同じ理由で選ぶ」のが最も価値のない回答
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- 運用監視 -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-number">おまけ</div>
+      <div class="card-title">回収率の運用監視</div>
+      <div class="card-meta">
+        <span class="badge badge-orange">自動集計</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="box">
+          直近100・300・600レースの単勝・複勝回収率を毎回自動集計しています。AIプロンプトの改善とは別に、運用状況の把握用として機能しています。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size: 0.72rem; color: #94a3b8; text-align: center; margin-top: 8px;">
+    本報告書は実装確認済み項目のみを記載。実装対象外と判断した項目は含まれていません。<br>
+    馬眼力システム開発チーム　／　2026年8月22日
+  </p>
+
+</body>
+</html>

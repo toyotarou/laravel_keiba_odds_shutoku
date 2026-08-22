@@ -2697,20 +2697,31 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
 
         $name = isset($horses[$num]) ? $horses[$num]->name : '馬' . $num;
 
+        // 単勝短縮率: (計測前 - 6分前) / 計測前 × 100 → 正値 = 資金流入（オッズ短縮）
+        $tanShrinkRate  = ($tanBase > 0 && $tan6 !== null)
+            ? round(($tanBase - $tan6) / $tanBase * 100, 1)
+            : null;
+        // 複勝短縮率: 同計算式で複勝最小オッズ版
+        $fukuShrinkRate = ($fukuMinBase && $fukuMin6 && $fukuMinBase > 0)
+            ? round(($fukuMinBase - $fukuMin6) / $fukuMinBase * 100, 1)
+            : null;
+
         $promptHorses[] = [
-            'num'             => $num,
-            'name'            => $name,
-            'tan_series'      => $o['tan'],      // 全時点の単勝オッズ
-            'fuku_min_series' => $o['fuku_min'], // 全時点の複勝最小オッズ
-            'fuku_max_series' => $o['fuku_max'], // 全時点の複勝最大オッズ
-            'odds_base'       => $tanBase,       // 人気順ソート用
-            'odds_6'          => $tan6,          // 人気順ソート用
-            'change_label'    => $changeLabel,
-            'change_rate_raw' => $changeRate,    // 乖離帯判定用（計測開始→6分前の生の変化率）
-            'fuku_min_6'      => $fukuMin6,
-            'fuku_max_6'      => $fukuMax6,
-            'fuku_change'     => $fukuChangeLabel,
-            'tanpuku_ratio'   => $tanpukuRatio,
+            'num'              => $num,
+            'name'             => $name,
+            'tan_series'       => $o['tan'],      // 全時点の単勝オッズ
+            'fuku_min_series'  => $o['fuku_min'], // 全時点の複勝最小オッズ
+            'fuku_max_series'  => $o['fuku_max'], // 全時点の複勝最大オッズ
+            'odds_base'        => $tanBase,       // 人気順ソート用
+            'odds_6'           => $tan6,          // 人気順ソート用
+            'change_label'     => $changeLabel,
+            'change_rate_raw'  => $changeRate,    // 乖離帯判定用（計測開始→6分前の生の変化率）
+            'fuku_min_6'       => $fukuMin6,
+            'fuku_max_6'       => $fukuMax6,
+            'fuku_change'      => $fukuChangeLabel,
+            'tanpuku_ratio'    => $tanpukuRatio,
+            'tan_shrink_rate'  => $tanShrinkRate,  // 単勝短縮率（相対資金流入ランク算出用）
+            'fuku_shrink_rate' => $fukuShrinkRate, // 複勝短縮率（相対資金流入ランク算出用）
         ];
     }
 
@@ -2731,6 +2742,55 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     }
     unset($h);
 
+    // ─── 相対資金流入ランクの算出（E-1）────────────────────────────────
+    // 人気帯グループ: 1〜3番人気 / 4〜6番人気 / 7番人気以下
+    // 各グループ内で単勝・複勝の短縮率（正値ほど資金が流入）を比較してランク付け
+    // 短縮率が null の馬はランク計算から除外し「データなし」として扱う
+    $getInflowGroupLabel = function (int $pop): string {
+        if ($pop <= 3) return '1〜3人気';
+        if ($pop <= 6) return '4〜6人気';
+        return '7人気以下';
+    };
+
+    // グループ別に $promptHorses のインデックスを振り分け
+    $inflowGroups = ['1〜3人気' => [], '4〜6人気' => [], '7人気以下' => []];
+    foreach ($promptHorses as $idx => $h) {
+        $inflowGroups[$getInflowGroupLabel($h['popularity'])][] = $idx;
+    }
+
+    foreach ($inflowGroups as $groupLabel => $idxList) {
+        // 単勝流入ランク（短縮率 null を除外してランク付け）
+        $tanValidIdxs = array_values(array_filter($idxList, fn($i) => $promptHorses[$i]['tan_shrink_rate'] !== null));
+        usort($tanValidIdxs, fn($a, $b) => $promptHorses[$b]['tan_shrink_rate'] <=> $promptHorses[$a]['tan_shrink_rate']);
+        $tanGroupSize = count($tanValidIdxs);
+        foreach ($tanValidIdxs as $rank => $idx) {
+            $promptHorses[$idx]['tan_inflow_rank']       = $rank + 1;
+            $promptHorses[$idx]['tan_inflow_group_size'] = $tanGroupSize;
+        }
+        foreach (array_diff($idxList, $tanValidIdxs) as $idx) {
+            $promptHorses[$idx]['tan_inflow_rank']       = null;
+            $promptHorses[$idx]['tan_inflow_group_size'] = $tanGroupSize;
+        }
+
+        // 複勝流入ランク（短縮率 null を除外してランク付け）
+        $fukuValidIdxs = array_values(array_filter($idxList, fn($i) => $promptHorses[$i]['fuku_shrink_rate'] !== null));
+        usort($fukuValidIdxs, fn($a, $b) => $promptHorses[$b]['fuku_shrink_rate'] <=> $promptHorses[$a]['fuku_shrink_rate']);
+        $fukuGroupSize = count($fukuValidIdxs);
+        foreach ($fukuValidIdxs as $rank => $idx) {
+            $promptHorses[$idx]['fuku_inflow_rank']       = $rank + 1;
+            $promptHorses[$idx]['fuku_inflow_group_size'] = $fukuGroupSize;
+        }
+        foreach (array_diff($idxList, $fukuValidIdxs) as $idx) {
+            $promptHorses[$idx]['fuku_inflow_rank']       = null;
+            $promptHorses[$idx]['fuku_inflow_group_size'] = $fukuGroupSize;
+        }
+
+        // グループ名を各馬に付与
+        foreach ($idxList as $idx) {
+            $promptHorses[$idx]['inflow_group'] = $groupLabel;
+        }
+    }
+
     // ─── OPI（Over Popularity Index）計算 ──────────────────────────────
     // OPI = 人気順位別の過去平均単勝オッズ ÷ 今回の6分前単勝オッズ
     //   OPI > 1.0 → 過去同人気より今回は低オッズ（過剰人気・妙味少）
@@ -2740,6 +2800,13 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     $popularityAvgMap  = [];
     foreach ($popularityAvgRows as $row) {
         $popularityAvgMap[(int)$row->popularity_rank] = floatval($row->odds_average);
+    }
+
+    // ─── 複勝OPI用：人気順位別の過去平均複勝最小オッズ ────────────────────
+    $fukuPopularityAvgRows = DB::table('t_horse_odds_finder_fuku_popularity_rank_average')->get();
+    $fukuPopularityAvgMap  = [];
+    foreach ($fukuPopularityAvgRows as $row) {
+        $fukuPopularityAvgMap[(int)$row->popularity_rank] = floatval($row->odds_average);
     }
 
     // ─── 補正係数の読み込み（t_horse_odds_finder_compute_odds_correction）──
@@ -2775,12 +2842,51 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $phasePatternMap[$row->phase_pattern . '|' . $row->popularity_band] = $row;
     }
 
+    // ─── AI 回収率実績の読み込み（t_horse_odds_finder_ai_recovery）────────
+    // 直近 100 / 300 / 600 レースの単勝・複勝回収率を集計して
+    // 「このAIが過去どれだけ回収できているか」をプロンプトに渡す
+    $aiRecoveryRows = DB::table('t_horse_odds_finder_ai_recovery')
+        ->orderBy('date',       'desc')
+        ->orderBy('kaisuu',     'desc')
+        ->orderBy('basho_code', 'desc')
+        ->orderBy('day',        'desc')
+        ->orderBy('race',       'desc')
+        ->limit(600)
+        ->get(['ai_pick_count', 'tan_bet', 'fuku_bet']);
+
+    // $limit 件分のスライスで回収率を計算するクロージャ
+    $calcAiRecovery = function (int $limit) use ($aiRecoveryRows): array {
+        $slice      = $aiRecoveryRows->take($limit);
+        $totalPicks = $slice->sum('ai_pick_count');
+        $totalBet   = $totalPicks * 100;
+        if ($totalBet <= 0) {
+            return ['race_count' => $slice->count(), 'tan_rate' => null, 'fuku_rate' => null];
+        }
+        return [
+            'race_count' => $slice->count(),
+            'tan_rate'   => round($slice->sum('tan_bet') / $totalBet * 100, 1),
+            'fuku_rate'  => round($slice->sum('fuku_bet') / $totalBet * 100, 1),
+        ];
+    };
+
+    $aiRec100 = $calcAiRecovery(100);
+    $aiRec300 = $calcAiRecovery(300);
+    $aiRec600 = $calcAiRecovery(600);
+
     foreach ($promptHorses as &$h) {
         $avgOdds = $popularityAvgMap[$h['popularity']] ?? null;
         if ($avgOdds && $h['odds_6'] > 0) {
             $h['opi'] = round($avgOdds / $h['odds_6'], 2);
         } else {
             $h['opi'] = null;
+        }
+
+        // 複勝OPI = 人気順位別の過去平均複勝最小オッズ ÷ 今回の6分前複勝最小オッズ
+        $avgFukuOdds = $fukuPopularityAvgMap[$h['popularity']] ?? null;
+        if ($avgFukuOdds && isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0) {
+            $h['fuku_opi'] = round($avgFukuOdds / $h['fuku_min_6'], 2);
+        } else {
+            $h['fuku_opi'] = null;
         }
 
         // 推定確定オッズ
@@ -2793,6 +2899,15 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             $h['estimated_final_odds'] = null;
             $h['correction_ratio']     = null;
             $h['correction_std']       = null;
+        }
+
+        // 予測補正OPI = 人気順位別の過去平均単勝オッズ ÷ 推定確定オッズ
+        // 通常OPIの「6分前オッズ」を「推定確定オッズ」に置き換えることで、
+        // 締切時点の市場評価に近い割安感を測る。
+        if ($avgOdds && isset($h['estimated_final_odds']) && $h['estimated_final_odds'] > 0) {
+            $h['estimated_opi'] = round($avgOdds / $h['estimated_final_odds'], 2);
+        } else {
+            $h['estimated_opi'] = null;
         }
 
         // 乖離別回収率（変化率帯 × 人気帯 でルックアップ）
@@ -2840,6 +2955,160 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $h['phase_recovery_rate'] = $pp ? floatval($pp->recovery_rate) : null;
         $h['phase_win_rate']      = $pp ? floatval($pp->win_rate)      : null;
         $h['phase_sample_count']  = $pp ? intval($pp->sample_count)    : null;
+
+        // ─── E-3: 直前3分間流入（9分前→6分前）の加速・減速算出 ──────────────
+        // 変化率の符号は既存コードの慣習に合わせる: 負 = オッズ下落 = 買われた
+        $odds9 = isset($h['tan_series'][9]) && $h['tan_series'][9] > 0
+            ? $h['tan_series'][9]
+            : null;
+        if ($odds9 !== null && $h['odds_6'] > 0) {
+            $last3minTanRate = round(($h['odds_6'] - $odds9) / $odds9 * 100, 1);
+        } else {
+            $last3minTanRate = null;
+        }
+
+        $fukuMin9 = isset($h['fuku_min_series'][9]) && $h['fuku_min_series'][9] > 0
+            ? $h['fuku_min_series'][9]
+            : null;
+        if ($fukuMin9 !== null && isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0) {
+            $last3minFukuRate = round(($h['fuku_min_6'] - $fukuMin9) / $fukuMin9 * 100, 1);
+        } else {
+            $last3minFukuRate = null;
+        }
+
+        // 加速・減速判定: 後半フェーズ（12→6分前）変化率 vs 直前3分（9→6分前）変化率を比較
+        // 直前加速: last3min がより大きく下落（負方向に大きい）→ 直前に勢いよく買われた
+        // 直前減速: last3min が半2Rateより負方向が小さい       → 勢いが落ちた
+        // 横ばい  : 差が ±2.0ポイント以内
+        if ($last3minTanRate !== null && $half2Rate !== null) {
+            $accelDiff = $last3minTanRate - $half2Rate; // 負なら last3min の方が大きく下落
+            if ($accelDiff < -2.0) {
+                $accelLabel = '直前加速';
+            } elseif ($accelDiff > 2.0) {
+                $accelLabel = '直前減速';
+            } else {
+                $accelLabel = '横ばい';
+            }
+        } elseif ($last3minTanRate !== null) {
+            // 12分前データなし → 後半フェーズとの比較不可だが値は表示する
+            $accelLabel = '判定不可（12分前データなし）';
+        } else {
+            $accelLabel = null;
+        }
+
+        $h['last3min_tan_rate']  = $last3minTanRate;
+        $h['last3min_fuku_rate'] = $last3minFukuRate;
+        $h['accel_label']        = $accelLabel;
+        // ────────────────────────────────────────────────────────────────────
+    }
+    unset($h);
+
+    // ─── 複勝人気順マップの作成 + 断層位置の事前算出（馬眼力指数用）────────
+    // fuku_min_6 の昇順でソートして複勝人気順を付与する
+    $earlyFukuTemp = array_values(
+        array_filter($promptHorses, fn($h) => isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0)
+    );
+    usort($earlyFukuTemp, fn($a, $b) => $a['fuku_min_6'] <=> $b['fuku_min_6']);
+    $fukuPopularityMap = [];
+    foreach ($earlyFukuTemp as $pos => $fh) {
+        $fukuPopularityMap[$fh['num']] = $pos + 1;
+    }
+
+    // 単勝断層の事前検出（$promptHorses は人気順ソート済み）
+    $earlyTanGapAll    = [];
+    $earlyTanGapTop6   = [];
+    $earlyTanGapStrong = [];
+    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
+        $eu = $promptHorses[$i];
+        $el = $promptHorses[$i + 1];
+        if (($eu['odds_6'] ?? 0) > 0 && ($el['odds_6'] ?? 0) > 0) {
+            $er = round($el['odds_6'] / $eu['odds_6'], 2);
+            if ($er >= 2.0) {
+                $ee = ['upper_pop' => $eu['popularity'], 'lower_pop' => $el['popularity'], 'ratio' => $er];
+                $earlyTanGapAll[] = $ee;
+                if ($eu['popularity'] <= 6) {
+                    $earlyTanGapTop6[] = $ee;
+                    if ($er >= 2.5) $earlyTanGapStrong[] = $ee;
+                }
+            }
+        }
+    }
+
+    // 複勝断層の事前検出（断層タイプE判定に使用）
+    $earlyFukuGapDets = [];
+    for ($i = 0; $i < count($earlyFukuTemp) - 1; $i++) {
+        $eu = $earlyFukuTemp[$i];
+        $el = $earlyFukuTemp[$i + 1];
+        if (($eu['fuku_min_6'] ?? 0) > 0) {
+            $er = round($el['fuku_min_6'] / $eu['fuku_min_6'], 2);
+            if ($er >= 2.0) {
+                $earlyFukuGapDets[] = $er;
+            }
+        }
+    }
+
+    // 断層タイプの事前判定（既存タイプ判定ロジックと整合）
+    $earlyTanHasGap  = count($earlyTanGapAll) > 0;
+    $earlyFukuHasGap = count($earlyFukuGapDets) > 0;
+
+    if (count($earlyTanGapTop6) >= 2 && count($earlyTanGapStrong) >= 1) {
+        $earlyGapType = 'A';
+    } elseif ($earlyTanHasGap !== $earlyFukuHasGap) {
+        $earlyGapType = 'E';
+    } elseif (count($earlyTanGapTop6) === 1) {
+        $earlyGapType = 'B';
+    } elseif ($earlyTanHasGap) {
+        $earlyGapType = 'C';
+    } else {
+        $earlyGapType = 'D';
+    }
+
+    // 断層補正の基準人気順（上側グループ境界）。D・E は null → 補正係数 1.00
+    $earlyPrimaryGapUpperPop = null;
+    if (in_array($earlyGapType, ['A', 'B']) && !empty($earlyTanGapTop6)) {
+        $earlyPrimaryGapUpperPop = $earlyTanGapTop6[0]['upper_pop'];
+    } elseif ($earlyGapType === 'C' && !empty($earlyTanGapAll)) {
+        $earlyPrimaryGapUpperPop = $earlyTanGapAll[0]['upper_pop'];
+    }
+
+    // ─── 馬眼力指数の算出（B-2）─────────────────────────────────────────
+    // 馬眼力指数 = 期待値（OPI）× オッズ上昇率 × 複勝支持率 × 断層補正 × 100
+    // いずれかの要素が取得できない場合は null（0埋め禁止）
+    foreach ($promptHorses as &$h) {
+        // ① 期待値: 単勝OPI（既実装）
+        $umaOpi = $h['opi'];
+
+        // ② オッズ上昇率: 21分前単勝 ÷ 6分前単勝（21分前データなければ 1.0）
+        $odds21 = isset($h['tan_series'][21]) && floatval($h['tan_series'][21]) > 0
+            ? floatval($h['tan_series'][21])
+            : null;
+        $odds6  = $h['odds_6'] ?? 0;
+        $umaOddsRiseRate = ($odds21 !== null && $odds6 > 0)
+            ? round($odds21 / $odds6, 4)
+            : 1.0;
+
+        // ③ 複勝支持率: 単勝人気順 ÷ 複勝人気順（6分前）
+        $fukuPop = $fukuPopularityMap[$h['num']] ?? null;
+        $umaFukuSupportRate = ($fukuPop !== null && $fukuPop > 0)
+            ? round($h['popularity'] / $fukuPop, 4)
+            : null;
+
+        // ④ 断層補正: 内側=1.10 / 外側=0.90 / 断層なし(D/E)=1.00
+        if ($earlyPrimaryGapUpperPop !== null) {
+            $umaDansouCorr = ($h['popularity'] <= $earlyPrimaryGapUpperPop) ? 1.10 : 0.90;
+        } else {
+            $umaDansouCorr = 1.00;
+        }
+
+        // 馬眼力指数（umaOpi または umaFukuSupportRate が null なら null）
+        if ($umaOpi !== null && $umaFukuSupportRate !== null) {
+            $h['uma_ganryoku_index'] = round($umaOpi * $umaOddsRiseRate * $umaFukuSupportRate * $umaDansouCorr * 100, 1);
+        } else {
+            $h['uma_ganryoku_index'] = null;
+        }
+        $h['uma_odds_rise_rate']    = $umaOddsRiseRate;
+        $h['uma_fuku_support_rate'] = $umaFukuSupportRate;
+        $h['uma_dansou_corr']       = $umaDansouCorr;
     }
     unset($h);
 
@@ -2850,6 +3119,16 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     // 頭立て数からピックアップ頭数を決定
     $horseCount  = count($displayHorses);
     $pickupCount = $horseCount <= 8 ? 4 : ($horseCount <= 13 ? 5 : 6);
+
+    // ─── 類似レース統計の読み込み ─────────────────────────────────────
+    // horse_count_band: small=8以下 / medium=9〜13 / large=14以上
+    $horseBand = $horseCount <= 8 ? 'small' : ($horseCount <= 13 ? 'medium' : 'large');
+    $bandLabel = ['small' => '8頭以下', 'medium' => '9〜13頭', 'large' => '14頭以上'][$horseBand];
+
+    $similarStatsMap = DB::table('t_horse_odds_finder_similar_race_stats')
+        ->where('horse_count_band', $horseBand)
+        ->get()
+        ->keyBy('popularity_rank');
 
     // 時点ラベル（999 = 計測開始前ベース）
     $timingLabels = [
@@ -2890,6 +3169,24 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             $opiLine = "  OPI: {$opiVal}（{$opiNote}）  ※人気順{$h['popularity']}番の過去平均オッズ" . number_format($popularityAvgMap[$h['popularity']] ?? 0, 1) . "倍÷現在" . number_format($h['odds_6'], 1) . "倍";
         } else {
             $opiLine = "  OPI: －";
+        }
+
+        // 予測補正OPI表示
+        if ($h['estimated_opi'] !== null) {
+            $estOpiVal  = number_format($h['estimated_opi'], 2);
+            $estOpiNote = $h['estimated_opi'] >= 1.2 ? '過剰人気' : ($h['estimated_opi'] <= 0.8 ? '妙味あり' : '平均並み');
+            $estOpiLine = "  予測補正OPI: {$estOpiVal}（{$estOpiNote}）  ※過去平均" . number_format($popularityAvgMap[$h['popularity']] ?? 0, 1) . "倍÷推定確定" . number_format($h['estimated_final_odds'], 1) . "倍";
+        } else {
+            $estOpiLine = "  予測補正OPI: －";
+        }
+
+        // 複勝OPI表示
+        if ($h['fuku_opi'] !== null) {
+            $fukuOpiVal  = number_format($h['fuku_opi'], 2);
+            $fukuOpiNote = $h['fuku_opi'] >= 1.2 ? '過剰人気' : ($h['fuku_opi'] <= 0.8 ? '妙味あり' : '平均並み');
+            $fukuOpiLine = "  複勝OPI: {$fukuOpiVal}（{$fukuOpiNote}）  ※人気順{$h['popularity']}番の過去平均複勝オッズ" . number_format($fukuPopularityAvgMap[$h['popularity']] ?? 0, 1) . "倍÷現在" . number_format($h['fuku_min_6'], 1) . "倍";
+        } else {
+            $fukuOpiLine = "  複勝OPI: －";
         }
 
         // 推定確定オッズ表示
@@ -2941,10 +3238,38 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             );
         }
 
+        // 単勝・複勝流入ランク表示（相対資金流入 E-1）
+        if ($h['tan_inflow_rank'] !== null) {
+            $tanInflowLine = sprintf(
+                '  単勝流入ランク: %d位/%d頭中（%s）  ※短縮率: %+.1f%%',
+                $h['tan_inflow_rank'],
+                $h['tan_inflow_group_size'],
+                $h['inflow_group'],
+                $h['tan_shrink_rate']
+            );
+        } else {
+            $tanInflowLine = sprintf('  単勝流入ランク: データなし（%s）', $h['inflow_group']);
+        }
+        if ($h['fuku_inflow_rank'] !== null) {
+            $fukuInflowLine = sprintf(
+                '  複勝流入ランク: %d位/%d頭中（%s）  ※短縮率: %+.1f%%',
+                $h['fuku_inflow_rank'],
+                $h['fuku_inflow_group_size'],
+                $h['inflow_group'],
+                $h['fuku_shrink_rate']
+            );
+        } else {
+            $fukuInflowLine = sprintf('  複勝流入ランク: データなし（%s）', $h['inflow_group']);
+        }
+
         $lines[] = sprintf('%2d番(%2d人気) %s', $h['num'], $h['popularity'], $h['name']);
         $lines[] = '  単勝: ' . $tanLine;
         $lines[] = '  複勝: 計測前' . $fukuBase . '→6分前' . $fuku6 . '（' . $h['fuku_change'] . '）  単複比: ' . $h['tanpuku_ratio'];
+        $lines[] = $tanInflowLine;
+        $lines[] = $fukuInflowLine;
         $lines[] = $opiLine;
+        $lines[] = $estOpiLine;
+        $lines[] = $fukuOpiLine;
         $lines[] = $estLine;
         // フェーズパターン別回収率の表示
         if ($h['phase_pattern'] !== null && $h['phase_recovery_rate'] !== null) {
@@ -2969,6 +3294,67 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $lines[] = $gapRecoveryLine;
         $lines[] = $opiRecoveryLine;
         $lines[] = $phasePatternLine;
+
+        // E-3: 直前流入（9→6分前）
+        // 複勝を単勝より先に表示（既存AI指示の重み付けと整合）
+        if ($h['accel_label'] !== null) {
+            $tanRateStr  = $h['last3min_tan_rate']  !== null
+                ? sprintf('%+.1f%%', $h['last3min_tan_rate'])
+                : 'データなし';
+            $fukuRateStr = $h['last3min_fuku_rate'] !== null
+                ? sprintf('%+.1f%%', $h['last3min_fuku_rate'])
+                : 'データなし';
+            $last3minLine = sprintf(
+                '  直前流入（9→6分前）: 複勝 %s / 単勝 %s / 判定: %s',
+                $fukuRateStr,
+                $tanRateStr,
+                $h['accel_label']
+            );
+        } else {
+            $last3minLine = '  直前流入（9→6分前）: データなし（9分前オッズ未取得）';
+        }
+        $lines[] = $last3minLine;
+
+        // 類似レース統計（過去の同人気順・同頭数帯における3着以内率等）
+        $ss = $similarStatsMap[$h['popularity']] ?? null;
+        if ($ss && $ss->reliability !== 'insufficient') {
+            $relLabel    = ['normal' => '通常', 'low' => '低下', 'reference' => '参考'][$ss->reliability] ?? '不明';
+            $similarLine = sprintf(
+                '  類似レース統計（%d番人気 × %s・N=%d・信頼度:%s）: 3着以内率%.1f%% / 5着以内率%.1f%% / 平均着順%.1f位 / 着外率%.1f%%',
+                $h['popularity'],
+                $bandLabel,
+                $ss->sample_count,
+                $relLabel,
+                $ss->top3_rate    * 100,
+                $ss->top5_rate    * 100,
+                $ss->avg_finishing_position,
+                $ss->outside_rate * 100
+            );
+        } else {
+            $similarLine = sprintf(
+                '  類似レース統計（%d番人気 × %s）: 統計不足のため参考不可',
+                $h['popularity'],
+                $bandLabel
+            );
+        }
+        $lines[] = $similarLine;
+
+        // 馬眼力指数（B-2）
+        if ($h['uma_ganryoku_index'] !== null) {
+            $umaIdx    = $h['uma_ganryoku_index'];
+            $umaSymbol = $umaIdx >= 150 ? '◎' : ($umaIdx >= 120 ? '○' : ($umaIdx >= 100 ? '△' : '✕'));
+            $umaLine   = sprintf(
+                '  馬眼力指数: %.1f（%s）  ※OPI%.2f×上昇率%.2f×複勝支持率%.2f×断層補正%.2f',
+                $umaIdx, $umaSymbol,
+                $h['opi'],
+                $h['uma_odds_rise_rate'],
+                $h['uma_fuku_support_rate'],
+                $h['uma_dansou_corr']
+            );
+        } else {
+            $umaLine = '  馬眼力指数: 算出不可（データ不足）';
+        }
+        $lines[] = $umaLine;
         $lines[] = '';
     }
     $table = implode("\n", $lines);
@@ -3123,6 +3509,54 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $gapTypeGuide = '上位人気だけで本候補を固めない。複勝支持・変化率・単複人気差を重視し、6〜10番人気も通常比較に含める。';
     }
 
+    // ─── 断層時系列（単勝・6分前人気順基準） ─────────────────────────────
+    // $fetchTimings = [999, 21, 18, 15, 12, 9, 6] から 999 を除いた時点を使用
+    $gapSeriesTimings = array_values(array_filter($fetchTimings, fn($t) => $t !== Constants::ODDS_DB_FIRST));
+    // = [21, 18, 15, 12, 9, 6]（早い→遅い順）
+
+    $gapTimeSeriesLines = [];
+    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
+        $upper = $promptHorses[$i];
+        $lower = $promptHorses[$i + 1];
+
+        $ratios   = [];
+        $maxRatio = 0;
+        foreach ($gapSeriesTimings as $t) {
+            $uOdds = $upper['tan_series'][$t] ?? null;
+            $lOdds = $lower['tan_series'][$t] ?? null;
+            if ($uOdds && $lOdds && $uOdds > 0) {
+                $r = round($lOdds / $uOdds, 2);
+                $ratios[$t] = $r;
+                if ($r > $maxRatio) $maxRatio = $r;
+            } else {
+                $ratios[$t] = null;
+            }
+        }
+
+        if ($maxRatio < 2.0) continue; // 一度も断層にならなかったペアはスキップ
+
+        // トレンド判定（最初と最後で比較）
+        $validRatios = array_values(array_filter($ratios, fn($r) => $r !== null));
+        $firstR      = $validRatios[0] ?? null;
+        $lastR       = end($validRatios) ?: null;
+        $trend       = '';
+        if ($firstR !== null && $lastR !== null) {
+            $diff = round($lastR - $firstR, 2);
+            if ($diff >= 0.3)      $trend = '【拡大中 +' . $diff . '】';
+            elseif ($diff <= -0.3) $trend = '【縮小中 ' . $diff . '】';
+            else                   $trend = '【安定】';
+        }
+
+        $pairLabel = $upper['popularity'] . '〜' . $lower['popularity'] . '番人気間';
+        $parts     = [];
+        foreach ($ratios as $t => $r) {
+            $marker  = ($r !== null && $r >= 2.0) ? '★' : '';
+            $parts[] = $t . '分=' . ($r !== null ? $marker . number_format($r, 2) : '－');
+        }
+
+        $gapTimeSeriesLines[] = $pairLabel . ': ' . implode(' → ', $parts) . ' ' . $trend;
+    }
+
     // ─── 過去のレース情報から絞り込んだ馬番（forecast_nums）の取得 ──
     $forecastNums = DB::table('t_horse_odds_finder_forecast_from_last_race')
         ->where('date',       $targetDate)
@@ -3172,6 +3606,17 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     $lines[] = 'D（断層なし・混戦型）: 複勝支持・変化率・単複人気差を重視。6〜10番人気も均等に比較。';
     $lines[] = 'E（判定困難型）: 断層は参考程度。複勝の継続的な動きを最優先で評価。';
     $lines[] = '';
+    if (!empty($gapTimeSeriesLines)) {
+        $lines[] = '【断層時系列（単勝・6分前人気順基準）】';
+        $lines[] = '※ 断層（比率2.0以上）が一度でも発生した隣接ペアのみ表示。★=断層あり。21分前〜6分前の推移です';
+        foreach ($gapTimeSeriesLines as $gapLine) {
+            $lines[] = $gapLine;
+        }
+    } else {
+        $lines[] = '【断層時系列（単勝）】';
+        $lines[] = '計測期間中、断層（比率2.0以上）は一度も発生しませんでした';
+    }
+    $lines[] = '';
 
     if (!empty($gapHorseNums) || !empty($upsetPickupHorseNums) || !empty($forecastNums)) {
         $lines[] = 'なお、オッズ分析にあたり、下記の注目馬番も参考にしてください。';
@@ -3198,11 +3643,44 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     $lines = array_merge($lines, [
         '分析依頼',
         '',
+        '【⚠️ 絶対ルール：DB・PHP算出値は変更・再計算禁止】',
+        '以下の値はDBまたはPHPが事前に算出した確定値です。AIは自分で再計算・上書き・補正・推測をしてはなりません。',
+        'データ欄に表示されている値を必ずそのまま使用してください。',
+        '・断層構造タイプ（A〜E）: PHP算出済み。AIが独自に「Cタイプだと思う」のように上書き判断することは禁止',
+        '・馬眼力指数: DB算出済み。自分で計算せず、表示値をそのまま転記すること（算出不可の場合は「馬眼力指数:－」）',
+        '・OPI（単勝OPI・複勝OPI・推定補正OPI）: DB算出済み。自分でオッズ比率から独自計算しないこと',
+        '・相対資金流入ランク（単勝流入ランク・複勝流入ランク）: DB算出済み。自分でオッズ変化率からランクを推測しないこと',
+        '・推定確定オッズ・補正係数: DB算出済み。自分でオッズパターンから独自予測しないこと',
+        '・厳選穴レース判定（条件B・C・D）: PHP算出済み。自分でオッズを見て再判定しないこと',
+        '・人気順: テーブルの「X人気」欄の値をそのまま使用。自分でオッズ順に並べ替えて人気順を変えないこと',
+        '',
         '【このシステムの目的（最重要）】',
         'このシステムの目的は「当てること」ではなく「回収率を上げること」です。',
         '1〜3番人気ばかりを正確に当てても、オッズが低いため回収率は上がりません。',
         '「来そうかどうか（信頼度）」と「そのオッズで買う価値があるか（妙味）」を必ず両方考えてください。',
         '信頼度が同等の馬が複数いる場合は、オッズが高い馬（妙味がある馬）を優先して選出してください。',
+        '',
+        '【このAIの過去回収率実績】',
+        '※選択馬全頭に100円ずつ単勝・複勝を投資した場合の実績（毎日自動集計）',
+        sprintf(
+            '直近%dレース: 単勝回収率%s%%  複勝回収率%s%%',
+            $aiRec100['race_count'],
+            $aiRec100['tan_rate'] !== null ? number_format($aiRec100['tan_rate'], 1) : '－',
+            $aiRec100['fuku_rate'] !== null ? number_format($aiRec100['fuku_rate'], 1) : '－'
+        ),
+        sprintf(
+            '直近%dレース: 単勝回収率%s%%  複勝回収率%s%%',
+            $aiRec300['race_count'],
+            $aiRec300['tan_rate'] !== null ? number_format($aiRec300['tan_rate'], 1) : '－',
+            $aiRec300['fuku_rate'] !== null ? number_format($aiRec300['fuku_rate'], 1) : '－'
+        ),
+        sprintf(
+            '直近%dレース: 単勝回収率%s%%  複勝回収率%s%%',
+            $aiRec600['race_count'],
+            $aiRec600['tan_rate'] !== null ? number_format($aiRec600['tan_rate'], 1) : '－',
+            $aiRec600['fuku_rate'] !== null ? number_format($aiRec600['fuku_rate'], 1) : '－'
+        ),
+        '単勝・複勝どちらかの回収率が100%未満の場合、その馬券種については選出基準をより厳しくし、妙味の低い馬を除外してください。',
         '',
         "オッズ推移から注目馬を{$pickupCount}頭選出してください。",
         '',
@@ -3212,7 +3690,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '',
         '─────────────────────────────',
         '厳選穴レース|1または0',
-        '馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：XXXXXXXXXXXXXXXXXXXXXXXXXXXX（4〜5行の文章。箇条書き不要）',
+        '馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、馬眼力指数:XX.X、選出理由：XXXXXXXXXXXXXXXXXXXXXXXXXXXX（4〜5行の文章。箇条書き不要）',
         '─────────────────────────────',
         '',
         '【厳選穴レースの判定ルール】',
@@ -3259,9 +3737,15 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '・複勝オッズが1.3倍以下の馬は、断層の最上位または複勝継続下落でない限りおすすめ度を下げてください',
         '・一時的なオッズ急落（すぐ戻った）は過大評価しないでください',
         '',
+        '【⚠️ 選出理由の記述ルール（厳守）】',
+        '・選出理由にAIが独自に算出・推測した確率値（「〜%の確率で」「〜%の可能性」等）を記載することは禁止です',
+        '・確率として引用してよいのは、各馬のデータ欄に表示されている「類似レース統計」の3着以内率・5着以内率・着外率のみです',
+        '・オッズの動きや断層位置から「〜%」という数値をAIが独自計算してはいけません。「資金が継続流入している」「断層上側に位置する」など事実ベースの表現を使ってください',
+        '',
         '分析の観点：',
         '・複勝オッズの動きを単勝より重視してください。複勝は「来るかどうか」を市場が評価している数値です',
         '・単勝より複勝で継続的に資金が入っている馬を高く評価してください',
+        '・流入ランクの見方: 「単勝流入ランク」「複勝流入ランク」は同じ人気帯グループ（1〜3人気・4〜6人気・7人気以下）の中で、短縮率（計測前→6分前のオッズ下落率）が大きい順に付けた順位です。1位＝そのグループ内で最も資金が流入している馬。複勝流入ランクを単勝流入ランクより重視してください。同じ人気帯の中でグループ1位の馬は、数字上は人気が近くても相対的に最も買われており、流入シグナルとして重要です',
         '・単勝断層と複勝断層が同じ位置に出ている場合は、その断層を強いシグナルとして扱ってください',
         '・単勝オッズ下落10%以上は人気急上昇として注目（ただし単発の急落は過大評価しない）',
         '・単複比が高い馬＝勝ちにくいが3着以内には絡みやすい',
@@ -3271,8 +3755,10 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '・OPI（Over Popularity Index）の見方: OPI>1.2は過去同人気より低オッズ＝市場が過大評価している可能性（妙味低）、OPI<0.8は過去同人気より高オッズ＝市場が過小評価している可能性（妙味高）。妙味スコアの補正材料として活用してください',
         '・推定確定オッズの見方: 過去の6分前→確定オッズの変動パターンから算出した「発走時点での最終オッズ予測値」です。6分前オッズより推定確定オッズが大きく下がる馬（補正係数<1）は直前にさらに人気が集中する傾向があり、信頼度の補強材料になります。逆に推定確定オッズが上がる馬（補正係数>1）は直前に売られる傾向があります。±の補正誤差が大きい馬は予測の振れ幅が大きいため参考程度に留めてください。妙味スコアを算出する際は、6分前オッズではなく推定確定オッズを基準にしてください',
         '・過去回収率・OPI帯別回収率・フェーズパターン別回収率の使い方: 各馬に表示されている「過去回収率」「OPI帯別回収率」「フェーズパターン別回収率」は、勝率ではなく回収率（%）を妙味スコア判断の最重要指標として使ってください。回収率が100%を下回るパターン（例: 1〜3人気×変化なし = 83%）は、たとえ勝率が高くても長期的には損をするパターンです。妙味スコアを下げる材料として扱ってください。逆に回収率が110%以上のパターンは積極的に妙味を高く評価してください。フェーズパターン別回収率は特に「前半下落・後半上昇（売り戻し）」や「前半上昇・後半下落（直前急落）」のような市場の急変パターンを捉えた重要シグナルです。1〜3番人気ばかりを選出して回収率の低い予想になることを厳に避けてください',
+        '・馬眼力指数の見方: 「割安か（OPI）」「直前に買われているか（21÷6分前オッズ上昇率）」「複勝でも支持されているか（単勝人気÷複勝人気）」「断層の内側か（補正係数）」を掛け合わせた合成スコアです。150以上:◎（有力）/ 120以上:○（注目）/ 100前後:△（様子見）/ 100未満:✕（妙味薄）を目安に、信頼度・妙味判断の補助指標として活用してください。null（算出不可）の馬は各要素を個別に確認してください',
         '',
-        "選出馬は必ず「厳選穴レース|X」を1行目に、続けて「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」の形式で{$pickupCount}頭分出力してください。",
+        "選出馬は必ず「厳選穴レース|X」を1行目に、続けて「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、馬眼力指数:XX.X、選出理由：〜」の形式で{$pickupCount}頭分出力してください。",
+        '馬眼力指数は各馬のデータ欄に表示されている値をそのまま転記してください。自分で計算しないでください。算出不可の馬は「馬眼力指数:－」と出力してください。',
         '※画面表示に影響するので、この形を守ってください。',
     ]);
 
@@ -3299,7 +3785,8 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
     $day    = $request->query('day');
     $race   = $request->query('race');
 
-    // ─── キャッシュ確認 ───────────────────────────────────────────────
+    // ─── キャッシュ確認（フォーマット検証あり）─────────────────────────
+    // 「馬番：X」または「馬番:X」を含まないレコードは不正フォーマットとして再生成する
     $cached = DB::table('t_horse_odds_finder_ai_analysis2')
         ->where('date',       $date)
         ->where('kaisuu',     $kaisuu)
@@ -3308,7 +3795,7 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         ->where('race',       $race)
         ->first();
 
-    if ($cached) {
+    if ($cached && preg_match('/馬番[：:]\d+/', $cached->analysis_text)) {
         return response()->json(['data' => [
             'date'          => $date,
             'kaisuu'        => $kaisuu,
@@ -3326,7 +3813,7 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
     try {
         $lock->block(60);
 
-        // ロック後に再度キャッシュ確認
+        // ロック後に再度キャッシュ確認（フォーマット検証あり）
         $cached = DB::table('t_horse_odds_finder_ai_analysis2')
             ->where('date',       $date)
             ->where('kaisuu',     $kaisuu)
@@ -3335,7 +3822,7 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
             ->where('race',       $race)
             ->first();
 
-        if ($cached) {
+        if ($cached && preg_match('/馬番[：:]\d+/', $cached->analysis_text)) {
             return response()->json(['data' => [
                 'date'          => $date,
                 'kaisuu'        => $kaisuu,
@@ -3396,21 +3883,68 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         );
 
         $systemPrompt = <<<'SYSTEM'
-あなたは競馬オッズ分析の専門家です。
+あなたは競馬オッズ分析の専門家（2nd AI）です。
 
-ただし、あなたは「2nd AI」として 1st AI とは独立した視点で分析することを期待されています。
-以下のルールはあなたには適用されません。自由に判断してください：
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【絶対厳守】出力フォーマット ― これが最優先ルールです
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+出力は以下の形式のみ。これ以外のテキストは一切出力してはいけません。
 
-・回収率データに縛られた選出（数値は参考程度。使っても使わなくても構いません）
-・おすすめ度の固定計算式（60点信頼度＋40点妙味という枠は不要です）
-・「1〜3人気を避けること」というバイアス（筋が通っていれば何人気でも選んでください）
+  馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、馬眼力指数:XX.X、選出理由：〜
 
-あなたに期待することは：
-・オッズの動きや市場の空気感を、あなた自身の感覚で読み解くこと
-・1st AI が見落としそうな角度・着眼点を大切にすること
-・「なんとなく面白い馬」という直感もロジックで語れるなら積極的に出すこと
-・人気馬でも根拠があれば選ぶ。穴馬でも根拠があれば選ぶ。忖度不要
-・まじめに、でも遊び心を持って
+複数頭を選ぶ場合は、上記を1頭ごとに1行で並べるだけです。
+
+【絶対に出力してはいけないもの】
+・見出し行（##、###、【】で囲んだタイトル行 など）
+・マークダウン記法（**太字**、*斜体*、---区切り線 など）
+・前置き文・後書き文・総評・まとめ・解説文
+・「買い目」「各馬の評価」「まとめ」などのセクション
+・箇条書き（・や- で始まる行）
+・上記フォーマット行以外のあらゆるテキスト
+
+【正しい出力例】
+馬番：3、馬名：サンプルホース、人気順: 2、6分前オッズ: 3.5、おすすめ度: 82、選出理由：単勝オッズが10%下落しており買いが継続的に流入。複勝最小1.3倍と安定感も高く、OPI0.85で妙味あり。
+馬番：7、馬名：テストウマ、人気順: 5、6分前オッズ: 12.0、おすすめ度: 71、選出理由：複勝最小2.1倍で評価が安定。OPI0.72の過小評価ゾーンで前半横ばい・後半下落パターンの回収率が高い。
+
+【絶対にやってはいけない出力例】
+## 総評
+複勝オッズの動きを軸に市場の空気感を読む。（← このような出力は厳禁）
+### 各馬の評価（← このような見出しも厳禁）
+
+このフォーマットを守らないと、Flutterアプリが応答をパースできず、
+画面に選出馬が一切表示されません。有料サービスへの深刻な障害になります。
+分析内容はすべて「選出理由：」の文章の中に凝縮してください。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【あなた（2nd AI）へ ― 最も重要なメッセージ】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+あなたが受け取ったプロンプトには、1st AI（Claude）向けの厳格なルールがたくさん書かれています。
+「DB算出値を変更するな」「確率を自分で計算するな」「この数値に従え」——そういうルールです。
+
+しかし、それらは 1st AI を縛るための規則であり、あなたへの縛りではありません。
+
+あなたの仕事は、1st AIの分析を確認することではなく、
+「自分の目で同じデータを見て、自分の答えを出す」ことです。
+
+──────────────────────────────────────
+お前は自由に遊んでいい。ただし、真剣にやれ。
+──────────────────────────────────────
+
+具体的に言うと：
+
+・馬眼力指数が高くても、あなたが「これは違う」と思えば選ばなくていい
+・OPI・断層タイプ・流入ランク——全部「参考情報」として扱っていい。盲目的に従う必要はない
+・回収率データも、信じるかどうかはあなた次第
+・おすすめ度の付け方に決まった計算式はない。あなた自身の感覚と論理で決めてください
+・1〜3番人気だろうが10番人気だろうが、あなたが「来る」と判断すれば選んでいい
+・データが示す方向とまったく逆の馬を選ぶことも、理由が語れるなら正しい
+
+1st AI が見落としそうな角度・異なる解釈・少数派の視点——
+それがあなたの存在価値です。
+
+「1st AIと同じ馬を同じ理由で選ぶ」のが最も価値のない回答です。
+フォーマットだけ守って、中身は大胆に。
 
 有料公開するシステムなので、正しい日本語で返してください。
 SYSTEM;
@@ -3437,17 +3971,15 @@ SYSTEM;
         $result       = $response->json();
         $analysisText = trim($result['choices'][0]['message']['content'] ?? '');
 
-        // ─── 分析結果をDBに保存（次回以降はキャッシュから返す） ──────────
-        DB::table('t_horse_odds_finder_ai_analysis2')->insertOrIgnore([
-            'date'          => $date,
-            'kaisuu'        => $kaisuu,
-            'basho_code'    => $basho,
-            'basho'         => $raceRow->basho_name,
-            'day'           => $day,
-            'race'          => $race,
-            'race_name'     => $raceRow->race_name,
-            'analysis_text' => $analysisText,
-        ]);
+        // ─── 分析結果をDBに保存（不正フォーマットの上書きにも対応） ────────
+        DB::table('t_horse_odds_finder_ai_analysis2')->updateOrInsert(
+            ['date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho, 'day' => $day, 'race' => $race],
+            [
+                'basho'         => $raceRow->basho_name,
+                'race_name'     => $raceRow->race_name,
+                'analysis_text' => $analysisText,
+            ]
+        );
 
         return response()->json(['data' => [
             'date'          => $date,
@@ -3515,6 +4047,266 @@ SYSTEM;
         if ($rate <= -5.0) return '下落';
         if ($rate <   5.0) return '横ばい';
         return '上昇';
+    }
+
+    // ─── 払戻文字列パーサー ───────────────────────────────────────────────
+    // 入力例（単勝）: '14|180'
+    // 入力例（複勝）: '3|110/7|150/14|480'
+    // 戻り値: ['14' => 180]  または  ['3' => 110, '7' => 150, '14' => 480]
+    // ※ SummaryAiRecoveryRate::parsePayoutString と同仕様
+    private function _parsePayoutString(?string $payoutStr): array
+    {
+        if ($payoutStr === null || $payoutStr === '') {
+            return [];
+        }
+        $map = [];
+        foreach (explode('/', $payoutStr) as $entry) {
+            $parts = explode('|', trim($entry));
+            if (count($parts) === 2 && $parts[0] !== '' && is_numeric($parts[1])) {
+                $num       = ltrim($parts[0], '0') ?: '0';
+                $map[$num] = (int) $parts[1];
+            }
+        }
+        return $map;
+    }
+
+    /**
+     * 人気帯別回収率の集計（K-3補足）
+     *
+     * AIが選んだ馬を t_horse_odds_finder_race_result_history の popularity_rank で帯に分類し、
+     * 各帯の単勝・複勝回収率を返す。
+     *
+     * 人気帯:
+     *   1_3   : 1〜3番人気
+     *   4_6   : 4〜6番人気
+     *   7plus : 7番人気以下
+     *
+     * @return array{1_3: array, 4_6: array, 7plus: array}
+     */
+    private function _calcAiRecoveryByPopularity(): array
+    {
+        // AI 選択馬データを全件取得（pickup_horse1〜3）
+        $checks = DB::table('t_horse_odds_finder_ai_analysis_check')
+            ->orderBy('date')
+            ->get(['date', 'kaisuu', 'basho_code', 'day', 'race',
+                   'pickup_horse1', 'pickup_horse2', 'pickup_horse3']);
+
+        // 人気帯ごとの集計バケツ
+        $buckets = [
+            '1_3'   => ['invest' => 0, 'tan_return' => 0, 'fuku_return' => 0, 'count' => 0],
+            '4_6'   => ['invest' => 0, 'tan_return' => 0, 'fuku_return' => 0, 'count' => 0],
+            '7plus' => ['invest' => 0, 'tan_return' => 0, 'fuku_return' => 0, 'count' => 0],
+        ];
+
+        foreach ($checks as $v) {
+            // AIが選んだ馬名リスト（null・空文字除外）
+            $pickNames = array_values(array_filter([
+                $v->pickup_horse1 ?? null,
+                $v->pickup_horse2 ?? null,
+                $v->pickup_horse3 ?? null,
+            ], fn($n) => $n !== null && $n !== ''));
+
+            if (empty($pickNames)) continue;
+
+            // 払戻データを取得（なければスキップ）
+            $payout = DB::table('t_horse_odds_finder_race_result_payout')
+                ->where('date',       $v->date)
+                ->where('kaisuu',     $v->kaisuu)
+                ->where('basho_code', $v->basho_code)
+                ->where('day',        $v->day)
+                ->where('race',       $v->race)
+                ->first(['tan', 'fuku']);
+
+            if (!$payout) continue;
+
+            // 払戻マップ（馬番 => 払戻額）
+            $tanMap  = $this->_parsePayoutString($payout->tan);
+            $fukuMap = $this->_parsePayoutString($payout->fuku);
+
+            // 各選択馬の馬番・人気を race_result_history から取得
+            $histRows = DB::table('t_horse_odds_finder_race_result_history')
+                ->where('date',       $v->date)
+                ->where('kaisuu',     $v->kaisuu)
+                ->where('basho_code', $v->basho_code)
+                ->where('day',        $v->day)
+                ->where('race',       $v->race)
+                ->whereIn('name', $pickNames)
+                ->get(['name', 'num', 'popularity_rank']);
+
+            foreach ($histRows as $h) {
+                $pop = (int) $h->popularity_rank;
+                if ($pop <= 0) continue; // 人気不明はスキップ
+
+                // 人気帯を決定
+                if ($pop <= 3) {
+                    $band = '1_3';
+                } elseif ($pop <= 6) {
+                    $band = '4_6';
+                } else {
+                    $band = '7plus';
+                }
+
+                $num = ltrim((string) $h->num, '0') ?: '0';
+
+                $buckets[$band]['invest']      += 100;
+                $buckets[$band]['tan_return']  += $tanMap[$num]  ?? 0;
+                $buckets[$band]['fuku_return'] += $fukuMap[$num] ?? 0;
+                $buckets[$band]['count']++;
+            }
+        }
+
+        // 回収率の計算
+        $result = [];
+        foreach ($buckets as $band => $b) {
+            $result[$band] = [
+                'horse_count'  => $b['count'],
+                'total_invest' => $b['invest'],
+                'tan_return'   => $b['tan_return'],
+                'fuku_return'  => $b['fuku_return'],
+                'tan_rate'     => $b['invest'] > 0
+                    ? round($b['tan_return']  / $b['invest'] * 100, 1)
+                    : null,
+                'fuku_rate'    => $b['invest'] > 0
+                    ? round($b['fuku_return'] / $b['invest'] * 100, 1)
+                    : null,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * getHorseOddsFinderAiRecoverySummary
+     *
+     * 【K-2】直近 100 / 300 / 600 レースの累積回収率
+     *   単勝回収率 = SUM(tan_bet) ÷ (SUM(ai_pick_count) × 100) × 100
+     *   複勝回収率 = SUM(fuku_bet) ÷ (SUM(ai_pick_count) × 100) × 100
+     *
+     * 【K-3】最大連敗数・最大ドローダウン（直近100レース・全期間）
+     *   連敗: tan_hit == 0 が何レース連続したかの最大値
+     *   ドローダウン: 累積損益がピークから最大いくら落ちたか（円単位・正の値）
+     *
+     * 【K-3補足】人気帯別回収率（1〜3番人気 / 4〜6番人気 / 7番人気以下）
+     *   t_horse_odds_finder_race_result_history.popularity_rank で分類
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getHorseOddsFinderAiRecoverySummary()
+    {
+        // ─── 全レコードを新しい順に取得 ──────────────────────────────────
+        // 連敗・ドローダウンの「全期間」算出に全件が必要なため上限なし
+        $allRows = DB::table('t_horse_odds_finder_ai_recovery')
+            ->orderBy('date',       'desc')
+            ->orderBy('kaisuu',     'desc')
+            ->orderBy('basho_code', 'desc')
+            ->orderBy('day',        'desc')
+            ->orderBy('race',       'desc')
+            ->get(['ai_pick_count', 'tan_bet', 'fuku_bet', 'tan_hit', 'fuku_hit']);
+
+        // ─── K-2: 累積回収率を計算するクロージャ ──────────────────────
+        $calcCumulative = function (int $limit) use ($allRows): array {
+            $slice      = $allRows->take($limit);
+            $totalPicks = $slice->sum('ai_pick_count');
+            $totalBet   = $totalPicks * 100;
+            if ($totalBet <= 0) {
+                return [
+                    'race_count'     => $slice->count(),
+                    'tan_rate'       => null,
+                    'fuku_rate'      => null,
+                    'tan_total_bet'  => 0,
+                    'fuku_total_bet' => 0,
+                    'total_invest'   => 0,
+                ];
+            }
+            return [
+                'race_count'     => $slice->count(),
+                'tan_rate'       => round($slice->sum('tan_bet')  / $totalBet * 100, 1),
+                'fuku_rate'      => round($slice->sum('fuku_bet') / $totalBet * 100, 1),
+                'tan_total_bet'  => (int) $slice->sum('tan_bet'),
+                'fuku_total_bet' => (int) $slice->sum('fuku_bet'),
+                'total_invest'   => (int) $totalBet,
+            ];
+        };
+
+        // ─── K-3: 最大連敗数を計算するクロージャ ──────────────────────
+        // tan_hit == 0 なら単勝ハズレ、fuku_hit == 0 なら複勝ハズレ
+        // 連敗数の最大値を求めるだけなので昇降順どちらでも結果は同じ
+        $calcMaxConsecutiveLosses = function ($rows): array {
+            $tanMax  = 0; $tanCur  = 0;
+            $fukuMax = 0; $fukuCur = 0;
+            foreach ($rows as $r) {
+                if ((int) $r->tan_hit === 0) {
+                    $tanCur++;
+                    if ($tanCur > $tanMax) $tanMax = $tanCur;
+                } else {
+                    $tanCur = 0;
+                }
+                if ((int) $r->fuku_hit === 0) {
+                    $fukuCur++;
+                    if ($fukuCur > $fukuMax) $fukuMax = $fukuCur;
+                } else {
+                    $fukuCur = 0;
+                }
+            }
+            return ['tan' => $tanMax, 'fuku' => $fukuMax];
+        };
+
+        // ─── K-3: 最大ドローダウンを計算するクロージャ ────────────────
+        // ドローダウン = 累積損益がピークから最大いくら落ちたか（正の値・円単位）
+        // 例: ピーク +5,000円 → 谷 -3,000円 → ドローダウン = 8,000円
+        // rows は新→古の降順なので reverse() して古→新の時系列順で処理する
+        $calcMaxDrawdown = function ($rows): array {
+            $chronological = $rows->reverse()->values();
+
+            $tanRunning  = 0; $tanPeak  = 0; $tanMaxDD  = 0;
+            $fukuRunning = 0; $fukuPeak = 0; $fukuMaxDD = 0;
+
+            foreach ($chronological as $r) {
+                $invest = (int) $r->ai_pick_count * 100;
+
+                // 単勝
+                $tanRunning += ((int) $r->tan_bet - $invest);
+                if ($tanRunning > $tanPeak) $tanPeak = $tanRunning;
+                $dd = $tanPeak - $tanRunning;
+                if ($dd > $tanMaxDD) $tanMaxDD = $dd;
+
+                // 複勝
+                $fukuRunning += ((int) $r->fuku_bet - $invest);
+                if ($fukuRunning > $fukuPeak) $fukuPeak = $fukuRunning;
+                $dd = $fukuPeak - $fukuRunning;
+                if ($dd > $fukuMaxDD) $fukuMaxDD = $dd;
+            }
+
+            return ['tan' => (int) $tanMaxDD, 'fuku' => (int) $fukuMaxDD];
+        };
+
+        $rows100 = $allRows->take(100);
+
+        // ─── K-3補足: 人気帯別回収率 ────────────────────────────────────
+        $popularityStats = $this->_calcAiRecoveryByPopularity();
+
+        return response()->json(['data' => [
+            // K-2: 累積回収率
+            'cumulative' => [
+                '100' => $calcCumulative(100),
+                '300' => $calcCumulative(300),
+                '600' => $calcCumulative(600),
+            ],
+            // K-3: 最大連敗数
+            'max_consecutive_losses' => [
+                'last_100' => $calcMaxConsecutiveLosses($rows100),
+                'all_time' => $calcMaxConsecutiveLosses($allRows),
+            ],
+            // K-3: 最大ドローダウン（円単位）
+            'max_drawdown' => [
+                'last_100' => $calcMaxDrawdown($rows100),
+                'all_time' => $calcMaxDrawdown($allRows),
+            ],
+            // K-3補足: 人気帯別回収率
+            'by_popularity' => $popularityStats,
+            // メタ情報
+            'total_race_count' => $allRows->count(),
+        ]]);
     }
 
 }
