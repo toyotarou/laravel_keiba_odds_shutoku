@@ -55,6 +55,121 @@ CREATE TABLE `t_horse_odds_finder_ai_analysis_check` (
 
 
 
+CREATE TABLE `t_horse_odds_finder_ai_analysis2` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` date DEFAULT NULL,
+  `kaisuu` int DEFAULT NULL,
+  `basho` text,
+  `basho_code` char(2) DEFAULT NULL,
+  `day` int DEFAULT NULL,
+  `race` int DEFAULT NULL,
+  `race_name` text,
+  `analysis_text` text,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ai_analysis` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=147 DEFAULT CHARSET=utf8mb3;
+
+
+
+
+1	2026-08-16	1	札幌	01	8	1	3歳未勝利牝［指定］	馬番：1、馬名：テンレッドサン、人気順: 3、6分前オッズ: 4.3、おすすめ度: 92、選出理由：単勝オッズが計測前から15.7%下落しており、人気急上昇中の馬。複勝オッズも下落傾向にあり、3着以内の信頼度が高い。単複比3.3倍は上位人気では最も高く、勝ち切る可能性を残しつつ堅実な走りが期待できる。断層テーブルでは上位4頭のグループ内に位置し、流れに乗れれば好走の余地が十分にある。↵↵馬番：5、馬名：ルージュリヴィエラ、人気順: 1、6分前オッズ: 2.7、おすすめ度: 88、選出理由：単勝1番人気の馬で、オッズは2.6〜2.8倍の範囲で安定推移。複勝オッズの変動もほぼなく、市場からの信頼が極めて高い。単複比2.5倍は上位人気馬の中ではやや高めだが、これは「勝ち切れるが3着以内も確実」という評価の表れ。断層は上位グループ内で明確な切れ目がなく、順当な軸馬として扱える。↵↵馬番：10、馬名：プルーフリーディン、人気順: 2、6分前オッズ: 3.5、おすすめ度: 84、選出理由：単勝オッズ3.6倍→3.5倍と微減傾向で、2人気として安定した支持を集めている。複勝オッズは微増しているものの、1.4〜2.1倍と下限が低く3着以内の可能性を高く評価されている。単複比2.5倍は1人気と同水準で、勝ち負けを期待できる馬。断層テーブルでも1人気との間に大きな乖離がなく、連軸として有力。↵↵馬番：13、馬名：ストリートクイーン、人気順: 4、6分前オッズ: 7.3、おすすめ度: 76、選出理由：単勝オッズは7.0倍→7.3倍と微増ながら、4人気として安定した支持を維持。複勝オッズは下落傾向にあり、3着以内への信頼度が高まっている。単複比4.6倍は中位人気グループでは低めで、オッズほど悪くない評価。断層テーブルでは上位グループとの境界（3人気との比率1.70）に位置しており、波乱のキーマンになり得る存在だ。↵↵馬番：3、馬名：ウォータースパウト、人気順: 5、6分前オッズ: 13.3、おすすめ度: 68、選出理由：単勝オッズは11.3倍→13.3倍と上昇傾向で、人気の低下が見られる。しかし複勝オッズは下落しており、3着以内への評価はむしろ高まっている。単複比5.8倍は中位人気の馬としては標準的。断層テーブルでは4人気（13番）との比率が1.82と2.00に迫る水準であり、上位グループに食い込む可能性を秘めている。↵↵馬番：8、馬名：セントピュアベース、人気順: 6、6分前オッズ: 20.7、おすすめ度: 62、選出理由：単勝オッズは24.2倍→20.7倍と14.5%下落しており、人気急上昇の馬。特に15分前に16.2倍まで低下した動きは、途中で大口の資金が入った可能性を示唆している。複勝オッズは上昇しているが、単勝との乖離は中位人気では小さめで、単複比5.2倍は馬券的な妙味がある。断層テーブルでも上部グループとの比率が1.56と連続性があり、穴党には魅力。
+2	2026-08-16	1	札幌	01	8	2	2歳未勝利（混合）［指定］	馬番：3、馬名：タイフーンナイン、人気順: 1、6分前オッズ: 1.7、おすすめ度: 95、選出理由：単勝・複勝オッズが全時点でほぼ変動せず、1.7倍という圧倒的な支持を維持。断層テーブルでも2.06と明確な断層を形成し、能力の高さが市場で完全に認知されている。単複比1.7倍は最も低く、勝ち負け以上の信頼度を有する。過去のレース情報と期待数値の両方で筆頭に挙がり、有力視される根拠が揃っている。 ↵↵馬番：6、馬名：キチロクタワー、人気順: 2、6分前オッズ: 3.5、おすすめ度: 82、選出理由：単勝オッズが計測前4.0倍から6分前3.5倍へ12.5%下落しており、人気急上昇の好材料がある。複勝オッズも下落基調で3着以内の信頼度が高い。断層テーブルでは1人気との間のみ断層が発生し、3番の壁は厚いものの、他馬との差は明確。単複比3.5倍は2番手グループでは最も低く、堅実な馬券対象。↵↵馬番：4、馬名：テイクケア、人気順: 5、6分前オッズ: 16.4、おすすめ度: 68、選出理由：単勝オッズが計測前18.2倍から6分前16.4倍へ9.9%下落し、発走前にかけて買いが集まる好傾向。9分前に15.2倍まで下がる場面もあり、市場の評価が上昇している。期待数値・過去レース情報の両方で選出されており、データ上の信頼性が高い。複勝オッズは横ばいだが、単複比8.2倍と中穴ゾーンとして妙味がある。↵↵馬番：1、馬名：リアルクウカイ、人気順: 7、6分前オッズ: 35.8、おすすめ度: 52、選出理由：単勝オッズが計測前40.0倍から6分前35.8倍へ10.5%下落しており、人気急上昇の条件を満たす。7番人気ながら期待数値の調査対象に選出されており、データ上の注目馬である。複勝オッズも計測前4.2-24.4倍から6分前3.5-20.0倍へ下落し、3着以内への信頼度が向上している。単複比10.2倍は3着狙いの妙味を感じさせる。
+3	2026-08-16	1	札幌	01	8	7	3歳未勝利（混合）［指定］	馬番：14、馬名：ウイルソン、人気順: 1、6分前オッズ: 3.3、おすすめ度: 92、選出理由：単勝オッズは上昇しているものの1番人気の座を堅持し、複勝オッズは下落傾向で3着以内の信頼度が高い。単複比2.4倍と上位人気の中では最も低く、堅実な走りが期待できる。期待数値・過去レース情報の双方からも選出されており、総合的に最も信頼できる一頭。↵↵馬番：7、馬名：マコトアディントン、人気順: 2、6分前オッズ: 4.8、おすすめ度: 88、選出理由：単勝オッズが計測前から28.4%下落と人気急上昇の指標を満たし、2番人気に浮上。複勝オッズも22.7%下落しており、3着以内の信頼度が顕著に高まっている。単複比2.8倍と堅実で、過去レース情報にも含まれており、上位争いは確実視される。↵↵馬番：16、馬名：ミナヅキ、人気順: 3、6分前オッズ: 5.1、おすすめ度: 85、選出理由：単勝オッズが38.6%下落と全馬中で最も顕著な人気急上昇を見せ、2番人気とほぼ同格の支持を集める。複勝オッズも下落しており、3着以内の信頼度も高い。期待数値・過去レース情報の両方で選出されており、オッズ推移から見ても最も勢いのある馬の一頭。↵↵馬番：2、馬名：クールフィデル、人気順: 5、6分前オッズ: 9.1、おすすめ度: 78、選出理由：単勝オッズはほぼ横ばいだが、複勝オッズが下落傾向にあり3着以内の信頼度が高い。単複比3.5倍と上位人気群の中では手頃な値で、堅実な走りが予想される。期待数値・過去レース情報の双方からも選出されており、安定感のある一頭。↵↵馬番：12、馬名：ヒメヒオウギ、人気順: 6、6分前オッズ: 11.7、おすすめ度: 74、選出理由：単勝オッズは上昇しているものの、複勝オッズが8.3%上昇と上昇率が鈍く、市場の評価が固まりつつある。単複比4.5倍で3着以内への期待は一定数ある。期待数値・過去レース情報の両方で選出されており、中穴として妙味のある一頭。↵↵馬番：5、馬名：デイズインザサン、人気順: 7、6分前オッズ: 12.3、おすすめ度: 71、選出理由：単勝オッズが15.8%下落しており、人気急上昇の指標を満たしている。複勝オッズは変化なしで、3着以内の信頼度も安定している。単複比4.4倍と中位人気の中では堅実な値で、期待数値にも選出されており、波乱の鍵を握る一頭。
+
+
+
+
+
+
+
+
+
+
+
+=================================================================================
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_ai_recovery` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `date` varchar(10) NOT NULL COMMENT 'レース日 YYYY-MM-DD',
+  `kaisuu` tinyint NOT NULL COMMENT '開催回数',
+  `basho_code` varchar(2) NOT NULL COMMENT '場所コード',
+  `day` tinyint NOT NULL COMMENT '開催日目',
+  `race` tinyint NOT NULL COMMENT 'レース番号',
+  `ai_pick_count` tinyint NOT NULL DEFAULT '0' COMMENT 'AIが選んだ馬の頭数',
+  `tan_bet` int NOT NULL DEFAULT '0' COMMENT '単勝払戻合計（円）外れは0',
+  `fuku_bet` int NOT NULL DEFAULT '0' COMMENT '複勝払戻合計（円）外れは0',
+  `tan_hit` tinyint NOT NULL DEFAULT '0' COMMENT '単勝的中数',
+  `fuku_hit` tinyint NOT NULL DEFAULT '0' COMMENT '複勝的中数',
+  `computed_at` datetime DEFAULT NULL COMMENT '集計日時',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ai_recovery` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=274 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='AI予想の単勝・複勝回収率集計';
+
+
+
+1	2026-07-25	1	01	1	1	3	0	220	0	2	2026-08-23 23:40:02	NULL	NULL
+2	2026-07-25	1	01	1	2	3	0	0	0	0	2026-08-23 23:40:02	NULL	NULL
+3	2026-07-25	1	01	1	3	3	240	230	1	2	2026-08-23 23:40:02	NULL	NULL
+
+
+
+=================================================================================
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_compute_odds_correction` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `popularity_rank` int NOT NULL COMMENT '人気順位（1〜18）',
+  `sample_count` int DEFAULT NULL COMMENT '集計サンプル数',
+  `avg_odds_6min` decimal(8,2) DEFAULT NULL COMMENT '6分前単勝オッズ平均',
+  `avg_odds_final` decimal(8,2) DEFAULT NULL COMMENT '確定単勝オッズ平均（レース結果のtan）',
+  `avg_correction_ratio` decimal(6,4) DEFAULT NULL COMMENT '補正係数平均（確定オッズ÷6分前オッズ）',
+  `std_correction_ratio` decimal(6,4) DEFAULT NULL COMMENT '補正誤差（標準偏差）',
+  `avg_win_probability` decimal(8,6) DEFAULT NULL COMMENT '支持確率平均（1÷確定オッズ）',
+  `start_date` date DEFAULT NULL COMMENT '集計対象期間（開始）',
+  `end_date` date DEFAULT NULL COMMENT '集計対象期間（終了）',
+  `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_popularity_rank` (`popularity_rank`)
+) ENGINE=InnoDB AUTO_INCREMENT=127 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='6分前オッズから確定オッズへの補正係数テーブル';
+
+
+
+
+
+1	1	68	2.70	2.51	0.9421	0.1073	0.450401	2026-08-22	2026-08-23	2026-08-23 21:10:02
+2	2	72	4.71	4.36	0.9387	0.1169	0.252114	2026-08-22	2026-08-23	2026-08-23 21:10:02
+3	3	72	6.93	6.80	0.9935	0.1424	0.160227	2026-08-22	2026-08-23	2026-08-23 21:10:02
+
+
+
+
+
+
+
+=================================================================================
+
+
+
+
+
+
+
+
+
 CREATE TABLE `t_horse_odds_finder_fcm_tokens` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` varchar(255) NOT NULL,
@@ -94,6 +209,36 @@ CREATE TABLE `t_horse_odds_finder_forecast_from_last_race` (
 
 
 =================================================================================
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_fuku_popularity_rank_average` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `popularity_rank` tinyint unsigned NOT NULL COMMENT '単勝人気順位 (1〜18)',
+  `odds_average` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '過去平均複勝最小オッズ (小数1桁の文字列)',
+  `count` int unsigned NOT NULL DEFAULT '0' COMMENT '集計レコード数',
+  `start_date` date NOT NULL COMMENT '集計対象の最古日付',
+  `end_date` date NOT NULL COMMENT '集計対象の最新日付',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_popularity_rank` (`popularity_rank`)
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='人気順位別・過去平均複勝オッズ（複勝OPI計算用）';
+
+
+
+
+1	1	1.3	12595	2023-01-05	2026-08-23
+2	2	1.4	12612	2023-01-05	2026-08-23
+3	3	1.7	12612	2023-01-05	2026-08-23
+
+
+
+=================================================================================
+
+
+
 
 
 
@@ -299,6 +444,47 @@ CREATE TABLE `t_horse_odds_finder_odds` (
 
 
 
+
+
+
+CREATE TABLE `t_horse_odds_finder_odds_gap_recovery` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `gap_band` varchar(30) NOT NULL COMMENT '変化率帯（例：30%以上下落、±5%以内）',
+  `gap_min` decimal(6,1) DEFAULT NULL COMMENT '変化率帯の下限（%）',
+  `gap_max` decimal(6,1) DEFAULT NULL COMMENT '変化率帯の上限（%）',
+  `popularity_band` varchar(20) NOT NULL COMMENT '人気帯（例：1〜3人気）',
+  `popularity_min` int DEFAULT NULL COMMENT '人気帯の最小人気順位',
+  `popularity_max` int DEFAULT NULL COMMENT '人気帯の最大人気順位',
+  `sample_count` int DEFAULT NULL COMMENT '集計サンプル数',
+  `win_count` int DEFAULT NULL COMMENT '1着回数',
+  `win_rate` decimal(6,2) DEFAULT NULL COMMENT '勝率（%）',
+  `recovery_rate` decimal(8,2) DEFAULT NULL COMMENT '単勝回収率（%）',
+  `start_date` date DEFAULT NULL COMMENT '集計対象期間（開始）',
+  `end_date` date DEFAULT NULL COMMENT '集計対象期間（終了）',
+  `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_gap_popularity` (`gap_band`,`popularity_band`)
+) ENGINE=InnoDB AUTO_INCREMENT=217 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='計測開始→6分前オッズ変化率帯×人気帯別の単勝回収率';
+
+
+
+
+1	30%以上下落	-999.0	-20.0	1〜3人気	1	3	131	20	15.27	53.97	2026-06-21	2026-08-23	2026-08-23 22:10:02
+2	30%以上下落	-999.0	-20.0	4〜6人気	4	6	39	1	2.56	15.13	2026-06-21	2026-08-23	2026-08-23 22:10:02
+3	30%以上下落	-999.0	-20.0	7〜9人気	7	9	18	1	5.56	150.56	2026-06-21	2026-08-15	2026-08-23 22:10:02
+
+
+
+
+
+=================================================================================
+
+
+
+
+
+
+
 CREATE TABLE `t_horse_odds_finder_odds_get_timing` (
   `id` int NOT NULL AUTO_INCREMENT,
   `date` text,
@@ -344,6 +530,83 @@ CREATE TABLE `t_horse_odds_finder_odds_wide` (
 
 
 =================================================================================
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_opi_recovery` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `opi_band` varchar(30) NOT NULL COMMENT 'OPI帯（例：1.50以上、0.70未満）',
+  `opi_min` decimal(6,2) DEFAULT NULL COMMENT 'OPI帯の下限',
+  `opi_max` decimal(6,2) DEFAULT NULL COMMENT 'OPI帯の上限',
+  `popularity_band` varchar(20) NOT NULL COMMENT '人気帯（例：1〜3人気）',
+  `popularity_min` int DEFAULT NULL COMMENT '人気帯の最小人気順位',
+  `popularity_max` int DEFAULT NULL COMMENT '人気帯の最大人気順位',
+  `sample_count` int DEFAULT NULL COMMENT '集計サンプル数',
+  `win_count` int DEFAULT NULL COMMENT '1着回数',
+  `win_rate` decimal(6,2) DEFAULT NULL COMMENT '勝率（%）',
+  `recovery_rate` decimal(8,2) DEFAULT NULL COMMENT '単勝回収率（%）',
+  `start_date` date DEFAULT NULL COMMENT '集計対象期間（開始）',
+  `end_date` date DEFAULT NULL COMMENT '集計対象期間（終了）',
+  `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_opi_popularity` (`opi_band`,`popularity_band`)
+) ENGINE=InnoDB AUTO_INCREMENT=169 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OPI帯×人気帯別の単勝回収率';
+
+
+
+
+1	0.70未満	-999.00	0.70	1〜3人気	1	3	217	26	11.98	83.78	2026-06-06	2026-08-23	2026-08-23 22:20:02
+2	0.70未満	-999.00	0.70	4〜6人気	4	6	267	10	3.75	62.47	2026-06-06	2026-08-23	2026-08-23 22:20:02
+3	0.70未満	-999.00	0.70	7〜9人気	7	9	322	2	0.62	42.86	2026-06-06	2026-08-23	2026-08-23 22:20:02
+
+
+
+
+
+
+
+
+=================================================================================
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_phase_pattern_recovery` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `phase_pattern` varchar(30) NOT NULL COMMENT 'フェーズパターン（例：前半下落・後半上昇）',
+  `half1_label` varchar(10) NOT NULL COMMENT '前半フェーズ方向',
+  `half2_label` varchar(10) NOT NULL COMMENT '後半フェーズ方向',
+  `half1_order` tinyint DEFAULT NULL COMMENT '前半ソート順（1=下落,2=横ばい,3=上昇）',
+  `half2_order` tinyint DEFAULT NULL COMMENT '後半ソート順（1=下落,2=横ばい,3=上昇）',
+  `popularity_band` varchar(20) NOT NULL COMMENT '人気帯（例：1〜3人気）',
+  `popularity_min` int DEFAULT NULL COMMENT '人気帯の最小人気順位',
+  `popularity_max` int DEFAULT NULL COMMENT '人気帯の最大人気順位',
+  `sample_count` int DEFAULT NULL COMMENT '集計サンプル数',
+  `win_count` int DEFAULT NULL COMMENT '1着回数',
+  `win_rate` decimal(6,2) DEFAULT NULL COMMENT '勝率（%）',
+  `recovery_rate` decimal(8,2) DEFAULT NULL COMMENT '単勝回収率（%）',
+  `start_date` date DEFAULT NULL COMMENT '集計対象期間（開始）',
+  `end_date` date DEFAULT NULL COMMENT '集計対象期間（終了）',
+  `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_phase_popularity` (`phase_pattern`,`popularity_band`)
+) ENGINE=InnoDB AUTO_INCREMENT=217 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='前半・後半フェーズ方向パターン×人気帯別の単勝回収率';
+
+
+
+
+1	前半下落・後半下落	前半下落	後半下落	1	1	1〜3人気	1	3	393	85	21.63	78.32	2026-06-21	2026-08-23	2026-08-23 21:30:02
+2	前半下落・後半下落	前半下落	後半下落	1	1	4〜6人気	4	6	146	9	6.16	64.93	2026-06-21	2026-08-23	2026-08-23 21:30:02
+3	前半下落・後半下落	前半下落	後半下落	1	1	7〜9人気	7	9	38	1	2.63	62.63	2026-06-21	2026-08-23	2026-08-23 21:30:02
+
+
+
+
+=================================================================================
+
 
 
 
@@ -779,6 +1042,52 @@ CREATE TABLE `t_horse_odds_finder_shutsuba_history` (
 
 
 
+
+
+
+CREATE TABLE `t_horse_odds_finder_similar_race_stats` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `popularity_rank` tinyint unsigned NOT NULL COMMENT '人気順（6分前単勝オッズ昇順）',
+  `horse_count_band` enum('small','medium','large') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '頭数帯 (small=8以下, medium=9-13, large=14以上)',
+  `top3_rate` decimal(6,4) NOT NULL DEFAULT '0.0000' COMMENT '3着以内率（0.0〜1.0）',
+  `top5_rate` decimal(6,4) NOT NULL DEFAULT '0.0000' COMMENT '5着以内率（0.0〜1.0）',
+  `avg_finishing_position` decimal(5,2) NOT NULL DEFAULT '0.00' COMMENT '平均着順',
+  `outside_rate` decimal(6,4) NOT NULL DEFAULT '0.0000' COMMENT '着外率（3着より外・0.0〜1.0）',
+  `sample_count` int unsigned NOT NULL DEFAULT '0' COMMENT '母数（サンプル数）',
+  `reliability` enum('normal','low','reference','insufficient') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'insufficient' COMMENT '信頼度',
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_pop_band` (`popularity_rank`,`horse_count_band`)
+) ENGINE=InnoDB AUTO_INCREMENT=44 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+
+
+
+1	6	large	0.2112	0.3989	7.25	0.7888	7544	normal	2026-08-23 23:30:03
+2	13	large	0.0346	0.0982	10.76	0.9654	7535	normal	2026-08-23 23:30:03
+3	9	large	0.1084	0.2357	8.79	0.8916	7536	normal	2026-08-23 23:30:03
+
+
+
+
+=================================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 CREATE TABLE `t_horse_odds_finder_summary` (
   `id` int NOT NULL AUTO_INCREMENT,
   `horse_name` varchar(100) DEFAULT NULL,
@@ -818,30 +1127,5 @@ CREATE TABLE `t_horse_odds_finder_summary` (
 
 
 
-
-
-
-
-
-CREATE TABLE `t_horse_odds_finder_compute_odds_correction` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `popularity_rank` int NOT NULL COMMENT '人気順位（1〜18）',
-  `sample_count` int DEFAULT NULL COMMENT '集計サンプル数',
-  `avg_odds_6min` decimal(8,2) DEFAULT NULL COMMENT '6分前単勝オッズ平均',
-  `avg_odds_final` decimal(8,2) DEFAULT NULL COMMENT '確定単勝オッズ平均（レース結果のtan）',
-  `avg_correction_ratio` decimal(6,4) DEFAULT NULL COMMENT '補正係数平均（確定オッズ÷6分前オッズ）',
-  `std_correction_ratio` decimal(6,4) DEFAULT NULL COMMENT '補正誤差（標準偏差）',
-  `avg_win_probability` decimal(8,6) DEFAULT NULL COMMENT '支持確率平均（1÷確定オッズ）',
-  `start_date` date DEFAULT NULL COMMENT '集計対象期間（開始）',
-  `end_date` date DEFAULT NULL COMMENT '集計対象期間（終了）',
-  `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_popularity_rank` (`popularity_rank`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='6分前オッズから確定オッズへの補正係数テーブル';
-
-
-
-
-=================================================================================
 
 

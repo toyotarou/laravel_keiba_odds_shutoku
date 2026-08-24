@@ -44,6 +44,9 @@ class SummaryFukuPopularityRankAverage extends Command
 
     public function handle(): void
     {
+        // Laravelフレームワーク起動時のオーバーヘッドを考慮してメモリ上限を引き上げる
+        ini_set('memory_limit', '512M');
+
         // ─────────────────────────────────────────────────────────────────
         // 【ブロック 1】多重起動防止（ロックファイル）
         // ─────────────────────────────────────────────────────────────────

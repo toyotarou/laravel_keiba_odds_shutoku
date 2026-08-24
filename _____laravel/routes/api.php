@@ -112,3 +112,5 @@ Route::get('getHorseOddsFinderSecondAiOpinion', [ApiController::class, 'getHorse
 
 // AI回収率サマリー（K-2: 累積100/300/600レース回収率 / K-3: 最大連敗数・最大ドローダウン / K-3補足: 人気帯別回収率）
 Route::get('getHorseOddsFinderAiRecoverySummary', [ApiController::class, 'getHorseOddsFinderAiRecoverySummary']);
+
+Route::get('getHorseOddsFinderBaganrikiIndex', [ApiController::class, 'getHorseOddsFinderBaganrikiIndex']);

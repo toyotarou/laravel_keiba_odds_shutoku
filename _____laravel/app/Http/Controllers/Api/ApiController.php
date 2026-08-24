@@ -2572,6 +2572,44 @@ $analysisText = trim($rawText);
             'analysis_text' => $rawText,
         ]);
 
+        // ─── 2nd AI プリフェッチ（レスポンス送信後にバックグラウンドで実行） ──
+        // ユーザーが「2nd AI」ボタンを押す前にキャッシュを作っておく。
+        // app()->terminating() はレスポンス送信後に呼ばれるため、
+        // 1st AI のレスポンス速度には一切影響しない。
+        // getHorseOddsFinderSecondAiOpinion が持つ排他ロック機構により、
+        // ユーザーがボタンを押しても2重実行・エラーにはならない。
+        $prefetchDate   = $date;
+        $prefetchKaisuu = $kaisuu;
+        $prefetchBasho  = $basho;
+        $prefetchDay    = $day;
+        $prefetchRace   = $race;
+        $selfController = $this;
+        app()->terminating(function () use ($selfController, $prefetchDate, $prefetchKaisuu, $prefetchBasho, $prefetchDay, $prefetchRace) {
+            // 既にキャッシュがあれば何もしない
+            $already = DB::table('t_horse_odds_finder_ai_analysis2')
+                ->where('date',       $prefetchDate)
+                ->where('kaisuu',     $prefetchKaisuu)
+                ->where('basho_code', $prefetchBasho)
+                ->where('day',        $prefetchDay)
+                ->where('race',       $prefetchRace)
+                ->exists();
+            if ($already) return;
+
+            try {
+                $req2nd = new \Illuminate\Http\Request();
+                $req2nd->query->add([
+                    'date'   => $prefetchDate,
+                    'kaisuu' => $prefetchKaisuu,
+                    'basho'  => $prefetchBasho,
+                    'day'    => $prefetchDay,
+                    'race'   => $prefetchRace,
+                ]);
+                $selfController->getHorseOddsFinderSecondAiOpinion($req2nd);
+            } catch (\Throwable $e) {
+                \Log::info('[2nd AI prefetch] skip: ' . $e->getMessage());
+            }
+        });
+
         return response()->json(['data' => [
             'date'          => $date,
             'kaisuu'        => $kaisuu,
@@ -3003,114 +3041,6 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     }
     unset($h);
 
-    // ─── 複勝人気順マップの作成 + 断層位置の事前算出（馬眼力指数用）────────
-    // fuku_min_6 の昇順でソートして複勝人気順を付与する
-    $earlyFukuTemp = array_values(
-        array_filter($promptHorses, fn($h) => isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0)
-    );
-    usort($earlyFukuTemp, fn($a, $b) => $a['fuku_min_6'] <=> $b['fuku_min_6']);
-    $fukuPopularityMap = [];
-    foreach ($earlyFukuTemp as $pos => $fh) {
-        $fukuPopularityMap[$fh['num']] = $pos + 1;
-    }
-
-    // 単勝断層の事前検出（$promptHorses は人気順ソート済み）
-    $earlyTanGapAll    = [];
-    $earlyTanGapTop6   = [];
-    $earlyTanGapStrong = [];
-    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
-        $eu = $promptHorses[$i];
-        $el = $promptHorses[$i + 1];
-        if (($eu['odds_6'] ?? 0) > 0 && ($el['odds_6'] ?? 0) > 0) {
-            $er = round($el['odds_6'] / $eu['odds_6'], 2);
-            if ($er >= 2.0) {
-                $ee = ['upper_pop' => $eu['popularity'], 'lower_pop' => $el['popularity'], 'ratio' => $er];
-                $earlyTanGapAll[] = $ee;
-                if ($eu['popularity'] <= 6) {
-                    $earlyTanGapTop6[] = $ee;
-                    if ($er >= 2.5) $earlyTanGapStrong[] = $ee;
-                }
-            }
-        }
-    }
-
-    // 複勝断層の事前検出（断層タイプE判定に使用）
-    $earlyFukuGapDets = [];
-    for ($i = 0; $i < count($earlyFukuTemp) - 1; $i++) {
-        $eu = $earlyFukuTemp[$i];
-        $el = $earlyFukuTemp[$i + 1];
-        if (($eu['fuku_min_6'] ?? 0) > 0) {
-            $er = round($el['fuku_min_6'] / $eu['fuku_min_6'], 2);
-            if ($er >= 2.0) {
-                $earlyFukuGapDets[] = $er;
-            }
-        }
-    }
-
-    // 断層タイプの事前判定（既存タイプ判定ロジックと整合）
-    $earlyTanHasGap  = count($earlyTanGapAll) > 0;
-    $earlyFukuHasGap = count($earlyFukuGapDets) > 0;
-
-    if (count($earlyTanGapTop6) >= 2 && count($earlyTanGapStrong) >= 1) {
-        $earlyGapType = 'A';
-    } elseif ($earlyTanHasGap !== $earlyFukuHasGap) {
-        $earlyGapType = 'E';
-    } elseif (count($earlyTanGapTop6) === 1) {
-        $earlyGapType = 'B';
-    } elseif ($earlyTanHasGap) {
-        $earlyGapType = 'C';
-    } else {
-        $earlyGapType = 'D';
-    }
-
-    // 断層補正の基準人気順（上側グループ境界）。D・E は null → 補正係数 1.00
-    $earlyPrimaryGapUpperPop = null;
-    if (in_array($earlyGapType, ['A', 'B']) && !empty($earlyTanGapTop6)) {
-        $earlyPrimaryGapUpperPop = $earlyTanGapTop6[0]['upper_pop'];
-    } elseif ($earlyGapType === 'C' && !empty($earlyTanGapAll)) {
-        $earlyPrimaryGapUpperPop = $earlyTanGapAll[0]['upper_pop'];
-    }
-
-    // ─── 馬眼力指数の算出（B-2）─────────────────────────────────────────
-    // 馬眼力指数 = 期待値（OPI）× オッズ上昇率 × 複勝支持率 × 断層補正 × 100
-    // いずれかの要素が取得できない場合は null（0埋め禁止）
-    foreach ($promptHorses as &$h) {
-        // ① 期待値: 単勝OPI（既実装）
-        $umaOpi = $h['opi'];
-
-        // ② オッズ上昇率: 21分前単勝 ÷ 6分前単勝（21分前データなければ 1.0）
-        $odds21 = isset($h['tan_series'][21]) && floatval($h['tan_series'][21]) > 0
-            ? floatval($h['tan_series'][21])
-            : null;
-        $odds6  = $h['odds_6'] ?? 0;
-        $umaOddsRiseRate = ($odds21 !== null && $odds6 > 0)
-            ? round($odds21 / $odds6, 4)
-            : 1.0;
-
-        // ③ 複勝支持率: 単勝人気順 ÷ 複勝人気順（6分前）
-        $fukuPop = $fukuPopularityMap[$h['num']] ?? null;
-        $umaFukuSupportRate = ($fukuPop !== null && $fukuPop > 0)
-            ? round($h['popularity'] / $fukuPop, 4)
-            : null;
-
-        // ④ 断層補正: 内側=1.10 / 外側=0.90 / 断層なし(D/E)=1.00
-        if ($earlyPrimaryGapUpperPop !== null) {
-            $umaDansouCorr = ($h['popularity'] <= $earlyPrimaryGapUpperPop) ? 1.10 : 0.90;
-        } else {
-            $umaDansouCorr = 1.00;
-        }
-
-        // 馬眼力指数（umaOpi または umaFukuSupportRate が null なら null）
-        if ($umaOpi !== null && $umaFukuSupportRate !== null) {
-            $h['uma_ganryoku_index'] = round($umaOpi * $umaOddsRiseRate * $umaFukuSupportRate * $umaDansouCorr * 100, 1);
-        } else {
-            $h['uma_ganryoku_index'] = null;
-        }
-        $h['uma_odds_rise_rate']    = $umaOddsRiseRate;
-        $h['uma_fuku_support_rate'] = $umaFukuSupportRate;
-        $h['uma_dansou_corr']       = $umaDansouCorr;
-    }
-    unset($h);
 
     // ─── 馬番順テーブルの組み立て ────────────────────────────────────
     $displayHorses = $promptHorses;
@@ -3339,22 +3269,6 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         }
         $lines[] = $similarLine;
 
-        // 馬眼力指数（B-2）
-        if ($h['uma_ganryoku_index'] !== null) {
-            $umaIdx    = $h['uma_ganryoku_index'];
-            $umaSymbol = $umaIdx >= 150 ? '◎' : ($umaIdx >= 120 ? '○' : ($umaIdx >= 100 ? '△' : '✕'));
-            $umaLine   = sprintf(
-                '  馬眼力指数: %.1f（%s）  ※OPI%.2f×上昇率%.2f×複勝支持率%.2f×断層補正%.2f',
-                $umaIdx, $umaSymbol,
-                $h['opi'],
-                $h['uma_odds_rise_rate'],
-                $h['uma_fuku_support_rate'],
-                $h['uma_dansou_corr']
-            );
-        } else {
-            $umaLine = '  馬眼力指数: 算出不可（データ不足）';
-        }
-        $lines[] = $umaLine;
         $lines[] = '';
     }
     $table = implode("\n", $lines);
@@ -3647,7 +3561,6 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '以下の値はDBまたはPHPが事前に算出した確定値です。AIは自分で再計算・上書き・補正・推測をしてはなりません。',
         'データ欄に表示されている値を必ずそのまま使用してください。',
         '・断層構造タイプ（A〜E）: PHP算出済み。AIが独自に「Cタイプだと思う」のように上書き判断することは禁止',
-        '・馬眼力指数: DB算出済み。自分で計算せず、表示値をそのまま転記すること（算出不可の場合は「馬眼力指数:－」）',
         '・OPI（単勝OPI・複勝OPI・推定補正OPI）: DB算出済み。自分でオッズ比率から独自計算しないこと',
         '・相対資金流入ランク（単勝流入ランク・複勝流入ランク）: DB算出済み。自分でオッズ変化率からランクを推測しないこと',
         '・推定確定オッズ・補正係数: DB算出済み。自分でオッズパターンから独自予測しないこと',
@@ -3690,7 +3603,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '',
         '─────────────────────────────',
         '厳選穴レース|1または0',
-        '馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、馬眼力指数:XX.X、選出理由：XXXXXXXXXXXXXXXXXXXXXXXXXXXX（4〜5行の文章。箇条書き不要）',
+        '馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：XXXXXXXXXXXXXXXXXXXXXXXXXXXX（4〜5行の文章。箇条書き不要）',
         '─────────────────────────────',
         '',
         '【厳選穴レースの判定ルール】',
@@ -3755,10 +3668,8 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '・OPI（Over Popularity Index）の見方: OPI>1.2は過去同人気より低オッズ＝市場が過大評価している可能性（妙味低）、OPI<0.8は過去同人気より高オッズ＝市場が過小評価している可能性（妙味高）。妙味スコアの補正材料として活用してください',
         '・推定確定オッズの見方: 過去の6分前→確定オッズの変動パターンから算出した「発走時点での最終オッズ予測値」です。6分前オッズより推定確定オッズが大きく下がる馬（補正係数<1）は直前にさらに人気が集中する傾向があり、信頼度の補強材料になります。逆に推定確定オッズが上がる馬（補正係数>1）は直前に売られる傾向があります。±の補正誤差が大きい馬は予測の振れ幅が大きいため参考程度に留めてください。妙味スコアを算出する際は、6分前オッズではなく推定確定オッズを基準にしてください',
         '・過去回収率・OPI帯別回収率・フェーズパターン別回収率の使い方: 各馬に表示されている「過去回収率」「OPI帯別回収率」「フェーズパターン別回収率」は、勝率ではなく回収率（%）を妙味スコア判断の最重要指標として使ってください。回収率が100%を下回るパターン（例: 1〜3人気×変化なし = 83%）は、たとえ勝率が高くても長期的には損をするパターンです。妙味スコアを下げる材料として扱ってください。逆に回収率が110%以上のパターンは積極的に妙味を高く評価してください。フェーズパターン別回収率は特に「前半下落・後半上昇（売り戻し）」や「前半上昇・後半下落（直前急落）」のような市場の急変パターンを捉えた重要シグナルです。1〜3番人気ばかりを選出して回収率の低い予想になることを厳に避けてください',
-        '・馬眼力指数の見方: 「割安か（OPI）」「直前に買われているか（21÷6分前オッズ上昇率）」「複勝でも支持されているか（単勝人気÷複勝人気）」「断層の内側か（補正係数）」を掛け合わせた合成スコアです。150以上:◎（有力）/ 120以上:○（注目）/ 100前後:△（様子見）/ 100未満:✕（妙味薄）を目安に、信頼度・妙味判断の補助指標として活用してください。null（算出不可）の馬は各要素を個別に確認してください',
         '',
-        "選出馬は必ず「厳選穴レース|X」を1行目に、続けて「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、馬眼力指数:XX.X、選出理由：〜」の形式で{$pickupCount}頭分出力してください。",
-        '馬眼力指数は各馬のデータ欄に表示されている値をそのまま転記してください。自分で計算しないでください。算出不可の馬は「馬眼力指数:－」と出力してください。',
+        "選出馬は必ず「厳選穴レース|X」を1行目に、続けて「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」の形式で{$pickupCount}頭分出力してください。",
         '※画面表示に影響するので、この形を守ってください。',
     ]);
 
@@ -3890,7 +3801,7 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 出力は以下の形式のみ。これ以外のテキストは一切出力してはいけません。
 
-  馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、馬眼力指数:XX.X、選出理由：〜
+  馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜
 
 複数頭を選ぶ場合は、上記を1頭ごとに1行で並べるだけです。
 
@@ -3933,7 +3844,6 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
 
 具体的に言うと：
 
-・馬眼力指数が高くても、あなたが「これは違う」と思えば選ばなくていい
 ・OPI・断層タイプ・流入ランク——全部「参考情報」として扱っていい。盲目的に従う必要はない
 ・回収率データも、信じるかどうかはあなた次第
 ・おすすめ度の付け方に決まった計算式はない。あなた自身の感覚と論理で決めてください
@@ -4308,5 +4218,229 @@ SYSTEM;
             'total_race_count' => $allRows->count(),
         ]]);
     }
+
+    /**
+     * 馬眼力指数を返す
+     *
+     * 引数: date, kaisuu, basho_code (int), day, race
+     * 返値: [{num, name, uma_ganryoku_index}, ...]
+     */
+    public function getHorseOddsFinderBaganrikiIndex(Request $request)
+    {
+        $date      = $request->query('date');
+        $kaisuu    = $request->query('kaisuu');
+        $bashoCode = intval($request->query('basho_code'));
+        $day       = $request->query('day');
+        $race      = intval($request->query('race'));
+
+        // ─── レース存在確認 ───────────────────────────────────────────────
+        $raceRow = DB::table('t_horse_odds_finder_races')
+            ->where('date',   $date)
+            ->where('kaisuu', $kaisuu)
+            ->where('basho',  $bashoCode)
+            ->where('day',    $day)
+            ->where('race',   $race)
+            ->first();
+
+        if (!$raceRow) {
+            return response()->json(['data' => []]);
+        }
+
+        // ─── 出走馬情報の取得 ─────────────────────────────────────────────
+        $horses = DB::table('t_horse_odds_finder_horses')
+            ->where('date',   $date)
+            ->where('kaisuu', $raceRow->kaisuu)
+            ->where('basho',  $raceRow->basho)
+            ->where('day',    $raceRow->day)
+            ->where('race',   $raceRow->race)
+            ->orderBy('num')
+            ->get()
+            ->keyBy('num');
+
+        // ─── オッズ取得（999=計測前, 21分前, 6分前） ─────────────────────
+        $oddsRows = DB::table('t_horse_odds_finder_odds')
+            ->where('date',   $date)
+            ->where('kaisuu', $raceRow->kaisuu)
+            ->where('basho',  $raceRow->basho)
+            ->where('day',    $raceRow->day)
+            ->where('race',   $raceRow->race)
+            ->whereIn('minutes_before_start', [999, 21, 6])
+            ->get();
+
+        $oddsByNum = [];
+        foreach ($oddsRows as $row) {
+            $num    = $row->num;
+            $timing = $row->minutes_before_start;
+            if (!isset($oddsByNum[$num])) {
+                $oddsByNum[$num] = ['tan' => [], 'fuku_min' => []];
+            }
+            $oddsByNum[$num]['tan'][$timing]      = floatval($row->odds);
+            $oddsByNum[$num]['fuku_min'][$timing] = floatval($row->fuku_min);
+        }
+
+        // ─── プロンプト用データの組み立て ────────────────────────────────
+        $promptHorses = [];
+        foreach ($oddsByNum as $num => $o) {
+            $tanBase = $o['tan'][999] ?? null;
+            $tan6    = $o['tan'][6]   ?? null;
+            if ($tanBase === null || $tan6 === null || $tanBase == 0) continue;
+
+            $name = isset($horses[$num]) ? $horses[$num]->name : '馬' . $num;
+
+            $promptHorses[] = [
+                'num'             => $num,
+                'name'            => $name,
+                'tan_series'      => $o['tan'],
+                'fuku_min_series' => $o['fuku_min'],
+                'odds_6'          => $tan6,
+                'fuku_min_6'      => $o['fuku_min'][6] ?? null,
+            ];
+        }
+
+        if (empty($promptHorses)) {
+            return response()->json(['data' => []]);
+        }
+
+        // ─── 人気順の決定（6分前の単勝オッズ昇順） ───────────────────────
+        usort($promptHorses, function ($a, $b) {
+            if ($a['odds_6'] !== $b['odds_6']) {
+                return $a['odds_6'] <=> $b['odds_6'];
+            }
+            return $a['num'] <=> $b['num'];
+        });
+        foreach ($promptHorses as $i => &$h) {
+            $h['popularity'] = $i + 1;
+        }
+        unset($h);
+
+        // ─── 人気順別過去平均単勝オッズ（OPI用） ─────────────────────────
+        $popularityAvgRows = DB::table('t_horse_odds_finder_popularity_rank_average')->get();
+        $popularityAvgMap  = [];
+        foreach ($popularityAvgRows as $row) {
+            $popularityAvgMap[(int)$row->popularity_rank] = floatval($row->odds_average);
+        }
+
+        // ─── OPI 計算（人気順別過去平均単勝オッズ ÷ 6分前単勝オッズ） ────
+        foreach ($promptHorses as &$h) {
+            $avgOdds  = $popularityAvgMap[$h['popularity']] ?? null;
+            $h['opi'] = ($avgOdds && $h['odds_6'] > 0)
+                ? round($avgOdds / $h['odds_6'], 2)
+                : null;
+        }
+        unset($h);
+
+        // ─── 複勝人気順マップの作成（fuku_min_6 昇順） ───────────────────
+        $earlyFukuTemp = array_values(
+            array_filter($promptHorses, fn($h) => isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0)
+        );
+        usort($earlyFukuTemp, fn($a, $b) => $a['fuku_min_6'] <=> $b['fuku_min_6']);
+        $fukuPopularityMap = [];
+        foreach ($earlyFukuTemp as $pos => $fh) {
+            $fukuPopularityMap[$fh['num']] = $pos + 1;
+        }
+
+        // ─── 単勝断層の事前検出 ───────────────────────────────────────────
+        $earlyTanGapAll    = [];
+        $earlyTanGapTop6   = [];
+        $earlyTanGapStrong = [];
+        for ($i = 0; $i < count($promptHorses) - 1; $i++) {
+            $eu = $promptHorses[$i];
+            $el = $promptHorses[$i + 1];
+            if (($eu['odds_6'] ?? 0) > 0 && ($el['odds_6'] ?? 0) > 0) {
+                $er = round($el['odds_6'] / $eu['odds_6'], 2);
+                if ($er >= 2.0) {
+                    $ee = ['upper_pop' => $eu['popularity'], 'lower_pop' => $el['popularity'], 'ratio' => $er];
+                    $earlyTanGapAll[] = $ee;
+                    if ($eu['popularity'] <= 6) {
+                        $earlyTanGapTop6[] = $ee;
+                        if ($er >= 2.5) $earlyTanGapStrong[] = $ee;
+                    }
+                }
+            }
+        }
+
+        // ─── 複勝断層の事前検出 ───────────────────────────────────────────
+        $earlyFukuGapDets = [];
+        for ($i = 0; $i < count($earlyFukuTemp) - 1; $i++) {
+            $eu = $earlyFukuTemp[$i];
+            $el = $earlyFukuTemp[$i + 1];
+            if (($eu['fuku_min_6'] ?? 0) > 0) {
+                $er = round($el['fuku_min_6'] / $eu['fuku_min_6'], 2);
+                if ($er >= 2.0) {
+                    $earlyFukuGapDets[] = $er;
+                }
+            }
+        }
+
+        // ─── 断層タイプの判定 ─────────────────────────────────────────────
+        $earlyTanHasGap  = count($earlyTanGapAll) > 0;
+        $earlyFukuHasGap = count($earlyFukuGapDets) > 0;
+
+        if (count($earlyTanGapTop6) >= 2 && count($earlyTanGapStrong) >= 1) {
+            $earlyGapType = 'A';
+        } elseif ($earlyTanHasGap !== $earlyFukuHasGap) {
+            $earlyGapType = 'E';
+        } elseif (count($earlyTanGapTop6) === 1) {
+            $earlyGapType = 'B';
+        } elseif ($earlyTanHasGap) {
+            $earlyGapType = 'C';
+        } else {
+            $earlyGapType = 'D';
+        }
+
+        // 断層補正の基準人気順（上側グループ境界）。D・E は null → 補正係数 1.00
+        $earlyPrimaryGapUpperPop = null;
+        if (in_array($earlyGapType, ['A', 'B']) && !empty($earlyTanGapTop6)) {
+            $earlyPrimaryGapUpperPop = $earlyTanGapTop6[0]['upper_pop'];
+        } elseif ($earlyGapType === 'C' && !empty($earlyTanGapAll)) {
+            $earlyPrimaryGapUpperPop = $earlyTanGapAll[0]['upper_pop'];
+        }
+
+        // ─── 馬眼力指数の算出 ─────────────────────────────────────────────
+        // 馬眼力指数 = OPI × オッズ上昇率 × 複勝支持率 × 断層補正 × 100
+        $result = [];
+        foreach ($promptHorses as $h) {
+            $umaOpi = $h['opi'];
+
+            // ② オッズ上昇率: 21分前単勝 ÷ 6分前単勝（21分前データなければ 1.0）
+            $odds21 = isset($h['tan_series'][21]) && floatval($h['tan_series'][21]) > 0
+                ? floatval($h['tan_series'][21])
+                : null;
+            $odds6  = $h['odds_6'] ?? 0;
+            $umaOddsRiseRate = ($odds21 !== null && $odds6 > 0)
+                ? round($odds21 / $odds6, 4)
+                : 1.0;
+
+            // ③ 複勝支持率: 単勝人気順 ÷ 複勝人気順
+            $fukuPop = $fukuPopularityMap[$h['num']] ?? null;
+            $umaFukuSupportRate = ($fukuPop !== null && $fukuPop > 0)
+                ? round($h['popularity'] / $fukuPop, 4)
+                : null;
+
+            // ④ 断層補正: 内側=1.10 / 外側=0.90 / D・E=1.00
+            if ($earlyPrimaryGapUpperPop !== null) {
+                $umaDansouCorr = ($h['popularity'] <= $earlyPrimaryGapUpperPop) ? 1.10 : 0.90;
+            } else {
+                $umaDansouCorr = 1.00;
+            }
+
+            // 馬眼力指数（OPI または 複勝支持率 が null なら null）
+            $umaGanryokuIndex = ($umaOpi !== null && $umaFukuSupportRate !== null)
+                ? round($umaOpi * $umaOddsRiseRate * $umaFukuSupportRate * $umaDansouCorr * 100, 1)
+                : null;
+
+            $result[] = [
+                'num'                => $h['num'],
+                'name'               => $h['name'],
+                'baganriki_index' => $umaGanryokuIndex,
+            ];
+        }
+
+        // 馬番順にソートして返す
+        usort($result, fn($a, $b) => $a['num'] <=> $b['num']);
+
+        return response()->json(['data' => $result]);
+    }
+
 
 }
