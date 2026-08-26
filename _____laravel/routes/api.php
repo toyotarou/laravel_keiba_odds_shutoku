@@ -114,3 +114,5 @@ Route::get('getHorseOddsFinderSecondAiOpinion', [ApiController::class, 'getHorse
 Route::get('getHorseOddsFinderAiRecoverySummary', [ApiController::class, 'getHorseOddsFinderAiRecoverySummary']);
 
 Route::get('getHorseOddsFinderBaganrikiIndex', [ApiController::class, 'getHorseOddsFinderBaganrikiIndex']);
+
+Route::get('getHorseOddsFinderPushSendLogsDeveloperNews', [ApiController::class, 'getHorseOddsFinderPushSendLogsDeveloperNews']);

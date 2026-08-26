@@ -128,7 +128,20 @@ class ImportKeibaJraRaceResult extends Command
                 ->flip()
                 ->all();
 
-            DB::transaction(function () use ($results, $raceMap, &$updated, &$skipped, &$existingResultKeys, &$insertedResults, &$insertedResultsByDate) {
+            // 通知済みレースの notified_at を先読み（後から INSERT する行に引き継ぐため）
+            // ImportKeibaJraRaceOneResult が先に通知済みのレースに対して後から INSERT する場合、
+            // notified_at = null のまま放置されて同一レース内で値がバラバラになるのを防ぐ。
+            // ※ キーの basho は t_horse_odds_finder_race_results.basho カラムの値、
+            //   すなわち「05」等の2桁コード（漢字名ではない）。
+            //   後段の $notifyKey も $bashoCode（同じ2桁コード）で組み立てるため一致する。
+            $notifiedRaceMap = DB::table('t_horse_odds_finder_race_results')
+                ->whereNotNull('notified_at')
+                ->get(['kaisuu', 'basho', 'day', 'race', 'notified_at'])
+                ->groupBy(fn($r) => "{$r->kaisuu}-{$r->basho}-{$r->day}-{$r->race}")
+                ->map(fn($group) => $group->first()->notified_at)
+                ->all();
+
+            DB::transaction(function () use ($results, $raceMap, &$updated, &$skipped, &$existingResultKeys, &$insertedResults, &$insertedResultsByDate, $notifiedRaceMap) {
                 foreach ($results as $row) {
                     // basho 漢字名 → 2桁コードへ変換（未対応の場合はスキップ）
                     $bashoCode = self::BASHO_MAP[$row['basho']] ?? null;
@@ -167,6 +180,12 @@ class ImportKeibaJraRaceResult extends Command
                         continue;
                     }
 
+                    // 通知済みレースなら notified_at を引き継ぐ（同レース内で値がバラバラになるのを防ぐ）
+                    // $bashoCode は BASHO_MAP で変換済みの2桁コード。
+                    // $notifiedRaceMap のキーも同じ2桁コードで組み立てているため、キーは一致する。
+                    $notifyKey   = "{$row['kaisuu']}-{$bashoCode}-{$row['day']}-{$row['race']}";
+                    $notifiedAt  = $notifiedRaceMap[$notifyKey] ?? null;
+
                     DB::table('t_horse_odds_finder_race_results')->insert([
                         'date'        => $raceRow->date,
                         'kaisuu'      => $row['kaisuu'],
@@ -178,7 +197,7 @@ class ImportKeibaJraRaceResult extends Command
                         'num'         => $row['horse_num'],
                         'horse_name'  => $row['horse_name'],
                         'result'      => $row['rank'],
-                        'notified_at' => null,
+                        'notified_at' => $notifiedAt,
                     ]);
 
                     $existingResultKeys[$resultKey] = true;

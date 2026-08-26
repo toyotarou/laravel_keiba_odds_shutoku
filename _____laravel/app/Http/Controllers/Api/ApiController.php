@@ -1054,12 +1054,113 @@ return $html('✅', 'メール認証が完了しました', 'アプリに戻っ�
 
         return response()->json(['data' => $result]);
     }
+    
 
 
+    /**
+     * getHorseOddsFinderPushSendLogsDevelopperNews
+     *
+     * 【概要】
+     *   t_horse_odds_finder_push_send_logs から developer 向け通知ログを取得し、
+     *   コマンド種別（kind）ごとにグルーピングして返す。
+     *   各レコードには、あらかじめ定義した想定実行時刻（kind_time）との差分秒数
+     *   （diff_seconds）を付与する。プラスなら遅延、マイナスなら早着。
+     *
+     * 【kind_time について】
+     *   各コマンドが "本来何時に動くべきか" を "H:i" 形式で定義したマップ。
+     *   セパレータ（A〜G）は時間帯の区切りを示すだけで、値は空文字のため
+     *   diff_seconds は null になる。
+     *
+     * 【レスポンス形式】
+     *   {
+     *     "data": {
+     *       "CommandName": [
+     *         { "kind": "...", "sent_at": "HH:ii:ss", "diff_seconds": 秒数|null },
+     *         ...
+     *       ],
+     *       ...
+     *     }
+     *   }
+     */
+    public function getHorseOddsFinderPushSendLogsDeveloperNews()
+    {
+        $ary = [];
 
+        // 各コマンドの想定実行時刻（"H:i" 形式）
+        // A〜G はグループのセパレータで、diff_seconds は null になる
+        $kind_time = [
+            'DeleteKeibaTableRecords'             => '5:50',
+            'A'                                  => '',       // ── セパレータ ──
+            'ImportKeibaSchedule'                => '6:00',
+            'SummaryRacesPopularityRatio'        => '6:10',
+            'SummaryCalculateHorseScore'          => '6:20',
+            'SummaryCalculateJockeyScore'         => '6:30',
+            'B'                                  => '',       // ── セパレータ ──
+            'ImportKeibaBaseOdds'                => '7:00',
+            'SummaryForecastFromLastRace'         => '7:30',
+            'C'                                  => '',       // ── セパレータ ──
+            'ImportRacesPopularityRatio'          => '8:00',
+            'SummaryPopularityRankMedian'         => '8:30',
+            'D'                                  => '',       // ── セパレータ ──
+            'SummaryKeibaInfo'                   => '20:10',
+            'ImportKeibaJraRaceResult'            => '20:20',
+            'ImportKeibaRaceResultHistory'        => '20:30',
+            'SummaryHistoryPopularityRank'        => '20:40',
+            'SummaryPopularityRankAverage'        => '20:50',
+            'E'                                  => '',       // ── セパレータ ──
+            'SummaryHistoryFinishingPosition'     => '21:00',
+            'SummaryComputeOddsCorrection'        => '21:10',
+            'SummaryPopularityHorseCheck'         => '21:20',
+            'SummaryOddsPhasePatternRecoveryRate' => '21:30',
+            'ImportKeibaRaceResultPayout'         => '21:40',
+            'SummaryFukuPopularityRankAverage'    => '21:50',
+            'F'                                  => '',       // ── セパレータ ──
+            'ImportKeibaShutsubaHistory'          => '22:00',
+            'SummaryOddsGapRecoveryRate'          => '22:10',
+            'SummaryOpiRecoveryRate'              => '22:20',
+            'ImportKeibaPayoutCourseDist'         => '22:30',
+            'ImportKeibaPayoutInnerOuter'         => '22:40',
+            'ImportKeibaPayoutGrade'              => '22:50',
+            'G'                                  => '',       // ── セパレータ ──
+            'SummaryRacesIntrospection'           => '23:00',
+            'SummaryMakeBaganrikiBrain'           => '23:20',
+            'SummarySimilarRaceStats'             => '23:30',
+            'SummaryAiRecoveryRate'               => '23:40',
+        ];
 
+        $SQL = " select * from t_horse_odds_finder_push_send_logs where title = 'develop' and body not like '%時刻修正%' order by body, sent_at; ";
+        $result = DB::select($SQL);
+        
+        foreach($result as $v){
+            $ex_body  = explode("::", $v->body);
+            $kindKey  = trim($ex_body[0]);
 
+            // kind_time（例: "5:30"）と sent_at との差分を秒数で計算する
+            // sent_at は "2026-08-22 05:50:03" のようなフル日時形式のため、
+            // substr で時刻部分（"05:50:03"）だけ切り出してから変換する
+            $kindTimeStr = $kind_time[$kindKey] ?? null;
+            $diffSeconds = null;
+            if ($kindTimeStr !== null && $kindTimeStr !== '') {
+                $ktParts     = explode(':', $kindTimeStr);
+                $kindSeconds = (int)$ktParts[0] * 3600 + (int)$ktParts[1] * 60;
 
+                $timePart    = substr($v->sent_at, 11, 8); // "HH:MM:SS" 部分のみ取得
+                $saParts     = explode(':', $timePart);
+                $sentSeconds = (int)$saParts[0] * 3600 + (int)$saParts[1] * 60 + (int)($saParts[2] ?? 0);
+
+                $diffSeconds = $sentSeconds - $kindSeconds;
+            }
+
+            $ary[] = [
+                'kind'         => $kindKey,
+                'sent_date'    => substr($v->sent_at, 0, 10), // "YYYY-MM-DD" 部分のみ
+                'diff_seconds' => $diffSeconds,
+                'time'         => $kindTimeStr ?? '',
+            ];
+        }
+        
+        return response()->json(['data' => $ary]);
+    }
 
 
 

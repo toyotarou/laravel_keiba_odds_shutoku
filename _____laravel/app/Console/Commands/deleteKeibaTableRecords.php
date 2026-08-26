@@ -171,6 +171,13 @@ class DeleteKeibaTableRecords extends Command
         }
         $this->info('race_introspection/*.txt の削除完了（' . count($raceIntrospectionFiles) . '件）');
         
+        // laravel.log をクリア（削除ではなく truncate で空にする）
+        // unlink() だと開きっぱなしのファイルハンドルが残るケースがあるため
+        // sudo truncate -s 0 で中身だけ消してファイル自体は残す。
+        $laravelLog = '/var/www/horse_odds_finder/storage/logs/laravel.log';
+        shell_exec('sudo truncate -s 0 ' . escapeshellarg($laravelLog));
+        $this->info("{$laravelLog} をクリアしました。");
+
         // ─────────────────────────────────────────────────────────────────
         // 【ブロック 3】WebPush 通知
         // ─────────────────────────────────────────────────────────────────
