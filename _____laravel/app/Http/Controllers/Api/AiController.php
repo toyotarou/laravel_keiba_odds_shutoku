@@ -16,6 +16,37 @@ class AiController extends Controller
     }
 
 
+
+    public function getHorseOddsFinderAiAnalysisRecord()
+    {
+        $result = DB::table('t_horse_odds_finder_ai_analysis')
+            ->orderBy('date')
+            ->orderBy('kaisuu')
+            ->orderBy('basho_code')
+            ->orderBy('day')
+            ->orderBy('race')
+            ->get();
+
+        return response()->json(['data' => $result]);
+    }
+    
+    public function getHorseOddsFinderAiAnalysisRecord2()
+    {
+        $result = DB::table('t_horse_odds_finder_ai_analysis2')
+            ->orderBy('date')
+            ->orderBy('kaisuu')
+            ->orderBy('basho_code')
+            ->orderBy('day')
+            ->orderBy('race')
+            ->get();
+
+        return response()->json(['data' => $result]);
+    }
+
+
+
+
+    
 /**
  * 指定レースのAI分析結果を返す
  *
@@ -905,7 +936,10 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $lower = $promptHorses[$i + 1]; // 人気下位
         if ($upper['odds_6'] > 0) {
             $gapRatio       = round($lower['odds_6'] / $upper['odds_6'], 2);
-            $gapFlag        = $gapRatio >= 2.0 ? '  ★断層' : '';
+            if ($gapRatio >= 3.0)      { $gapFlag = '  ★★★非常に強い断層'; }
+            elseif ($gapRatio >= 2.5)  { $gapFlag = '  ★★強い断層'; }
+            elseif ($gapRatio >= 2.0)  { $gapFlag = '  ★断層'; }
+            else                       { $gapFlag = ''; }
             $gapTableLines[] = sprintf(
                 ' %d人気(%d番)%5.1f倍 → %d人気(%d番)%5.1f倍  比率: %.2f%s',
                 $upper['popularity'], $upper['num'], $upper['odds_6'],
@@ -931,7 +965,10 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $lower = $fukuSortedHorses[$i + 1];
         if ($upper['fuku_min_6'] > 0) {
             $gapRatio = round($lower['fuku_min_6'] / $upper['fuku_min_6'], 2);
-            $gapFlag  = $gapRatio >= 2.0 ? '  ★断層' : '';
+            if ($gapRatio >= 3.0)      { $gapFlag = '  ★★★非常に強い断層'; }
+            elseif ($gapRatio >= 2.5)  { $gapFlag = '  ★★強い断層'; }
+            elseif ($gapRatio >= 2.0)  { $gapFlag = '  ★断層'; }
+            else                       { $gapFlag = ''; }
             if ($gapRatio >= 2.0) {
                 $fukuGapDetails[] = ['upper_pos' => $i + 1, 'lower_pos' => $i + 2, 'ratio' => $gapRatio];
             }
@@ -1046,6 +1083,23 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $gapTypeGuide = '上位人気だけで本候補を固めない。複勝支持・変化率・単複人気差を重視し、6〜10番人気も通常比較に含める。';
     }
 
+    // ─── レース構造タイプ別の推奨頭数上限 ───────────────────────────────────
+    // 1〜6番人気(Upper) / 7〜10番人気(Mid) / 11番人気以下(Lower)
+    switch ($gapType) {
+        case 'A':
+            $pickupUpperMax = 4; $pickupMidMax = 0; $pickupLowerMax = 0; break;
+        case 'B':
+            $pickupUpperMax = 4; $pickupMidMax = 2; $pickupLowerMax = 1; break;
+        case 'C':
+            $pickupUpperMax = 3; $pickupMidMax = 3; $pickupLowerMax = 1; break;
+        case 'D':
+            $pickupUpperMax = 3; $pickupMidMax = 3; $pickupLowerMax = 2; break;
+        case 'E':
+        default:
+            $pickupUpperMax = 3; $pickupMidMax = 3; $pickupLowerMax = 1; break;
+    }
+    $pickupTotalMax = $pickupUpperMax + $pickupMidMax + $pickupLowerMax;
+
     // ─── 断層時系列（単勝・6分前人気順基準） ─────────────────────────────
     // $fetchTimings = [999, 21, 18, 15, 12, 9, 6] から 999 を除いた時点を使用
     $gapSeriesTimings = array_values(array_filter($fetchTimings, fn($t) => $t !== Constants::ODDS_DB_FIRST));
@@ -1122,7 +1176,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $table,
         '',
         '単勝断層テーブル（6分前単勝オッズ・隣接人気順間の比率）',
-        '※比率が2.00以上の箇所を「断層あり」と判断しています',
+        '※比率2.00以上=断層（★）、2.50以上=強い断層、3.00以上=非常に強い断層',
         $gapTable,
         '',
         '複勝断層テーブル（6分前複勝最小オッズ・隣接複勝人気順間の比率）',
@@ -1136,12 +1190,27 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     $lines[] = "タイプ{$gapType}：{$gapTypeDesc}";
     $lines[] = "選出方針：{$gapTypeGuide}";
     $lines[] = '';
-    $lines[] = '※ タイプ別の詳細ルール';
-    $lines[] = 'A（二重断層・上位完結型）: 断層上側を中心に。断層下側は自動除外せず、複勝流入が強ければ補欠候補に。';
-    $lines[] = 'B（上位断層型）: 断層上側グループが中心。断層拡大中は上側重視、縮小中は下側の浮上を警戒。';
-    $lines[] = 'C（中間断層型）: 断層上側=中心グループ、断層下側=穴グループ。複勝流入の方向で判断を補正。';
-    $lines[] = 'D（断層なし・混戦型）: 複勝支持・変化率・単複人気差を重視。6〜10番人気も均等に比較。';
-    $lines[] = 'E（判定困難型）: 断層は参考程度。複勝の継続的な動きを最優先で評価。';
+    $lines[] = '※ タイプ別の詳細ルール（波乱度の目安を含む）';
+    $lines[] = 'A（二重断層・上位完結型）: 断層上側を中心に。断層下側は自動除外せず、複勝流入が強ければ補欠候補に。波乱度目安：1〜2（堅い〜やや堅い）';
+    $lines[] = 'B（上位断層型）: 断層上側グループが中心。断層拡大中は上側重視、縮小中は下側の浮上を警戒。波乱度目安：2〜3（やや堅い〜中波乱）';
+    $lines[] = 'C（中間断層型）: 断層上側=中心グループ、断層下側=穴グループ。複勝流入の方向で判断を補正。波乱度目安：3（中波乱）';
+    $lines[] = 'D（断層なし・混戦型）: 複勝支持・変化率・単複人気差を重視。6〜10番人気も均等に比較。波乱度目安：4〜5（波乱〜大波乱）';
+    $lines[] = 'E（判定困難型）: 断層は参考程度。複勝の継続的な動きを最優先で評価。波乱度目安：4〜5（波乱〜大波乱）';
+    $lines[] = '';
+    $lines[] = '【波乱度の修正ルール（1〜5：1=堅い、2=やや堅い、3=中波乱、4=波乱、5=大波乱）】';
+    $lines[] = 'タイプ別の波乱度目安を基準に、以下の条件で1段階上下してください。';
+    $lines[] = '■ 波乱度を1段階「上げる」条件（複数該当で2段階まで）';
+    $lines[] = '・断層時系列が6分前に向けて急縮小している';
+    $lines[] = '・断層より下の複数馬に複勝流入が確認できる';
+    $lines[] = '・6〜10番人気の複勝流入ランクが継続上昇している';
+    $lines[] = '・単勝と複勝の断層位置が不一致（タイプEの判定根拠）';
+    $lines[] = '・1番人気の複勝支持が継続低下している';
+    $lines[] = '■ 波乱度を1段階「下げる」条件（複数該当で2段階まで）';
+    $lines[] = '・断層が複数時点にわたって継続維持されている';
+    $lines[] = '・単勝と複勝の断層位置が一致している';
+    $lines[] = '・断層時系列が6分前に向けて拡大している';
+    $lines[] = '・6番人気以内に二重断層（2か所以上）が成立している';
+    $lines[] = '・断層より下の馬に明確な複勝流入がない';
     $lines[] = '';
     if (!empty($gapTimeSeriesLines)) {
         $lines[] = '【断層時系列（単勝・6分前人気順基準）】';
@@ -1218,7 +1287,13 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         ),
         '単勝・複勝どちらかの回収率が100%未満の場合、その馬券種については選出基準をより厳しくし、妙味の低い馬を除外してください。',
         '',
-        "オッズ推移から注目馬を{$pickupCount}頭選出してください。",
+        "オッズ推移から注目馬を選出してください（合計最大{$pickupTotalMax}頭まで）。",
+        '',
+        "【このレースの推奨頭数上限（タイプ{$gapType}）】",
+        "・1〜6番人気から最大{$pickupUpperMax}頭",
+        "・7〜10番人気から最大{$pickupMidMax}頭" . ($pickupMidMax === 0 ? "（原則選出なし）" : ""),
+        "・11番人気以下（人気薄注目馬）から最大{$pickupLowerMax}頭" . ($pickupLowerMax === 0 ? "（原則選出なし）" : ""),
+        "・合計最大{$pickupTotalMax}頭（推奨頭数は上限。最低基準点を満たす馬だけを選出すること）",
         '',
         '【出力フォーマット（厳守）】',
         'このフォーマットは画面表示アプリがそのままパースします。',
@@ -1273,10 +1348,50 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '・複勝オッズが1.3倍以下の馬は、断層の最上位または複勝継続下落でない限りおすすめ度を下げてください',
         '・一時的なオッズ急落（すぐ戻った）は過大評価しないでください',
         '',
+        '【⚠️ 推奨頭数は上限であり規定ではない（絶対ルール）】',
+        '頭数を埋めることを目的とした選出は禁止です。全頭を100点満点で採点し、以下の最低基準点を超えた馬だけを選出してください。',
+        '・本候補（推奨馬）: おすすめ度70点以上',
+        '・補欠: おすすめ度60〜69点',
+        '・人気薄注目馬（11番人気以下）: おすすめ度55点以上、かつ複勝流入が複数時点で継続していること',
+        '基準点を超えない馬は人気帯の上限内であっても選出しないでください。',
+        '※点数の基準は暫定値です。データ蓄積後に調整します。',
+        '',
+        '【混戦・波乱含み（タイプD・E）における人気帯別の選出条件】',
+        '',
+        '■ 7〜10番人気の選出条件',
+        'タイプD・Eのレースで7〜10番人気を選出する場合、以下のうち3項目以上を満たした馬を優先してください。',
+        '・複勝オッズが複数時点で継続低下している',
+        '・複勝人気が単勝人気より2順位以上高い（複勝流入ランクが単勝流入ランクより大きく上回る）',
+        '・6分前に向けて複勝流入ランクが上昇している（直前に資金が加速している）',
+        '・断層より下に位置するが、断層への接近が見られる',
+        '・断層が縮小または消滅し、人気帯の境界が曖昧になっている',
+        '・類似レース統計の5着以内率が高い',
+        '・予測補正OPIが0.85以下（市場の過小評価ゾーン）',
+        '・一時的な急落ではなく、複数時点にわたって資金流入が継続している',
+        '3項目以上を満たさない7〜10番人気の馬は選出を慎重に判断してください。',
+        '',
+        '■ 11番人気以下（大穴）の選出条件',
+        '11番人気以下は「人気薄注目馬」として別枠で最大1〜2頭まで。以下の条件を全て満たした馬のみ選出可能。',
+        '・おすすめ度55点以上であること',
+        '・複勝オッズが複数時点で継続低下していること（単発急落は不可）',
+        '・複勝流入ランクが7人気以下グループ内で1〜2位であること',
+        '・単勝と複勝の両方で資金流入が確認できること',
+        '・断層なし（タイプD）または断層縮小・矛盾（タイプE）のレースであること',
+        '上記を全て満たさない11番人気以下の馬は選出禁止。「来そうな気がする」だけでは選ばないこと。',
+        '',
         '【⚠️ 選出理由の記述ルール（厳守）】',
         '・選出理由にAIが独自に算出・推測した確率値（「〜%の確率で」「〜%の可能性」等）を記載することは禁止です',
         '・確率として引用してよいのは、各馬のデータ欄に表示されている「類似レース統計」の3着以内率・5着以内率・着外率のみです',
         '・オッズの動きや断層位置から「〜%」という数値をAIが独自計算してはいけません。「資金が継続流入している」「断層上側に位置する」など事実ベースの表現を使ってください',
+        '',
+        '【下位進入度・大穴進入度の判定（選出前に必ず行うこと）】',
+        '馬を選ぶ前に、以下の3指標をそれぞれ1〜5で判定してください。これが人気帯別の選出頭数の根拠になります。',
+        '・波乱度（1〜5）: レース全体の予測困難度。断層タイプと修正ルールで決定。',
+        '・下位進入度（1〜5）: 7〜10番人気が5着以内へ入る可能性。断層下への複勝流入・断層縮小・複勝流入ランク上昇で判定。',
+        '・大穴進入度（1〜5）: 11番人気以下が5着以内へ入る可能性。継続的な複勝流入が確認できない限り1〜2にとどめること。',
+        '【重要】波乱度が高くても下位進入度・大穴進入度が低い場合は、1〜6番人気の中での順番入れ替えが主因です。7番人気以下を無理に選ばないでください。',
+        '例：波乱度4・下位進入度2・大穴進入度1 → 混戦だが決着は上位人気中心。7番人気以下の選出は慎重に。',
+        '例：波乱度4・下位進入度4・大穴進入度2 → 7〜10番人気に根拠のある馬がいれば積極的に選出。',
         '',
         '分析の観点：',
         '・複勝オッズの動きを単勝より重視してください。複勝は「来るかどうか」を市場が評価している数値です',
@@ -1292,8 +1407,11 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '・推定確定オッズの見方: 過去の6分前→確定オッズの変動パターンから算出した「発走時点での最終オッズ予測値」です。6分前オッズより推定確定オッズが大きく下がる馬（補正係数<1）は直前にさらに人気が集中する傾向があり、信頼度の補強材料になります。逆に推定確定オッズが上がる馬（補正係数>1）は直前に売られる傾向があります。±の補正誤差が大きい馬は予測の振れ幅が大きいため参考程度に留めてください。妙味スコアを算出する際は、6分前オッズではなく推定確定オッズを基準にしてください',
         '・過去回収率・OPI帯別回収率・フェーズパターン別回収率の使い方: 各馬に表示されている「過去回収率」「OPI帯別回収率」「フェーズパターン別回収率」は、勝率ではなく回収率（%）を妙味スコア判断の最重要指標として使ってください。回収率が100%を下回るパターン（例: 1〜3人気×変化なし = 83%）は、たとえ勝率が高くても長期的には損をするパターンです。妙味スコアを下げる材料として扱ってください。逆に回収率が110%以上のパターンは積極的に妙味を高く評価してください。フェーズパターン別回収率は特に「前半下落・後半上昇（売り戻し）」や「前半上昇・後半下落（直前急落）」のような市場の急変パターンを捉えた重要シグナルです。1〜3番人気ばかりを選出して回収率の低い予想になることを厳に避けてください',
         '',
-        "選出馬は必ず「厳選穴レース|X」を1行目に、続けて「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」の形式で{$pickupCount}頭分出力してください。",
-        '※画面表示に影響するので、この形を守ってください。',
+        "選出馬は必ず下記フォーマットを厳守して出力してください（合計{$pickupTotalMax}頭以内。人気帯別上限を超えないこと）。",
+        '1行目: 「厳選穴レース|X」（X=1: 厳選穴レース成立, X=0: 不成立）',
+        '2行目: 「レース指標|波乱度: X|下位進入度: X|大穴進入度: X」（各X=1〜5の整数。このまま1行で出力すること）',
+        '3行目以降: 「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」を選出頭数分',
+        '※画面表示に影響するので、この形を必ず守ってください。',
     ]);
 
     return implode("\n", $lines);
@@ -1408,7 +1526,18 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         $oddsData = preg_replace('/【おすすめ度の計算方法】.*?(?=\n選出馬|\n※|$)/s', '', $oddsData);
         // 「このシステムの目的（最重要）」ブロックを除去
         $oddsData = preg_replace('/【このシステムの目的（最重要）】.*?(?=\n選出馬|\n分析の観点|$)/s', '', $oddsData);
-        // 選出頭数は1st AIと同じ $pickupCount を引き継ぐ（置換しない）
+        // ─── 頭数から選出数を再計算（1st AIと同じロジック） ─────────────────
+        $horseCount2nd = DB::table('t_horse_odds_finder_horses')
+            ->where('date',   $date)
+            ->where('kaisuu', $raceRow->kaisuu)
+            ->where('basho',  $raceRow->basho)
+            ->where('day',    $raceRow->day)
+            ->where('race',   $raceRow->race)
+            ->count();
+        $pickupCount = $horseCount2nd <= 8 ? 4 : ($horseCount2nd <= 13 ? 5 : 6);
+
+        // 除去された末尾指示の代替として頭数を明示追記
+        $oddsData .= "\n\nオッズ推移の分析に基づき注目馬を{$pickupCount}頭選出し、「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」の形式で{$pickupCount}頭分出力してください。{$pickupCount}頭を超えて選出してはいけません。";
 
         // ─── 2nd AI 用整形済みプロンプトをファイルに保存 ────────────────────
         file_put_contents(

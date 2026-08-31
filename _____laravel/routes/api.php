@@ -134,10 +134,17 @@ Route::get('getHorseOddsFinderExpectedValueScore', [AnalysisController::class, '
 Route::get('getHorseOddsFinderAiAnalysis', [AiController::class, 'getHorseOddsFinderAiAnalysis']);
 // 2nd AI（DeepSeek）による分析意見を返す（未分析時はDeepSeek APIを呼び出してDBにキャッシュ）
 Route::get('getHorseOddsFinderSecondAiOpinion', [AiController::class, 'getHorseOddsFinderSecondAiOpinion']);
-// 馬柱力指数（バガン力インデックス）を返す
+// 馬柱力指数を返す
 Route::get('getHorseOddsFinderBaganrikiIndex', [AiController::class, 'getHorseOddsFinderBaganrikiIndex']);
 // ⚠️ Flutter未使用 — AI回収率サマリー（累積回収率・最大連敗・ドローダウン・人気帯別回収率）
 Route::get('getHorseOddsFinderAiRecoverySummary', [AiController::class, 'getHorseOddsFinderAiRecoverySummary']);
+
+
+
+Route::get('getHorseOddsFinderAiAnalysisRecord', [AiController::class, 'getHorseOddsFinderAiAnalysisRecord']);
+Route::get('getHorseOddsFinderAiAnalysisRecord2', [AiController::class, 'getHorseOddsFinderAiAnalysisRecord2']);
+
+
 
 ////////////////////////////////////////////////////////////////////////////////////
 // AdminController — 管理機能

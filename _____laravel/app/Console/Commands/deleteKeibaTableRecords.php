@@ -45,7 +45,9 @@ class DeleteKeibaTableRecords extends Command
         //   TRUNCATE は DELETE より高速で AUTO_INCREMENT もリセットされる。
         //   netkeiba 系テーブルはスクレイピング廃止につきコメントアウト済み。
         // ─────────────────────────────────────────────────────────────────
-        $this->info('テーブルデータ削除処理 ── 開始');
+        $startTime = microtime(true);
+        $startAt   = now()->format('Y-m-d H:i:s');
+        $this->info('テーブルデータ削除処理 ── 開始  ' . $startAt);
 
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_horses');
         $this->info('t_horse_odds_finder_horses をtruncateしました。');
@@ -59,8 +61,8 @@ class DeleteKeibaTableRecords extends Command
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_odds_get_timing');
         $this->info('t_horse_odds_finder_odds_get_timing をtruncateしました。');
 
-        DB::statement('TRUNCATE TABLE t_horse_odds_finder_odds_wide');
-        $this->info('t_horse_odds_finder_odds_wide をtruncateしました。');
+        // DB::statement('TRUNCATE TABLE t_horse_odds_finder_odds_wide');
+        // $this->info('t_horse_odds_finder_odds_wide をtruncateしました。');
 
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_race_results');
         $this->info('t_horse_odds_finder_race_results をtruncateしました。');
@@ -71,8 +73,8 @@ class DeleteKeibaTableRecords extends Command
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_schedules');
         $this->info('t_horse_odds_finder_schedules をtruncateしました。');
         
-        DB::statement('TRUNCATE TABLE t_horse_odds_finder_ai_analysis');
-        $this->info('t_horse_odds_finder_ai_analysis をtruncateしました。');
+        // DB::statement('TRUNCATE TABLE t_horse_odds_finder_ai_analysis');
+        // $this->info('t_horse_odds_finder_ai_analysis をtruncateしました。');
         
         DB::statement('TRUNCATE TABLE t_horse_odds_finder_push_send_logs');
         $this->info('t_horse_odds_finder_push_send_logs をtruncateしました。');
@@ -130,7 +132,11 @@ class DeleteKeibaTableRecords extends Command
             '/var/www/horse_odds_finder/storage/logs/SummaryRacesIntrospection.log',
             
             '/var/www/horse_odds_finder/storage/logs/makeBaganrikiBrain.log',
-
+            
+            '/var/www/horse_odds_finder/storage/logs/SummaryAiRecoveryRate.log',
+            '/var/www/horse_odds_finder/storage/logs/summaryFukuPopularityRankAverage.log',
+            '/var/www/horse_odds_finder/storage/logs/summarySimilarRaceStats.log',
+            
             '/var/www/horse_odds_finder/scripts/keibaOddsGetJraRaceResult.log',
             '/var/www/horse_odds_finder/scripts/keibaOddsGetSchedule.log',
             '/var/www/horse_odds_finder/scripts/keibaOddsGetFinishingPosition.log',
@@ -181,6 +187,11 @@ class DeleteKeibaTableRecords extends Command
         // ─────────────────────────────────────────────────────────────────
         // 【ブロック 3】WebPush 通知
         // ─────────────────────────────────────────────────────────────────
+        $endAt    = now()->format('Y-m-d H:i:s');
+        $elapsed  = round(microtime(true) - $startTime, 2);
+        $this->info('テーブルデータ削除処理 ── 終了  ' . $endAt);
+        $this->info('経過時間: ' . $elapsed . ' 秒');
+
         (new WebPushService())->sendPushNotifierDeveloperNews('develop', "DeleteKeibaTableRecords::handle");
 
         return 0;

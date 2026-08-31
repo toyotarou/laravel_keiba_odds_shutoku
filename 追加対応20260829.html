@@ -1,0 +1,425 @@
+<title>追加対応 2026-08-29</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #ffffff;
+    color: #1a1a1a;
+    font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif;
+    font-size: 15px;
+    line-height: 1.85;
+    padding: 28px 18px 72px;
+    max-width: 680px;
+    margin: 0 auto;
+  }
+
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .date { font-size: 12px; color: #999; margin-bottom: 6px; }
+  .subtitle { font-size: 14px; color: #555; margin-bottom: 32px; line-height: 1.7; }
+
+  h2 {
+    font-size: 17px;
+    font-weight: 700;
+    border-left: 4px solid #1a1a1a;
+    padding-left: 11px;
+    margin: 40px 0 14px;
+  }
+
+  h3 {
+    font-size: 12px;
+    font-weight: 700;
+    color: #777;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin: 20px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #eee;
+  }
+
+  p { margin-bottom: 12px; }
+  p:last-child { margin-bottom: 0; }
+
+  ul {
+    padding-left: 1.5em;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  ul:last-child { margin-bottom: 0; }
+
+  li { line-height: 1.75; }
+
+  strong { font-weight: 700; }
+
+  hr {
+    border: none;
+    border-top: 1px solid #e8e8e8;
+    margin: 36px 0 0;
+  }
+
+  .block {
+    background: #f8f8f8;
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+  .block:last-child { margin-bottom: 0; }
+  .block h3 { margin-top: 0; }
+
+  .change-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 10px 0;
+  }
+  .change-before, .change-after {
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 13.5px;
+  }
+  .change-before {
+    background: #fff0f0;
+    border-left: 3px solid #e57373;
+  }
+  .change-after {
+    background: #f0fff4;
+    border-left: 3px solid #66bb6a;
+  }
+  .change-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    opacity: .7;
+  }
+
+  code { font-family: 'SF Mono','Menlo','Consolas',monospace; font-size: 12px; background: #efefef; border-radius: 3px; padding: 1px 5px; }
+  .code-block {
+    font-family: 'SF Mono','Menlo','Consolas',monospace;
+    font-size: 12px;
+    background: #f0f0f0;
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-top: 10px;
+    white-space: pre;
+    overflow-x: auto;
+    line-height: 1.7;
+    display: block;
+  }
+
+  .table-wrap { overflow-x: auto; margin: 12px 0; border-radius: 8px; border: 1px solid #e8e8e8; }
+  table { border-collapse: collapse; font-size: 13px; width: 100%; }
+  th { background: #f3f3f3; padding: 8px 12px; text-align: left; font-size: 12px; white-space: nowrap; }
+  td { padding: 7px 12px; border-top: 1px solid #eeeeee; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tr:nth-child(even) td { background: #fafafa; }
+
+  .note {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 13px 16px;
+    font-size: 13.5px;
+    margin: 12px 0;
+    background: #fdfdfd;
+  }
+  .note-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #999;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-right: 4px;
+    letter-spacing: .04em;
+  }
+  .tag-user { background: #e8f4fd; color: #1565c0; }
+  .tag-dev  { background: #f0f0f0; color: #555; }
+
+  .summary-box {
+    border: 1.5px solid #1a1a1a;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin: 28px 0 0;
+  }
+  .summary-box h3 { margin-top: 0; border-bottom-color: #ccc; }
+</style>
+
+<h1>追加対応まとめ</h1>
+<div class="date">2026年8月29日</div>
+<p class="subtitle">ご要望いただいた内容をもとに、馬眼力の分析精度向上と画面表示の強化を行いました。今回の対応は大きく4つのテーマです。</p>
+
+<!-- 1. プロンプト変更 -->
+<hr>
+<h2>1. AIへの指示書（プロンプト）の全面精緻化</h2>
+
+<div class="block">
+  <h3>目的・背景</h3>
+  <p>馬眼力のAIは、膨大なオッズデータを読んで「どの馬を選ぶか」を判断しています。その判断の土台になるのが<strong>「指示書（プロンプト）」</strong>と呼ばれる文章です。この文章が曖昧であれば、AIの判断も曖昧になります。</p>
+  <p>今回、以下の5つの観点でこの指示書を書き直しました。すべて「AIが今まで感覚的に判断していた部分を、明確なルールとして定義する」ことを目的としています。一言で言えば、<strong>「AIが迷わないよう、判断基準を細かく言語化した」</strong>対応です。</p>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-user">依頼主向け</span> ① 断層の強さを3段階で定義</h3>
+  <div class="change-row">
+    <div class="change-before">
+      <div class="change-label">変更前</div>
+      断層があるかないか、2択でしか判断できていなかった。「少し開いている断層」も「大きく開いている断層」も同じ「★断層」として扱われており、強さの違いをAIが区別できていなかった。
+    </div>
+    <div class="change-after">
+      <div class="change-label">変更後</div>
+      断層の大きさに応じて「弱・強・非常に強い」の3段階でAIが認識するようになった。強い断層ほど、AIが重要なシグナルとして扱う。
+    </div>
+  </div>
+  <p>「断層があること」と「断層がどれほど大きいか」は全く別の情報です。この変更により、AIが断層の重さを正確に評価できるようになりました。</p>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-user">依頼主向け</span> ② レースタイプごとの波乱度目安を設定</h3>
+  <p>断層構造タイプ（A〜E）ごとに「このタイプのレースは波乱度がこのくらいになりやすい」という目安をAIに渡しました。</p>
+  <ul>
+    <li>タイプA（上位に強い断層が集中）→ 波乱度 1〜2（堅い決着が多い）</li>
+    <li>タイプB（断層が1か所）→ 波乱度 2〜3（やや荒れる可能性）</li>
+    <li>タイプC（断層が下位圏）→ 波乱度 3（中程度の荒れ）</li>
+    <li>タイプD（断層なし・混戦）→ 波乱度 4〜5（大きく荒れやすい）</li>
+    <li>タイプE（単複で断層位置が異なる）→ 波乱度 4〜5（読みにくい）</li>
+  </ul>
+  <p>これをベースに、次の「修正ルール」でレースの実際の資金動向も加味した最終的な波乱度を決定します。</p>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-user">依頼主向け</span> ③ 波乱度の修正ルールを追加</h3>
+  <p>タイプだけで決まる目安に加えて、<strong>「こういう場合は波乱度を上げる・下げる」という具体的な修正条件</strong>を5つずつAIに渡しました。タイプという「構造的な特徴」だけでなく、実際の資金の動きも加味して波乱度を補正する仕組みです。</p>
+  <p><strong>波乱度を上げる条件の例</strong>：複数の人気薄馬に継続的な複勝資金流入がある、複勝断層と単勝断層の位置が一致しない、など</p>
+  <p><strong>波乱度を下げる条件の例</strong>：1〜3番人気の複勝オッズが全体的に下落継続している、断層が6番人気以内に2か所以上ある、など</p>
+  <div class="note">
+    <div class="note-label">具体的なケース</div>
+    「タイプD（混戦）なのに1番人気への資金が明らかに集中している」という場合、構造だけ見れば波乱度は高いはずですが、修正ルールにより波乱度が下方修正されます。「見た目は混戦だが、実際の賭け方は堅い」という判断をAIがより正確にできるようになりました。
+  </div>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-user">依頼主向け</span> ④ 選出馬の最低スコアを明示</h3>
+  <div class="change-row">
+    <div class="change-before">
+      <div class="change-label">変更前</div>
+      「何頭選んでください」という指示だったため、根拠が薄い馬でも頭数を埋めるように選んでしまうことがあった。「5頭選べ」と言われると、5頭のうち1〜2頭は弱い根拠で選ばれていた。
+    </div>
+    <div class="change-after">
+      <div class="change-label">変更後</div>
+      スコアの最低ラインを設定し、「基準に達しない馬は無理に選ばなくてよい」と明示した。頭数を埋めることより、根拠のある馬だけを選ぶことを優先させた。
+      <ul style="margin-top:8px;">
+        <li>本候補：70点以上</li>
+        <li>補欠：60〜69点</li>
+        <li>人気薄注目馬：55点以上 かつ 複勝への資金流入が確認できること</li>
+      </ul>
+    </div>
+  </div>
+  <p>「頭数を埋めることより、根拠の質を守ること」を優先させた変更です。上限頭数はあくまで天井であり、基準に届かなければその枠を使わなくてよい、という方針になりました。</p>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-user">依頼主向け</span> ⑤ 穴馬の選出条件を人気帯別に分離</h3>
+  <div class="change-row">
+    <div class="change-before">
+      <div class="change-label">変更前</div>
+      「7番人気以下」をひとまとめにして同じ条件で判断していた。中穴（7〜10番人気）と大穴（11番人気以下）の判断基準が同じだったため、大穴馬が緩い条件で選ばれるリスクがあった。
+    </div>
+    <div class="change-after">
+      <div class="change-label">変更後</div>
+      7〜10番人気と11番人気以下を別の基準で評価するようにした。<br><br>
+      <strong>7〜10番人気</strong>：8つの条件のうち3つ以上を満たせば選出対象<br>
+      <strong>11番人気以下</strong>：5つの厳格な条件をすべて満たす場合のみ選出（根拠が揃った馬だけ）
+    </div>
+  </div>
+  <p>大穴馬ほど選出のハードルを上げることで、「なんとなく面白そう」という選出を防ぎ、根拠のある大穴だけが候補に残るようになりました。</p>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-dev">エンジニア向け</span> 変更箇所</h3>
+  <p>対象：<code>AiController.php</code> — <code>_getAiAnalysisPrompt()</code> 内のみ。PHP処理・出力フォーマットへの変更なし。</p>
+  <ul>
+    <li>断層強度注記を <code>比率2.00以上=★断層、2.50以上=★★強い断層、3.00以上=★★★非常に強い断層</code> に変更</li>
+    <li>タイプ別ルールに波乱度目安を追記（A=1〜2, B=2〜3, C=3, D=4〜5, E=4〜5）</li>
+    <li>波乱度修正ルールセクションを新規追加（上げる5条件・下げる5条件）</li>
+    <li>推奨頭数上限ルールに最低スコア閾値を追記（本候補70点、補欠60〜69点、人気薄注目馬55点+複勝流入）</li>
+    <li>混戦時の下位選出条件を7〜10番人気（8条件中3つ以上）と11番人気以下（5条件すべて必須）に分離</li>
+    <li>下位進入度・大穴進入度の評価優先度を指示するセクションを新規追加</li>
+  </ul>
+</div>
+
+<!-- 2. 推奨頭数 -->
+<hr>
+<h2>2. レース構造に応じた推奨頭数の自動調整</h2>
+
+<div class="block">
+  <h3>目的・背景</h3>
+  <p>これまでAIは「出走頭数が8頭以下なら4頭、13頭以下なら5頭、それ以上なら6頭」という機械的な判断をしていました。しかしこれは、レースの「荒れ度合いの構造」を全く無視したルールです。</p>
+  <p>同じ16頭立てでも「上位に強い断層があって固いレース」と「断層なしの混戦」では、適切な選出頭数も選ぶべき人気帯も全く異なります。今回、<strong>レースの断層構造タイプ（A〜E）に応じて、推奨頭数と人気帯の上限を自動的に変える</strong>仕組みを導入しました。</p>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-user">依頼主向け</span> タイプ別の人気帯・頭数設定</h3>
+  <p>単に「何頭選ぶか」ではなく、<strong>「どの人気帯から何頭まで選ぶか」</strong>をタイプごとに定義しました。固いレースで無理に穴馬を探す必要はなく、荒れるレースでは穴馬の枠を多く確保する、という設計です。</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>タイプ</th><th>特徴</th><th>1〜6番<br>人気</th><th>7〜10番<br>人気</th><th>11番〜<br>人気</th><th>合計<br>上限</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>A</strong></td><td>上位支配・固い</td><td>最大4頭</td><td>なし</td><td>なし</td><td>4頭</td></tr>
+        <tr><td><strong>B</strong></td><td>断層1か所</td><td>最大4頭</td><td>最大2頭</td><td>最大1頭</td><td>7頭</td></tr>
+        <tr><td><strong>C</strong></td><td>断層が下位圏</td><td>最大3頭</td><td>最大3頭</td><td>最大1頭</td><td>7頭</td></tr>
+        <tr><td><strong>D</strong></td><td>断層なし・混戦</td><td>最大3頭</td><td>最大3頭</td><td>最大2頭</td><td>8頭</td></tr>
+        <tr><td><strong>E</strong></td><td>単複乖離・読みにくい</td><td>最大3頭</td><td>最大3頭</td><td>最大1頭</td><td>7頭</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note">
+    <div class="note-label">読み方の例</div>
+    タイプAのレースでAIが選ぶのは「1〜6番人気の中から最大4頭」だけです。7番人気以下は原則として選出対象外になります。逆にタイプDの混戦レースでは、穴馬（11番人気以下）まで含めて最大8頭を選ぶことができます。ただしこれはあくまで「上限」であり、スコアが基準に届かない馬は選ばなくてよいというルール（①〜④の内容）は守られます。
+  </div>
+  <p>この変更により、「固いレースで大穴馬が無理やり選ばれる」「混戦レースなのに上位人気しか選ばない」という不自然な選出がなくなります。</p>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-dev">エンジニア向け</span> 変更箇所</h3>
+  <p>対象：<code>AiController.php</code></p>
+  <ul>
+    <li>L674の固定 <code>$pickupCount</code>（頭数ベース）はそのまま残し、L1049〜に <code>$gapType</code> 確定後の switch 文を新規挿入</li>
+    <li>switch で <code>$pickupUpperMax / $pickupMidMax / $pickupLowerMax / $pickupTotalMax</code> を算出</li>
+    <li>L1253〜：プロンプトに「タイプ別の人気帯ごと上限」を動的文字列で挿入</li>
+    <li>L1373：出力指示を <code>{$pickupTotalMax}頭以内・人気帯別上限を超えないこと</code> に変更</li>
+  </ul>
+  <div class="code-block">// $gapType確定後に算出
+switch ($gapType) {
+    case 'A': $pickupUpperMax=4; $pickupMidMax=0; $pickupLowerMax=0; break;
+    case 'B': $pickupUpperMax=4; $pickupMidMax=2; $pickupLowerMax=1; break;
+    case 'C': $pickupUpperMax=3; $pickupMidMax=3; $pickupLowerMax=1; break;
+    case 'D': $pickupUpperMax=3; $pickupMidMax=3; $pickupLowerMax=2; break;
+    case 'E': default:
+              $pickupUpperMax=3; $pickupMidMax=3; $pickupLowerMax=1; break;
+}
+$pickupTotalMax = $pickupUpperMax + $pickupMidMax + $pickupLowerMax;</div>
+</div>
+
+<!-- 3. 断層強度 -->
+<hr>
+<h2>3. 断層強度フラグの3段階化</h2>
+
+<div class="block">
+  <h3>目的・背景</h3>
+  <p>AIに渡す断層テーブルには、人気が隣り合う馬どうしのオッズ比率が表示されています。たとえば「2番人気のオッズ÷3番人気のオッズ」が2.5なら、その間に断層がある、という計算です。</p>
+  <p>これまで比率2.00以上の箇所はすべて「★断層」と同じマークで表示していましたが、比率2.1の断層と比率4.0の断層では市場のシグナル強度が全く異なります。今回、<strong>断層の大きさをAIが一目で読み取れるよう、3段階のフラグ</strong>に変更しました。</p>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-user">依頼主向け</span> 変更内容</h3>
+  <div class="change-row">
+    <div class="change-before">
+      <div class="change-label">変更前</div>
+      比率2.00以上はすべて「★断層」と表示。強さの違いが区別できず、AIが全て同じ重さのシグナルとして扱っていた。
+    </div>
+    <div class="change-after">
+      <div class="change-label">変更後</div>
+      ★断層　　　　→ 比率2.00以上（通常の壁）<br>
+      ★★強い断層　→ 比率2.50以上（明確な壁）<br>
+      ★★★非常に強い断層 → 比率3.00以上（際立った壁）<br><br>
+      AIは★の数が多いほど「ここに大きな壁がある」と強く認識する。
+    </div>
+  </div>
+  <div class="note">
+    <div class="note-label">実際の効果</div>
+    たとえば2番人気と3番人気のオッズ間に「★★★非常に強い断層」がある場合、AIは「2番人気以内でほぼ決まる可能性が高い」と判断する材料として強く重視します。同じ断層でも強さによって意味が変わることを、AIが正確に扱えるようになりました。<br><br>
+    逆に「★断層が複数点在しているだけ」というレースと「★★★が1か所だけ」というレースでは、後者のほうが明確な境界線があると読むべきで、この違いが選出の質に反映されます。
+  </div>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-dev">エンジニア向け</span> 変更箇所</h3>
+  <p>対象：<code>AiController.php</code> — 単勝断層テーブル（L908-911）・複勝断層テーブル（L937-940）</p>
+  <p>三項演算子の2値判定を if / elseif の3段階に置き換え。単勝・複勝とも同一ロジック。</p>
+  <div class="code-block">// Before
+$gapFlag = $gapRatio >= 2.0 ? '  ★断層' : '';
+
+// After
+if      ($gapRatio >= 3.0) { $gapFlag = '  ★★★非常に強い断層'; }
+elseif  ($gapRatio >= 2.5) { $gapFlag = '  ★★強い断層'; }
+elseif  ($gapRatio >= 2.0) { $gapFlag = '  ★断層'; }
+else                       { $gapFlag = ''; }</div>
+</div>
+
+<!-- 4. 波乱度・進入度表示 -->
+<hr>
+<h2>4. 波乱度・下位進入度・大穴進入度をアプリに表示</h2>
+
+<div class="block">
+  <h3>目的・背景</h3>
+  <p>「このレースは波乱度が高い」という情報だけでは、実際に穴馬を買うかどうかの判断には使えません。「荒れる」といっても、「1〜6番人気の中で着順がバラける」のか「7番人気以下が実際に飛び込んでくる」のかは全く別の話だからです。</p>
+  <p>今回、AIが毎回レース全体の性質を3つの指標で個別に評価・出力し、それをアプリ画面に表示する機能を追加しました。<strong>「荒れる方向性」をより具体的に見せる</strong>ための対応です。</p>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-user">依頼主向け</span> 3つの指標の意味</h3>
+  <ul>
+    <li><strong>波乱度（1〜5）</strong>：そのレース全体の「荒れやすさ」。1が最も堅く、5が最も波乱含み。オッズの動き・断層構造・流入パターンを総合して判断。</li>
+    <li><strong>下位進入度（1〜5）</strong>：7〜10番人気の馬が5着以内に入り込む可能性。複勝への継続的な資金流入が確認できる中穴馬がいるかどうかが主な判断材料。</li>
+    <li><strong>大穴進入度（1〜5）</strong>：11番人気以下の馬が5着以内に入り込む可能性。タイプD/E限定で、複勝流入ランクが高い馬がいるときのみ数値が上がる。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-user">依頼主向け</span> 3指標の組み合わせで何がわかるか</h3>
+  <p>3つの数字を組み合わせることで、「どう荒れそうか」の具体的な方向性が見えてきます。</p>
+  <div class="note">
+    <div class="note-label">パターン例①「荒れるが穴馬は来ない」</div>
+    波乱度4・下位進入度2・大穴進入度1<br>
+    → 荒れてはいるが、7番人気以下が来る根拠は薄い。上位人気の中での波乱。この場合は無理に穴馬を選ばず、1〜6番人気の中で意外な馬を狙うのが正解。
+  </div>
+  <div class="note">
+    <div class="note-label">パターン例②「中穴が来そう」</div>
+    波乱度4・下位進入度4・大穴進入度1<br>
+    → 全体的に荒れており、かつ7〜10番人気への資金流入が見られる。11番人気以下まで手を広げる根拠はないが、中穴を積極的に拾いに行ってよいレース。
+  </div>
+  <div class="note">
+    <div class="note-label">パターン例③「大波乱の可能性あり」</div>
+    波乱度5・下位進入度4・大穴進入度3<br>
+    → 全ての指標が高い、本物の荒れレース。11番人気以下の馬への資金流入も確認できており、大穴も含めた幅広い選出が正当化される局面。
+  </div>
+  <p>これら3指標は、馬の選出リストの上に<strong>★マークで表示</strong>されます。数字だけでなく星の数で視覚的に把握できる設計です。</p>
+</div>
+
+<div class="block">
+  <h3><span class="tag tag-dev">エンジニア向け</span> 変更箇所（全4ファイル）</h3>
+  <p>既存の出力パーサー（<code>parseUpsetRaceValue()</code>・<code>parseAnalysisText()</code>）への影響はゼロ。新しい行は別のプレフィックス（<code>レース指標|</code>）で識別するため完全に独立。バックエンドのみ先行デプロイ済み。Flutterを旧バージョンのまま動かしても新しい行は無視されるため、エラーにはならない。</p>
+  <ul>
+    <li><strong>AiController.php（Laravel）</strong>：出力フォーマット指示に2行目を追加。AIが <code>レース指標|波乱度: X|下位進入度: X|大穴進入度: X</code> を必ず出力するよう明示。</li>
+    <li><strong>functions.dart（Flutter）</strong>：<code>parseRaceMetrics(String text)</code> を新規追加。<code>レース指標|</code> で始まる行をパースして <code>Map&lt;String,int&gt;</code> を返却。</li>
+    <li><strong>ai_analysis_display_alert.dart（Flutter）</strong>：<code>_raceMetrics</code> 状態変数追加・フェッチ時パース・<code>_buildRaceMetrics()</code> / <code>_buildMetricItem()</code> ウィジェット追加。</li>
+    <li><strong>total_forecast_display_alert.dart（Flutter）</strong>：同上。</li>
+  </ul>
+  <div class="code-block">// AI出力フォーマット（変更後）
+1行目: 厳選穴レース|X          ← 既存。parseUpsetRaceValue() で処理
+2行目: レース指標|波乱度: X|下位進入度: X|大穴進入度: X  ← 新規追加
+3行目〜: 馬番：X、馬名：XXX ...  ← 既存。parseAnalysisText() で処理</div>
+</div>
+
+<!-- まとめ -->
+<hr>
+<div class="summary-box">
+  <h3>今回の対応 全体まとめ</h3>
+  <p>今回の4つの変更は、それぞれ独立した改善ではなく、ひとつの方向性でつながっています。</p>
+  <p><strong>断層の強さを3段階化（3.）</strong>することで、AIが渡されるデータの解像度が上がります。その解像度の高いデータをもとに、<strong>プロンプトの精緻化（1.）</strong>によってAIが正確な波乱度・進入度を判断し、<strong>タイプ別の推奨頭数（2.）</strong>によって適切な人気帯から適切な頭数を選出します。そしてその判断結果が<strong>アプリ上の3指標表示（4.）</strong>として可視化される、という流れです。</p>
+  <p>一言で言えば、「データの精度 → AIの判断精度 → 選出の精度 → ユーザーへの見せ方」という一連の流れを、全ての段階で底上げした対応です。</p>
+</div>
