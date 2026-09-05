@@ -112,6 +112,54 @@ class ImportKeibaPayoutGrade extends Command
                 return;
             }
 
+
+            // ═════════════════════════════════════════════════════════════
+            // 【ガード B-pre】t_horse_odds_finder_races を使った事前スキップ
+            //   ImportKeibaSchedule 実行時に grade が保存されているため、
+            //   スクレイピング前にグレードレースの有無を確認できる。
+            //
+            //   ① グレードレースが0件         → mjs 実行をスキップ
+            //   ② 全グレードレースが登録済み   → mjs 実行をスキップ
+            // ═════════════════════════════════════════════════════════════
+            $this->info('[ガードB-pre] t_horse_odds_finder_races でグレードレースを確認中...');
+
+            $gradeRaces = DB::table('t_horse_odds_finder_races')
+                ->where('date', 'like', $yearmonth . '%')
+                ->whereNotNull('grade')
+                ->get(['date', 'kaisuu', 'basho', 'day', 'race']);
+
+            if ($gradeRaces->isEmpty()) {
+                $this->info('  → グレードレースなし。mjs 実行をスキップします。');
+                $status = 'SKIP';
+                return;
+            }
+
+            $this->info("  → グレードレース {$gradeRaces->count()} 件を検出。払戻テーブルと突合中...");
+
+            $hasTarget = DB::table('t_horse_odds_finder_race_result_payout')
+                ->whereNull('grade')
+                ->where(function ($query) use ($gradeRaces) {
+                    foreach ($gradeRaces as $r) {
+                        $query->orWhere(function ($q) use ($r) {
+                            $q->where('date',       $r->date)
+                              ->where('kaisuu',     $r->kaisuu)
+                              ->where('basho_code', $r->basho)
+                              ->where('day',        $r->day)
+                              ->where('race',       $r->race);
+                        });
+                    }
+                })
+                ->exists();
+
+            if (!$hasTarget) {
+                $this->info('  → 全グレードレースが登録済み。mjs 実行をスキップします。');
+                $status = 'SKIP';
+                return;
+            }
+
+            $this->info("  → 未登録のグレードレースあり。mjs を実行します。");
+            $this->info('');
+
             // ─────────────────────────────────────────────────────────────
             // 【ブロック 4】Node.js 実行（リトライ最大3回）で grade を一括取得
             //   timeout 600: 月全体を1リクエストで取得するため長めに確保する。

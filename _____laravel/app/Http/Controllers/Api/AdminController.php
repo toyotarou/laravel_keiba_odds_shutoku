@@ -263,9 +263,9 @@ class AdminController extends Controller
             'ImportKeibaPayoutGrade'              => '22:50',
             'G'                                  => '',       // ── セパレータ ──
             'SummaryRacesIntrospection'           => '23:00',
-            'SummaryMakeBaganrikiBrain'           => '23:20',
-            'SummarySimilarRaceStats'             => '23:30',
-//            'SummaryAiRecoveryRate'               => '23:40',
+            'SummarySimilarRaceStats'             => '23:10',
+            'SummaryAiAnalysisCompensate'         => '23:40',
+            'SummaryMakeBaganrikiBrain'           => '23:50',
         ];
 
         $description = [

@@ -831,9 +831,6 @@ CREATE TABLE `t_horse_odds_finder_race_result_history` (
 
 
 
-
-
-
 CREATE TABLE `t_horse_odds_finder_race_result_payout` (
   `id` int NOT NULL AUTO_INCREMENT,
   `date` date DEFAULT NULL,
@@ -843,6 +840,7 @@ CREATE TABLE `t_horse_odds_finder_race_result_payout` (
   `day` int DEFAULT NULL,
   `race` int DEFAULT NULL,
   `race_name` text,
+  `grade` text,
   `course` text,
   `dist` int DEFAULT NULL,
   `inner_outer` text,
@@ -855,8 +853,10 @@ CREATE TABLE `t_horse_odds_finder_race_result_payout` (
   `trio` text,
   `trifecta` text,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_race_payout` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=12222 DEFAULT CHARSET=utf8mb3;
+  UNIQUE KEY `uq_race_payout` (`date`,`kaisuu`,`basho_code`,`day`,`race`),
+  KEY `idx_date_basho` (`date`,`basho_code`)
+) ENGINE=InnoDB AUTO_INCREMENT=12510 DEFAULT CHARSET=utf8mb3;
+
 
 
 1	2023-01-05	1	中山	06	1	1	3歳未勝利	ダート	1200	-	14|180	14|110/5|150/1|480	3-7|470	5-14|220/1-14|790/1-5|1550	5-14|470	14-5|660	1-5-14|3040	14-5-1|8890

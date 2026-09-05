@@ -119,7 +119,8 @@ class ImportKeibaPayoutInnerOuter extends Command
             $this->info('[ガードB] inner_outer が未設定のレコードを確認中...');
 
             $totalTarget = DB::table('t_horse_odds_finder_race_result_payout')
-                ->where('date', 'like', $yearmonth . '%')
+                ->whereRaw('date >= ?', [$yearmonth . '-01'])
+                ->whereRaw('date < ?', [date('Y-m-01', strtotime($yearmonth . '-01 +1 month'))])
                 ->whereIn('basho_code', self::TARGET_BASHO_CODES)
                 ->where('course', '芝')
                 ->whereNull('inner_outer')

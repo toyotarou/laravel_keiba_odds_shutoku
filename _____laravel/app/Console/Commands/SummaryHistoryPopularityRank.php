@@ -110,6 +110,9 @@ class SummaryHistoryPopularityRank extends Command
             $this->warn('対象レコードがありません。');
             $this->info('========== keiba:summaryHistoryPopularityRank 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
+
+            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryHistoryPopularityRank::handle\nSKIP");
+
             return;
         }
 

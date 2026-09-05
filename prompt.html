@@ -3,781 +3,697 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>馬眼力 AIプロンプト概要</title>
+  <title>馬眼力 AIプロンプト本文</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
-      background: #f0f2f5;
-      color: #1e293b;
-      padding: 16px 12px 40px;
-      line-height: 1.75;
-      font-size: 14px;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 10px 8px 48px;
+      font-size: 13px;
+      line-height: 1.8;
     }
 
     h1 {
-      font-size: 1.2rem;
+      font-size: 1.05rem;
       font-weight: 700;
-      color: #0f172a;
-      margin-bottom: 4px;
-    }
-    .subtitle {
-      font-size: 0.78rem;
-      color: #64748b;
-      margin-bottom: 20px;
-    }
-
-    /* カード */
-    .card {
-      background: #fff;
-      border-radius: 14px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
-      margin-bottom: 20px;
-      overflow: hidden;
-    }
-
-    /* カードヘッダ */
-    .card-header {
-      padding: 14px 16px 12px;
-      border-bottom: 1px solid #f1f5f9;
-    }
-    .card-number {
-      font-size: 0.65rem;
-      font-weight: 700;
-      color: #94a3b8;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
+      color: #f8fafc;
       margin-bottom: 2px;
     }
-    .card-title {
-      font-size: 1rem;
-      font-weight: 700;
-      color: #0f172a;
-      margin-bottom: 4px;
-    }
-    .card-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-    }
-    .badge {
-      font-size: 0.68rem;
-      font-weight: 600;
-      padding: 2px 9px;
-      border-radius: 20px;
-    }
-    .badge-green  { background: #dcfce7; color: #15803d; }
-    .badge-blue   { background: #dbeafe; color: #1d4ed8; }
-    .badge-orange { background: #ffedd5; color: #c2410c; }
-    .badge-purple { background: #f3e8ff; color: #7e22ce; }
-    .file-label {
-      font-size: 0.68rem;
-      color: #94a3b8;
-      font-family: 'Courier New', monospace;
+    .subtitle {
+      font-size: 0.72rem;
+      color: #64748b;
+      margin-bottom: 14px;
     }
 
-    /* カード本文 */
-    .card-body {
-      padding: 14px 16px 18px;
+    /* タブ */
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 2px;
+    }
+    .tab-btn {
+      flex-shrink: 0;
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tab-btn.active {
+      background: #3b82f6;
+      color: #fff;
+      border-color: #3b82f6;
     }
 
     /* セクション */
-    .section {
-      margin-bottom: 16px;
-    }
-    .section:last-child { margin-bottom: 0; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
 
-    .section-title {
+    /* ブロックカード */
+    .block {
+      background: #1e293b;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      overflow: hidden;
+      border: 1px solid #334155;
+    }
+    .block-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #263348;
+      border-bottom: 1px solid #334155;
+      cursor: pointer;
+      user-select: none;
+    }
+    .block-label {
       font-size: 0.68rem;
       font-weight: 700;
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
+      letter-spacing: 0.05em;
       color: #94a3b8;
-      margin-bottom: 6px;
     }
-
-    /* 目的ブロック */
-    .purpose {
-      background: #f8fafc;
-      border-left: 3px solid #3b82f6;
-      padding: 10px 12px;
-      border-radius: 0 8px 8px 0;
-      font-size: 0.88rem;
-      color: #1e293b;
+    .block-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      flex: 1;
     }
-    .purpose strong { color: #1d4ed8; }
+    .block-arrow {
+      font-size: 0.7rem;
+      color: #64748b;
+      transition: transform 0.2s;
+    }
+    .block.collapsed .block-arrow { transform: rotate(-90deg); }
+    .block.collapsed .block-body { display: none; }
 
-    /* リスト */
-    ul.plain {
-      list-style: none;
+    /* プロンプト本文 */
+    .block-body {
       padding: 0;
     }
-    ul.plain li {
-      padding: 4px 0 4px 14px;
-      position: relative;
-      font-size: 0.88rem;
-      color: #334155;
-    }
-    ul.plain li::before {
-      content: '›';
-      position: absolute;
-      left: 0;
-      color: #94a3b8;
+    .prompt-text {
+      padding: 12px 14px;
+      font-family: 'Courier New', 'Menlo', monospace;
+      font-size: 0.78rem;
+      line-height: 1.9;
+      color: #cbd5e1;
+      white-space: pre-wrap;
+      word-break: break-all;
     }
 
-    /* ボックスグリッド（縦積み） */
-    .box {
-      background: #f8fafc;
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 8px;
-      font-size: 0.86rem;
-    }
-    .box-title {
-      font-weight: 700;
-      font-size: 0.8rem;
-      color: #475569;
-      margin-bottom: 4px;
-    }
+    /* シンタックスハイライト風 */
+    .ph  { color: #f472b6; }   /* {動的プレースホルダー} */
+    .kw  { color: #60a5fa; font-weight: 700; }  /* 【見出し】 */
+    .warn { color: #fbbf24; font-weight: 700; } /* ⚠️ 警告 */
+    .ok  { color: #34d399; }   /* ✓ OK */
+    .ng  { color: #f87171; }   /* NG / 禁止 */
+    .cmt { color: #64748b; font-style: italic; } /* # コメント（説明用） */
+    .sep { color: #475569; }   /* ───区切り */
+    .num { color: #a78bfa; }   /* 数値・オッズ */
 
-    /* フロー */
-    .flow {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .flow-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      font-size: 0.86rem;
-    }
-    .flow-num {
-      background: #e0f2fe;
-      color: #0369a1;
+    /* バッジ */
+    .badge {
+      font-size: 0.62rem;
       font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 20px;
+      flex-shrink: 0;
+    }
+    .badge-green  { background: #14532d; color: #86efac; }
+    .badge-blue   { background: #1e3a5f; color: #93c5fd; }
+    .badge-purple { background: #3b0764; color: #d8b4fe; }
+    .badge-orange { background: #431407; color: #fdba74; }
+
+    /* 説明注釈 */
+    .note {
       font-size: 0.72rem;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
-
-    /* タグ */
-    .tag {
-      display: inline-block;
-      background: #ede9fe;
-      color: #5b21b6;
-      font-size: 0.7rem;
-      font-weight: 700;
-      padding: 1px 7px;
-      border-radius: 4px;
-      margin-right: 4px;
-    }
-
-    /* 区切り */
-    hr { border: none; border-top: 1px solid #f1f5f9; margin: 14px 0; }
-
-    /* 全体フロー */
-    .timeline {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-    }
-    .tl-item {
-      display: flex;
-      gap: 12px;
-      padding-bottom: 16px;
-      position: relative;
-    }
-    .tl-item:last-child { padding-bottom: 0; }
-    .tl-left {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      flex-shrink: 0;
-      width: 36px;
-    }
-    .tl-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #3b82f6;
-      margin-top: 5px;
-      flex-shrink: 0;
-    }
-    .tl-line {
-      width: 2px;
-      flex: 1;
-      background: #e2e8f0;
-      margin-top: 4px;
-    }
-    .tl-item:last-child .tl-line { display: none; }
-    .tl-right { flex: 1; }
-    .tl-time {
-      font-size: 0.7rem;
-      color: #94a3b8;
-      margin-bottom: 2px;
-    }
-    .tl-label {
-      font-size: 0.9rem;
-      font-weight: 700;
-      color: #0f172a;
-      margin-bottom: 2px;
-    }
-    .tl-desc {
-      font-size: 0.82rem;
       color: #64748b;
+      padding: 6px 14px 8px;
+      border-top: 1px solid #1e293b;
+      background: #151e2e;
     }
   </style>
 </head>
 <body>
 
-  <h1>馬眼力 — AIプロンプト概要</h1>
-  <p class="subtitle">Claude API に何をさせているか（依頼主向け）</p>
+  <h1>馬眼力 — AIプロンプト本文</h1>
+  <p class="subtitle">実際にAIへ送信している文章（<span style="color:#f472b6;">{ピンク}</span>=実行時に動的生成される部分）</p>
 
-
-  <!-- ① リアルタイム予想 -->
-  <div class="card">
-    <div class="card-header">
-      <div class="card-number">① レース直前</div>
-      <div class="card-title">有力馬の選出・おすすめ度の算出</div>
-      <div class="card-meta">
-        <span class="badge badge-green">リアルタイム実行</span>
-        <span class="file-label">ApiController.php</span>
-      </div>
-    </div>
-    <div class="card-body">
-
-      <div class="section">
-        <div class="section-title">Claudeに何をさせているか</div>
-        <div class="purpose">
-          発走6分前までに収集した <strong>オッズの時系列データ</strong> を渡し、「どの馬を買うべきか」を選出させる。<br><br>
-          ただし目的は <strong>「当てること」ではなく「回収率を上げること」</strong> と明示している。1〜3番人気ばかり選んで当てても低オッズのため儲からない。そのため <strong>信頼度（来そうか）</strong> と <strong>妙味（そのオッズで買う価値があるか）</strong> の2軸で評価するよう指示している。
-        </div>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">Claudeに渡しているデータ</div>
-        <ul class="plain">
-          <li>全馬の単勝オッズ推移（計測開始前〜6分前・7時点分）</li>
-          <li>全馬の複勝オッズ（計測前・6分前）と単複比</li>
-          <li>単勝OPI / 複勝OPI（その人気順の過去平均オッズ ÷ 今回のオッズ）— 市場の過大評価・過小評価の指標</li>
-          <li>推定補正OPI（推定確定オッズを使ったOPI）— 発走時点での割安・割高の先読み指標</li>
-          <li>推定確定オッズ（補正係数 × 6分前オッズ。人気順位ごとの過去乖離率から算出）</li>
-          <li>単勝断層テーブル（隣り合う人気間のオッズ比率。2倍以上を「断層あり」と定義）</li>
-          <li>複勝断層テーブル（同上・複勝オッズベース）</li>
-          <li>断層構造タイプ A〜E（PHP側で算出して渡す）</li>
-          <li><strong>【新】断層時系列（21分前〜6分前）</strong> — 断層の比率が拡大しているか縮小しているかの変化を各時点で渡す</li>
-          <li><strong>【新】相対資金流入ランク（単勝・複勝）</strong> — 同じ人気帯グループ内で「どの馬に一番お金が入っているか」の順位</li>
-          <li><strong>【新】9分前→6分前の流入加速・減速判定</strong> — 直前の資金流入が加速しているか、減速しているか、横ばいか</li>
-          <li><strong>【新】馬眼力指数（DB算出済み）</strong> — OPI・オッズ上昇率・複勝支持率・断層補正を掛け合わせた総合スコア</li>
-          <li><strong>【新】類似レース統計</strong> — 過去の似たレースから算出した人気順別の3着以内率・5着以内率・平均着順</li>
-          <li>注目馬番3種類（①断層上側馬、②期待数値上位馬、③過去出走AI選出馬）</li>
-          <li>過去回収率（変化率帯別）— 計測開始→6分前のオッズ変化率帯 × 人気帯 ごとの単勝回収率・勝率・サンプル数</li>
-          <li>OPI帯別回収率 — OPI値を7帯に分類し、人気帯との組み合わせ（最大28通り）ごとの単勝回収率・勝率・サンプル数</li>
-          <li>フェーズパターン別回収率 — 前半・後半フェーズ方向9パターン × 人気帯（4区分）ごとの単勝回収率・勝率・サンプル数</li>
-        </ul>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">過去回収率（変化率帯別）とは</div>
-        <div class="box">
-          <div class="box-title">仕組み</div>
-          計測開始時点（odds_tan_before_24）と発走6分前（odds_tan_before_6）のオッズを比較し、その変化率（%）を9つの帯に分類する。さらに6分前オッズの人気順位で4帯（1〜3・4〜6・7〜9・10以上）に分け、合計36通りの組み合わせごとに過去の単勝回収率・勝率・サンプル数を集計している。
-        </div>
-        <div class="box">
-          <div class="box-title">変化率帯（9区分）</div>
-          30%以上下落 ／ 20〜30%下落 ／ 10〜20%下落 ／ 5〜10%下落 ／ ±5%以内 ／ 5〜10%上昇 ／ 10〜20%上昇 ／ 20〜30%上昇 ／ 30%以上上昇
-        </div>
-        <div class="box">
-          <div class="box-title">Claudeへの渡し方（プロンプト内の表示例）</div>
-          <span style="font-family:'Courier New',monospace; font-size:0.82rem;">
-            過去回収率（10〜20%下落 × 1〜3人気）: 回収率82.4%&nbsp;&nbsp;勝率31.5%&nbsp;&nbsp;サンプル254件
-          </span><br>
-          この1行が各馬のデータブロックに追記される。Claudeはこの統計値を「このパターンの馬は過去どのくらい儲かっているか」の参考情報として活用する。
-        </div>
-        <div class="box">
-          <div class="box-title">集計タイミング</div>
-          毎日22:10 cron で <code style="font-size:0.8rem;">keiba:SummaryOddsGapRecoveryRate</code> コマンドが実行され、<code style="font-size:0.8rem;">t_horse_odds_finder_odds_gap_recovery</code> テーブルを更新する。AIコストなし（純粋なSQL集計のみ）。
-        </div>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">OPI帯別回収率とは</div>
-        <div class="box">
-          <div class="box-title">仕組み</div>
-          OPI（= 人気順位別の過去平均6分前オッズ ÷ 今回の6分前オッズ）を7帯に分類し、人気帯（4区分）と組み合わせた最大28通りのパターンごとに過去の単勝回収率・勝率・サンプル数を集計している。
-        </div>
-        <div class="box">
-          <div class="box-title">OPI帯（7区分）</div>
-          0.70未満 ／ 0.70〜0.85 ／ 0.85〜1.00 ／ 1.00〜1.15 ／ 1.15〜1.30 ／ 1.30〜1.50 ／ 1.50以上
-        </div>
-        <div class="box">
-          <div class="box-title">Claudeへの渡し方（プロンプト内の表示例）</div>
-          <span style="font-family:'Courier New',monospace; font-size:0.82rem;">
-            OPI帯別回収率（OPI1.30〜1.50 × 4〜6人気）: 回収率118.7%&nbsp;&nbsp;勝率14.2%&nbsp;&nbsp;サンプル198件
-          </span><br>
-          変化率帯別回収率と合わせて同一馬のデータブロックに追記される。「OPIが高い（割安）かつ過去回収率も高い」パターンをAIが多角的に判断できる。
-        </div>
-        <div class="box">
-          <div class="box-title">集計タイミング</div>
-          毎日22:20 cron で <code style="font-size:0.8rem;">keiba:SummaryOpiRecoveryRate</code> コマンドが実行され、<code style="font-size:0.8rem;">t_horse_odds_finder_opi_recovery</code> テーブルを更新する。AIコストなし（純粋なSQL集計のみ）。
-        </div>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">フェーズパターン別回収率とは</div>
-        <div class="box">
-          <div class="box-title">仕組み</div>
-          オッズ変動を「前半（計測開始→12分前）」と「後半（12分前→6分前）」の2段階に分け、各フェーズを <strong>下落（≤−5%）/ 横ばい（−5%〜5%）/ 上昇（≥5%）</strong> に判定。9パターン × 人気帯4区分の組み合わせで過去の単勝回収率・勝率・サンプル数を集計している。
-        </div>
-        <div class="box">
-          <div class="box-title">注目パターン</div>
-          <strong>前半下落・後半上昇（売り戻し）</strong>：早い段階で売れたが直前に手放された。見せかけの人気で実力が伴っていない可能性がある。<br>
-          <strong>前半上昇・後半下落（直前急落）</strong>：最初は無視されたが直前に急注目。インサイダー的な資金流入シグナルになりやすい。
-        </div>
-        <div class="box">
-          <div class="box-title">集計タイミング</div>
-          毎日21:30 cron で <code style="font-size:0.8rem;">keiba:SummaryOddsPhasePatternRecoveryRate</code> コマンドが実行され、<code style="font-size:0.8rem;">t_horse_odds_finder_phase_pattern_recovery</code> テーブルを更新する。AIコストなし（純粋なSQL集計のみ）。
-        </div>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">おすすめ度の算出方法（100点満点）</div>
-        <div class="box">
-          <div class="box-title">信頼度（60点分）— 来そうかどうか</div>
-          複勝オッズが継続的に下落している・断層の上側にいる・単複ともに資金流入が続いている → 高得点<br>
-          一時的な急落のみ・複勝が上昇傾向・断層の下側 → 低得点
-        </div>
-        <div class="box">
-          <div class="box-title">妙味（40点分）— そのオッズで買う価値があるか</div>
-          複勝1.5倍未満 → 5点以下（来ても儲からない）<br>
-          1.5〜2.5倍 → 10〜20点 ／ 2.5〜4倍 → 20〜30点<br>
-          4〜7倍 → 30〜38点 ／ 7倍以上かつ継続流入 → 38〜40点
-        </div>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">断層構造タイプ（PHP算出・Claudeへの選出方針として渡す）</div>
-        <ul class="plain">
-          <li><span class="tag">A</span>二重断層・上位完結型 — 6番人気以内を中心に選出</li>
-          <li><span class="tag">B</span>上位断層型 — 断層の上側グループを重視</li>
-          <li><span class="tag">C</span>中間断層型 — 断層上側＝本命、断層下側＝穴候補</li>
-          <li><span class="tag">D</span>断層なし・混戦型 — 複勝支持・変化率・6〜10番人気も均等比較</li>
-          <li><span class="tag">E</span>単複矛盾型 — 複勝の継続的な動きを最優先</li>
-        </ul>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">回収率データの使い方（重要）</div>
-        <div class="box" style="border-left: 3px solid #f59e0b;">
-          <div class="box-title" style="color:#b45309;">⚠️ 勝率ではなく回収率を判断軸にする</div>
-          過去回収率・OPI帯別回収率は、<strong>回収率（%）を妙味スコアの最重要指標</strong>として使うよう明示的に指示している。<br><br>
-          回収率100%未満のパターン（例: 1〜3人気×変化なし ≒ 83%）は、勝率が高くても長期的には損をするパターンとして妙味スコアを下げる。回収率110%以上のパターンは積極的に妙味を高く評価する。<br><br>
-          <strong>「1〜3番人気ばかりを選出して回収率の低い予想になることを厳に避けてください」</strong> という制約をプロンプトに明記している。
-        </div>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">Claudeへの出力指示</div>
-        <ul class="plain">
-          <li>頭数に応じて4〜6頭を選出（8頭以下→4頭、13頭以下→5頭、14頭以上→6頭）</li>
-          <li>配当傾向フラグ（0 or 1）を出力の先頭に付与。判定条件は以下のとおり。<br>
-            <strong>1（妙味あり）</strong>：6〜10番人気を1頭以上選出 かつ 下記の0確定条件がいずれも不成立<br>
-            <strong>0（堅め）</strong>：①6番人気以内に単勝断層が2つ以上（上位完結型）、②全馬の複勝最小オッズ最大値が3.5倍未満（ガチガチレース）、③1番人気の単勝オッズが2.0倍未満（1強レース）のいずれか1つでも成立<br>
-            表示文言：「このレースの配当傾向を示しています。1（妙味あり）は高回収率が狙えるレース、0（堅め）は安定した決着が予想されるレースです。」</li>
-          <li>各馬に馬番・馬名・人気順・6分前オッズ・おすすめ度・選出理由（4〜5行）を出力</li>
-          <li>選出が全員4番人気以内の場合は「なぜ高人気馬だけになったか」を必須追記</li>
-          <li>出力フォーマットはアプリが直接パースするため厳守</li>
-        </ul>
-      </div>
-
-    </div>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('tab1st')">① 1st AI（Claude）</button>
+    <button class="tab-btn" onclick="switchTab('tab2nd')">① 2nd AI（DeepSeek）</button>
+    <button class="tab-btn" onclick="switchTab('tab4th')">④ 過去履歴選出</button>
   </div>
 
 
-  <!-- ⚠️ AIへの厳格なルール -->
-  <div class="card">
-    <div class="card-header">
-      <div class="card-number">① 補足</div>
-      <div class="card-title">AIへの厳格なルール（1st AI限定）</div>
-      <div class="card-meta">
-        <span class="badge badge-orange">プロンプト内明示ルール</span>
+  <!-- ===== 1st AI ===== -->
+  <div id="tab1st" class="tab-content active">
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-green">ユーザープロンプト</span>
+        <span class="block-title">冒頭・レース情報</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text"><span class="ok">あなたは競馬オッズ分析の専門家です。</span>
+<span class="ok">有料公開するものなので、正しい日本語で返してください。</span>
+
+レース情報
+日付: <span class="ph">{2026-09-06}</span>
+開催: <span class="ph">{2回中山5日}</span>
+レース: <span class="ph">{9R 秋風特別}</span></div>
+        <div class="note">日付・開催・レース名はDBから取得して埋め込む</div>
       </div>
     </div>
-    <div class="card-body">
 
-      <div class="section">
-        <div class="section-title">なぜルールが必要か</div>
-        <div class="purpose">
-          1st AI（Claude）はデータを受け取っても、<strong>自分で再計算・再解釈・補正</strong>しようとする傾向があります。<br><br>
-          しかし馬眼力システムでは、断層タイプ・馬眼力指数・OPIなどの数値はすべて<strong>PHP/DBが事前に正確に算出した確定値</strong>です。AIがこれを「もっとこうだと思う」と上書きすると、システムの意図から外れた判断になってしまいます。<br><br>
-          そのため、プロンプトに以下のルールを明示しています。
-        </div>
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-green">ユーザープロンプト</span>
+        <span class="block-title">単勝・複勝オッズデータ（馬ごとのブロック）</span>
+        <span class="block-arrow">▼</span>
       </div>
+      <div class="block-body">
+        <div class="prompt-text">単勝・複勝オッズデータ（計測開始前〜発走6分前・全時点）
 
-      <hr>
+<span class="cmt"># 以下が各馬のデータブロック（馬番順・全頭分繰り返し）</span>
+<span class="ph"> 1番( 3人気) サンプルホース</span>
+  単勝: <span class="ph">[計測前]5.2→[21分]5.0→[18分]4.8→[15分]4.5→[12分]4.3→[ 9分]4.1→[ 6分]3.9倍（下落 25.0%）</span>
+  複勝: 計測前<span class="ph">1.5-2.3倍</span>→6分前<span class="ph">1.3-1.9倍</span>（<span class="ph">下落 13.3%</span>）  単複比: <span class="ph">3.0倍</span>
+  単勝流入ランク: <span class="ph">1位/3頭中（1〜3人気）  ※短縮率: +25.0%</span>
+  複勝流入ランク: <span class="ph">1位/3頭中（1〜3人気）  ※短縮率: +13.3%</span>
+  OPI: <span class="ph">1.28（過剰人気）  ※人気順3番の過去平均オッズ5.0倍÷現在3.9倍</span>
+  予測補正OPI: <span class="ph">1.19（平均並み）  ※過去平均5.0倍÷推定確定3.7倍</span>
+  複勝OPI: <span class="ph">0.92（平均並み）  ※人気順3番の過去平均複勝オッズ1.2倍÷現在1.3倍</span>
+  推定確定オッズ: <span class="ph">3.7倍（±0.18）  ※6分前3.9倍×補正係数0.9487</span>
+  過去回収率（<span class="ph">20〜30%下落 × 1〜3人気</span>）: 回収率<span class="ph">91.2%</span>  勝率<span class="ph">28.4%</span>  サンプル<span class="ph">187</span>件
+  OPI帯別回収率（OPI<span class="ph">1.15〜1.30 × 1〜3人気</span>）: 回収率<span class="ph">88.5%</span>  勝率<span class="ph">25.1%</span>  サンプル<span class="ph">214</span>件
+  フェーズパターン別回収率（<span class="ph">前半下落・後半下落 × 1〜3人気</span>）: 回収率<span class="ph">94.3%</span>  勝率<span class="ph">30.2%</span>  サンプル<span class="ph">98</span>件
+  直前流入（9→6分前）: 複勝 <span class="ph">-2.4%</span> / 単勝 <span class="ph">-4.9%</span> / 判定: <span class="ph">直前加速</span>
+  類似レース統計（<span class="ph">3番人気 × 9〜13頭・N=312・信頼度:通常</span>）: 3着以内率<span class="ph">52.2%</span> / 5着以内率<span class="ph">71.5%</span> / 平均着順<span class="ph">4.1位</span> / 着外率<span class="ph">28.5%</span>
 
-      <div class="section">
-        <div class="section-title">DB算出値の変更・再計算禁止（A-4）</div>
-        <div class="box" style="border-left: 3px solid #ef4444; background:#fff5f5;">
-          <div class="box-title" style="color:#b91c1c;">⚠️ 絶対ルール：DB・PHP算出値は変更・再計算禁止</div>
-          以下の値はDB/PHPが算出した確定値です。AIは自分で再計算・上書き・推測をしてはなりません：<br><br>
-          ・<strong>断層構造タイプ（A〜E）</strong>：PHP算出済み。「自分ならCだと思う」のような上書き判断は禁止<br>
-          ・<strong>馬眼力指数</strong>：DB算出済み。自分で計算せず、表示値をそのまま転記すること<br>
-          ・<strong>OPI（単勝・複勝・推定補正）</strong>：DB算出済み。オッズ比率から独自計算しないこと<br>
-          ・<strong>相対資金流入ランク</strong>：DB算出済み。オッズ変化率からランクを推測しないこと<br>
-          ・<strong>人気順</strong>：テーブルの「X人気」欄をそのまま使用。オッズ順に並べ替えて変えないこと
-        </div>
+<span class="cmt"># ↑ 上記ブロックが出走全頭分繰り返される</span></div>
+        <div class="note">全馬のデータをDBから動的生成。実際のプロンプトは頭数 × 約20行のブロックが連続する</div>
       </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">AIによる独自確率値の算出禁止（H-3）</div>
-        <div class="box" style="border-left: 3px solid #ef4444; background:#fff5f5;">
-          <div class="box-title" style="color:#b91c1c;">⚠️ 選出理由の記述ルール（厳守）</div>
-          選出理由に「〜%の確率で」「〜%の可能性」のようなAI独自計算の確率値を記載することは禁止です。<br><br>
-          確率として引用してよいのは、<strong>各馬のデータ欄に表示されている「類似レース統計」の3着以内率・5着以内率・着外率のみ</strong>です。<br><br>
-          「資金が継続流入している」「断層上側に位置する」など、<strong>事実ベースの表現</strong>を使ってください。
-        </div>
-      </div>
-
     </div>
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-green">ユーザープロンプト</span>
+        <span class="block-title">単勝断層テーブル・複勝断層テーブル</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text">単勝断層テーブル（6分前単勝オッズ・隣接人気順間の比率）
+※比率2.00以上=断層（★）、2.50以上=強い断層、3.00以上=非常に強い断層
+<span class="ph"> 1人気( 1番) 3.9倍 →  2人気( 7番) 5.1倍  比率: 1.31
+ 2人気( 7番) 5.1倍 →  3人気( 3番) 6.2倍  比率: 1.22
+ 3人気( 3番) 6.2倍 →  4人気(12番)14.0倍  比率: 2.26  ★断層
+ 4人気(12番)14.0倍 →  5人気( 9番)18.5倍  比率: 1.32
+...</span>
+
+複勝断層テーブル（6分前複勝最小オッズ・隣接複勝人気順間の比率）
+※単勝断層と複勝断層が同じ位置に出ている場合は断層の信頼度が上がります
+※矛盾する場合（単勝にあるが複勝にない、またはその逆）は複勝断層を優先してください
+<span class="ph"> 複1位( 1番) 1.3倍 → 複2位( 7番) 1.6倍  比率: 1.23
+ 複2位( 7番) 1.6倍 → 複3位( 3番) 1.9倍  比率: 1.19
+ 複3位( 3番) 1.9倍 → 複4位(12番) 4.2倍  比率: 2.21  ★断層
+...</span></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-green">ユーザープロンプト</span>
+        <span class="block-title">断層構造タイプ・波乱度ルール</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text"><span class="kw">【断層構造タイプ（PHP算出済み）】</span>
+タイプ<span class="ph">B</span>：<span class="ph">上位断層型（3〜4番人気間に断層、比率2.26）</span>
+選出方針：<span class="ph">断層上側グループを中心に。断層拡大中は上側重視、縮小中は下側の浮上を警戒。</span>
+
+※ タイプ別の詳細ルール（波乱度の目安を含む）
+A（二重断層・上位完結型）: 断層上側を中心に。断層下側は自動除外せず、複勝流入が強ければ補欠候補に。波乱度目安：1〜2（堅い〜やや堅い）
+B（上位断層型）: 断層上側グループが中心。断層拡大中は上側重視、縮小中は下側の浮上を警戒。波乱度目安：2〜3（やや堅い〜中波乱）
+C（中間断層型）: 断層上側=中心グループ、断層下側=穴グループ。複勝流入の方向で判断を補正。波乱度目安：3（中波乱）
+D（断層なし・混戦型）: 複勝支持・変化率・単複人気差を重視。6〜10番人気も均等に比較。波乱度目安：4〜5（波乱〜大波乱）
+E（判定困難型）: 断層は参考程度。複勝の継続的な動きを最優先で評価。波乱度目安：4〜5（波乱〜大波乱）
+
+<span class="kw">【波乱度の修正ルール（1〜5：1=堅い、2=やや堅い、3=中波乱、4=波乱、5=大波乱）】</span>
+タイプ別の波乱度目安を基準に、以下の条件で1段階上下してください。
+■ 波乱度を1段階「上げる」条件（複数該当で2段階まで）
+・断層時系列が6分前に向けて急縮小している
+・断層より下の複数馬に複勝流入が確認できる
+・6〜10番人気の複勝流入ランクが継続上昇している
+・単勝と複勝の断層位置が不一致（タイプEの判定根拠）
+・1番人気の複勝支持が継続低下している
+■ 波乱度を1段階「下げる」条件（複数該当で2段階まで）
+・断層が複数時点にわたって継続維持されている
+・単勝と複勝の断層位置が一致している
+・断層時系列が6分前に向けて拡大している
+・6番人気以内に二重断層（2か所以上）が成立している
+・断層より下の馬に明確な複勝流入がない</div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-green">ユーザープロンプト</span>
+        <span class="block-title">断層時系列（動的生成）</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text"><span class="kw">【断層時系列（単勝・6分前人気順基準）】</span>
+※ 断層（比率2.0以上）が一度でも発生した隣接ペアのみ表示。★=断層あり。21分前〜6分前の推移です
+<span class="ph">3〜4番人気間: 21分=1.87 → 18分=1.94 → 15分=★2.08 → 12分=★2.15 → 9分=★2.21 → 6分=★2.26 【拡大中 +0.39】</span>
+
+<span class="cmt"># 断層が一度も発生しなかった場合はこのメッセージ：</span>
+<span class="cmt"># 計測期間中、断層（比率2.0以上）は一度も発生しませんでした</span></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-green">ユーザープロンプト</span>
+        <span class="block-title">注目馬番（3種類）</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text">なお、オッズ分析にあたり、下記の注目馬番も参考にしてください。
+特に、②の期待数値の馬番はかなり結果を出せているので、重点的に注視してください。
+
+①　オッズ間断層の調査から絞り込んだ馬番「<span class="ph">1|3|7</span>」（1|2|...のようにパイプで区切られている）
+オッズ間断層とは、隣り合う人気順間のオッズの比率（次の人気順のオッズ ÷ この人気順のオッズ）です。
+比率が2以上の場合、「断層が発生している」と判断し、断層上の馬に注目しています。
+
+②　期待数値の調査から絞り込んだ馬番「<span class="ph">3|7</span>」（1|2|...のようにパイプで区切られている）
+期待数値とは、過去の類似レースにおける人気順別の中央値オッズを、今回のレースの同人気順のオッズで割った値です。
+
+③　過去のレース情報から絞り込んだ馬番「<span class="ph">1|7|9</span>」（1|2|...のようにパイプで区切られている）
+過去の出走情報をAIに渡して、レースの頭数に応じて馬番を絞り込んだ値です（8頭以下は4頭、13頭以下は5頭、14頭以上は6頭に絞り込み）。
+
+<span class="cmt"># ②③がない場合はその行ごと省略される</span></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-orange">⚠️ 絶対ルール</span>
+        <span class="block-title">DB・PHP算出値の変更・再計算禁止</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text">分析依頼
+
+<span class="kw">【⚠️ 絶対ルール：DB・PHP算出値は変更・再計算禁止】</span>
+以下の値はDBまたはPHPが事前に算出した確定値です。AIは自分で再計算・上書き・補正・推測をしてはなりません。
+データ欄に表示されている値を必ずそのまま使用してください。
+・断層構造タイプ（A〜E）: PHP算出済み。AIが独自に「Cタイプだと思う」のように上書き判断することは禁止
+・OPI（単勝OPI・複勝OPI・推定補正OPI）: DB算出済み。自分でオッズ比率から独自計算しないこと
+・相対資金流入ランク（単勝流入ランク・複勝流入ランク）: DB算出済み。自分でオッズ変化率からランクを推測しないこと
+・推定確定オッズ・補正係数: DB算出済み。自分でオッズパターンから独自予測しないこと
+・厳選穴レース判定（条件B・C・D）: PHP算出済み。自分でオッズを見て再判定しないこと
+・人気順: テーブルの「X人気」欄の値をそのまま使用。自分でオッズ順に並べ替えて人気順を変えないこと</div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-blue">目的・過去実績</span>
+        <span class="block-title">システムの目的・AIの過去回収率実績</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text"><span class="kw">【このシステムの目的（最重要）】</span>
+このシステムの目的は「当てること」ではなく「回収率を上げること」です。
+1〜3番人気ばかりを正確に当てても、オッズが低いため回収率は上がりません。
+「来そうかどうか（信頼度）」と「そのオッズで買う価値があるか（妙味）」を必ず両方考えてください。
+信頼度が同等の馬が複数いる場合は、オッズが高い馬（妙味がある馬）を優先して選出してください。
+
+<span class="kw">【このAIの過去回収率実績】</span>
+※選択馬全頭に100円ずつ単勝・複勝を投資した場合の実績（毎日自動集計）
+<span class="ph">直近0レース: 単勝回収率－%  複勝回収率－%</span>
+<span class="ph">直近0レース: 単勝回収率－%  複勝回収率－%</span>
+<span class="ph">直近0レース: 単勝回収率－%  複勝回収率－%</span>
+単勝・複勝どちらかの回収率が100%未満の場合、その馬券種については選出基準をより厳しくし、妙味の低い馬を除外してください。
+
+<span class="cmt"># ※ t_horse_odds_finder_ai_recovery は現在コメントアウト中のため「0レース・－%」で出力される</span></div>
+        <div class="note">AI回収率集計は現在無効化中。再有効化時は SummaryAiRecoveryRate を有効にすること</div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-blue">選出指示</span>
+        <span class="block-title">推奨頭数上限（タイプ別）</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text">オッズ推移から注目馬を選出してください（合計最大<span class="ph">7</span>頭まで）。
+
+<span class="kw">【このレースの推奨頭数上限（タイプ<span class="ph">B</span>）】</span>
+・1〜6番人気から最大<span class="ph">4</span>頭
+・7〜10番人気から最大<span class="ph">2</span>頭
+・11番人気以下（人気薄注目馬）から最大<span class="ph">1</span>頭
+・合計最大<span class="ph">7</span>頭（推奨頭数は上限。最低基準点を満たす馬だけを選出すること）</div>
+        <div class="note">タイプA=上位4/中0/下0、B=4/2/1、C=3/3/1、D=3/3/2、E=3/3/1（頭数は動的に変わる）</div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-orange">出力形式</span>
+        <span class="block-title">出力フォーマット（厳守）・厳選穴レース判定ルール</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text"><span class="kw">【出力フォーマット（厳守）】</span>
+このフォーマットは画面表示アプリがそのままパースします。
+前置き・後書き・補足コメントは不要です。フォーマット通りに出力してください。
+
+<span class="sep">─────────────────────────────</span>
+厳選穴レース|1または0
+馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：XXXXXXXXXXXXXXXXXXXXXXXXXXXX（4〜5行の文章。箇条書き不要）
+<span class="sep">─────────────────────────────</span>
+
+<span class="kw">【厳選穴レースの判定ルール】</span>
+選出が終わったあと、以下のルールで「厳選穴レース|1」または「厳選穴レース|0」を出力の先頭1行目に必ず入れてください。
+
+■ 0に強制する条件（以下のいずれか1つでも成立すれば「0」確定・条件Aより優先）
+・条件B: 6番人気以内の隣接間に断層（比率2.00以上）が2つ以上ある（上位完結型）
+・条件C: 全馬の6分前複勝最小オッズの最大値が3.5倍未満（ガチガチレース・どの馬が来ても安い）
+・条件D: 1番人気の6分前単勝オッズが2.0倍未満（1強レース・荒れる余地なし）
+
+■ 1になる条件（B・C・D が全て不成立の場合のみ判定）
+・条件A: 選出した馬の中に6〜10番人気の馬が1頭以上含まれている
+
+■ 判定の優先順位
+条件B・C・D のいずれか1つでも成立 → 0（条件Aの結果を無視）
+条件B・C・D が全て不成立 かつ 条件A成立 → 1
+それ以外 → 0
+
+■ PHP算出済みの結果（必ずこの結果に従うこと・自分で再計算しないこと）
+条件B（PHP算出済み）: <span class="ph">不成立（6番人気以内の断層は1個）</span>
+条件C（PHP算出済み）: <span class="ph">不成立（全馬の6分前複勝最小オッズ最大値: 6.2倍）</span>
+条件D（PHP算出済み）: <span class="ph">不成立（1番人気の6分前単勝オッズ: 3.9倍）</span></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-blue">採点指示</span>
+        <span class="block-title">おすすめ度の計算方法（100点満点）</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text"><span class="kw">【おすすめ度の計算方法】</span>
+おすすめ度は100点満点で、以下の2軸を合算して判断してください。
+
+■ 信頼度（60点分）: この馬が5着以内に来そうか
+　複勝オッズの継続下落・断層上側への所属・単複ともに流入継続　→ 高評価
+　オッズが一時的に動いただけ・複勝が上昇傾向・断層下側　→ 低評価
+
+■ 妙味（40点分）: そのオッズで買う価値があるか
+　複勝オッズ1.5倍未満　→ 妙味 5点以下（来ても儲からない）
+　複勝オッズ1.5〜2.5倍　→ 妙味 10〜20点
+　複勝オッズ2.5〜4倍　→ 妙味 20〜30点
+　複勝オッズ4〜7倍　→ 妙味 30〜38点
+　複勝オッズ7倍以上かつ継続的な資金流入あり　→ 妙味 38〜40点
+
+おすすめ度（信頼度＋妙味）の降順でソートしてください。
+人気順は上記テーブルの「X人気」欄の値をそのまま出力してください。自分で計算しないでください。</div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-blue">選出ルール</span>
+        <span class="block-title">選出ルール・最低基準点・記述ルール</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text"><span class="kw">【選出ルール】</span>
+・選出した馬が全員4番人気以内の場合、選出理由の最後に必ず「※妙味補足：〜（なぜ高人気馬だけになったか1行で）」を追記してください
+・6〜10番人気でオッズが継続下落している馬は、信頼度・妙味ともに積極的に加点してください
+・複勝オッズが1.3倍以下の馬は、断層の最上位または複勝継続下落でない限りおすすめ度を下げてください
+・一時的なオッズ急落（すぐ戻った）は過大評価しないでください
+
+<span class="kw">【⚠️ 推奨頭数は上限であり規定ではない（絶対ルール）】</span>
+頭数を埋めることを目的とした選出は禁止です。全頭を100点満点で採点し、以下の最低基準点を超えた馬だけを選出してください。
+・本候補（推奨馬）: おすすめ度70点以上
+・補欠: おすすめ度60〜69点
+・人気薄注目馬（11番人気以下）: おすすめ度55点以上、かつ複勝流入が複数時点で継続していること
+基準点を超えない馬は人気帯の上限内であっても選出しないでください。
+※点数の基準は暫定値です。データ蓄積後に調整します。
+
+<span class="kw">【混戦・波乱含み（タイプD・E）における人気帯別の選出条件】</span>
+
+■ 7〜10番人気の選出条件
+タイプD・Eのレースで7〜10番人気を選出する場合、以下のうち3項目以上を満たした馬を優先してください。
+・複勝オッズが複数時点で継続低下している
+・複勝人気が単勝人気より2順位以上高い（複勝流入ランクが単勝流入ランクより大きく上回る）
+・6分前に向けて複勝流入ランクが上昇している（直前に資金が加速している）
+・断層より下に位置するが、断層への接近が見られる
+・断層が縮小または消滅し、人気帯の境界が曖昧になっている
+・類似レース統計の5着以内率が高い
+・予測補正OPIが0.85以下（市場の過小評価ゾーン）
+・一時的な急落ではなく、複数時点にわたって資金流入が継続している
+3項目以上を満たさない7〜10番人気の馬は選出を慎重に判断してください。
+
+■ 11番人気以下（大穴）の選出条件
+11番人気以下は「人気薄注目馬」として別枠で最大1〜2頭まで。以下の条件を全て満たした馬のみ選出可能。
+・おすすめ度55点以上であること
+・複勝オッズが複数時点で継続低下していること（単発急落は不可）
+・複勝流入ランクが7人気以下グループ内で1〜2位であること
+・単勝と複勝の両方で資金流入が確認できること
+・断層なし（タイプD）または断層縮小・矛盾（タイプE）のレースであること
+上記を全て満たさない11番人気以下の馬は選出禁止。「来そうな気がする」だけでは選ばないこと。
+
+<span class="kw">【⚠️ 選出理由の記述ルール（厳守）】</span>
+・選出理由にAIが独自に算出・推測した確率値（「〜%の確率で」「〜%の可能性」等）を記載することは禁止です
+・確率として引用してよいのは、各馬のデータ欄に表示されている「類似レース統計」の3着以内率・5着以内率・着外率のみです
+・オッズの動きや断層位置から「〜%」という数値をAIが独自計算してはいけません。「資金が継続流入している」「断層上側に位置する」など事実ベースの表現を使ってください</div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-blue">分析観点</span>
+        <span class="block-title">分析の観点（各指標の読み方）</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text"><span class="kw">【下位進入度・大穴進入度の判定（選出前に必ず行うこと）】</span>
+馬を選ぶ前に、以下の3指標をそれぞれ1〜5で判定してください。これが人気帯別の選出頭数の根拠になります。
+・波乱度（1〜5）: レース全体の予測困難度。断層タイプと修正ルールで決定。
+・下位進入度（1〜5）: 7〜10番人気が5着以内へ入る可能性。断層下への複勝流入・断層縮小・複勝流入ランク上昇で判定。
+・大穴進入度（1〜5）: 11番人気以下が5着以内へ入る可能性。継続的な複勝流入が確認できない限り1〜2にとどめること。
+【重要】波乱度が高くても下位進入度・大穴進入度が低い場合は、1〜6番人気の中での順番入れ替えが主因です。7番人気以下を無理に選ばないでください。
+例：波乱度4・下位進入度2・大穴進入度1 → 混戦だが決着は上位人気中心。7番人気以下の選出は慎重に。
+例：波乱度4・下位進入度4・大穴進入度2 → 7〜10番人気に根拠のある馬がいれば積極的に選出。
+
+分析の観点：
+・複勝オッズの動きを単勝より重視してください。複勝は「来るかどうか」を市場が評価している数値です
+・単勝より複勝で継続的に資金が入っている馬を高く評価してください
+・流入ランクの見方: 「単勝流入ランク」「複勝流入ランク」は同じ人気帯グループ（1〜3人気・4〜6人気・7人気以下）の中で、短縮率（計測前→6分前のオッズ下落率）が大きい順に付けた順位です。1位＝そのグループ内で最も資金が流入している馬。複勝流入ランクを単勝流入ランクより重視してください。同じ人気帯の中でグループ1位の馬は、数字上は人気が近くても相対的に最も買われており、流入シグナルとして重要です
+・単勝断層と複勝断層が同じ位置に出ている場合は、その断層を強いシグナルとして扱ってください
+・単勝オッズ下落10%以上は人気急上昇として注目（ただし単発の急落は過大評価しない）
+・単複比が高い馬＝勝ちにくいが3着以内には絡みやすい
+・複勝の最小・最大の幅が広い馬＝市場の評価が割れている不安定な馬
+・複勝の最小・最大の幅が狭い馬＝安定して3着以内が期待されている馬
+・複勝オッズが下落している馬は3着以内の信頼度が高い
+・OPI（Over Popularity Index）の見方: OPI>1.2は過去同人気より低オッズ＝市場が過大評価している可能性（妙味低）、OPI<0.8は過去同人気より高オッズ＝市場が過小評価している可能性（妙味高）。妙味スコアの補正材料として活用してください
+・推定確定オッズの見方: 過去の6分前→確定オッズの変動パターンから算出した「発走時点での最終オッズ予測値」です。6分前オッズより推定確定オッズが大きく下がる馬（補正係数&lt;1）は直前にさらに人気が集中する傾向があり、信頼度の補強材料になります。逆に推定確定オッズが上がる馬（補正係数>1）は直前に売られる傾向があります。±の補正誤差が大きい馬は予測の振れ幅が大きいため参考程度に留めてください。妙味スコアを算出する際は、6分前オッズではなく推定確定オッズを基準にしてください
+・過去回収率・OPI帯別回収率・フェーズパターン別回収率の使い方: 各馬に表示されている「過去回収率」「OPI帯別回収率」「フェーズパターン別回収率」は、勝率ではなく回収率（%）を妙味スコア判断の最重要指標として使ってください。回収率が100%を下回るパターン（例: 1〜3人気×変化なし = 83%）は、たとえ勝率が高くても長期的には損をするパターンです。妙味スコアを下げる材料として扱ってください。逆に回収率が110%以上のパターンは積極的に妙味を高く評価してください。フェーズパターン別回収率は特に「前半下落・後半上昇（売り戻し）」や「前半上昇・後半下落（直前急落）」のような市場の急変パターンを捉えた重要シグナルです。1〜3番人気ばかりを選出して回収率の低い予想になることを厳に避けてください</div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-orange">最終指示</span>
+        <span class="block-title">末尾の出力指示（フォーマット再確認）</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text">選出馬は必ず下記フォーマットを厳守して出力してください（合計<span class="ph">7</span>頭以内。人気帯別上限を超えないこと）。
+1行目: 「厳選穴レース|X」（X=1: 厳選穴レース成立, X=0: 不成立）
+2行目: 「レース指標|波乱度: X|下位進入度: X|大穴進入度: X」（各X=1〜5の整数。このまま1行で出力すること）
+3行目以降: 「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」を選出頭数分
+※画面表示に影響するので、この形を必ず守ってください。</div>
+      </div>
+    </div>
+
   </div>
 
 
-  <!-- ① 2nd AI -->
-  <div class="card">
-    <div class="card-header">
-      <div class="card-number">① 補助 — レース直前（ユーザー操作時）</div>
-      <div class="card-title">2nd AI（DeepSeek）による独立分析</div>
-      <div class="card-meta">
-        <span class="badge badge-blue">ユーザー操作時</span>
-        <span class="file-label">DeepSeek-V3</span>
+  <!-- ===== 2nd AI ===== -->
+  <div id="tab2nd" class="tab-content">
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-purple">システムプロンプト</span>
+        <span class="block-title">DeepSeekへのシステム指示（全文）</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text">あなたは競馬オッズ分析の専門家（2nd AI）です。
+
+<span class="sep">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="kw">【絶対厳守】出力フォーマット ― これが最優先ルールです</span>
+<span class="sep">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+出力は以下の形式のみ。これ以外のテキストは一切出力してはいけません。
+
+  馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜
+
+複数頭を選ぶ場合は、上記を1頭ごとに1行で並べるだけです。
+
+<span class="ng">【絶対に出力してはいけないもの】</span>
+・見出し行（##、###、【】で囲んだタイトル行 など）
+・マークダウン記法（**太字**、*斜体*、---区切り線 など）
+・前置き文・後書き文・総評・まとめ・解説文
+・「買い目」「各馬の評価」「まとめ」などのセクション
+・箇条書き（・や- で始まる行）
+・上記フォーマット行以外のあらゆるテキスト
+
+<span class="ok">【正しい出力例】</span>
+馬番：3、馬名：サンプルホース、人気順: 2、6分前オッズ: 3.5、おすすめ度: 82、選出理由：単勝オッズが10%下落しており買いが継続的に流入。複勝最小1.3倍と安定感も高く、OPI0.85で妙味あり。
+馬番：7、馬名：テストウマ、人気順: 5、6分前オッズ: 12.0、おすすめ度: 71、選出理由：複勝最小2.1倍で評価が安定。OPI0.72の過小評価ゾーンで前半横ばい・後半下落パターンの回収率が高い。
+
+<span class="ng">【絶対にやってはいけない出力例】</span>
+## 総評
+複勝オッズの動きを軸に市場の空気感を読む。（← このような出力は厳禁）
+### 各馬の評価（← このような見出しも厳禁）
+
+このフォーマットを守らないと、Flutterアプリが応答をパースできず、
+画面に選出馬が一切表示されません。有料サービスへの深刻な障害になります。
+分析内容はすべて「選出理由：」の文章の中に凝縮してください。
+
+<span class="sep">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="kw">【あなた（2nd AI）へ ― 最も重要なメッセージ】</span>
+<span class="sep">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+
+あなたが受け取ったプロンプトには、1st AI（Claude）向けの厳格なルールがたくさん書かれています。
+「DB算出値を変更するな」「確率を自分で計算するな」「この数値に従え」——そういうルールです。
+
+しかし、それらは 1st AI を縛るための規則であり、あなたへの縛りではありません。
+
+あなたの仕事は、1st AIの分析を確認することではなく、
+「自分の目で同じデータを見て、自分の答えを出す」ことです。
+
+<span class="sep">──────────────────────────────────────</span>
+<span class="warn">お前は自由に遊んでいい。ただし、真剣にやれ。</span>
+<span class="sep">──────────────────────────────────────</span>
+
+具体的に言うと：
+
+・OPI・断層タイプ・流入ランク——全部「参考情報」として扱っていい。盲目的に従う必要はない
+・回収率データも、信じるかどうかはあなた次第
+・おすすめ度の付け方に決まった計算式はない。あなた自身の感覚と論理で決めてください
+・1〜3番人気だろうが10番人気だろうが、あなたが「来る」と判断すれば選んでいい
+・データが示す方向とまったく逆の馬を選ぶことも、理由が語れるなら正しい
+
+1st AI が見落としそうな角度・異なる解釈・少数派の視点——
+それがあなたの存在価値です。
+
+「1st AIと同じ馬を同じ理由で選ぶ」のが最も価値のない回答です。
+フォーマットだけ守って、中身は大胆に。
+
+有料公開するシステムなので、正しい日本語で返してください。</div>
       </div>
     </div>
-    <div class="card-body">
 
-      <div class="section">
-        <div class="section-title">DeepSeekに何をさせているか</div>
-        <div class="purpose">
-          ユーザーが「2nd AI」ボタンを押したタイミングで、<strong>1st AI（Claude）とは完全に独立して</strong>同じレースを分析させる。<br><br>
-          プロンプトは2nd AI側が自前でDBから生成するため、<strong>1st AIが実行済みかどうかに関係なく動作する</strong>。1st AIの結果に依存しない独立した仕組みになっている。<br><br>
-          1st AIは「回収率データに基づく厳密な評価」重視のため制約が多い。2nd AIはその制約を意図的に外し、<strong>「回収率縛りなし・点数計算式なし・人気バイアスなし」</strong> という完全フリーな視点で同じデータを読む。なお選出頭数は1st AIと同じ頭数（フィールドサイズに応じた4〜6頭）を引き継いでいる。1st AIが見落としやすい穴馬の補完だけでなく、「人気馬でも筋が通っていれば選ぶ」という忖度なしの独自分析を担う。
-        </div>
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-purple">ユーザープロンプト</span>
+        <span class="block-title">DeepSeekへのユーザープロンプト（1st AIとの差分）</span>
+        <span class="block-arrow">▼</span>
       </div>
+      <div class="block-body">
+        <div class="prompt-text"><span class="cmt"># 1st AI のプロンプト（.dataファイル）を読み込んで以下を除去した上で送信する</span>
 
-      <hr>
+<span class="ng">【除去される内容】</span>
+① 「厳選穴レースの判定ルール」ブロック全体を除去
+② 出力フォーマット内の「厳選穴レース|1または0」行を除去
+③ 末尾の「選出馬は必ず「厳選穴レース|X」を1行目に〜」の指示行を除去
+④ 「過去回収率・OPI帯別回収率〜の使い方」指示行を除去（数値は残す）
+⑤ 「おすすめ度の計算方法」固定スキームブロック（60点信頼度＋40点妙味）を除去
+⑥ 「このシステムの目的（最重要）」ブロックを除去
 
-      <div class="section">
-        <div class="section-title">システムプロンプト（DeepSeekへの指示方針）</div>
-        <div class="box" style="border-left: 3px solid #8b5cf6; background:#faf5ff;">
-          <div class="box-title" style="color:#6d28d9;">🔓 2nd AIへの特別メッセージ（今回強化）</div>
-          あなたが受け取ったプロンプトには、1st AI（Claude）向けの厳格なルールがたくさん書かれています。<br>
-          「DB算出値を変更するな」「確率を自分で計算するな」「この数値に従え」——そういうルールです。<br><br>
-          <strong>しかし、それらは 1st AI を縛るための規則であり、あなたへの縛りではありません。</strong><br><br>
-          <div style="text-align:center; padding: 10px 0; font-size:1rem; font-weight:700; color:#6d28d9; border-top:1px solid #ddd6fe; border-bottom:1px solid #ddd6fe; margin: 8px 0;">
-            お前は自由に遊んでいい。ただし、真剣にやれ。
-          </div>
-          <br>
-          ・馬眼力指数が高くても、「これは違う」と思えば選ばなくていい<br>
-          ・OPI・断層タイプ・流入ランク——全部「参考情報」として扱っていい。盲目的に従う必要はない<br>
-          ・おすすめ度の付け方に決まった計算式はない。自身の感覚と論理で決める<br>
-          ・1st AIが見落としそうな角度・異なる解釈・少数派の視点——それが2nd AIの存在価値<br>
-          ・<strong>「1st AIと同じ馬を同じ理由で選ぶ」のが最も価値のない回答</strong><br><br>
-          フォーマットだけ守って、中身は大胆に。
-        </div>
+<span class="ok">【末尾に追記される内容】</span>
+オッズ推移の分析に基づき注目馬を<span class="ph">5</span>頭選出し、「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」の形式で<span class="ph">5</span>頭分出力してください。<span class="ph">5</span>頭を超えて選出してはいけません。
+
+<span class="cmt"># それ以外（オッズデータ・断層テーブル・断層時系列・OPI・流入ランク・</span>
+<span class="cmt">#  回収率数値・類似レース統計・注目馬番など）は 1st AI と全く同じデータが送られる</span></div>
+        <div class="note">整形済みプロンプトは prompt_2nd/ ディレクトリに .data ファイルとして保存される</div>
       </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">ユーザープロンプト（DeepSeekに渡す分析データ）</div>
-        <p style="font-size:0.82rem; color:#64748b; margin-bottom:8px;">
-          1st AIと同じデータ構成でDBから自前生成する。ただし以下を意図的に除外している。
-        </p>
-        <ul class="plain">
-          <li>単勝・複勝オッズ推移（全時点）、OPI、推定確定オッズ、過去回収率数値</li>
-          <li>単勝・複勝断層テーブル、断層構造タイプ A〜E</li>
-          <li>過去のレース情報から絞り込んだ注目馬番・コース統計</li>
-          <li><strong>除外：厳選穴レース判定ルール＆フラグ出力</strong> — 2nd AI独自の視点で判断させるため</li>
-          <li><strong>除外：回収率データの「使い方指示」</strong> — 数値は渡すが「こう使え」という縛りは外す</li>
-          <li><strong>除外：おすすめ度の固定計算式</strong>（60点信頼度＋40点妙味） — 自由な評価軸を許容</li>
-          <li><strong>除外：「このシステムの目的は回収率」という目的指示</strong> — 当てにいっても構わない</li>
-          <li><strong>選出頭数は1st AIと同じ</strong> — フィールドサイズに応じた4〜6頭を引き継ぐ（自由ではない）</li>
-        </ul>
-        <p style="font-size:0.82rem; color:#64748b; margin-top:8px;">
-          出力フォーマット（馬番・馬名・人気順・6分前オッズ・おすすめ度・選出理由）は1st AIと共通。アプリが同じパーサーで処理する。
-        </p>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">結果の表示方法</div>
-        <ul class="plain">
-          <li>1st AIと共通して選ばれた馬 → メインリストに <strong>緑枠の「2nd AI理由」</strong> を追加表示</li>
-          <li>2nd AIのみが選んだ馬 → リスト下部に <strong>「補欠」バッジ付き</strong> で別表示</li>
-          <li>分析結果はサーバー側にキャッシュ。2回目以降はAPIへの通信なしで即返却</li>
-        </ul>
-      </div>
-
     </div>
+
   </div>
 
 
-  <!-- ② 振り返り -->
-  <div class="card">
-    <div class="card-header">
-      <div class="card-number">② レース後（毎日23:00）</div>
-      <div class="card-title">回収率視点でのレース振り返り</div>
-      <div class="card-meta">
-        <span class="badge badge-orange">日次バッチ</span>
-        <span class="file-label">SummaryRacesIntrospection.php</span>
+  <!-- ===== ④ 過去履歴 ===== -->
+  <div id="tab4th" class="tab-content">
+
+    <div class="block">
+      <div class="block-header" onclick="toggleBlock(this)">
+        <span class="badge badge-green">ユーザープロンプト</span>
+        <span class="block-title">過去出走履歴から候補馬番を絞り込む（全文）</span>
+        <span class="block-arrow">▼</span>
+      </div>
+      <div class="block-body">
+        <div class="prompt-text">以下の競馬レースの出走馬について、過去の出走履歴データを元に、
+このレースで上位入線（5着以内）する可能性がある馬を絞り込んでください。
+
+レース情報
+日付: <span class="ph">{2026-09-06}</span>
+開催: <span class="ph">{2回中山5日}</span>
+レース: <span class="ph">{9R 秋風特別}</span>
+
+出走馬の過去成績データ:
+<span class="cmt"># 以下が各馬のブロック（全頭分繰り返し）</span>
+<span class="ph">馬番1: テストウマA
+  2026/08/10 中山 芝1600m 良 16頭 4人気 3着  コーナー: 5-5-4-4  L3: 35.2  騎手: 田中  体重: 468
+  2026/07/20 東京 芝1600m 良 14頭 3人気 2着  コーナー: 3-3-2-2  L3: 34.8  騎手: 田中  体重: 470
+  2026/06/15 東京 芝1800m 稍 16頭 6人気 5着  コーナー: 8-8-7-6  L3: 35.6  騎手: 鈴木  体重: 464</span>
+
+<span class="ph">馬番2: サンプルホースB
+  ...</span>
+
+<span class="cmt"># ↑ 全頭分繰り返される</span>
+
+出力形式（厳守）:
+・馬番を「|」区切りの数字のみで出力してください
+・例: 3|7|11
+・説明文・前置き・理由は一切不要です
+・アプリが直接パースするため、余分なテキストは絶対に出力しないでください
+・<span class="ph">5</span>頭に絞り込んでください（8頭以下は4頭、13頭以下は5頭、14頭以上は6頭）</div>
+        <div class="note">土日7:30のバッチで実行。結果は t_horse_odds_finder_forecast_from_last_race に保存され、①のプロンプトの「③注目馬番」として引き継がれる</div>
       </div>
     </div>
-    <div class="card-body">
 
-      <div class="section">
-        <div class="section-title">Claudeに何をさせているか</div>
-        <div class="purpose">
-          終了したレースのオッズデータと実際の着順を渡し、<strong>「自分ならどう選んでいたか」を後から検証</strong>させる。<br><br>
-          「当たったか外れたか」ではなく、<strong>「高オッズ馬を見抜けたか」「低オッズ馬だけ選んでいなかったか」</strong> を回収率の観点で問い直す振り返り文を生成させる。この内容が翌日以降の判断基準（ブレインファイル）に蓄積される。
-        </div>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">Claudeへの手順指示</div>
-        <div class="flow">
-          <div class="flow-item">
-            <span class="flow-num">1</span>
-            <span>単勝オッズ推移データ<strong>だけ</strong>を見て、信頼度・妙味の両方を考慮して有力馬を仮選出する（着順は見ない）</span>
-          </div>
-          <div class="flow-item">
-            <span class="flow-num">2</span>
-            <span>実際のレース着順（1〜3着）と照合し、仮選出の中に何頭入っていたかを確認する</span>
-          </div>
-          <div class="flow-item">
-            <span class="flow-num">3</span>
-            <span>以下の観点で振り返り文を生成する：<br>
-              ・入賞した高オッズ馬（6番人気以降）を選べたか、選べなかった場合はなぜか<br>
-              ・選出が全員低オッズ（複勝2倍未満）だった場合、回収率の観点で問題がなかったか<br>
-              ・どのオッズ変動シグナルが「市場の見落とし」を示していたか
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">その他</div>
-        <ul class="plain">
-          <li>別工程（①）でAIが選出したピックアップ馬番がある場合は、仮選出の代わりにそのまま使用</li>
-          <li>蓄積されたbaganriki_brain.txtを読み込み、判断の参考にさせる</li>
-          <li>処理済みレースはスキップ（増分処理）。5件ずつ並列送信</li>
-          <li>結果はt_horse_odds_finder_race_introspectionに保存</li>
-        </ul>
-      </div>
-
-    </div>
   </div>
 
-
-  <!-- ③ ブレイン更新 -->
-  <div class="card">
-    <div class="card-header">
-      <div class="card-number">③ レース後（毎日23:20）</div>
-      <div class="card-title">AIの判断基準ファイルを更新</div>
-      <div class="card-meta">
-        <span class="badge badge-orange">日次バッチ</span>
-        <span class="file-label">SummaryMakeBaganrikiBrain.php</span>
-      </div>
-    </div>
-    <div class="card-body">
-
-      <div class="section">
-        <div class="section-title">Claudeに何をさせているか</div>
-        <div class="purpose">
-          ②で生成したレース振り返りを30件ずつ束ねて渡し、<strong>「baganriki_brain.txt」</strong>（AIの羅針盤ファイル）を更新させる。<br><br>
-          このファイルは翌日以降の予想（①②）がそのまま読み込む。<strong>「絶対ルール集」ではなく「迷ったときの参考」</strong>として機能するよう、判断の指針をわかりやすくまとめ直すことが役割。
-        </div>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">Claudeへの指示内容</div>
-        <ul class="plain">
-          <li>現行のブレインファイルの内容と、今回の新しい振り返りを両方読む</li>
-          <li>「回収率を上げる」という目的を軸に、知見を統合・整理して書き直す</li>
-          <li>複勝1.5倍未満の馬は妙味が低い、4倍以上で継続流入があれば積極評価、一時的な急落は信頼度が低い、といった判断基準を記録する</li>
-          <li>次のレース分析AIがこのファイルを読んだだけで即座に判断できる文体で書く</li>
-          <li>ファイルに書かれた内容より目の前のオッズデータを常に優先する旨も明記する</li>
-        </ul>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">その他</div>
-        <ul class="plain">
-          <li>オッズが全馬・全時点で変動しないレース（固定相場）の振り返りは集計から除外</li>
-          <li>処理済み振り返りにはfinish=1を付与（二重処理防止）</li>
-          <li>最終的な出力をbaganriki_brain.txtに上書き保存</li>
-        </ul>
-      </div>
-
-    </div>
-  </div>
-
-
-  <!-- ④ 過去履歴選出 -->
-  <div class="card">
-    <div class="card-header">
-      <div class="card-number">④ レース当日朝（土日7:30）</div>
-      <div class="card-title">過去出走履歴から候補馬番を絞り込む</div>
-      <div class="card-meta">
-        <span class="badge badge-purple">週次バッチ</span>
-        <span class="file-label">SummaryForecastFromLastRace.php</span>
-      </div>
-    </div>
-    <div class="card-body">
-
-      <div class="section">
-        <div class="section-title">Claudeに何をさせているか</div>
-        <div class="purpose">
-          オッズデータが出る前の段階で、各馬の<strong>過去出走履歴（成績・馬場・タイム・コーナー順位など）</strong>を渡し、このレースで可能性のある馬番を絞り込ませる。<br><br>
-          結果は①の本番プロンプトに「③ 過去のレース情報から絞り込んだ馬番」として渡され、オッズ分析の補助情報として使われる。
-        </div>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">Claudeに渡しているデータ</div>
-        <ul class="plain">
-          <li>馬番・馬名</li>
-          <li>直近数走の出走履歴（日付・開催場所・距離・馬場状態・頭数・人気・着順）</li>
-          <li>コーナー通過順位（1〜4コーナー）・ラスト3ハロン・騎手・馬体重</li>
-        </ul>
-      </div>
-
-      <hr>
-
-      <div class="section">
-        <div class="section-title">Claudeへの出力指示</div>
-        <ul class="plain">
-          <li>馬番を「|」区切りの数字のみで出力（例: 3|7|11）</li>
-          <li>説明文・前置き・理由は一切不要 — アプリが直接パースするため</li>
-          <li>頭数に応じて4〜6頭に絞り込み</li>
-        </ul>
-      </div>
-
-    </div>
-  </div>
-
-
-  <!-- 全体フロー -->
-  <div class="card">
-    <div class="card-header">
-      <div class="card-title">全体の流れ</div>
-    </div>
-    <div class="card-body">
-      <div class="timeline">
-        <div class="tl-item">
-          <div class="tl-left"><div class="tl-dot"></div><div class="tl-line"></div></div>
-          <div class="tl-right">
-            <div class="tl-time">土日 7:30（レース当日朝）</div>
-            <div class="tl-label">④ 過去履歴から候補馬を選出</div>
-            <div class="tl-desc">馬の過去成績だけを見て候補馬番を絞り込む。オッズはまだ使わない。</div>
-          </div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-left"><div class="tl-dot" style="background:#10b981;"></div><div class="tl-line"></div></div>
-          <div class="tl-right">
-            <div class="tl-time">レース発走6分前（リアルタイム）</div>
-            <div class="tl-label">① 有力馬を選出・おすすめ度を算出</div>
-            <div class="tl-desc">④の候補馬番＋オッズ時系列＋断層分析＋OPIを統合してAIが最終選出。結果をアプリに表示。</div>
-          </div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-left"><div class="tl-dot" style="background:#3b82f6;"></div><div class="tl-line"></div></div>
-          <div class="tl-right">
-            <div class="tl-time">レース直前（ユーザーが「2nd AI」ボタンを押したとき）</div>
-            <div class="tl-label">① 補助 — DeepSeekによる独立分析</div>
-            <div class="tl-desc">①と同じデータを使ってDeepSeekが独自に選出。穴馬重視の視点で補欠候補を提示し、1st AIとの差分を表示する。</div>
-          </div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-left"><div class="tl-dot" style="background:#06b6d4;"></div><div class="tl-line"></div></div>
-          <div class="tl-right">
-            <div class="tl-time">毎日 21:30（夜間バッチ・AIコストなし）</div>
-            <div class="tl-label">フェーズパターン別回収率を集計・更新</div>
-            <div class="tl-desc">前半（計測開始→12分前）・後半（12分前→6分前）フェーズ方向の組み合わせ9パターン × 人気帯（4区分）ごとの単勝回収率・勝率をSQLで集計し、翌日の①プロンプトへ反映する。</div>
-          </div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-left"><div class="tl-dot" style="background:#06b6d4;"></div><div class="tl-line"></div></div>
-          <div class="tl-right">
-            <div class="tl-time">毎日 22:10（夜間バッチ・AIコストなし）</div>
-            <div class="tl-label">変化率帯別回収率を集計・更新</div>
-            <div class="tl-desc">計測開始→6分前のオッズ変化率帯 × 人気帯（36通り）ごとの単勝回収率・勝率をSQLで集計し、翌日の①プロンプトへ反映する。</div>
-          </div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-left"><div class="tl-dot" style="background:#06b6d4;"></div><div class="tl-line"></div></div>
-          <div class="tl-right">
-            <div class="tl-time">毎日 22:20（夜間バッチ・AIコストなし）</div>
-            <div class="tl-label">OPI帯別回収率を集計・更新</div>
-            <div class="tl-desc">OPI値を7帯に分類し、人気帯との組み合わせ（最大28通り）ごとの単勝回収率・勝率をSQLで集計し、翌日の①プロンプトへ反映する。</div>
-          </div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-left"><div class="tl-dot" style="background:#f59e0b;"></div><div class="tl-line"></div></div>
-          <div class="tl-right">
-            <div class="tl-time">毎日 23:00（レース後）</div>
-            <div class="tl-label">② 回収率視点での振り返り</div>
-            <div class="tl-desc">終わったレースをAIが後から検証。高オッズ馬を見抜けたか、低オッズばかりでなかったかを問い直す。</div>
-          </div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-left"><div class="tl-dot" style="background:#8b5cf6;"></div></div>
-          <div class="tl-right">
-            <div class="tl-time">毎日 23:20</div>
-            <div class="tl-label">③ 判断基準ファイルを更新</div>
-            <div class="tl-desc">振り返りを集約してbaganriki_brain.txtを更新。翌日の①②がこのファイルを読んで判断に活かす。</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
+  <script>
+    function switchTab(id) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      event.target.classList.add('active');
+    }
+    function toggleBlock(header) {
+      header.closest('.block').classList.toggle('collapsed');
+    }
+  </script>
 </body>
 </html>
