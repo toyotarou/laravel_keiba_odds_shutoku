@@ -298,6 +298,7 @@ class AdminController extends Controller
             'SummaryRacesIntrospection'           => '過去レースのオッズ推移と実際の着順をAIに送り、有力馬選出の振り返り（ピックアップ・結果・分析）を生成してDBに保存するバッチ。バッチ並列送信・リトライ・フォーマット自動補正付き。回収率向上を目的とした自己学習用。',
             'SummaryMakeBaganrikiBrain'           => '過去の振り返り分析テキストを30件ずつAIに送り、「有力馬の選び方の目線（脳みそ）」を段階的に統合・磨き上げてファイルに書き出すバッチ。次回のAI分析プロンプトの羅針盤として読み込まれ、回収率向上に活用される。',
             'SummarySimilarRaceStats'             => '過去レースの人気順×頭数帯（小/中/大）ごとに3着以内率・5着以内率・平均着順をDB側GROUP BYで集計（最大54行）してDBに保存するバッチ。AI分析プロンプトで「過去の類似レース傾向」として参照される。',
+            'SummaryAiAnalysisCompensate'         => '当日レースのAI予想未実行分を検知し、オッズ確認後に1st AI・2nd AIを順次補完実行する。空振り時もWebPushで通知する日次補完コマンド。',
         ];
 
         $SQL = " select * from t_horse_odds_finder_push_send_logs where title = 'develop' and body not like '%時刻修正%' order by body, sent_at; ";
