@@ -1,20 +1,4 @@
 [centos@os3-327-53119 ~]$ crontab -l
-  # 土曜5:00 Historyテーブルから、類似リストを作成するために、t_horse_odds_finder_races_popularity_ratioを作成する
-  0 5 * * 6 php /var/www/horse_odds_finder/artisan keiba:summaryRacesPopularityRatio >> /var/www/horse_odds_finder/storage/logs/summaryRacesPopularityRatio.log 2>&1
-
-
-
-  # t_horse_odds_finder_horse_scoresに馬のスコアを作成する
-  30 5 * * 6 flock -n /tmp/keiba_SummaryCalculateHorseScore.lock php /var/www/horse_odds_finder/artisan keiba:summaryCalculateHorseScore >> /var/www/horse_odds_finder/storage/logs/SummaryCalculateHorseScore.log 2>&1
-  30 5 * * 0 flock -n /tmp/keiba_SummaryCalculateHorseScore.lock php /var/www/horse_odds_finder/artisan keiba:summaryCalculateHorseScore >> /var/www/horse_odds_finder/storage/logs/SummaryCalculateHorseScore.log 2>&1
-
-
-
-  # t_horse_odds_finder_jockey_scoresにジョッキーのスコアを作成する
-  40 5 * * 6 flock -n /tmp/keiba_SummaryCalculateJockeyScore.lock php /var/www/horse_odds_finder/artisan keiba:summaryCalculateJockeyScore >> /var/www/horse_odds_finder/storage/logs/SummaryCalculateJockeyScore.log 2>&1
-  40 5 * * 0 flock -n /tmp/keiba_SummaryCalculateJockeyScore.lock php /var/www/horse_odds_finder/artisan keiba:summaryCalculateJockeyScore >> /var/www/horse_odds_finder/storage/logs/SummaryCalculateJockeyScore.log 2>&1
-
-
 
   # 土曜5:50 全テーブルをTRUNCATEする（importScheduleより前に実行）
   50 5 * * 6 php /var/www/horse_odds_finder/artisan keiba:deleteKeibaTableRecords >> /var/www/horse_odds_finder/storage/logs/deleteKeibaTableRecords.log 2>&1
@@ -26,8 +10,25 @@
 
 
 
+  # 土曜6:10 Historyテーブルから、類似リストを作成するために、t_horse_odds_finder_races_popularity_ratioを作成する
+  10 6 * * 6 php /var/www/horse_odds_finder/artisan keiba:summaryRacesPopularityRatio >> /var/www/horse_odds_finder/storage/logs/summaryRacesPopularityRatio.log 2>&1
+
+
+
+  # t_horse_odds_finder_horse_scoresに馬のスコアを作成する
+  20 6 * * 6 flock -n /tmp/keiba_SummaryCalculateHorseScore.lock php /var/www/horse_odds_finder/artisan keiba:summaryCalculateHorseScore >> /var/www/horse_odds_finder/storage/logs/SummaryCalculateHorseScore.log 2>&1
+  20 6 * * 0 flock -n /tmp/keiba_SummaryCalculateHorseScore.lock php /var/www/horse_odds_finder/artisan keiba:summaryCalculateHorseScore >> /var/www/horse_odds_finder/storage/logs/SummaryCalculateHorseScore.log 2>&1
+
+
+
+  # t_horse_odds_finder_jockey_scoresにジョッキーのスコアを作成する
+  30 6 * * 6 flock -n /tmp/keiba_SummaryCalculateJockeyScore.lock php /var/www/horse_odds_finder/artisan keiba:summaryCalculateJockeyScore >> /var/www/horse_odds_finder/storage/logs/SummaryCalculateJockeyScore.log 2>&1
+  30 6 * * 0 flock -n /tmp/keiba_SummaryCalculateJockeyScore.lock php /var/www/horse_odds_finder/artisan keiba:summaryCalculateJockeyScore >> /var/www/horse_odds_finder/storage/logs/SummaryCalculateJockeyScore.log 2>&1
+
+
+
   # 毎日6:30 AIの的中率を算出する
-  30 6 * * * php /var/www/horse_odds_finder/artisan keiba:ai-analysis-check >> /var/www/horse_odds_finder/storage/logs/aiAnalysisCheck.log 2>&1
+#  30 6 * * * php /var/www/horse_odds_finder/artisan keiba:ai-analysis-check >> /var/www/horse_odds_finder/storage/logs/aiAnalysisCheck.log 2>&1
 
 
 
@@ -85,55 +86,90 @@
 
 
 
-  # 毎日20:40 波乱度数値用のデータを作成するために、t_horse_odds_finder_race_result_historyの人気順（popularity_rank）を投入する
-  40 20 * * * php /var/www/horse_odds_finder/artisan keiba:summaryHistoryPopularityRank >> /var/www/horse_odds_finder/storage/logs/summaryHistoryPopularityRank.log 2>&1
-
-
-
-  # 土曜日以外20:50 波乱度数値用のデータを作成するために、t_horse_odds_finder_popularity_rank_averageの1位から18位の平均オッズを作成する
-  50 20 * * 0-5 php /var/www/horse_odds_finder/artisan keiba:summaryPopularityRankAverage >> /var/www/horse_odds_finder/storage/logs/summaryPopularityRankAverage.log 2>&1
-
-
-
-  # 毎日21:00 t_horse_odds_finder_race_result_historyの着順（finishing_position）を投入する
-  0 21 * * * php /var/www/horse_odds_finder/artisan keiba:summaryHistoryFinishingPosition >> /var/www/horse_odds_finder/storage/logs/summaryHistoryFinishingPosition.log 2>&1
-
-
-
-  # 毎日21:20 期待数値でピックアップした馬の中に、勝ち馬が何頭入っているか、のチェック
-  20 21 * * * php /var/www/horse_odds_finder/artisan keiba:popularityHorseCheck >> /var/www/horse_odds_finder/storage/logs/popularityHorseCheck.log 2>&1
-
-
-
-  # 毎日21:30 払い戻し金を取得する
-  40 21 * * * php /var/www/horse_odds_finder/artisan keiba:importRaceResultPayout >> /var/www/horse_odds_finder/storage/logs/importRaceResultPayout.log 2>&1
-
-
-
-  # 出走情報
-  0 22 * * * flock -n /tmp/keiba_importShutsubaHistory.lock php /var/www/horse_odds_finder/artisan keiba:importShutsubaHistory >> /var/www/horse_odds_finder/storage/logs/importShutsubaHistory.log 2>&1
-
-
-
-  # t_horse_odds_finder_race_result_payoutのcourse,distを埋める
-  20 22 * * * flock -n /tmp/keiba_importPayoutCourseDist.lock php /var/www/horse_odds_finder/artisan keiba:importPayoutCourseDist >> /var/www/horse_odds_finder/storage/logs/importPayoutCourseDist.log 2>&1
-
-
-
-  # t_horse_odds_finder_race_result_payoutのinner_outerを埋める
-  40 22 * * * flock -n /tmp/keiba_importPayoutInnerOuter.lock php /var/www/horse_odds_finder/artisan keiba:importPayoutInnerOuter >> /var/www/horse_odds_finder/storage/logs/importPayoutInnerOuter.log 2>&1
+  # 毎日20:40 t_horse_odds_finder_race_result_historyの着順（finishing_position）を投入する
+  40 20 * * * php /var/www/horse_odds_finder/artisan keiba:summaryHistoryFinishingPosition >> /var/www/horse_odds_finder/storage/logs/summaryHistoryFinishingPosition.log 2>&1
 
 
 
   # t_horse_odds_finder_summaryの判定をclaude codeに渡して、反省文を書かせる
-  0 23 * * * flock -n /tmp/keiba_SummaryRacesIntrospection.lock php /var/www/horse_odds_finder/artisan keiba:SummaryRacesIntrospection >> /var/www/horse_odds_finder/storage/logs/SummaryRacesIntrospection.log 2>&1
+  50 20 * * * flock -n /tmp/keiba_SummaryRacesIntrospection.lock php /var/www/horse_odds_finder/artisan keiba:SummaryRacesIntrospection >> /var/www/horse_odds_finder/storage/logs/SummaryRacesIntrospection.log 2>&1
+
+
+
+  # 毎日21:00 波乱度数値用のデータを作成するために、t_horse_odds_finder_race_result_historyの人気順（popularity_rank）を投入する
+  0 21 * * * php /var/www/horse_odds_finder/artisan keiba:summaryHistoryPopularityRank >> /var/www/horse_odds_finder/storage/logs/summaryHistoryPopularityRank.log 2>&1
+
+
+
+  # 土曜日以外21:10 波乱度数値用のデータを作成するために、t_horse_odds_finder_popularity_rank_averageの1位から18位の平均オッズを作成する
+  10 21 * * 0-5 php /var/www/horse_odds_finder/artisan keiba:summaryPopularityRankAverage >> /var/www/horse_odds_finder/storage/logs/summaryPopularityRankAverage.log 2>&1
+
+
+
+  # 毎日21:20 6分前オッズ→確定オッズの人気順位別補正係数を集計する（AIコストなし）
+  20 21 * * * flock -n /tmp/keiba_SummaryComputeOddsCorrection.lock php /var/www/horse_odds_finder/artisan keiba:SummaryComputeOddsCorrection >> /var/www/horse_odds_finder/storage/logs/SummaryComputeOddsCorrection.log 2>&1
+
+
+
+  # 毎日21:30 期待数値でピックアップした馬の中に、勝ち馬が何頭入っているか、のチェック
+  30 21 * * * php /var/www/horse_odds_finder/artisan keiba:popularityHorseCheck >> /var/www/horse_odds_finder/storage/logs/popularityHorseCheck.log 2>&1
+
+
+
+  # オッズの動き方のクセ（パターン）を過去データで統計化し、回収率に反映させる仕組み
+  40 21 * * * flock -n /tmp/keiba_SummaryOddsPhasePatternRecoveryRate.lock php /var/www/horse_odds_finder/artisan keiba:SummaryOddsPhasePatternRecoveryRate >> /var/www/horse_odds_finder/storage/logs/SummaryOddsPhasePatternRecoveryRate.log 2>&1
+
+
+
+  # 毎日21:50 払い戻し金を取得する
+  50 21 * * * php /var/www/horse_odds_finder/artisan keiba:importRaceResultPayout >> /var/www/horse_odds_finder/storage/logs/importRaceResultPayout.log 2>&1
+
+
+
+  # 毎日22:00 複勝OPI用・人気順別複勝オッズ平均を集計する
+  0 22 * * * php /var/www/horse_odds_finder/artisan keiba:summaryFukuPopularityRankAverage >> /var/www/horse_odds_finder/storage/logs/summaryFukuPopularityRankAverage.log 2>&1
+
+
+
+  # 出走情報
+  10 22 * * * flock -n /tmp/keiba_importShutsubaHistory.lock php /var/www/horse_odds_finder/artisan keiba:importShutsubaHistory >> /var/www/horse_odds_finder/storage/logs/importShutsubaHistory.log 2>&1
+
+
+
+  # 変化率帯 × 人気帯の回収率を保存する
+  20 22 * * * flock -n /tmp/keiba_SummaryOddsGapRecoveryRate.lock php /var/www/horse_odds_finder/artisan keiba:SummaryOddsGapRecoveryRate >> /var/www/horse_odds_finder/storage/logs/SummaryOddsGapRecoveryRate.log 2>&1
+
+
+
+  # 人気順ごとの過去平均オッズをt_horse_odds_finder_opi_recoveryに記録する
+  30 22 * * * flock -n /tmp/keiba_SummaryOpiRecoveryRate.lock php /var/www/horse_odds_finder/artisan keiba:SummaryOpiRecoveryRate >> /var/www/horse_odds_finder/storage/logs/SummaryOpiRecoveryRate.log 2>&1
+
+
+
+  # t_horse_odds_finder_race_result_payoutのcourse,distを埋める
+  40 22 * * * flock -n /tmp/keiba_importPayoutCourseDist.lock php /var/www/horse_odds_finder/artisan keiba:importPayoutCourseDist >> /var/www/horse_odds_finder/storage/logs/importPayoutCourseDist.log 2>&1
+
+
+
+  # t_horse_odds_finder_race_result_payoutのinner_outerを埋める
+  50 22 * * * flock -n /tmp/keiba_importPayoutInnerOuter.lock php /var/www/horse_odds_finder/artisan keiba:importPayoutInnerOuter >> /var/www/horse_odds_finder/storage/logs/importPayoutInnerOuter.log 2>&1
+
+
+
+  # レースのグレードを取得する
+  0 23 * * * flock -n /tmp/keiba_ImportKeibaPayoutGrade.lock php /var/www/horse_odds_finder/artisan keiba:importPayoutGrade >> /var/www/horse_odds_finder/storage/logs/ImportKeibaPayoutGrade.log 2>&1
+
+
+
+  # 毎日23:10 類似レース統計（人気順・頭数帯別の3着以内率等）を集計して保存する
+  10 23 * * * php /var/www/horse_odds_finder/artisan keiba:summarySimilarRaceStats >> /var/www/horse_odds_finder/storage/logs/summarySimilarRaceStats.log 2>&1
+
+
+
+  # 当日開催のレースのAI予想データが存在しない場合、補完実行する
+  40 23 * * * php /var/www/horse_odds_finder/artisan keiba:ai-analysis-compensate >> /var/www/horse_odds_finder/storage/logs/summaryAiAnalysisCompensate.log 2>&1
 
 
 
   # t_horse_odds_finder_race_introspectionのintrospectionをまとめて、馬眼力の脳みそを作成する
-  20 23 * * * flock -n /tmp/keiba_makeBaganrikiBrain.lock php /var/www/horse_odds_finder/artisan keiba:makeBaganrikiBrain >> /var/www/horse_odds_finder/storage/logs/makeBaganrikiBrain.log 2>&1
-
-
-
-
-[centos@os3-327-53119 ~]$ 
+  50 23 * * * flock -n /tmp/keiba_makeBaganrikiBrain.lock php /var/www/horse_odds_finder/artisan keiba:makeBaganrikiBrain >> /var/www/horse_odds_finder/storage/logs/makeBaganrikiBrain.log 2>&1

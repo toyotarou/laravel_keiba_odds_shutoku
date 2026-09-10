@@ -1526,6 +1526,8 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         $oddsData = preg_replace('/【おすすめ度の計算方法】.*?(?=\n選出馬|\n※|$)/s', '', $oddsData);
         // 「このシステムの目的（最重要）」ブロックを除去
         $oddsData = preg_replace('/【このシステムの目的（最重要）】.*?(?=\n選出馬|\n分析の観点|$)/s', '', $oddsData);
+        // ⑦ 「回収率優先・低配当除外ルール」ブロック全体を除去（新仕様追加）
+        $oddsData = preg_replace('/【回収率優先・低配当除外ルール[^】]*】.*?(?=\n【|\n選出馬|\n分析の観点|$)/s', '', $oddsData);
         // ─── 頭数から選出数を再計算（1st AIと同じロジック） ─────────────────
         $horseCount2nd = DB::table('t_horse_odds_finder_horses')
             ->where('date',   $date)
@@ -1603,9 +1605,13 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
 ・データが示す方向とまったく逆の馬を選ぶことも、理由が語れるなら正しい
 
 1st AI が見落としそうな角度・異なる解釈・少数派の視点——
-それがあなたの存在価値です。
+それがあなたの重要な役割です。ただし、1st AIとの不一致を目的にしてはいけません。
+同じデータを独立して分析した結果、1st AIと同じ馬を高く評価する場合は、その馬をそのまま選出してください。
+意図的に一致馬を避けたり、違う馬を選ぶためだけに根拠の弱い馬を追加したりすることは禁止です。
 
-「1st AIと同じ馬を同じ理由で選ぶ」のが最も価値のない回答です。
+一致馬は「独立した2つのAIが同じ結論に到達した信頼材料」、2nd AIだけの選出馬は
+「1st AIが拾えなかった可能性を補う独自発見材料」として、どちらも重要です。
+
 フォーマットだけ守って、中身は大胆に。
 
 有料公開するシステムなので、正しい日本語で返してください。
@@ -1665,6 +1671,31 @@ SYSTEM;
             ]);
         }
 
+        // ─── 1st AI テキスト取得 → 統合処理 ────────────────────────────────
+        $firstAiRecord = DB::table('t_horse_odds_finder_ai_analysis')
+            ->where('date',       $date)
+            ->where('kaisuu',     $kaisuu)
+            ->where('basho_code', $basho)
+            ->where('day',        $day)
+            ->where('race',       $race)
+            ->first(['analysis_text']);
+        $firstAiText = $firstAiRecord->analysis_text ?? '';
+
+        // 断層タイプを $oddsData テキストから抽出（デフォルト: B）
+        $gapTypeForMerge = 'B';
+        if (preg_match('/タイプ([A-E])[：:　\s]/u', $oddsData, $gtm)) {
+            $gapTypeForMerge = $gtm[1];
+        }
+
+        $firstAiHorses  = $this->_parseAiHorses($firstAiText);
+        $secondAiHorses = $this->_parseAiHorses($analysisText);
+        $mergedHorses   = $this->_mergeAiResults(
+            $firstAiHorses,
+            $secondAiHorses,
+            $gapTypeForMerge,
+            $horseCount2nd
+        );
+
         return response()->json(['data' => [
             'date'          => $date,
             'kaisuu'        => $kaisuu,
@@ -1672,6 +1703,7 @@ SYSTEM;
             'day'           => $day,
             'race'          => $race,
             'analysis_text' => $analysisText,
+            'merged_horses' => $mergedHorses,
         ]]);
 
     } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
@@ -1844,7 +1876,271 @@ SYSTEM;
 
         return $result;
     }
-    // ⚠️ Flutter未使用 - コメントアウト
+    // ─────────────────────────────────────────────────────────────────
+    // _parseAiHorses()
+    // AI 生テキストから選出馬の構造化配列を抽出する
+    // 期待フォーマット:
+    //   馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜
+    // ─────────────────────────────────────────────────────────────────
+    private function _parseAiHorses(string $aiText): array
+    {
+        $horses = [];
+        $lines  = explode("\n", $aiText);
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) continue;
+
+            if (!preg_match(
+                '/馬番[：:]\s*(\d+)[、,].*?馬名[：:]\s*([^、,\n]+)[、,].*?人気順[：: ]\s*(\d+)[、,].*?6分前オッズ[：: ]\s*([\d.]+)[、,].*?おすすめ度[：: ]\s*(\d+)[、,].*?選出理由[：:]\s*(.+)/us',
+                $line,
+                $m
+            )) {
+                continue;
+            }
+
+            $horses[] = [
+                'num'        => (int)   $m[1],
+                'name'       => trim(   $m[2]),
+                'popularity' => (int)   $m[3],
+                'odds_6'     => (float) $m[4],
+                'score'      => (int)   $m[5],
+                'reason'     => trim(   $m[6]),
+            ];
+        }
+
+        return $horses;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // _mergeAiResults()
+    // 1st AI / 2nd AI の選出結果を統合する
+    //
+    // 処理順:
+    //   1. 出走頭数別の最終表示上限を決定
+    //   2. 断層タイプ別の 2nd AI 独自発見枠上限を決定
+    //   3. 馬番をキーに first/second のインデックスを構築
+    //   4. matched / firstOnly / secondOnly に分類し統合おすすめ度を算出
+    //   5. 2nd AI 独自発見馬の採用条件判定（70点以上 + 根拠キーワード2件以上）
+    //   6. メイン候補（matched + firstOnly）をスコア降順にソート
+    //   7. 適格な 2nd 独自馬を独自発見枠として追加 or 入れ替え
+    //   8. displayLimit 以内にスライスして返す
+    //
+    // @param array  $firstAiHorses   1st AI の選出馬配列
+    // @param array  $secondAiHorses  2nd AI の選出馬配列
+    // @param string $gapType         断層タイプ（'A'〜'E'）
+    // @param int    $totalHorses     出走頭数
+    // @return array                  統合後の最終候補馬リスト（統合おすすめ度降順）
+    // ─────────────────────────────────────────────────────────────────
+    private function _mergeAiResults(
+        array  $firstAiHorses,
+        array  $secondAiHorses,
+        string $gapType,
+        int    $totalHorses
+    ): array {
+
+        // ── Step1: 出走頭数別の最終表示上限 ──────────────────────────
+        if ($totalHorses <= 8) {
+            $displayLimit = 4;
+        } elseif ($totalHorses <= 13) {
+            $displayLimit = 5;
+        } elseif ($totalHorses <= 15) {
+            $displayLimit = 6;
+        } else {
+            $displayLimit = 7;
+        }
+
+        // ── Step2: 断層タイプ別の 2nd AI 独自発見枠上限 ───────────────
+        // タイプ A は厳格条件（80点以上必須）で最大1頭、他は通常
+        $secondUniqueLimit = match ($gapType) {
+            'A'     => 1,
+            'B', 'C'=> 1,
+            'D', 'E'=> 2,
+            default => 1,
+        };
+        $strictScoreForA = ($gapType === 'A');
+
+        // ── Step3: 馬番をキーにしたインデックスを構築 ────────────────
+        $firstMap  = [];
+        foreach ($firstAiHorses as $h) {
+            $firstMap[$h['num']] = $h;
+        }
+        $secondMap = [];
+        foreach ($secondAiHorses as $h) {
+            $secondMap[$h['num']] = $h;
+        }
+
+        // ── Step4: 候補区分に分類し、統合おすすめ度を算出 ────────────
+        $allNums    = array_unique(array_merge(array_keys($firstMap), array_keys($secondMap)));
+        $matched    = [];   // 両 AI 一致馬
+        $firstOnly  = [];   // 1st AI 独自馬
+        $secondOnly = [];   // 2nd AI 独自発見馬
+
+        foreach ($allNums as $num) {
+            $inFirst  = isset($firstMap[$num]);
+            $inSecond = isset($secondMap[$num]);
+
+            if ($inFirst && $inSecond) {
+                // 統合おすすめ度 = 平均 + 5（上限100）
+                $avg   = ($firstMap[$num]['score'] + $secondMap[$num]['score']) / 2;
+                $score = min(100, (int) round($avg + 5));
+
+                $matched[] = [
+                    'num'        => $num,
+                    'name'       => $firstMap[$num]['name'],
+                    'score'      => $score,
+                    'score_1st'  => $firstMap[$num]['score'],
+                    'score_2nd'  => $secondMap[$num]['score'],
+                    'popularity' => $firstMap[$num]['popularity'] ?? null,
+                    'odds_6'     => $firstMap[$num]['odds_6']    ?? null,
+                    'reason'     => $firstMap[$num]['reason'],
+                    'reason_2nd' => $secondMap[$num]['reason'],
+                    'category'   => 'matched',
+                ];
+
+            } elseif ($inFirst) {
+                $firstOnly[] = [
+                    'num'        => $num,
+                    'name'       => $firstMap[$num]['name'],
+                    'score'      => $firstMap[$num]['score'],
+                    'score_1st'  => $firstMap[$num]['score'],
+                    'score_2nd'  => null,
+                    'popularity' => $firstMap[$num]['popularity'] ?? null,
+                    'odds_6'     => $firstMap[$num]['odds_6']    ?? null,
+                    'reason'     => $firstMap[$num]['reason'],
+                    'reason_2nd' => null,
+                    'category'   => 'first_only',
+                ];
+
+            } else {
+                $secondOnly[] = [
+                    'num'        => $num,
+                    'name'       => $secondMap[$num]['name'],
+                    'score'      => $secondMap[$num]['score'],
+                    'score_1st'  => null,
+                    'score_2nd'  => $secondMap[$num]['score'],
+                    'popularity' => $secondMap[$num]['popularity'] ?? null,
+                    'odds_6'     => $secondMap[$num]['odds_6']    ?? null,
+                    'reason'     => $secondMap[$num]['reason'],
+                    'reason_2nd' => null,
+                    'category'   => 'second_only',
+                ];
+            }
+        }
+
+        // ── Step5: 2nd AI 独自発見馬の採用条件判定 ────────────────────
+        // 条件: スコア ≥ 70（タイプA は ≥ 80）+ 客観的根拠キーワード 2 件以上
+        $evidenceKeywords = [
+            '複勝.*継続.*下落',
+            '継続.*複勝.*下落',
+            '複数時点.*下落',
+            '複勝.*流入.*継続',
+            '継続.*流入',
+            '複勝.*支持.*強',
+            '複勝人気.*単勝人気',
+            '複勝流入ランク.*[1-3]位',
+            '直前.*加速',
+            '直前加速',
+            '断層.*接近',
+            '断層.*縮小',
+            '断層.*矛盾',
+            '類似レース.*5着以内率',
+            '5着以内率.*[5-9][0-9]',
+            '予測補正OPI.*0\.[0-9]',
+            'OPI.*妙味',
+            '回収率.*110',
+            '回収率.*1[1-9][0-9]',
+            '回収率.*[2-9][0-9][0-9]',
+        ];
+
+        $qualifiedSecondOnly = [];
+        foreach ($secondOnly as $h) {
+            $minScore = $strictScoreForA ? 80 : 70;
+            if ($h['score'] < $minScore) continue;
+
+            $reason   = $h['reason'] ?? '';
+            $evidence = 0;
+            foreach ($evidenceKeywords as $kw) {
+                if (preg_match('/' . $kw . '/u', $reason)) {
+                    $evidence++;
+                    if ($evidence >= 2) break; // 2件確認できたら即終了
+                }
+            }
+            if ($evidence >= 2) {
+                $h['evidence_count'] = $evidence;
+                $qualifiedSecondOnly[] = $h;
+            }
+        }
+
+        // ── Step6: メイン候補をスコア降順でソート ─────────────────────
+        $mainCandidates = array_merge($matched, $firstOnly);
+        usort($mainCandidates, fn($a, $b) => $b['score'] <=> $a['score']);
+
+        // 2nd 独自もスコア降順に
+        usort($qualifiedSecondOnly, fn($a, $b) => $b['score'] <=> $a['score']);
+
+        // ── Step7: 独自発見枠の追加 / 入れ替え ───────────────────────
+        $secondUniqueAdded = 0;
+        foreach ($qualifiedSecondOnly as $candidate) {
+            if ($secondUniqueAdded >= $secondUniqueLimit) break;
+
+            // 現在の候補数が上限未満なら無条件追加
+            if (count($mainCandidates) < $displayLimit) {
+                $mainCandidates[] = $candidate;
+                $secondUniqueAdded++;
+                continue;
+            }
+
+            // 上限に達している場合、最低スコア候補と比較
+            usort($mainCandidates, fn($a, $b) => $b['score'] <=> $a['score']);
+            $weakest      = end($mainCandidates);
+            $weakestScore = $weakest['score'];
+
+            // スコアが上回る場合は入れ替え
+            if ($candidate['score'] > $weakestScore) {
+                array_pop($mainCandidates);
+                $mainCandidates[] = $candidate;
+                $secondUniqueAdded++;
+                continue;
+            }
+
+            // 5点差以内の接戦 → 4項目（回収率・複勝流入・断層・OPI）のうち2つ以上優れる場合も入れ替え
+            if (($weakestScore - $candidate['score']) <= 5) {
+                $cReason  = $candidate['reason'] ?? '';
+                $wReason  = $weakest['reason']   ?? '';
+                $superior = 0;
+
+                if (preg_match('/回収率.*1[1-9][0-9]|回収率.*[2-9][0-9][0-9]/u', $cReason) &&
+                   !preg_match('/回収率.*1[1-9][0-9]|回収率.*[2-9][0-9][0-9]/u', $wReason)) {
+                    $superior++;
+                }
+                if (preg_match('/複勝.*継続.*下落|継続.*流入/u', $cReason) &&
+                   !preg_match('/複勝.*継続.*下落|継続.*流入/u', $wReason)) {
+                    $superior++;
+                }
+                if (preg_match('/断層.*上側|断層.*接近/u', $cReason) &&
+                   !preg_match('/断層.*上側|断層.*接近/u', $wReason)) {
+                    $superior++;
+                }
+                if (preg_match('/予測補正OPI.*0\.[0-7][0-9]|OPI.*妙味/u', $cReason) &&
+                   !preg_match('/予測補正OPI.*0\.[0-7][0-9]|OPI.*妙味/u', $wReason)) {
+                    $superior++;
+                }
+
+                if ($superior >= 2) {
+                    array_pop($mainCandidates);
+                    $mainCandidates[] = $candidate;
+                    $secondUniqueAdded++;
+                }
+            }
+        }
+
+        // ── Step8: 最終的に displayLimit 以内にスライス ───────────────
+        usort($mainCandidates, fn($a, $b) => $b['score'] <=> $a['score']);
+
+        return array_slice($mainCandidates, 0, $displayLimit);
+    }
+
 
 
     // /**

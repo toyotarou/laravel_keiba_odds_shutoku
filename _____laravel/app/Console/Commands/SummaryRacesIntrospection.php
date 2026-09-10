@@ -287,6 +287,13 @@ ORDER BY date, kaisuu, basho, day, race;
 
                 $hasPickup = isset($pickupHorses[$raceKey]);
 
+                // hasPickup=true の場合は 1st AI が選んだ馬数を使用する。
+                // 頭数ベースの $pickupCount をそのまま使うと、AIが「3頭指定なのに5頭フォーマット」という
+                // 矛盾を解消するために余分な馬（例：ザハント）を勝手に追加してしまうため。
+                $effectivePickupCount = $hasPickup
+                    ? count($pickupHorses[$raceKey])
+                    : $pickupCount;
+
                 $msgs = [
                     "あなたは競馬のオッズ分析の専門家です。",
                     "",
@@ -300,10 +307,10 @@ ORDER BY date, kaisuu, basho, day, race;
                     "予測が当たった場合も、低オッズ馬ばかりだったなら「回収率の観点では不十分だった」と評価してください。",
                     "",
                     "【手順】",
-                    "1. 【単勝オッズ推移データ】のみを見て、有力馬を{$pickupCount}頭ピックアップしてください。",
+                    "1. 【単勝オッズ推移データ】のみを見て、有力馬を{$effectivePickupCount}頭ピックアップしてください。",
                     "   このとき、信頼度（来そうか）と妙味（そのオッズで価値があるか）の両方を考慮してください。",
                     "   信頼度が同等なら、オッズが高い馬を優先してください。",
-                    "2. 【実際のレース着順】を確認し、{$pickupCount}頭の選出馬の中に、1着から3着が何頭含まれているか照合してください。",
+                    "2. 【実際のレース着順】を確認し、{$effectivePickupCount}頭の選出馬の中に、1着から3着が何頭含まれているか照合してください。",
                     "3. 振り返りでは以下を必ず考えてください：",
                     "   ・入賞した高オッズ馬（6番人気以降）を選べたか、選べなかった場合はなぜか",
                     "   ・選出した馬が全員低オッズ（複勝2倍未満）だった場合、回収率の観点で問題がなかったか",
@@ -319,7 +326,7 @@ ORDER BY date, kaisuu, basho, day, race;
                     "○番 馬名",
                     "",
                     "## 結果",
-                    "{$pickupCount}頭中Y頭が合致",
+                    "{$effectivePickupCount}頭中Y頭が合致",
                     "",
                     "## 分析",
                     "分析テキスト（4〜5行の文章。箇条書き不要）",
@@ -735,12 +742,18 @@ ORDER BY date, kaisuu, basho, day, race;
         if (!str_contains($introspection, '## 結果')) return false;
         if (!str_contains($introspection, '## 分析')) return false;
 
-        // ## ピックアップ から馬番を取得（フォールバック付き）
+        // ## ピックアップ から馬番を取得
+        // knownPickupHorses が指定されている場合はそれを正とし、AIが勝手に追加した馬を無視する。
+        // （hasPickup=true の際に AI が余分な馬をピックアップに混入させるバグへの対策）
         $pickupPart = explode('## ピックアップ', $introspection, 2)[1] ?? '';
         if (str_contains($pickupPart, '## 結果')) {
             $pickupPart = explode('## 結果', $pickupPart, 2)[0];
         }
-        $pickupNums = $this->extractPickupNums($pickupPart, $knownPickupHorses);
+        if (!empty($knownPickupHorses)) {
+            $pickupNums = array_map('strval', $knownPickupHorses);
+        } else {
+            $pickupNums = $this->extractPickupNums($pickupPart, []);
+        }
 
         if (empty($pickupNums)) return false;
 
@@ -785,12 +798,17 @@ ORDER BY date, kaisuu, basho, day, race;
             return null;
         }
 
-        // ## ピックアップ から馬番を取得（フォールバック付き）
+        // ## ピックアップ から馬番を取得
+        // knownPickupHorses が指定されている場合はそれを正とし、AIが勝手に追加した馬を無視する。
         $pickupPart = explode('## ピックアップ', $introspection, 2)[1] ?? '';
         if (str_contains($pickupPart, '## 結果')) {
             $pickupPart = explode('## 結果', $pickupPart, 2)[0];
         }
-        $pickupNums = $this->extractPickupNums($pickupPart, $knownPickupHorses);
+        if (!empty($knownPickupHorses)) {
+            $pickupNums = array_map('strval', $knownPickupHorses);
+        } else {
+            $pickupNums = $this->extractPickupNums($pickupPart, []);
+        }
 
         if (empty($pickupNums)) return null;
 
