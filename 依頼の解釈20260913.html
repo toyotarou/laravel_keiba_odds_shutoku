@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>依頼の解釈 — 2026-09-13</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      font-size: 15px; line-height: 1.85; color: #1a1a1a; background: #f5f5f0; padding: 14px;
+    }
+    .page { max-width: 720px; margin: 0 auto; }
+
+    header {
+      background: linear-gradient(135deg, #1a2a3a 0%, #0d3a5c 100%);
+      color: #fff; border-radius: 12px; padding: 22px 18px 18px; margin-bottom: 20px;
+    }
+    header h1 { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
+    header .sub { font-size: 13px; color: #90b8d8; }
+
+    .lead {
+      background: #f0fff4; border: 2px solid #48bb78; border-radius: 10px;
+      padding: 16px 18px; margin-bottom: 20px; font-size: 14px; line-height: 1.8;
+    }
+
+    section {
+      background: #fff; border-radius: 12px; padding: 20px 18px;
+      margin-bottom: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+
+    h2 {
+      font-size: 16px; font-weight: 800; color: #1a2a3a;
+      border-bottom: 2px solid #dde4ee; padding-bottom: 10px; margin-bottom: 18px;
+    }
+    h2 .num {
+      display: inline-block; background: #1a2a3a; color: #fff;
+      border-radius: 5px; font-size: 12px; padding: 2px 8px; margin-right: 7px;
+    }
+    h3 {
+      font-size: 14px; font-weight: 700; color: #1a4a7a;
+      margin: 16px 0 8px; padding-left: 10px; border-left: 3px solid #2a6abf;
+    }
+
+    p { font-size: 14px; margin-bottom: 10px; }
+    p:last-child { margin-bottom: 0; }
+
+    /* よっしーの気持ち */
+    .kimo {
+      background: #fef6ff; border-left: 5px solid #9b59b6;
+      border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 10px 0;
+    }
+    .kimo .lbl { font-size: 11px; font-weight: 700; color: #9b59b6; letter-spacing: 0.06em; margin-bottom: 5px; }
+    .kimo p { font-size: 14px; color: #3a1a5a; margin: 0; }
+
+    /* こちらの受け取り */
+    .recv {
+      background: #f0fff4; border-left: 5px solid #38a169;
+      border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 10px 0;
+    }
+    .recv .lbl { font-size: 11px; font-weight: 700; color: #187a3a; letter-spacing: 0.06em; margin-bottom: 5px; }
+    .recv p { font-size: 14px; color: #1a3a2a; margin: 0; }
+
+    /* 仕様書引用 */
+    .spec-q {
+      background: #eef4fb; border-left: 4px solid #2a6abf;
+      border-radius: 0 6px 6px 0; padding: 11px 14px;
+      font-size: 13px; color: #1a3a5a; margin: 10px 0;
+      white-space: pre-wrap; line-height: 1.7;
+    }
+    .spec-q .qlbl { font-size: 10px; font-weight: 700; color: #2a6abf; letter-spacing: 0.06em; margin-bottom: 4px; }
+
+    /* 変更前後 */
+    .diff { display: flex; gap: 8px; margin: 10px 0; }
+    .diff > div { flex: 1; border-radius: 6px; padding: 10px 12px; font-size: 13px; line-height: 1.65; }
+    .diff-b { background: #fff5f5; border: 1px solid #fc8181; }
+    .diff-a { background: #f0fff4; border: 1px solid #68d391; }
+    .dlbl { font-size: 10px; font-weight: 700; margin-bottom: 4px; letter-spacing: 0.04em; }
+    .diff-b .dlbl { color: #c00; }
+    .diff-a .dlbl { color: #187a3a; }
+
+    /* 実装詳細ボックス */
+    .impl {
+      background: #f0f4fa; border: 1px solid #c0d0e8;
+      border-radius: 8px; padding: 14px 16px; margin: 10px 0;
+    }
+    .impl .lbl { font-size: 11px; font-weight: 700; color: #2a4a7a; letter-spacing: 0.06em; margin-bottom: 8px; }
+
+    /* コードブロック風 */
+    .code-block {
+      background: #1a2a3a; color: #c8e0f8; border-radius: 8px;
+      padding: 12px 14px; font-size: 12px; font-family: "SF Mono", "Courier New", monospace;
+      line-height: 1.7; margin: 8px 0; white-space: pre-wrap; overflow-x: auto;
+    }
+    .code-block .cm { color: #6a9abf; }
+    .code-block .kw { color: #f0a060; }
+    .code-block .str { color: #90d080; }
+    .code-block .var { color: #c8e0f8; }
+
+    /* ステップリスト */
+    .steps { list-style: none; counter-reset: step; }
+    .steps li {
+      counter-increment: step;
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 9px 0; border-bottom: 1px solid #e8eef8;
+      font-size: 13px; line-height: 1.65;
+    }
+    .steps li:last-child { border-bottom: none; }
+    .steps li::before {
+      content: counter(step);
+      display: inline-flex; align-items: center; justify-content: center;
+      background: #1a2a3a; color: #fff;
+      border-radius: 50%; width: 22px; height: 22px;
+      font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+    }
+
+    /* テーブル */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+    th { background: #1a2a3a; color: #fff; padding: 9px 11px; text-align: left; font-weight: 600; }
+    td { padding: 9px 11px; border-bottom: 1px solid #e8e8e8; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: #f8f9fc; }
+
+    .badge { display: inline-block; border-radius: 4px; font-size: 11px; font-weight: 700; padding: 2px 7px; }
+    .badge-red  { background: #ffe0e0; color: #c00; }
+    .badge-ok   { background: #e0f4e8; color: #187a3a; }
+    .badge-warn { background: #fff3e0; color: #a05000; }
+
+    /* 追加項目リスト */
+    .add-list { list-style: none; }
+    .add-list li {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 9px 0; border-bottom: 1px solid #eef0f4; font-size: 13px; line-height: 1.65;
+    }
+    .add-list li:last-child { border-bottom: none; }
+    .add-list li::before { content: "➕"; flex-shrink: 0; margin-top: 1px; }
+
+    /* 約束 */
+    .promise-list { list-style: none; }
+    .promise-list li {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 9px 0; border-bottom: 1px solid #eef0f4; font-size: 14px;
+    }
+    .promise-list li:last-child { border-bottom: none; }
+    .promise-list li::before { content: "✅"; flex-shrink: 0; margin-top: 2px; }
+
+    /* 作業メモ */
+    .memo-wrap {
+      background: #f8f9fa; border: 1px dashed #b0b8c8;
+      border-radius: 10px; padding: 18px; margin-bottom: 16px;
+    }
+    .memo-wrap h2 { color: #556; border-bottom-color: #ccd0d8; }
+    .memo-wrap h2 .num { background: #778; }
+    .memo-item { margin-bottom: 14px; border-left: 3px solid #b0b8c8; padding-left: 12px; }
+    .memo-item:last-child { margin-bottom: 0; }
+    .memo-item h3 { font-size: 13px; font-weight: 700; color: #445; margin-bottom: 5px; }
+    .memo-item p  { font-size: 12px; color: #556; margin-bottom: 0; }
+
+    footer { text-align: center; color: #aaa; font-size: 12px; padding: 14px 0 6px; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <h1>依頼の解釈 — よっしーの気持ちの受け取り確認</h1>
+    <p class="sub">作成日：2026-09-13（JST）　作成者：英之（エンジニア側）</p>
+    <p class="sub">対象仕様書：馬眼力_エンジニア提出用_最終確定版_固定配点・断層パターン学習強化_2026-09-10</p>
+  </header>
+
+  <div class="lead">
+    最初の追加対応HTMLに、仕様書と異なる記述が複数ありました。<br>
+    この資料では「よっしーが言いたかったこと」「それを受けてどう変えたか」「実際の処理内容はどうなるか」を項目ごとに記録しています。
+  </div>
+
+  <!-- ============================================================
+       1. 2nd AIの役割
+  ============================================================= -->
+  <section>
+    <h2><span class="num">1</span>2nd AI（DeepSeek）の役割</h2>
+
+    <div class="kimo">
+      <div class="lbl">💜 よっしーの気持ち</div>
+      <p>「2nd AIは1st AIとは独立して、出走全頭を独自評価するAIだ。ユニーク馬専用ではない。仕様書に『全頭を評価してから候補を決める』と絶対ルールとして書いてある。」</p>
+    </div>
+
+    <div class="recv">
+      <div class="lbl">✅ こちらの受け取り＋変更内容</div>
+      <p>「ユニーク馬専用」は誤りでした。2nd AIは全頭を独立評価します。「独自発見馬」とは役割名ではなく「2nd AIが選んだ候補の中で1st AIが選ばなかった馬」という結果の分類名です。</p>
+    </div>
+
+    <div class="spec-q">
+      <div class="qlbl">仕様書 原文</div>
+あなたはDeepSeek-V3です。1st AIとは独立して、出走全頭のオッズ推移と過去成績を独自評価してください。
+【絶対ルール】全頭を評価してから候補を決める
+受入チェック #1：1レースにつき外部AI呼び出しがClaudeとDeepSeekの合計2回だけである</div>
+
+    <div class="diff">
+      <div class="diff-b"><div class="dlbl">❌ 最初のHTML（誤り）</div>「2nd AI（DeepSeek）はユニーク馬評価に特化。1st AIが選ばなかった馬を中心に独自評価を行う」</div>
+      <div class="diff-a"><div class="dlbl">✅ 改訂版計画書（修正後）</div>「2nd AI（DeepSeek）は1st AIとは独立して出走全頭のオッズ推移と過去成績を独自評価する。全頭を評価したうえで候補を決定する。」</div>
+    </div>
+
+    <h3>実装上の処理内容</h3>
+    <div class="impl">
+      <div class="lbl">📋 PHPが行うこと</div>
+      <ul class="steps">
+        <li>1st AI（Claude）へ全頭のオッズ＋過去成績データを含むプロンプトを送信し、応答を取得する（最大7頭・厳選穴レース出力・レース指標出力あり）</li>
+        <li>2nd AI（DeepSeek）へも全頭のオッズ＋過去成績データを含む独立したプロンプトを送信し、応答を取得する（最大5頭・厳選穴レース出力なし・DeepSeek独自のシステム指示を使用・1st AIの応答は渡さない）</li>
+        <li>両AI応答を馬番でマージする。同じ馬番が両方に含まれていれば「一致馬」、片方だけなら「独自馬」と分類する</li>
+        <li>2nd AIが選んだ馬の中で1st AIが選んでいなかった馬 = 「2nd AI独自発見馬」として扱う（評価役割の違いではなく、選出結果の分類）</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       2. 能力・適性データの渡し先
+  ============================================================= -->
+  <section>
+    <h2><span class="num">2</span>能力・適性の過去成績データの渡し先</h2>
+
+    <div class="kimo">
+      <div class="lbl">💜 よっしーの気持ち</div>
+      <p>「能力・適性の過去成績データは1st AIにも2nd AIにも同じものを渡すと、仕様書に4か所以上書いてある。なぜDeepSeekだけになっている？両AIが同じ条件で独立評価できなければ意味がない。」</p>
+    </div>
+
+    <div class="recv">
+      <div class="lbl">✅ こちらの受け取り＋変更内容</div>
+      <p>Claude（1st AI）にもDeepSeek（2nd AI）にも、まったく同じ過去成績データを渡します。両AIがそれぞれの独立した1回のAPI呼び出しの中で、時系列オッズ分析と能力・適性評価の両方を実施します。</p>
+    </div>
+
+    <div class="spec-q">
+      <div class="qlbl">仕様書 原文</div>
+以下の過去成績データを、既存の時系列オッズデータと一緒に1st AI・2nd AIの両方へ渡してください。
+同じ過去成績・適性データブロックを1st AIと2nd AIの両方へ渡す
+受入チェック #2：両AIへ同じ6分前までのオッズ、断層、回収率、類似レース、能力・適性データが渡る
+実装最終確認：能力・適性データは両AIの既存プロンプトへ追加する</div>
+
+    <div class="diff">
+      <div class="diff-b"><div class="dlbl">❌ 最初のHTML（誤り）</div>「過去成績データはDeepSeek（2nd AI）のプロンプトへ追加。DeepSeekが能力・適性評価を担当。Claudeはオッズ分析に専念。」</div>
+      <div class="diff-a"><div class="dlbl">✅ 改訂版計画書（修正後）</div>「同じ過去成績・適性データブロックを1st AI（Claude）と2nd AI（DeepSeek）の両方のプロンプトへ追加する。両AIがそれぞれの実行内で全頭の能力・適性を評価する。」</div>
+    </div>
+
+    <h3>実装上の処理内容</h3>
+    <div class="impl">
+      <div class="lbl">📋 PHPが行うこと — プロンプト構成</div>
+      <ul class="steps">
+        <li>土日7:30の既存バッチで、全出走馬の直近5〜10走と適性データを取得・整形する（既存テーブルを使用。第3AI専用テーブルは新設しない）</li>
+        <li>1st AI（Claude）へ送るプロンプト＝「既存オッズ・断層データ」＋「過去成績データブロック」＋「能力・適性評価指示（100点採点6項目）」＋「Claudeシステム指示（最大7頭・厳選穴レース・レース指標出力あり）」</li>
+        <li>2nd AI（DeepSeek）へ送るプロンプト＝「既存オッズ・断層データ（同一）」＋「過去成績データブロック（同一）」＋「能力・適性評価指示（同一）」＋「DeepSeek専用システム指示（最大5頭・厳選穴レースなし・DeepSeek独自役割説明）」。<strong>システム指示・出力形式・候補上限はAI別に異なる</strong></li>
+        <li>両AI応答の選出理由冒頭に「能力適性:A（82点）」の形式で出力されることをPHPが確認・パースする</li>
+      </ul>
+    </div>
+    <div class="impl">
+      <div class="lbl">📋 PHPが行うこと — パース処理</div>
+      <div class="code-block"><span class="cm">// 選出理由冒頭から能力適性評価を抽出</span>
+<span class="kw">preg_match</span>(<span class="str">'/^能力適性:([A-D])（(\d+)点）/u'</span>, $selectionReason, $m);
+<span class="cm">// $m[1] = グレード（A/B/C/D）, $m[2] = ability_score（整数）</span>
+
+<span class="cm">// 能力適性補正（AI回答後にPHPが算出）</span>
+<span class="cm">// 一致馬：両AIのability_score平均（小数第1位四捨五入）で補正決定</span>
+<span class="cm">// 独自馬：そのAIのability_scoreで補正決定</span>
+$correction = <span class="kw">match</span>(<span class="kw">true</span>) {
+    $avgScore >= 80 => 20,  <span class="cm">// A（80〜100点）→ 20点</span>
+    $avgScore >= 70 => 14,  <span class="cm">// B（70〜79点）→ 14点</span>
+    $avgScore >= 60 => 7,   <span class="cm">// C（60〜69点）→ 7点</span>
+    <span class="kw">default</span>          => 0,  <span class="cm">// D（59点以下） → 0点</span>
+};</div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       3. 高配当スコアのシャドー期間中の処理
+  ============================================================= -->
+  <section>
+    <h2><span class="num">3</span>高配当総合点のシャドー期間中の扱い</h2>
+
+    <div class="kimo">
+      <div class="lbl">💜 よっしーの気持ち</div>
+      <p>「シャドー期間中も市場妙味基礎点・高配当総合点はPHP内部で算出してログに保存すると書いた。Flutterに出さないだけで、算出はする。最初のHTMLでは『Phase 1はログ保存のみ（内部算出なし）』になっていた。算出しなかったらログに何を保存するんだ？」</p>
+    </div>
+
+    <div class="recv">
+      <div class="lbl">✅ こちらの受け取り＋変更内容</div>
+      <p>「算出してログ保存」と「Flutterに表示」は完全に別の話です。シャドー期間中から市場妙味基礎点・高配当総合点をPHP内部で算出しログ保存します。Flutter本番表示への反映は200〜300レース検証完了後・明示的に本番有効化した場合のみです。</p>
+    </div>
+
+    <div class="spec-q">
+      <div class="qlbl">仕様書 原文（高配当精度強化仕様 実装段階 / シャドー検証中の表示制御）</div>
+第1段階（直ちに実装可能）：既存の6分前までのデータだけで「市場妙味基礎点80点」をPHP算出する。
+シャドー検証中は両AIへ送信せず、AI回答後に能力適性補正20点をPHPで加え、
+高配当総合点と仮順位をログ保存する。
+
+シャドー検証期間中も市場妙味基礎点、高配当総合点、市場過小評価フラグ、偽流入警戒、
+不一致馬A〜D分類、馬券判定をPHP内部で算出し、仮順位とともにログ保存する。
+ただし、これらの値は候補の採用・除外・入替・並び順へ使用せず、
+Flutterの選出理由にも追記しない。</div>
+
+    <div class="diff">
+      <div class="diff-b"><div class="dlbl">❌ 最初のHTML（誤り）</div>「Phase 1（シャドー期間）：高配当関連スコアのログ保存のみ。PHP内部算出は未実装でよい。本番有効化後に算出処理を追加する。」</div>
+      <div class="diff-a"><div class="dlbl">✅ 改訂版計画書（修正後）</div>「シャドー検証期間中も市場妙味基礎点・高配当総合点・市場過小評価フラグ・偽流入警戒・不一致馬A〜D分類・馬券判定をPHP内部で算出し、仮順位とともにログ保存する。Flutterへは表示しない。Flutter追記は本番有効化後のみ。」</div>
+    </div>
+
+    <h3>実装上の処理内容 — 市場妙味基礎点（0〜80点）の算出</h3>
+    <div class="impl">
+      <div class="lbl">📋 PHPが算出する5項目（A〜E）</div>
+      <table>
+        <tr><th>項目</th><th>配点</th><th>算出内容</th></tr>
+        <tr>
+          <td>A 複勝継続流入</td><td>0〜25点</td>
+          <td>計測期間中の複勝オッズが3区間以上低下かつ9分前→6分前も低下：25点 / 3区間以上低下だが9→6が横ばい：18点 / 2区間低下かつ9→6も低下：12点 / それ以外：0点</td>
+        </tr>
+        <tr>
+          <td>B 複勝優位支持</td><td>0〜15点</td>
+          <td>複勝人気順位が単勝人気順位より3順位以上高い：15点 / 2順位：10点 / 1順位：5点 / 同順位以下：0点</td>
+        </tr>
+        <tr>
+          <td>C 予測補正OPI</td><td>0〜15点</td>
+          <td>OPI≦0.75：15点 / 0.76〜0.85：12点 / 0.86〜0.95：7点 / 0.96〜1.10：3点 / 1.11以上：0点</td>
+        </tr>
+        <tr>
+          <td>D 回収率の裏付け</td><td>0〜15点</td>
+          <td>110%以上が2種類以上かつ1種類以上サンプル100件以上：15点 / 110%以上が2種類以上：12点 / 110%以上が1種類＋別の有効値1種類以上100%以上：8点 / 100〜109%が2種類以上かつ110%以上0種類：4点 / それ以外：0点</td>
+        </tr>
+        <tr>
+          <td>E 断層構造の穴進入根拠</td><td>0〜10点</td>
+          <td>断層下側に位置し断層がS→6分前で縮小かつ複勝継続流入あり：10点 / 単勝・複勝断層が不一致かつ複勝継続流入あり：8点 / 主断層へ接近中かつ複勝継続流入あり：6点 / それ以外：0点</td>
+        </tr>
+      </table>
+      <p style="font-size:12px; color:#c00; margin-top:8px; font-weight:700;">
+        ⚠️ 上表は大筋を示したものです。実装時は必ず最新確定版TXTの原文・数値・欠損処理をそのまま使用してください。<br>
+        上表で省略している主な細部条件：複勝変化率「2%超」「±2%以内」の区分 ／ 計測時点が4時点未満の場合はAを「不明」 ／ 複勝人気順位が同値の場合は同順位扱い ／ OPIは小数第2位へ丸めてから帯判定 ／ D点の有効値が2種類未満の場合は「不明」 ／ 断層縮小は最大比率から10%以上低下が条件 ／ 主断層への接近は直前2区間連続低下など。これらはTXT原文が優先。
+      </p>
+      <p style="font-size:12px; color:#444; margin-top:6px;">
+        ※欠損項目は「不明」として扱い0点に置換しない。有効項目の配点合計を分母として80点換算する。有効項目の満点合計が50点未満の場合は「信頼度不足」として基礎点を「不明」とする（0点扱い禁止）。
+      </p>
+    </div>
+
+    <h3>実装上の処理内容 — 高配当総合点の算出フロー</h3>
+    <div class="impl">
+      <div class="lbl">📋 PHPの処理順序（循環計算禁止）</div>
+      <ul class="steps">
+        <li>PHPが市場妙味基礎点（0〜80点）をAI実行前に算出する。A〜Eの各項目を計算し80点換算する</li>
+        <li>シャドー検証中は基礎点をAIへ送信しない。1st AI・2nd AIへは既存のオッズ・断層・能力適性データのみ送信する</li>
+        <li>両AIが各自の実行内で能力・適性評価を行い、選出理由冒頭に「能力適性:A（82点）」の形式で出力する</li>
+        <li>PHPが両AI応答を受け取り、ability_scoreを抽出して能力適性補正（0〜20点）を決定する</li>
+        <li>高配当総合点 = 市場妙味基礎点 ＋ 能力適性補正（上限100点）をPHPが算出する</li>
+        <li>市場過小評価フラグ（4条件全成立）・偽流入警戒・不一致馬A〜D分類・馬券判定をPHPが算出する</li>
+        <li>これらの値と仮順位をログに保存する（シャドー期間中はFlutterへ渡さない）</li>
+        <li>本番表示は既存のおすすめ度・候補・選出理由をそのまま維持する</li>
+      </ul>
+    </div>
+
+    <h3>実装上の処理内容 — 市場過小評価フラグの判定条件</h3>
+    <div class="impl">
+      <div class="lbl">📋 4条件すべて成立した場合のみ「あり」</div>
+      <div class="code-block"><span class="cm">// 4条件すべて成立した場合のみ market_undervalue_flag = 'あり'</span>
+<span class="var">$flag</span> = (
+    <span class="var">$baseScore</span> >= 56             <span class="cm">// ①市場妙味基礎点56点以上（80点満点の70%）</span>
+    && <span class="var">$flowScore</span> >= 12          <span class="cm">// ②A複勝継続流入が12点以上</span>
+    && <span class="var">$opiScore</span> >= 7            <span class="cm">// ③C予測補正OPIが7点以上</span>
+    && <span class="var">$validItems</span> >= 3          <span class="cm">// ④A〜Eのうち0点でない有効根拠が3項目以上</span>
+) ? <span class="str">'あり'</span> : <span class="str">'なし'</span>;
+<span class="cm">// 有効項目満点50点未満の場合は '不明'（AIが上書き不可）</span></div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       4. 優先度の誤設定
+  ============================================================= -->
+  <section>
+    <h2><span class="num">4</span>実装ブロックの優先度について</h2>
+
+    <div class="kimo">
+      <div class="lbl">💜 よっしーの気持ち</div>
+      <p>「受入チェック70項目は全部必須条件として書いてある。エンジニアが独自に『これは将来でいい』とか『重要だけど後回し』とランクを付けるのはおかしい。私の仕様書のどこにそんな優先度が書いてある？」</p>
+    </div>
+
+    <div class="recv">
+      <div class="lbl">✅ こちらの受け取り＋変更内容</div>
+      <p>受入チェック70項目は全項目が必須条件です。B-1〜B-15の全ブロックを必須として扱い、70項目全合格が実装完了基準です。</p>
+    </div>
+
+    <div class="diff">
+      <div class="diff-b"><div class="dlbl">❌ 最初のHTML（誤り）</div>B-8・B-9・B-10・B-11・B-12・B-13を「🟡重要」、B-14を「🟢将来」に設定していた</div>
+      <div class="diff-a"><div class="dlbl">✅ 改訂版計画書（修正後）</div>B-1〜B-15の全ブロックを「🔴必須」に変更</div>
+    </div>
+
+    <h3>各ブロックの実装内容と必須である理由</h3>
+    <div class="impl">
+      <div class="lbl">📋 誤設定があったブロックの詳細</div>
+      <table>
+        <tr><th>ブロック</th><th>誤設定</th><th>正しい設定</th><th>実装内容と必須である理由</th></tr>
+        <tr>
+          <td>B-8<br>偽流入警戒</td>
+          <td><span class="badge badge-warn">🟡重要</span></td>
+          <td><span class="badge badge-red">🔴必須</span></td>
+          <td>7番人気以下の馬について「複勝3区間以上低下」「9→6分前も低下」「同人気帯複勝流入ランク1〜2位」等7条件のうち<strong>3条件以上成立→有効流入（フラグなし）。2条件以下→偽流入警戒フラグON</strong>。<strong>「偽流入警戒」＝全候補から削除ではない。</strong>高配当候補・馬券購入候補からは外す。ただし既存の最低基準点・低配当・回収率フィルターを通過した5着以内候補は、偽流入警戒だけを理由に削除せず「監視」として残す。この区別を実装で混同しないこと。</td>
+        </tr>
+        <tr>
+          <td>B-9<br>能力・適性評価</td>
+          <td><span class="badge badge-warn">🟡重要</span></td>
+          <td><span class="badge badge-red">🔴必須</span></td>
+          <td>1st AI・2nd AIのプロンプトへ能力・適性評価指示（100点採点6項目）と過去成績データブロックを追加する実装。選出理由冒頭の「能力適性:A（82点）」をPHPがパースして能力適性補正（0〜20点）を算出する。これなしでは高配当総合点が算出できない</td>
+        </tr>
+        <tr>
+          <td>B-10<br>シャドー制御</td>
+          <td><span class="badge badge-warn">🟡重要</span></td>
+          <td><span class="badge badge-red">🔴必須</span></td>
+          <td>「内部算出・ログ保存」と「Flutter本番表示」を分離する制御ロジック。シャドー期間中は高配当関連値を算出してログに保存するが、Flutter候補・順位・選出理由への反映は行わない。この分離がなければシャドー運用が成立しない</td>
+        </tr>
+        <tr>
+          <td>B-11<br>最終PHP処理順序</td>
+          <td><span class="badge badge-warn">🟡重要</span></td>
+          <td><span class="badge badge-red">🔴必須</span></td>
+          <td>12ステップの固定処理順序（①市場妙味基礎点算出→②AI送信→③馬番重複排除→④断層学習→⑤統合おすすめ度→⑥能力適性補正・高配当総合点→⑦基準点・低配当・回収率フィルター→⑧不一致馬分類→⑨順位確定→⑩馬券判定→⑪頭数確定→⑫レース指標保持）。この順序を変えると循環計算が発生する</td>
+        </tr>
+        <tr>
+          <td>B-12<br>高配当総合点</td>
+          <td><span class="badge badge-warn">🟡重要</span></td>
+          <td><span class="badge badge-red">🔴必須</span></td>
+          <td>市場妙味基礎点A〜E（PHP算出）＋能力適性補正（AI回答後）＝高配当総合点（0〜100点）。シャドー期間中から算出・ログ保存する。80点以上が高配当有力候補、70〜79点が高配当比較候補、60〜69点が監視候補、<strong>59点以下は「高配当候補外」（既存フィルターを通過した5着以内候補を59点以下という理由だけで削除しない。シャドー期間中は分類・ログ保存のみ）</strong></td>
+        </tr>
+        <tr>
+          <td>B-13<br>市場過小評価フラグ</td>
+          <td><span class="badge badge-warn">🟡重要</span></td>
+          <td><span class="badge badge-red">🔴必須</span></td>
+          <td>4条件全成立（基礎点56点以上、A12点以上、C7点以上、有効根拠3項目以上）のみ「あり」。条件未達は「なし」。有効項目満点50点未満は「不明」。AIが上書き不可</td>
+        </tr>
+        <tr>
+          <td>B-14<br>断層パターン学習</td>
+          <td><span class="badge badge-ok">🟢将来</span></td>
+          <td><span class="badge badge-red">🔴必須</span></td>
+          <td>M1〜M4の4モデル（上位完結・下位進入・大穴進入・馬別5着以内）を外部AI追加なし・ローカルMLで実装。1,000レース未満はモデル推論なしでよいが、特徴量・正解ラベルの保存処理（レース日付順の時系列分割、欠損フラグ管理、model_version保存）は今から実装が必要</td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       5. 欠落していた仕様項目
+  ============================================================= -->
+  <section>
+    <h2><span class="num">5</span>最初のHTMLで欠落していた仕様項目と実装内容</h2>
+
+    <div class="kimo">
+      <div class="lbl">💜 よっしーの気持ち</div>
+      <p>「仕様書に書いてあることが、最初のHTMLに入っていない。書いてあることは全部実装してほしい。」</p>
+    </div>
+
+    <div class="recv">
+      <div class="lbl">✅ こちらの受け取り＋変更内容</div>
+      <p>以下の項目が欠落していました。改訂版計画書に追加済みです。各項目の処理内容を以下に記します。</p>
+    </div>
+
+    <ul class="add-list">
+      <li>
+        <div>
+          <strong>B-15（新規ブロック）：AI出力上限制御と最終表示上限</strong><br>
+          上限には「AI回答上限（形式不正判定）」と「統合後の最終表示上限」の2種類がある。<strong>混在厳禁。</strong><br><br>
+          <strong>① AI回答上限（出走頭数に関係なく固定）</strong><br>
+          ・1st AI（Claude）が8頭以上出力した場合 → 形式不正として無効化。そのレースの通常予測を公開しない<br>
+          ・1st AI（Claude）が7頭以内 → 正常回答。統合処理へ進める<br>
+          ・2nd AI（DeepSeek）が6頭以上出力した場合 → 2nd AI応答を無効化し、1st AI結果のみで処理継続<br>
+          ・2nd AI（DeepSeek）が5頭以内 → 正常回答<br>
+          ・無効化の場合はAI回答原文とエラー理由をログ保存。再試行・追加AI呼び出しは行わない。PHPによる切り捨て・推測修正は絶対禁止<br><br>
+          <strong>② 統合後の最終表示上限（各種フィルター・順位決定・人気帯上限を適用した後の最後に使う）</strong><br>
+          ・8頭以下：最大4頭　／　9〜13頭：最大5頭　／　14〜15頭：最大6頭　／　16頭以上：最大7頭<br><br>
+          <strong>具体例（10頭立て・Claude7頭・DeepSeek5頭の場合）</strong><br>
+          → 両AI正常回答。馬番で統合 → 最低基準点・低配当除外・回収率フィルター → 順位決定 → 人気帯上限 → 最後に「10頭立て＝最大5頭」で最終表示確定。Claudeの7頭を上限超過と誤判定してはならない<br>
+          <span style="font-size:12px; color:#888;">仕様書 受入チェック #70・形式不正エラー規定</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>B-7（新規ブロック）：AI応答失敗時の縮退処理</strong><br>
+          2nd AI（DeepSeek）応答失敗 → 1st AI（Claude）の結果のみで処理を継続（候補出力・Flutter表示は1st AI結果のみ）。1st AI（Claude）応答失敗 → 通常予測を公開しない（Flutterへ出さず、制御済みエラーを返す）。いずれの場合も追加AI呼び出しを行わず、1レース合計2回の上限を厳守する。失敗内容はログに保存する。<br>
+          <span style="font-size:12px; color:#888;">仕様書 受入チェック #66・#67</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>一致加点の算出式（B-2に追記）</strong><br>
+          両AI一致馬の統合おすすめ度 = （1st AI点数 ＋ 2nd AI点数）÷ 2 ＋ 5点、上限100点。統合おすすめ度はPHP内部で小数第1位まで保持し、Flutter表示時のみ整数に四捨五入する（例：内部87.5点→Flutter表示88点）。<br>
+          <span style="font-size:12px; color:#888;">仕様書 受入チェック #9・#64</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>能力適性補正の算出方法（B-9に追記）</strong><br>
+          両AI一致馬：両AIのability_score平均（小数第1位四捨五入）で補正区分を決定。片方のみ選出の独自馬：そのAIのability_scoreで補正区分を決定。抽出不能・形式不正の場合は能力適性補正を「不明」とし高配当総合点も「不明」。推測での補完は禁止。<br>
+          <span style="font-size:12px; color:#888;">仕様書 能力適性補正の項</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>有効項目満点50点未満の扱い（B-12に追記）</strong><br>
+          市場妙味基礎点A〜Eのうち「不明」となった項目を除いた有効項目の満点合計が50点未満の場合、信頼度不足として基礎点を「不明」とする。0点扱いに置換してはならない。この場合、高配当総合点も「不明」となる。<br>
+          <span style="font-size:12px; color:#888;">仕様書 受入チェック #19</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>回収率ハード除外の正確な条件（B-6に追記）</strong><br>
+          「サンプル30件以上の有効値が2種類以上存在し、かつその2種類以上が90%未満」の場合のみハード除外。D点（回収率の裏付け）が0点というだけで候補をハード除外してはならない。ハード除外はあくまで「確実に回収率が悪いと統計的に確認できた馬」のみ。<br>
+          <span style="font-size:12px; color:#888;">仕様書 受入チェック #35</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>受入チェック70項目を計画書末尾に組み込み（実装完了基準）</strong><br>
+          仕様書末尾のエンジニア受入チェック（70項目）を、改訂版計画書の「実装完了判定基準」として明記。70項目全合格をもって実装完了とし、それまでは「実装中」として扱う。<br>
+          <span style="font-size:12px; color:#888;">仕様書 エンジニア受入チェック（全項目合格で完成）</span>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============================================================
+       6. 仕様書原文を正規仕様として扱う
+  ============================================================= -->
+  <section>
+    <h2><span class="num">6</span>仕様書の原文を正規仕様として扱うことについて</h2>
+
+    <div class="kimo">
+      <div class="lbl">💜 よっしーの気持ち（02.txt より）</div>
+      <p>「Claudeの追加対応方針は大筋で問題ありませんが、要約内容ではなく提出済みの最新確定版仕様書を正規仕様として実装してください。タマネギが作成したHTMLは、Claudeが仕様書を要約・解釈したものであり、本来の依頼とは異なっている部分があります。」</p>
+    </div>
+
+    <div class="recv">
+      <div class="lbl">✅ こちらの受け取り＋変更内容</div>
+      <p>「大筋OK」は「細部もOK」ではありません。仕様書（最終確定版）の原文が唯一の正規仕様です。エンジニア側の解釈・要約で置き換えることは今後しません。</p>
+    </div>
+
+    <div class="diff">
+      <div class="diff-b"><div class="dlbl">❌ 最初のHTML（問題のあった方針）</div>仕様書をエンジニアが解釈・要約し15ブロックとしてまとめた。各ブロックの説明はエンジニア側の言葉で記述。優先度もエンジニア判断で設定。</div>
+      <div class="diff-a"><div class="dlbl">✅ 改訂版計画書（修正後の方針）</div>各ブロックの説明は仕様書の原文表現を引用。エンジニア独自の優先度設定を廃止。受入チェック70項目を実装完了基準として組み込み。解釈に迷う箇所はよっしーに事前確認する。</div>
+    </div>
+  </section>
+
+  <!-- ===== 約束 ===== -->
+  <section>
+    <h2><span class="num">約束</span>今後の実装方針</h2>
+    <ul class="promise-list">
+      <li>よっしーの仕様書（最終確定版）を唯一の正規仕様として扱う</li>
+      <li>受入チェック70項目の全合格をもって実装完了とする</li>
+      <li>エンジニア側の解釈で仕様書の内容を書き換えたり省いたりしない</li>
+      <li>解釈に迷った場合は独自判断で進めず、よっしーに確認する</li>
+      <li>シャドー期間中の「PHP内部算出・ログ保存」と「Flutter本番表示」を明確に分けて実装する</li>
+      <li>高配当総合点は200〜300レースの検証完了後、別バージョンとして人間が明示的に有効化した場合だけ本番へ反映する</li>
+      <li>断層学習は1,000〜1,999レースでは予備学習・完全シャドーに限定し、2,000レース以上かつ最新の未使用評価期間500レース以上を確保したうえで仕様書の本番有効化条件をすべて満たした後、人間が明示的に有効化した場合だけ本番へ反映する。高配当総合点の条件（200〜300レース）と断層学習の条件を混同しない</li>
+      <li>B-1〜B-15の全ブロックを必須として実装を進め、段階的に受入チェックを消化する</li>
+    </ul>
+  </section>
+
+
+  <!-- ============================================================
+       エンジニア作業メモ（よっしー・ChatGPT向けではない）
+  ============================================================= -->
+  <div style="margin: 30px 0 10px; text-align:center; color:#aaa; font-size:12px;">
+    ── 以下はエンジニア作業メモ（よっしー・ChatGPT向けではありません） ──
+  </div>
+
+  <div class="memo-wrap">
+    <h2><span class="num" style="background:#778">作業メモ</span>実装ToDo・バグ修正状況（Claude次セッション参照用）</h2>
+
+    <!-- ===== ロードマップ ===== -->
+    <div class="memo-item" style="border-left:5px solid #48bb78; background:#f0fff4;">
+      <h3>🗺️ これから何をすればいいか — 実装ロードマップ</h3>
+      <p>
+        <strong>よっしーからOK確認済み（2026-09-13）。ここから実装フェーズに入る。</strong><br><br>
+
+        <strong>【STEP 1】プロンプト基盤の整備（他の全実装の前提）</strong><br>
+        ① B-1：DeepSeek専用システム指示の分離（AiController.php）<br>
+        　→ 1st AI / 2nd AI でプロンプト生成メソッドを分けるだけ。ここが済まないと他のプロンプト系修正が全部絡まる<br><br>
+
+        <strong>【STEP 2】AI実行前の処理（プロンプトに乗せるデータを作る）</strong><br>
+        ② B-12：市場妙味基礎点A〜E算出（AiController.php、AI呼び出し前）<br>
+        　→ 各項目を個別算出。不明は0置換禁止。有効満点50点未満→基礎点「不明」<br>
+        ③ B-9：両AIプロンプトへの能力・適性評価指示追加（AiController.php）<br>
+        　→ 全馬過去成績データブロック＋100点採点6項目の指示を共通で追加<br><br>
+
+        <strong>【STEP 3】AI実行後の即時処理（回答を受け取ったら最初にやること）</strong><br>
+        ④ B-15：AI候補上限超過時の無効化処理（Claude 8頭以上→無効、DeepSeek 6頭以上→無効）<br>
+        ⑤ B-7：AI応答失敗時の縮退処理（1st失敗→制御済みエラー返却、2nd失敗→1st単独継続）<br><br>
+
+        <strong>【STEP 4】フィルター・分類処理</strong><br>
+        ⑥ B-8：偽流入警戒フラグの適用先分岐（高配当候補から外す / 5着以内候補は「監視」で残す）<br><br>
+
+        <strong>【STEP 5】シャドー期間の内部算出・ログ保存</strong><br>
+        ⑦ B-10：シャドー期間中のログ保存処理（高配当総合点・市場過小評価フラグ等をFlutterへ渡さず内部保存のみ）<br>
+        　→ 既存候補・既存順位・既存選出理由は従来どおりFlutterへ出力する。止めるのは強化情報だけ<br><br>
+
+        <strong>【STEP 6】バッチ処理（レース結果確定後）</strong><br>
+        ⑧ B-14：断層パターン学習の特徴量・正解ラベル保存処理（1,000レース未満は保存のみ）<br><br>
+
+        <strong>【STEP 7】受入チェック70項目の全合格確認</strong><br>
+        　→ 各項目ごとに「合否・該当コード行番号・確認根拠」を記録して提出<br>
+        　→ 70項目全合格で実装完了。それまでは「完成」と言わない<br><br>
+
+        <strong>完成の定義：STEP 1〜6の実装完了 ＋ 受入チェック70項目全合格 ＋ 証跡の提出</strong>
+      </p>
+    </div>
+
+    <!-- ===== 修正済み ===== -->
+    <div class="memo-item">
+      <h3>✅ 修正済み①　AiController.php — wave_level / lower_entry / big_gap_entry が null 固定</h3>
+      <p>
+        <strong>ファイル：</strong>app/Http/Controllers/Api/AiController.php<br>
+        <strong>対応箇所：</strong>L2084〜L2097<br>
+        正規表現パースで1st AI応答テキスト（$analysisText / $firstAiText）から3値を抽出するよう修正済み。B-14（L2109）・B-11（L2327）のjson_encodeも正しい変数名（$b14WaveLevel 等）を参照するよう修正済み。
+      </p>
+    </div>
+
+    <div class="memo-item">
+      <h3>✅ 修正済み②　SummaryMakeBaganrikiBrain.php — 未定義変数 $effectivePickupCount</h3>
+      <p>
+        <strong>ファイル：</strong>app/Console/Commands/SummaryMakeBaganrikiBrain.php<br>
+        <strong>対応箇所：</strong>L270<br>
+        バッチ集計変数（$batchTotal / $batchHits / $hitRate）を使った正しい文字列に変更。これらはL245〜247で定義済み。
+      </p>
+    </div>
+
+    <!-- ===== 未着手8項目 ===== -->
+    <div class="memo-item">
+      <h3>🔴 未着手①（B-1）　DeepSeek専用システム指示の分離　AiController.php</h3>
+      <p>
+        <strong>やること：</strong>Claudeプロンプト生成関数とDeepSeekプロンプト生成関数を完全に別管理にする。<br><br>
+        <strong>Claude（1st AI）専用：</strong>回答上限=最大7頭固定・厳選穴レース出力あり・レース指標出力あり・Claudeシステム指示テキスト使用<br>
+        <strong>DeepSeek（2nd AI）専用：</strong>回答上限=最大5頭固定・厳選穴レース出力なし・レース指標出力なし・DeepSeek独自役割説明システム指示テキスト使用<br>
+        <strong>両AI共通（同一データを渡す）：</strong>オッズ・断層データ、過去成績データブロック、能力・適性評価指示（100点採点6項目）<br><br>
+        <strong>禁止：</strong>完成後の送信プロンプト全文を1st AIと2nd AIで同一にすること。共通本文・共通データの再利用は可能。2nd AI用は「1st AIプロンプトから1st専用部分を除去し、DeepSeek専用指示を追加」して生成する。
+      </p>
+    </div>
+
+    <div class="memo-item">
+      <h3>🔴 未着手②（B-7）　AI応答失敗時の縮退処理　AiController.php</h3>
+      <p>
+        <strong>やること：</strong>AI呼び出し失敗・タイムアウト時の縮退ロジックを実装する。<br><br>
+        ・DeepSeek（2nd AI）失敗 → $secondAiResult = null のまま、1st AI結果のみで統合処理を続行。Flutter表示は1st AI結果のみ<br>
+        ・Claude（1st AI）失敗 → 通常予測を公開しない。Flutterへ候補を出さず、<strong>制御済みエラーを返す</strong>（「無反応」ではない）<br>
+        ・いずれもAI追加呼び出し・再試行禁止。1レース合計2回上限を厳守<br>
+        ・失敗内容（エラーメッセージ・タイムスタンプ・レースID）をログ保存
+      </p>
+    </div>
+
+    <div class="memo-item">
+      <h3>🔴 未着手③（B-8）　偽流入警戒フラグの適用先分岐　AiController.php</h3>
+      <p>
+        <strong>やること：</strong>偽流入警戒フラグの有無で処理を2分岐させる。一括削除は禁止。<br><br>
+        ・高配当候補・馬券購入候補リスト → 偽流入警戒フラグありの馬を除外<br>
+        ・既存の最低基準点・低配当除外・回収率フィルターを通過した5着以内候補 → 偽流入警戒だけで削除しない。$horse['status'] = '監視' をセットして残す<br><br>
+        <strong>判定条件：</strong>7条件のうち3条件以上成立 → 有効流入（フラグなし）。2条件以下 → 偽流入警戒フラグON。<br>
+        具体条件（細部はTXT原文を参照）：7番人気以下・複勝3区間以上低下・9→6分前も低下・同人気帯複勝流入ランク1〜2位 等7条件。<br>
+        <strong>⚠️「3条件以上成立しなければフラグON」ではない。「2条件以下ならフラグON」が正しい。</strong>
+      </p>
+    </div>
+
+    <div class="memo-item">
+      <h3>🔴 未着手④（B-9）　両AIプロンプトへの能力・適性評価指示追加　AiController.php</h3>
+      <p>
+        <strong>やること：</strong>既存の土日7:30バッチで全出走馬の直近5〜10走と適性データを取得し、1st AI・2nd AI両方のプロンプトに追加する。<br><br>
+        <strong>追加するデータブロック（両AI共通・同一内容）：</strong>全出走馬の過去成績（着順・タイム・コース・脚質・斤量・騎手）＋適性データ<br>
+        <strong>追加する評価指示（両AI共通）：</strong>100点採点6項目（基礎能力25点・近走内容20点・コース適性20点・脚質展開15点・上がり性能10点・斤量等補正10点）と評価区分（A:80〜100点・B:70〜79点・C:60〜69点・D:59点以下）<br>
+        <strong>AI出力形式（選出理由冒頭）：</strong>「能力適性:A（82点）」← PHPがここをパースして補正点を算出する<br>
+        <strong>パース処理（PHP）：</strong>preg_match('/^能力適性:([A-D])（(\d+)点）/u', $reason, $m) で grade と score を抽出<br><br>
+        <strong>注意：</strong>第3AI・新テーブルを追加しない。既存テーブルのデータを整形して渡す。
+      </p>
+    </div>
+
+    <div class="memo-item">
+      <h3>🔴 未着手⑤（B-12）　市場妙味基礎点A〜E算出　AiController.php（AI実行前）</h3>
+      <p>
+        <strong>やること：</strong>AI呼び出し前にPHPで市場妙味基礎点（0〜80点）を算出する専用メソッドを追加する。<br><br>
+        <strong>算出手順：</strong><br>
+        1. A〜Eの各項目を個別に算出し、不明な項目は0点に置換せず「不明」としてフラグ管理する<br>
+        2. 有効項目（不明でない項目）の満点合計を算出する<br>
+        3. 有効項目の満点合計が50点未満 → 基礎点を「不明」にして終了（0点扱い禁止）<br>
+        4. 50点以上 → 有効項目の得点合計 ÷ 有効項目の満点合計 × 80 で80点換算する<br><br>
+        <strong>⚠️ 細部条件は必ず最新確定版TXT原文を参照すること。省略されている条件：</strong><br>
+        ・A: 複勝変化率「2%超」「±2%以内」の区分、計測時点4時点未満はA=「不明」、<strong>TXT原文に定義されていない組合せパターンはA=0点（「不明」ではなく0点扱い）</strong><br>
+        ・B: 複勝人気順位が同値の場合は同順位扱い<br>
+        ・C: OPIを小数第2位へ丸めてから帯判定<br>
+        ・D: 有効値2種類未満は「不明」。<strong>D点（回収率の裏付け）はTXT原文の全組合せ条件を網羅実装すること。「有効値が揃っていれば点数が出る」という単純判定では不足</strong><br>
+        ・E: 断層縮小=最大比率から10%以上低下、主断層への接近=直前2区間連続低下 等
+      </p>
+    </div>
+
+    <div class="memo-item">
+      <h3>🔴 未着手⑥（B-10）　シャドー期間中のログ保存処理　AiController.php（AI実行後）</h3>
+      <p>
+        <strong>やること：</strong>シャドー期間中（本番有効化前）に以下の値をPHP内部で算出してログ保存する。Flutterへは一切渡さない。<br><br>
+        <strong>算出してログ保存する値：</strong><br>
+        ・市場妙味基礎点（B-12で算出済み）<br>
+        ・能力適性補正（AI回答後にパース）：一致馬=両AI平均スコアで補正決定、独自馬=選出AIスコアで補正決定<br>
+        ・高配当総合点 = 市場妙味基礎点 + 能力適性補正（上限100点）<br>
+        ・市場過小評価フラグ（4条件全成立のみ「あり」）<br>
+        ・偽流入警戒フラグ<br>
+        ・不一致馬A〜D分類<br>
+        ・馬券判定<br>
+        ・仮順位<br><br>
+        <strong>シャドー期間の制御：</strong>config または DB設定値でシャドーモード ON/OFF を切り替えられるようにする。<br>
+        <strong>⚠️ シャドーモードON中も「既存の馬眼力出力」はFlutterへ従来どおり表示する。止めるのは新しい強化情報だけ。</strong><br>
+        ・Flutterへ従来どおり出力する（シャドー中も変わらない）：既存候補・既存順位・既存選出理由<br>
+        ・Flutterへ出力しない（PHP内部で算出・ログ保存のみ）：市場妙味基礎点・高配当総合点・市場過小評価フラグ・偽流入警戒・不一致馬A〜D分類・馬券判定・強化版仮順位<br>
+        ・強化関連値は候補の採用・除外・入替・順位・選出理由へ一切反映しない<br>
+        <strong>本番有効化：</strong>高配当強化は200〜300レース検証後に人間が手動でOFFにして初めてFlutter反映。
+      </p>
+    </div>
+
+    <div class="memo-item">
+      <h3>🔴 未着手⑦（B-14）　断層パターン学習の特徴量・正解ラベル保存処理</h3>
+      <p>
+        <strong>やること：</strong>外部AIを追加せず、ローカルMLのためのデータ蓄積処理を実装する。<br><br>
+        <strong>M1〜M4の4モデル定義と正解ラベル：</strong><br>
+        ・M1: 上位人気完結パターン。<strong>正解ラベル = 実着順5着以内がすべて6分前1〜6番人気なら1、それ以外0</strong>（「1〜3番人気が1〜2着」は誤り）<br>
+        ・M2: 準穴進入パターン。<strong>正解ラベル = 実着順5着以内に6分前7〜10番人気が1頭以上いれば1、それ以外0</strong><br>
+        ・M3: 大穴進入パターン。<strong>正解ラベル = 実着順5着以内に6分前11番人気以下が1頭以上いれば1、それ以外0</strong>（「8番人気以下が馬券内」は誤り。M2とM3で人気帯を重複させないこと）<br>
+        ・M4: 馬別5着以内パターン<br><br>
+        <strong>保存する内容（レース結果確定後）：</strong>特徴量（断層構造・オッズ変化・複勝流入・能力適性スコア等）・正解ラベル（実際の着順）・レース日付・model_version・欠損フラグ<br>
+        <strong>固定長変換（08.txt指摘追記）：</strong>M1〜M4の特徴量は可変長にせず固定長に変換して保存すること。出走頭数や断層区間数が異なるレースでも同一フォーマットで揃えないとMLが機能しない。欠損・パディング方法はTXT原文の仕様を厳守。<br>
+        <strong>データ分割：</strong>レース日付順に訓練70% / 検証15% / 評価15%（ランダム分割禁止）<br><br>
+        <strong>段階別制御（混同禁止）：</strong><br>
+        ・1,000レース未満 → 保存のみ。推論・モデル学習なし<br>
+        ・1,000〜1,999レース → 予備学習・完全シャドー（本番投入不可）<br>
+        ・2,000レース以上 → 正式検証開始可能<br>
+        ・本番有効化 → 未使用評価期間500レース以上確保＋全条件合格＋人間が明示有効化。実質3,334レース以上必要
+      </p>
+    </div>
+
+    <div class="memo-item">
+      <h3>🔴 未着手⑧（B-15）　AI候補上限超過時の無効化処理　AiController.php</h3>
+      <p>
+        <strong>「AI回答上限」と「統合後の最終表示上限」は別物。混在厳禁。</strong><br><br>
+        <strong>AI回答の形式不正判定（出走頭数に無関係・固定）：</strong><br>
+        ・Claude（1st AI）が8頭以上出力 → $firstAiResult を無効化。そのレースの通常予測を公開しない。AI回答原文＋エラー理由をログ保存<br>
+        ・Claude（1st AI）が7頭以内 → 正常回答。統合処理へ進める<br>
+        ・DeepSeek（2nd AI）が6頭以上出力 → $secondAiResult を null 扱いで無効化し、1st AI結果のみで継続。AI回答原文＋エラー理由をログ保存<br>
+        ・DeepSeek（2nd AI）が5頭以内 → 正常回答<br>
+        ・array_slice()等での切り詰め・推測補完・再試行AI呼び出し 絶対禁止<br><br>
+        <strong>統合後の最終表示上限（フィルター・順位決定・人気帯上限の後に最後に適用）：</strong><br>
+        ・8頭以下→最大4頭 ／ 9〜13頭→最大5頭 ／ 14〜15頭→最大6頭 ／ 16頭以上→最大7頭<br><br>
+        <strong>例：10頭立てでClaude7頭・DeepSeek5頭 → 両AI正常。統合後フィルター経て最終5頭以内に確定。Claudeの7頭を異常扱いしない。</strong>
+      </p>
+    </div>
+
+    <div class="memo-item">
+      <h3>📌 最終順位の確定処理（PHP処理⑨）固定比較帯・タイブレーク</h3>
+      <p>
+        <strong>08.txt指摘で追加。最終的な順位確定ロジックはTXT原文の全仕様を実装すること。</strong><br><br>
+        ・統合おすすめ度が帯基準馬から<strong>5点以内の候補を同一比較帯にまとめる</strong>。「同順位扱い」ではない。帯内でも順位は確定する。<br>
+        ・<strong>帯内タイブレーク順（①〜⑦）：</strong>①高配当総合点 → ②両AI一致馬 → ③複勝継続流入A点 → ④回収率裏付けD点 → ⑤予測補正OPI → ⑥ability_score → ⑦馬番昇順<br>
+        ・<strong>シャドー期間中の本番順位（上記とは別）：</strong>統合おすすめ度降順 → 同点なら一致馬優先 → それでも同じなら馬番昇順<br>
+        ・実装ファイル：AiController.php の順位確定メソッド<br>
+        ・細部条件はTXT原文の⑨順位確定ブロックをそのまま実装すること
+      </p>
+    </div>
+
+    <!-- ===== 本番有効化条件まとめ ===== -->
+    <div class="memo-item">
+      <h3>📌 本番有効化条件まとめ（混同禁止）</h3>
+      <p>
+        <strong>高配当総合点：</strong>シャドー200〜300レース検証完了後 → 人間が別バージョンとして明示有効化<br>
+        <strong>断層学習（M1〜M4）：</strong><br>
+        　1,000レース未満 → データ保存のみ<br>
+        　1,000〜1,999レース → 予備学習・完全シャドー<br>
+        　2,000レース以上 → 正式検証開始可<br>
+        　本番有効化 → 未使用評価期間500レース以上＋全条件合格＋人間が明示有効化（実質3,334レース以上必要）<br><br>
+        <strong>完成判定：</strong>上記8項目の実装完了＋受入チェック70項目全合格で完成。<br>
+        <strong>次に提出するもの：</strong>修正済みコード ＋ 受入チェック70項目それぞれの「合否・コード行番号・確認根拠」。70項目全合格を確認するまでは完全一致・完成とは判定しない。<br>
+        <strong>実装の唯一の根拠：</strong>このHTMLは要約確認資料。実装は必ず最新確定版TXT全文（2026-09-10）を正規仕様として使用する。
+      </p>
+    </div>
+
+  </div>
+
+  <section style="background:#f0fff4; border:2px solid #48bb78;">
+    <h2><span class="num" style="background:#187a3a;">総括</span>英之の理解</h2>
+    <p style="font-size:14px; line-height:1.9;">
+      よっしーの仕様書（最新確定版 2026-09-10）を全文読み込みました。<br>
+      最初のHTMLで起きた解釈ミスの原因と、正しい理解は上のとおりです。<br><br>
+      よっしーが言いたかったこと、すべて受け取りました。<br>
+      この理解のまま実装を進めます。
+    </p>
+    <p style="font-size:12px; color:#187a3a; margin-top:10px;">英之 — 2026-09-13</p>
+  </section>
+
+  <footer>参照：馬眼力_エンジニア提出用_最終確定版_2026-09-10.txt　／　baganriki_spec_vs_code_comparison_20260913.md</footer>
+
+</div>
+</body>
+</html>

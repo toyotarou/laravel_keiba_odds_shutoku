@@ -10,48 +10,17 @@ CREATE TABLE `t_horse_odds_finder_ai_analysis` (
   `analysis_text` text,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_ai_analysis` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=71 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=145 DEFAULT CHARSET=utf8mb3;
 
 
-1	2026-08-09	1	札幌	01	6	1	2歳未勝利（混合）［指定］	馬番：12、馬名：サルトヴェローチェ、人気順: 1、6分前オッズ: 1.6、おすすめ度: 98、選出理由：計測開始から発走6分前まで単勝オッズが完全に変化なく1.6倍で固定されており、市場の圧倒的な一致を示している。複勝も1.1倍で全く動かず、安定して3着以内が確実と評価されている。オッズ間断層分析で最上位に位置し、期待数値でも最優先候補。この安定性の高さと市場一致度は1着の最有力候補である。↵↵─────────────────────────────↵↵馬番：3、馬名：シンゼンノト、人気順: 2、6分前オッズ: 13.5、おすすめ度: 72、選出理由：期待数値調査で高く評価された馬番3であり、単勝オッズの変動幅が1.5%と極めて小さく、開始から終盤まで安定して評価されている。複勝オッズの幅（1.9～3.5倍）が狭く、市場が一貫して3着以内を期待している。オッズ間断層分析にも位置し、複勝下落により信頼度が高い。↵↵─────────────────────────────↵↵馬番：9、馬名：ハイビスカス、人気順: 3、6分前オッズ: 14.4、おすすめ度: 68、選出理由：単勝オッズが10%以上下落（10%）して人気が急上昇しており、市場が確信を持って買い進めた痕跡がある。複勝オッズの幅（2.6～4.8倍）が狭く安定性が高く、複勝も上昇傾向で3着以内への信頼が厚い。オッズ間断層分析・期待数値分析の両方で選出された有力馬である。↵↵─────────────────────────────↵↵馬番：10、馬名：テムファイア、人気順: 4、6分前オッズ: 9.1、おすすめ度: 65、選出理由：単勝オッズが8.1%下落して市場の買いが継続し、開始時9.9倍から9.1倍への着実な短縮を示している。複勝オッズの幅が2.1～3.9倍と狭く、市場が安定して3着以内を予想している。単複比4.3倍は比較的低く、堅実な信頼度を示す。短縮幅は控えめだが安定性が高い有望馬。↵↵─────────────────────────────↵↵馬番：8、馬名：ヴァイタリズム、人気順: 5、6分前オッズ: 10.0、おすすめ度: 63、選出理由：単勝オッズが16.7%の明確な下落を示し、12.0倍から10.0倍への人気急上昇を記録している。複勝オッズが1.9～3.5倍で幅が狭く、市場が一貫して3着以内を期待している。複勝の26.7%上昇は市場の強気買いを示し、単複比5.3倍の低さは堅実な信頼度を表している。
-2	2026-08-09	2	中京	07	6	2	メイクデビュー中京	馬番：3、馬名：リアンフィニ、人気順: 1、6分前オッズ: 2.0、おすすめ度: 92、選出理由：単勝オッズが2.6倍から2.0倍へ23.1%の下落を示し、市場の強い買い圧が継続している。複勝オッズは1.1-1.1倍で変化なく極めて安定しており、3着以内の信頼度が極めて高い。単複比1.8倍は低く、勝ち馬としての適性を示している。人気順位1位で市場の一致が最も強い。↵↵─────────────────────────────↵↵馬番：1、馬名：ガリアルダ、人気順: 2、6分前オッズ: 2.9、おすすめ度: 75、選出理由：複勝オッズが1.1-1.6倍で変化なく安定性が高く、3着以内の期待値が堅実である。単複比2.6倍は中程度で勝ちにくさと相応の好走期待のバランスが取れている。リアンフィニに次ぐ低オッズ馬として、2着から3着の有力候補として機能する可能性がある。↵↵─────────────────────────────↵↵馬番：2、馬名：レニュアージュ、人気順: 3、6分前オッズ: 5.4、おすすめ度: 68、選出理由：複勝オッズが1.3-2.7倍で、初期値から7.1%の下落を記録。市場が3着以内の可能性を継続して評価している。単勝は上昇傾向を示しているが、複勝の下落が市場の底堅い信頼を示唆する。中堅オッズ帯での安定性から2着から3着の穴馬として機能する可能性がある。↵↵─────────────────────────────↵↵馬番：8、馬名：ジュエルシップ、人気順: 8、6分前オッズ: 34.9、おすすめ度: 62、選出理由：単複比12.9倍は極めて高く、3着以内への相応の絡み期待が示唆されている。複勝オッズが2.7-6.5倍と幅を持ちながらも変動性が高いため市場の評価が割れているが、人気8位から注目馬指定される希少性がある。穴馬としての価値が残存している。↵↵─────────────────────────────↵↵馬番：7、馬名：ミリオンカラー、人気順: 7、6分前オッズ: 31.6、おすすめ度: 58、選出理由：複勝オッズが4.4-10.8倍で幅があり市場評価が割れているものの、単勝が32.4倍から31.6倍へ2.5%の小幅下落を維持。単複比7.2倍で3着以内への期待が他の穴馬より相対的に高い。オッズ間断層の調査対象にも含まれており、三連複等での活用が期待される。
-3	2026-08-09	2	中京	07	6	1	3歳未勝利[指定]	馬番：15、馬名：ティタノマキア、人気順: 1、6分前オッズ: 3.3、おすすめ度: 92、選出理由：1人気として市場の最大の支持を集めており、単勝オッズが3.7倍から3.3倍へ10.8%の下落を実現。複勝は1.3～1.8倍の極めて狭い幅で推移し、市場の評価が完全に一致している。複勝オッズも安定しており、3着以内の信頼度が極めて高い。期待数値にも選出されている有力候補。↵↵馬番：4、馬名：マイコンプリート、人気順: 4、6分前オッズ: 8.7、おすすめ度: 88、選出理由：単勝オッズが13.2倍から8.7倍へ34.1%の大幅下落を記録し、市場の強い買いが継続している。複勝も21.2%下落し、3着以内への信頼度が高い。単複比3.3倍と適正な水準で、複勝1.8～2.6倍の狭い幅が安定性を示唆。期待数値上位馬としても選出されており、積極的な注視が必要。↵↵馬番：3、馬名：クロスボーダー、人気順: 3、6分前オッズ: 3.8、おすすめ度: 85、選出理由：3人気として3.6倍から3.8倍に若干上昇したものの、複勝1.3～1.8倍の極めて狭い幅を維持し、市場の強い一致を示している。複勝が変化なしで堅牢性が高く、安定して3着以内が期待される。オッズ間断層調査でも選出されており、市場心理の転換点を示す重要な馬。↵↵馬番：1、馬名：ラピス、人気順: 6、6分前オッズ: 19.1、おすすめ度: 72、選出理由：6人気ながら単勝オッズの下落は限定的（2.1%）だが、複勝が3.4～5.3倍で下落2.9%を記録。単複比5.6倍と適正な水準で、3着以内への信頼度が中程度。期待数値にも選出されており、中位人気の中では相応の評価がある。複勝オッズの安定性が着順到来の根拠となる。↵↵馬番：9、馬名：ワンダーリュクス、人気順: 5、6分前オッズ: 17.0、おすすめ度: 68、選出理由：5人気で単勝3%上昇と微弱な変動に留まったが、複勝が3.1～4.9倍で上昇6.9%。単複比5.5倍と標準的な水準を保ち、複勝オッズの狭い幅が市場の一定の支持を示唆。期待数値にも選出されており、堅実性のある中位人気馬として検討の価値がある。↵↵馬番：12、馬名：オレンジフィールド、人気順: 7、6分前オッズ: 19.8、おすすめ度: 65、選出理由：7人気で単勝オッズが18.0倍から19.8倍に10%上昇したが、複勝3.9～6.2倍の幅は広めながらも上昇2.6%に留まる。単複比5.1倍と適正で、複勝での堅牢性がある。期待数値にも含まれており、穴馬として一定の可能性を秘めている。市場から若干売られている点を考慮すると、妙味がある馬。
-
-
-
-=================================================================================
-
-
-CREATE TABLE `t_horse_odds_finder_ai_analysis_check` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `date` date DEFAULT NULL,
-  `kaisuu` int DEFAULT NULL,
-  `basho` text,
-  `basho_code` char(2) DEFAULT NULL,
-  `day` int DEFAULT NULL,
-  `race` int DEFAULT NULL,
-  `race_name` text,
-  `pickup_horse1` text,
-  `pickup_horse2` text,
-  `pickup_horse3` text,
-  `finishing_horse1` text,
-  `finishing_horse2` text,
-  `finishing_horse3` text,
-  `hit_count` int DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_ai_analysis` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=163 DEFAULT CHARSET=utf8mb3;
-
-
-1	2026-07-25	1	札幌	01	1	1	3歳未勝利（混合）［指定］	カッサンドラ	アイビーミャーオ	ロングフルスペック	カレンココナ	アイビーミャーオ	カッサンドラ	2
-2	2026-07-25	1	札幌	01	1	2	2歳未勝利（混合）［指定］	コックニー	ヴィヴィアンリーチ	ライフイズアート	ヌーンベルク	トーセンルルド	シガレス	0
-3	2026-07-25	1	札幌	01	1	6	3歳未勝利（混合）［指定］	コワンニシタガウ	インフィオラータ	ケナゲ	テンレディーゴー	コワンニシタガウ	ケナゲ	2
-
-
-
+1	2026-08-29	3	新潟	04	3	1	障害3歳以上未勝利（混合）	厳選穴レース|1↵馬番：11、馬名：ラパンラピッド、人気順: 1、6分前オッズ: 3.0、おすすめ度: 58、選出理由：1番人気として安定した動きを示しており、複勝は1.2-1.5倍で継続的に狭い幅を保持している。類似レース統計では1番人気の3着以内率が68.2%と高く、単複ともにオッズ変動が最小限に抑えられている。推定確定オッズ2.8倍は6分前より若干下落するパターンで、直前の追加流入を示唆している。OPI0.87は平均並みで過大評価ではなく、過去回収率（±5%以内パターン）で84.3%という水準は堅実性を証明している。複勝1.2-1.5倍という極度な低帯集中の中では市場の最大確信対象であり、複勝流入ランク2位で継続的な資金が投下されている。↵↵馬番：6、馬名：リッケンバッカー、人気順: 3、6分前オッズ: 5.9、おすすめ度: 52、選出理由：3番人気として開始時点の9.1倍から6分前5.9倍へ35.2%の段階的短縮を遂行している。短縮の複数段階（21分8.6倍→18分8.4倍→15分8.4倍→12分6.7倍→9分5.9倍）は市場の継続的買い圧を示しており、特に12分から9分への急速短縮で確信の高まりが明確。複勝も1.3-1.9倍に下落し、複勝流入ランク1位で同グループ内での最大資金流入を示している。単複比4.5倍は勝ちにくさを示すが、類似レース統計の3着以内率44.3%は堅実で、過去回収率で30%以上下落パターンが54.0%と控えめだが、OPI帯別回収率で79.3%の実績がある。直前減速（複勝-18.8%）という警告があるものの、短縮の段階性とOPI1.08の平均並み評価から選出は妥当。↵↵馬番：9、馬名：フォーディアライフ、人気順: 2、6分前オッズ: 4.4、おすすめ度: 51、選出理由：2番人気として開始前から最終まで4.4倍で完全に固定されており、±0%の最安定馬として市場の確実な確信を示している。複勝も1.4-2.1倍で狭い幅を保持し、複勝流入ランク3位ながら安定性は最上級。OPI1.00は過去平均と完全に一致し、過大評価がない証拠。類似レース統計の2番人気における3着以内率56.4%は高く、過去回収率（±5%以内）で84.3%の堅実な実績。フェーズパターン別回収率で「前半上昇・後半下落」パターンが87.3%、勝率31.6%という最強の売却層パターンに該当していることが選出の最大根拠。直前減速は複勝-6.7%で軽微であり、全体的に市場の強い支持を受けている。↵↵馬番：10、馬名：オリンポスカズマ、人気順: 6、6分前オッズ: 9.5、おすすめ度: 46、選出理由：6番人気として開始前の11.8倍から6分前9.5倍へ19.5%の下落を達成し、単勝流入ランク1位で同グループ内（4～6人気）での最大資金流入を示している。複勝は2.2-3.5倍で継続的な下落傾向を見せており、複勝流入ランク1位で複勝の狭い変動幅（-4.8%）とともに安定性を示唆。OPI2.07は過剰人気を示すものの、類似レース統計の6番人気における3着以内率22.5%は悪くなく、直前加速（複勝+0.0%・単勝-5.9%）で単勝は直前減速だが複勝の安定性が優先材料。推定補正OPI1.86は過剰人気圏内だが、複勝の継続的下落と流入ランク1位という組み合わせから、市場の相対的な強い評価を反映している。↵↵馬番：7、馬名：マイネルニコラス、人気順: 7、6分前オッズ: 22.0、おすすめ度: 42、選出理由：7番人気として開始前18.0倍から6分前22.0倍へ22.2%上昇したが、この上昇は段階的（21分17.6倍→18分17.5倍→15分17.0倍→12分19.9倍→9分20.8倍→6分22.0倍）な推移を示しており、短縮ではなく緩やかな相対的人気変動と判断できる。複勝流入ランク4位で同グループ内（7人気以下）での安定性を示し、複勝OPI0.78は妙味あり圏内で過小評価を示唆している。過去回収率（20～30%上昇パターン）で120.2%、OPI帯別回収率で98.8%という高い実績が存在し、フェーズパターン別回収率でも「前半上昇・後後昇」パターンが65.8%。6～10番人気の断層下側（6～7番人気間に2.32倍の大断層あり）に位置しながら複勝的な継続的安定性が見られることで、穴の可能性を示唆している。
+2	2026-08-29	3	中京	07	3	1	2歳未勝利（混合）［指定］	厳選穴レース|0↵馬番：1、馬名：エンルートフライト、人気順: 1、6分前オッズ: 2.1、おすすめ度: 68、選出理由：断層上側の最上位に位置し、複勝オッズが計測前1.1倍から6分前1.1倍で継続的に安定している。類似レース統計では1番人気として3着以内率68.2%と高い信頼度を持つ。単勝OPI1.24は過剰人気を示唆するが、フェーズパターン別回収率で「前半横ばい・後半上昇」パターンが125.3%という優良成績を記録しており、直前流入も複勝横ばい・単勝上昇と堅い動きを示している。推定確定オッズ2.0倍での着順期待値も安定的。↵↵馬番：7、馬名：マンナット、人気順: 3、6分前オッズ: 5.0、おすすめ度: 66、選出理由：単勝流入ランク1位として、同人気帯内で最も強い資金流入を示している。複勝も計測前1.4-2.5倍から6分前1.2-2.1倍への継続的な下落で、市場が3着以内を確実視している動きが明確。単勝15.3%下落・複勝14.3%下落の一致した流入で信頼度が高い。OPI1.26は過剰人気だが、OPI帯別回収率「1.15-1.30」で91.0%、フェーズパターン別でも「前半横ばい・後半下落」が85.2%と良好。直前減速は警戒材料だが断層下側への移行前の最後の有力馬として優先度高い。↵↵馬番：2、馬名：ブラックミューズ、人気順: 2、6分前オッズ: 4.5、おすすめ度: 55、選出理由：2人気として断層上側に位置し、複勝最小オッズ1.3倍で継続的に安定している。類似レース統計では2番人気として3着以内率56.4%と中程度の信頼度を保有。単勝流入ランク2位で、同人気帯内での相対的な買われ方も悪くない。ただしOPI0.98は平均並み、単複比3.5倍は高めで勝ちにくい性質を示す。直前減速（複勝-7.1%、単勝-2.2%）が懸念材料だが、OPI帯別回収率「0.85-1.00」で80.5%と許容可能。推定確定4.2倍での妙味を考慮すると、複勝での活用が中心となる。↵↵馬番：5、馬名：レイデアルマス、人気順: 5、6分前オッズ: 11.1、おすすめ度: 54、選出理由：5〜6番人気帯において複勝流入ランク3位で、同帯内では購買圧が相対的に高い。複勝オッズが計測前2.0-3.8倍から6分前2.3-5.0倍への15%上昇という一見弱気な動きだが、変化の一貫性と単勝22%上昇との不一致は市場の過剰反応を示唆。OPI1.22は過剰人気を示唆し、妙味が限定的だが、OPI帯別回収率「1.15-1.30」で82.1%と有望。推定確定11.7倍での期待値を考慮すると、中位帯からの分散対応馬として機能する可能性がある。↵↵馬番：11、馬名：メモリアデルレ、人気順: 4、6分前オッズ: 10.0、おすすめ度: 52、選出理由：4人気として単勝18%下落・複勝4.5%下落を示し、計測値の継続的な買い圧を示唆している。複勝流入ランク2位で同人気帯内での相対的購買が強い。OPI0.92は平均並みで妙味もある。類似レース統計では4番人気として3着以内率36.0%と中程度の確度。OPI帯別回収率「0.85-1.00」で83.7%と許容範囲内。直前減速が軽微（複勝±0%、単勝-9.1%）で、推定確定10.4倍への補正係数1.0364も安定的。断層構造内での立ち位置が明確で、分散補助馬として機能可能。
+3	2026-08-29	2	札幌	01	3	1	3歳未勝利[指定]	厳選穴レース|1↵馬番：2、馬名：ロードステラート、人気順: 2、6分前オッズ: 5.3、おすすめ度: 72、選出理由：複勝が継続下落（2.2-2.9倍→1.9-2.6倍）し、6分前時点で複勝流入ランク1位と最も資金が集中している。類似レース統計で3着以内率48.4%と高く、OPI帯別回収率88.8%の優位な過去パターンに合致。推定確定オッズ5.0倍への補正係数0.9387も直前の人気継続を示唆している。断層上側のグループ最上部に位置し、市場の確信が継続している。↵馬番：12、馬名：サンオブザサン、人気順: 4、6分前オッズ: 6.2、おすすめ度: 66、選出理由：単勝・複勝ともに継続的な資金流入を示し、単勝流入ランク2位・複勝流入ランク1位である。類似レース統計で3着以内率32.8%、OPI帯別回収率83.0%と回収指標が良好。フェーズパターン別回収率74.2%で継続上昇パターンに合致。オッズ6.2倍は妙味ある水準で、市場の段階的な買い圧が安定している。↵馬番：6、馬名：ワンダーアスク、人気順: 6、6分前オッズ: 10.7、おすすめ度: 62、選出理由：単勝流入ランク3位として同人気帯トップクラスの資金流入を記録。類似レース統計で3着以内率21.1%、OPI帯別回収率65.6%と堅実。複勝は2.5倍から段階的に上昇（2.9倍）しているが、推定確定オッズ11.9倍への補正係数1.1153が直前の人気集中を示唆。妙味のある中位帯オッズで、人気帯内での相対的な流入強度が高い。↵馬番：11、馬名：メイショウタイザン、人気順: 7、6分前オッズ: 13.8、おすすめ度: 59、選出理由：単勝流入ランク4位で7人気以下グループ内の上位流入。段階的な短縮トレンド（12.4倍→13.8倍は終盤微上昇だが全体では継続的買い圧）を示し、複勝流入ランク3位。フェーズパターン別回収率99.0%の「前半横ばい・後半上昇」パターンに合致し、市場が終盤に確信を深めている。OPI帯別回収率90.5%と優位で、13.8倍のオッズは妙味ある水準。↵馬番：13、馬名：ベルアズーロ、人気順: 1、6分前オッズ: 4.0、おすすめ度: 58、選出理由：1番人気でありながらOPI 0.65（妙味あり）と市場が過小評価。過去同人気の平均2.6倍より高い4.0倍はバリュー価値を示唆。複勝継続下落（2.1-2.8倍→2.0-2.8倍）し、直前流入で単勝+11.1%と買い加速。類似レース統計で3着以内率62.5%と入賞確度が高く、OPI帯別回収率83.8%で妙味スコアを支える。推定確定オッズ3.8倍への補正も直前確信を示す。↵馬番：4、馬名：ショウナンタヅナ、人気順: 8、6分前オッズ: 16.3、おすすめ度: 56、選出理由：単勝流入ランク1位として7人気以下グループで最も資金が集中し、複勝流入ランク1位。22.7%の単勝短縮率（21.1倍→16.3倍）は段階的な継続買いを示唆。OPI帯別回収率90.5%と「OPI1.50以上」パターンで優位。類似レース統計で3着以内率13.9%と中位程度だが、同人気グループ内での相対的な流入強度が最も高く、16.3倍は妙味ある穴オッズ。直前減速は警告だが、長期的買い圧が強い。
 
 
 =================================================================================
+
+
 
 
 
@@ -67,7 +36,7 @@ CREATE TABLE `t_horse_odds_finder_ai_analysis2` (
   `analysis_text` text,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_ai_analysis` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=147 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=291 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -84,8 +53,6 @@ CREATE TABLE `t_horse_odds_finder_ai_analysis2` (
 
 
 
-
-
 =================================================================================
 
 
@@ -94,34 +61,43 @@ CREATE TABLE `t_horse_odds_finder_ai_analysis2` (
 
 
 
-CREATE TABLE `t_horse_odds_finder_ai_recovery` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `date` varchar(10) NOT NULL COMMENT 'レース日 YYYY-MM-DD',
-  `kaisuu` tinyint NOT NULL COMMENT '開催回数',
-  `basho_code` varchar(2) NOT NULL COMMENT '場所コード',
-  `day` tinyint NOT NULL COMMENT '開催日目',
-  `race` tinyint NOT NULL COMMENT 'レース番号',
-  `ai_pick_count` tinyint NOT NULL DEFAULT '0' COMMENT 'AIが選んだ馬の頭数',
-  `tan_bet` int NOT NULL DEFAULT '0' COMMENT '単勝払戻合計（円）外れは0',
-  `fuku_bet` int NOT NULL DEFAULT '0' COMMENT '複勝払戻合計（円）外れは0',
-  `tan_hit` tinyint NOT NULL DEFAULT '0' COMMENT '単勝的中数',
-  `fuku_hit` tinyint NOT NULL DEFAULT '0' COMMENT '複勝的中数',
-  `computed_at` datetime DEFAULT NULL COMMENT '集計日時',
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL,
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_ai_merge_result` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `date` date NOT NULL,
+  `kaisuu` tinyint unsigned NOT NULL,
+  `basho_code` char(2) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `day` tinyint unsigned NOT NULL,
+  `race` tinyint unsigned NOT NULL,
+  `race_name` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `upset_race` tinyint(1) DEFAULT NULL COMMENT '厳選穴レース 0/1（再判定後の最終値）',
+  `wave_level` tinyint unsigned DEFAULT NULL COMMENT '波乱度 1〜5',
+  `lower_entry` tinyint unsigned DEFAULT NULL COMMENT '下位進入度 1〜5',
+  `big_gap_entry` tinyint unsigned DEFAULT NULL COMMENT '大穴進入度 1〜5',
+  `gap_type` char(1) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '断層タイプ A〜E',
+  `result_json` json DEFAULT NULL COMMENT '統合馬リスト（JSON配列）',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_ai_recovery` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=274 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='AI予想の単勝・複勝回収率集計';
+  UNIQUE KEY `uq_merge_result` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
-1	2026-07-25	1	01	1	1	3	0	220	0	2	2026-08-23 23:40:02	NULL	NULL
-2	2026-07-25	1	01	1	2	3	0	0	0	0	2026-08-23 23:40:02	NULL	NULL
-3	2026-07-25	1	01	1	3	3	240	230	1	2	2026-08-23 23:40:02	NULL	NULL
+
+
+
+
+
+
+
+
 
 
 
 =================================================================================
+
 
 
 
@@ -144,16 +120,14 @@ CREATE TABLE `t_horse_odds_finder_compute_odds_correction` (
   `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_popularity_rank` (`popularity_rank`)
-) ENGINE=InnoDB AUTO_INCREMENT=127 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='6分前オッズから確定オッズへの補正係数テーブル';
+) ENGINE=InnoDB AUTO_INCREMENT=433 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='6分前オッズから確定オッズへの補正係数テーブル';
 
 
 
 
-
-1	1	68	2.70	2.51	0.9421	0.1073	0.450401	2026-08-22	2026-08-23	2026-08-23 21:10:02
-2	2	72	4.71	4.36	0.9387	0.1169	0.252114	2026-08-22	2026-08-23	2026-08-23 21:10:02
-3	3	72	6.93	6.80	0.9935	0.1424	0.160227	2026-08-22	2026-08-23	2026-08-23 21:10:02
-
+1	1	70	2.52	2.47	0.9897	0.1012	0.448943	2026-09-05	2026-09-06	2026-09-09 21:20:02
+2	2	72	5.19	4.65	0.9054	0.1251	0.234358	2026-09-05	2026-09-06	2026-09-09 21:20:02
+3	3	72	7.13	6.77	0.9648	0.1228	0.163780	2026-09-05	2026-09-06	2026-09-09 21:20:02
 
 
 
@@ -165,27 +139,6 @@ CREATE TABLE `t_horse_odds_finder_compute_odds_correction` (
 
 
 
-
-
-
-
-
-CREATE TABLE `t_horse_odds_finder_fcm_tokens` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `user_id` varchar(255) NOT NULL,
-  `fcm_token` varchar(255) NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `fcm_token` (`fcm_token`),
-  KEY `user_id` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
-
-
-
-データなし
-
-
-
-=================================================================================
 
 
 
@@ -198,14 +151,15 @@ CREATE TABLE `t_horse_odds_finder_forecast_from_last_race` (
   `day` text,
   `race` text,
   `forecast_nums` text,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=64 DEFAULT CHARSET=utf8mb3;
+  PRIMARY KEY (`id`),
+  KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`(2))
+) ENGINE=InnoDB AUTO_INCREMENT=66 DEFAULT CHARSET=utf8mb3;
 
 
 
-1	2026-08-08	1	01	札幌	5	1	1|2|6|11|13|14
-2	2026-08-08	1	01	札幌	5	2	7|9|4|2|5
-3	2026-08-08	1	01	札幌	5	3	4|6|11|13|8|12
+1	2026-09-05	2	01	札幌	5	1	2|9|7|11|5
+2	2026-09-05	2	01	札幌	5	2	11|2|1|9|10
+3	2026-09-05	2	01	札幌	5	3	4|5|9|11|1
 
 
 =================================================================================
@@ -228,14 +182,57 @@ CREATE TABLE `t_horse_odds_finder_fuku_popularity_rank_average` (
 
 
 
-
-1	1	1.3	12595	2023-01-05	2026-08-23
-2	2	1.4	12612	2023-01-05	2026-08-23
-3	3	1.7	12612	2023-01-05	2026-08-23
+1	1	1.3	12733	2023-01-05	2026-09-06
+2	2	1.4	12756	2023-01-05	2026-09-06
+3	3	1.7	12756	2023-01-05	2026-09-06
 
 
 
 =================================================================================
+
+
+
+
+
+
+
+
+CREATE TABLE `t_horse_odds_finder_high_payout_shadow_log` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `date` date DEFAULT NULL COMMENT 'レース日',
+  `kaisuu` int DEFAULT NULL COMMENT '回数',
+  `basho` text COMMENT '場名称',
+  `basho_code` char(2) DEFAULT NULL COMMENT '場コード',
+  `day` int DEFAULT NULL COMMENT '日目',
+  `race` int DEFAULT NULL COMMENT 'レース番号',
+  `num` int DEFAULT NULL COMMENT '馬番',
+  `name` varchar(64) DEFAULT NULL COMMENT '馬名',
+  `popularity` int DEFAULT NULL COMMENT '人気順',
+  `category` varchar(16) DEFAULT NULL COMMENT 'matched/first_only/second_only',
+  `market_score` decimal(6,2) DEFAULT NULL COMMENT '市場妙味基礎点（total_score）',
+  `ability_grade` char(1) DEFAULT NULL COMMENT '能力適性グレード（A/B/C/D, NULL=不明）',
+  `ability_corr` int DEFAULT NULL COMMENT '能力適性補正点（A:20/B:14/C:7/D:0, NULL=不明）',
+  `high_payout_score` int DEFAULT NULL COMMENT '高配当総合点（市場妙味基礎点+能力適性補正、上限100, NULL=不明）',
+  `shadow_rank` int DEFAULT NULL COMMENT '仮順位（高配当総合点降順）',
+  `mismatch_category` char(1) DEFAULT NULL COMMENT '不一致馬A〜D分類（NULL=matched馬は対象外）',
+  `fake_inflow_warning` tinyint(1) DEFAULT NULL COMMENT '偽流入警戒フラグ（1=警戒,0=有効流入）',
+  `undereval_flag` tinyint(1) DEFAULT NULL COMMENT '市場過小評価フラグ（NULL=B-13未実装）',
+  `betting_judgment` varchar(8) DEFAULT NULL COMMENT '馬券判定（単勝/複勝/単複/監視/見送り）',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_hp_shadow` (`date`,`kaisuu`,`basho_code`,`day`,`race`,`num`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='高配当強化指標シャドーログ（シャドー検証期間中の高配当総合点・仮順位・馬券判定の並行保存）';
+
+
+
+
+
+
+
+
+=================================================================================
+
 
 
 
@@ -250,13 +247,13 @@ CREATE TABLE `t_horse_odds_finder_horse_scores` (
   `count` int DEFAULT NULL,
   `score` int DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2317 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=3861 DEFAULT CHARSET=utf8mb3;
 
 
 
-1	アーガイルショア	4	87
-2	アージュドール	5	43
-3	アースヴィンチ	4	60
+1	アーガイルショア	6	84
+2	アークドール	4	76
+3	アーサーバローズ	4	48
 
 
 =================================================================================
@@ -279,13 +276,13 @@ CREATE TABLE `t_horse_odds_finder_horses` (
   `horse_url` text,
   `jockey` text,
   `trainer` text,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=928 DEFAULT CHARSET=utf8mb3;
+  PRIMARY KEY (`id`),
+  KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=947 DEFAULT CHARSET=utf8mb3;
 
-1	2026-08-08	2	04	新潟	5	1	1	1	マイネルヴェスペル	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024103642/07	津村 明秀	加藤 士津八
-2	2026-08-08	2	04	新潟	5	1	2	2	トランサルピナ	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024103471/62	荻野 極	中舘 英二
-3	2026-08-08	2	04	新潟	5	1	3	3	リーディンアクター	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024100072/44	西村 太一	堀内 岳志
-
+1	2026-09-05	4	06	中山	1	1	1	1	バニーラビット	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002022104929/76	小牧 加矢太	武 幸四郎
+2	2026-09-05	4	06	中山	1	1	2	2	ナックエルドラド	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002022106304/CF	水沼 元輝	小野 次郎
+3	2026-09-05	4	06	中山	1	1	3	3	メイショウアツイタ	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002018105731/58	難波 剛健	高橋 義忠
 
 
 
@@ -303,12 +300,12 @@ CREATE TABLE `t_horse_odds_finder_jockey_scores` (
   `count` int DEFAULT NULL,
   `score` int DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=115 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=132 DEFAULT CHARSET=utf8mb3;
 
 
-1	丹内 祐次	318	59
-2	佐々木 大輔	257	55
-3	松山 弘平	254	65
+1	丹内 祐次	442	59
+2	佐々木 大輔	392	55
+3	横山 武史	379	67
 
 
 =================================================================================
@@ -363,23 +360,35 @@ CREATE TABLE `t_horse_odds_finder_login_users` (
 
 
 
-CREATE TABLE `t_horse_odds_finder_netkeiba_odds` (
+
+CREATE TABLE `t_horse_odds_finder_market_score_log` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `date` text,
-  `kaisuu` text,
-  `basho` text,
-  `day` text,
-  `race` int DEFAULT NULL,
-  `num` int DEFAULT NULL,
-  `odds` text,
-  `fuku_min` text,
-  `fuku_max` text,
-  `minutes_before_start` int DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+  `date` date NOT NULL,
+  `kaisuu` tinyint unsigned NOT NULL,
+  `basho_code` char(2) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `day` tinyint unsigned NOT NULL,
+  `race` tinyint unsigned NOT NULL,
+  `num` tinyint unsigned NOT NULL,
+  `name` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `score_a` tinyint unsigned DEFAULT NULL COMMENT '複勝継続流入点（0〜20）',
+  `score_b` tinyint unsigned DEFAULT NULL COMMENT '複勝優位性点（0〜15）',
+  `score_c` tinyint unsigned DEFAULT NULL COMMENT 'OPI妙味点（0〜15）',
+  `score_d` tinyint unsigned DEFAULT NULL COMMENT '回収率裏付け点（0〜15）',
+  `score_e` tinyint unsigned DEFAULT NULL COMMENT '断層変化根拠点（0〜15）',
+  `base_total` tinyint unsigned DEFAULT NULL COMMENT '市場妙味基礎点合計（0〜80）',
+  `ability_grade` char(1) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'AI採点能力適性グレード A〜D',
+  `ability_score` tinyint unsigned DEFAULT NULL COMMENT '能力適性補正点（20/15/10/0）',
+  `high_score` tinyint unsigned DEFAULT NULL COMMENT '高配当総合点（0〜100）',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_market_score` (`date`,`kaisuu`,`basho_code`,`day`,`race`,`num`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-データなし
+
+
+
+
+
 
 
 
@@ -392,26 +401,34 @@ CREATE TABLE `t_horse_odds_finder_netkeiba_odds` (
 
 
 
-CREATE TABLE `t_horse_odds_finder_netkeiba_races` (
+CREATE TABLE `t_horse_odds_finder_ml_snapshot` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `date` text,
-  `kaisuu` text,
-  `basho` text,
-  `basho_name` text,
-  `day` text,
-  `race_id` text,
-  `race` int DEFAULT NULL,
-  `race_name` text,
-  `start_time` text,
-  `num_horses` int DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+  `date` date NOT NULL,
+  `kaisuu` tinyint unsigned NOT NULL,
+  `basho_code` char(2) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `basho` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '場名テキスト（例: 東京, 阪神）',
+  `day` tinyint unsigned NOT NULL,
+  `race` tinyint unsigned NOT NULL,
+  `gap_type` char(1) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '断層タイプ A〜E',
+  `features` json DEFAULT NULL COMMENT '特徴量（JSON）',
+  `result_m1` tinyint(1) DEFAULT NULL COMMENT '上位完結ラベル（結果確定後に更新）',
+  `result_m2` tinyint(1) DEFAULT NULL COMMENT '下位進入ラベル（結果確定後に更新）',
+  `result_m3` tinyint(1) DEFAULT NULL COMMENT '大穴進入ラベル（結果確定後に更新）',
+  `result_m4_json` json DEFAULT NULL COMMENT '馬別5着以内ラベル（全頭・JSON）',
+  `result_label_status` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'filled / excluded / skipped',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ml_snapshot` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-データなし
+
+
+
 
 
 =================================================================================
+
+
 
 
 
@@ -430,13 +447,14 @@ CREATE TABLE `t_horse_odds_finder_odds` (
   `fuku_min` text,
   `fuku_max` text,
   `minutes_before_start` int DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=8125 DEFAULT CHARSET=utf8mb3;
+  PRIMARY KEY (`id`),
+  KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=8515 DEFAULT CHARSET=utf8mb3;
 
 
-1	2026-08-08	2	04	5	1	1	18.3	3.9	7.4	999
-2	2026-08-08	2	04	5	1	2	15.9	3.3	6.0	999
-3	2026-08-08	2	04	5	1	3	7.9	1.6	2.7	999
+1	2026-09-05	2	01	5	1	1	13.8	1.9	10.3	999
+2	2026-09-05	2	01	5	1	2	7.9	1.2	4.6	999
+3	2026-09-05	2	01	5	1	3	188.0	15.9	105.8	999
 
 
 =================================================================================
@@ -464,15 +482,13 @@ CREATE TABLE `t_horse_odds_finder_odds_gap_recovery` (
   `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_gap_popularity` (`gap_band`,`popularity_band`)
-) ENGINE=InnoDB AUTO_INCREMENT=217 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='計測開始→6分前オッズ変化率帯×人気帯別の単勝回収率';
+) ENGINE=InnoDB AUTO_INCREMENT=829 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='計測開始→6分前オッズ変化率帯×人気帯別の単勝回収率';
 
 
 
-
-1	30%以上下落	-999.0	-20.0	1〜3人気	1	3	131	20	15.27	53.97	2026-06-21	2026-08-23	2026-08-23 22:10:02
-2	30%以上下落	-999.0	-20.0	4〜6人気	4	6	39	1	2.56	15.13	2026-06-21	2026-08-23	2026-08-23 22:10:02
-3	30%以上下落	-999.0	-20.0	7〜9人気	7	9	18	1	5.56	150.56	2026-06-21	2026-08-15	2026-08-23 22:10:02
-
+1	30%以上下落	-999.0	-20.0	1〜3人気	1	3	162	28	17.28	62.84	2026-06-21	2026-09-06	2026-09-09 22:20:02
+2	30%以上下落	-999.0	-20.0	4〜6人気	4	6	55	1	1.82	10.73	2026-06-21	2026-09-05	2026-09-09 22:20:02
+3	30%以上下落	-999.0	-20.0	7〜9人気	7	9	20	1	5.00	135.50	2026-06-21	2026-09-05	2026-09-09 22:20:02
 
 
 
@@ -495,41 +511,18 @@ CREATE TABLE `t_horse_odds_finder_odds_get_timing` (
   `timing` int DEFAULT NULL,
   `get_datetime` text,
   `odds_from` text,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=630 DEFAULT CHARSET=utf8mb3;
+  PRIMARY KEY (`id`),
+  KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=649 DEFAULT CHARSET=utf8mb3;
 
 
-1	2026-08-08	2	04	5	1	999	2026-08-08 09:10:18	JRA
-2	2026-08-08	2	04	5	1	21	2026-08-08 09:19:19	JRA
-3	2026-08-08	2	07	5	1	999	2026-08-08 09:20:21	JRA
-
-=================================================================================
-
-
-
-
-
-CREATE TABLE `t_horse_odds_finder_odds_wide` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `date` text,
-  `kaisuu` text,
-  `basho` text,
-  `day` text,
-  `race` int DEFAULT NULL,
-  `uma1` int DEFAULT NULL,
-  `uma2` int DEFAULT NULL,
-  `odds_min` text,
-  `odds_max` text,
-  `minutes_before_start` int DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
-
-
-
-データなし
-
+1	2026-09-05	2	01	5	1	999	2026-09-05 09:20:13	JRA
+2	2026-09-05	4	09	1	1	999	2026-09-05 09:25:13	JRA
+3	2026-09-05	2	01	5	1	21	2026-09-05 09:29:12	JRA
 
 =================================================================================
+
+
 
 
 
@@ -552,15 +545,13 @@ CREATE TABLE `t_horse_odds_finder_opi_recovery` (
   `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_opi_popularity` (`opi_band`,`popularity_band`)
-) ENGINE=InnoDB AUTO_INCREMENT=169 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OPI帯×人気帯別の単勝回収率';
+) ENGINE=InnoDB AUTO_INCREMENT=645 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OPI帯×人気帯別の単勝回収率';
 
 
 
-
-1	0.70未満	-999.00	0.70	1〜3人気	1	3	217	26	11.98	83.78	2026-06-06	2026-08-23	2026-08-23 22:20:02
-2	0.70未満	-999.00	0.70	4〜6人気	4	6	267	10	3.75	62.47	2026-06-06	2026-08-23	2026-08-23 22:20:02
-3	0.70未満	-999.00	0.70	7〜9人気	7	9	322	2	0.62	42.86	2026-06-06	2026-08-23	2026-08-23 22:20:02
-
+1	0.70未満	-999.00	0.70	1〜3人気	1	3	246	33	13.41	83.62	2026-06-06	2026-09-06	2026-09-09 22:30:02
+2	0.70未満	-999.00	0.70	4〜6人気	4	6	304	13	4.28	85.66	2026-06-06	2026-09-06	2026-09-09 22:30:02
+3	0.70未満	-999.00	0.70	7〜9人気	7	9	342	1	0.29	20.64	2026-06-06	2026-09-06	2026-09-09 22:30:02
 
 
 
@@ -593,15 +584,13 @@ CREATE TABLE `t_horse_odds_finder_phase_pattern_recovery` (
   `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_phase_popularity` (`phase_pattern`,`popularity_band`)
-) ENGINE=InnoDB AUTO_INCREMENT=217 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='前半・後半フェーズ方向パターン×人気帯別の単勝回収率';
+) ENGINE=InnoDB AUTO_INCREMENT=829 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='前半・後半フェーズ方向パターン×人気帯別の単勝回収率';
 
 
 
-
-1	前半下落・後半下落	前半下落	後半下落	1	1	1〜3人気	1	3	393	85	21.63	78.32	2026-06-21	2026-08-23	2026-08-23 21:30:02
-2	前半下落・後半下落	前半下落	後半下落	1	1	4〜6人気	4	6	146	9	6.16	64.93	2026-06-21	2026-08-23	2026-08-23 21:30:02
-3	前半下落・後半下落	前半下落	後半下落	1	1	7〜9人気	7	9	38	1	2.63	62.63	2026-06-21	2026-08-23	2026-08-23 21:30:02
-
+1	前半下落・後半下落	前半下落	後半下落	1	1	1〜3人気	1	3	488	102	20.90	73.38	2026-06-21	2026-09-06	2026-09-09 21:40:02
+2	前半下落・後半下落	前半下落	後半下落	1	1	4〜6人気	4	6	187	9	4.81	50.70	2026-06-21	2026-09-06	2026-09-09 21:40:02
+3	前半下落・後半下落	前半下落	後半下落	1	1	7〜9人気	7	9	48	1	2.08	49.58	2026-06-21	2026-09-06	2026-09-09 21:40:02
 
 
 
@@ -633,8 +622,9 @@ CREATE TABLE `t_horse_odds_finder_popularity_horse_check` (
   `finishing_horse2` text,
   `finishing_horse3` text,
   `hit_count` int DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=184 DEFAULT CHARSET=utf8mb3;
+  PRIMARY KEY (`id`),
+  KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=485 DEFAULT CHARSET=utf8mb3;
 
 1	2026-07-18	1	02	11	2	マーマレードスカイ	ドリームガッサン	ペイシャクロス	チュラヴェール	コシタンタン	NULL	メモリーデイズ	ドリームガッサン	ペイシャクロス	2
 2	2026-07-18	1	02	11	3	ポップアップ	リバーソニック	ゴールデンボブ	ウインガネーシャ	ハイランダー	NULL	リバーソニック	ウインガネーシャ	ポップアップ	3
@@ -662,9 +652,9 @@ CREATE TABLE `t_horse_odds_finder_popularity_rank_average` (
 
 
 
-1	1	2.6	12450	2023-01-05	2026-08-09
-2	2	4.4	12462	2023-01-05	2026-08-09
-3	3	6.3	12462	2023-01-05	2026-08-09
+1	1	2.6	12727	2023-01-05	2026-09-06
+2	2	4.4	12750	2023-01-05	2026-09-06
+3	3	6.3	12750	2023-01-05	2026-09-06
 
 
 
@@ -703,14 +693,14 @@ CREATE TABLE `t_horse_odds_finder_popularity_rank_median` (
   `median_16` text,
   `median_17` text,
   `median_18` text,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=61 DEFAULT CHARSET=utf8mb3;
+  PRIMARY KEY (`id`),
+  KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=60 DEFAULT CHARSET=utf8mb3;
 
 
-1	2026-08-08	1	01	札幌	5	1	3歳未勝利牝［指定］	2.7	5.1	6.5	8	9	12.3	17.6	21.6	26.4	33.6	43.4	81.3	104.9	134.8	NULL	NULL	NULL	NULL
-2	2026-08-08	1	01	札幌	5	2	2歳未勝利（混合）［指定］	2.3	3.9	8.6	11.8	12.7	16.8	17.5	20.2	29.2	35.7	44.9	73.2	100.2	NULL	NULL	NULL	NULL	NULL
-3	2026-08-08	1	01	札幌	5	3	3歳未勝利[指定]	3.7	4.3	5.8	7.4	9.7	12.3	14.2	17.3	28.9	36.5	53	63.2	85.4	149.9	NULL	NULL	NULL	NULL
-
+1	2026-09-05	2	01	札幌	5	2	2歳未勝利[指定]	1.5	4.7	7.6	12.3	15.4	22.2	40.5	52.8	70.5	115	163.5	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	2026-09-05	2	01	札幌	5	4	3歳未勝利[指定]	1.8	5.9	7.8	9.9	12.5	15.9	25	29	32	41.9	47.3	63.8	159.1	190.8	NULL	NULL	NULL	NULL
+3	2026-09-05	2	01	札幌	5	5	メイクデビュー札幌	3.2	3.5	6.9	8.4	9.5	12.1	21	27.3	29.6	39.8	43	52.2	67.4	75.7	NULL	NULL	NULL	NULL
 
 =================================================================================
 
@@ -725,14 +715,13 @@ CREATE TABLE `t_horse_odds_finder_push_send_logs` (
   `sent_at` datetime NOT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_sent_at` (`sent_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=238 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=266 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
-1	develop	DeleteKeibaTableRecords::handle	https://baganriki.com/horse_odds_finder/	2	2026-08-08 05:50:03
-2	develop	ImportKeibaSchedule::handle↵正常終了↵S:3、R:36、H:462	https://baganriki.com/horse_odds_finder/	2	2026-08-08 06:02:18
-3	develop	SummaryAiAnalysisCheck::handle↵処理対象なし（空振り）	https://baganriki.com/horse_odds_finder/	2	2026-08-08 06:30:03
-
+1	develop	DeleteKeibaTableRecords::handle	https://baganriki.com/horse_odds_finder/	2	2026-09-05 05:50:03
+2	develop	ImportKeibaSchedule::handle↵正常終了S:3、R:36、H:455	https://baganriki.com/horse_odds_finder/	2	2026-09-05 06:02:14
+3	develop	SummaryRacesPopularityRatio::handle↵正常終了↵INSERT:72件、スキップ:12615件	https://baganriki.com/horse_odds_finder/	2	2026-09-05 06:11:07
 
 
 =================================================================================
@@ -753,13 +742,12 @@ CREATE TABLE `t_horse_odds_finder_push_subscriptions` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_endpoint` (`endpoint`(512))
-) ENGINE=InnoDB AUTO_INCREMENT=180 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=547 DEFAULT CHARSET=utf8mb3;
 
 
-97	yoshida0896	https://web.push.apple.com/QFXi1lDW501W4vrH8B-5krksHDZWIgFJSlxFckfiYv6Z6PU_euKqOlJKOJ0Chah9ziG7Zels1U-XlgF_wc_Eb6hNTIwl27rrp6AI1612nk7NFu1_PHVbQkFJ2e2Gjv7kGbMlYmEb90PxoPtWIx_Z6aiNGGuabOuRLBbPjhJ_L_Q	BOpYTcj-PdEcTMDN_9CzlWg7JBWLfHSxxwEXQ-Y-ThI3ueilc0XG2164EzsG3XKC7LH6wOxyBeqgxLTOogRxw9w	ScjZ2xve5lioHdsfRHWaJw	0	2026-07-25 17:16:54
-100	yoshida0896	https://web.push.apple.com/QOXEW-wfLsFxZWDI-zVZnGQfsiB0SBs2nzegzSUI7GG3HRODpLVElkI9b47OLYKTWMqIrNyCHcgntUKiW5QRgypaRb61K-gwa9iR-KNJab__ujAbK1nocXuYfTxqfuDpv2sFlnhs-xTIyT92V3QZABxNavAvEU2iAd3gnvusBbE	BEjGrhMTKLD7Cyil6P4lBxutaS2UHiQuFgOJHwTkRoR_gajgPAUBsie0HMT5PHlbaNnsTZvAAAvKojtHOpK3_48	wcA4f0H_znrpDJkzlTkO0Q	0	2026-07-26 09:29:45
-109	yoshida0896	https://web.push.apple.com/QH8q9M_Fp8TwAQTJeaVTCN_2MtiyTWEv9dbz-nGgWLqu3naV7uFjzocUverzMVVK-tySaX5LwvqxeObo-LEgABNWOAyrZtjXD0aV-5vMLt-nYUlUgHDuwX8QGT5gLD9Zh-PCwZhykWbKFzFFuo-pkOtYfXWszWe556palENdFO0	BIX8LFiELiDXEIdmEqjaFDwjhGPjtOm0fa1cd3ZF7QRt0fuPw_PU2egP9hFyzenbHiRYavpj0_f9300i15tD8ac	fPklL81m4XOiVuhi5mN_Og	0	2026-07-28 18:12:27
-
+172	toyohide	https://fcm.googleapis.com/fcm/send/c6RWoA3-pW4:APA91bGHcae4LfldzElb6p8L_M4UtWVpm2b_XQjb7U5-VTTnncF0xecAve8XR87Ds57PuUvYAD2SU8wSSnwXEmphe_PG2c563VdLux2uhAgmeKFwk7DH386sZTTl9YLdWMTnpHJYdV3x	BP0lc23AgE-InYOqO2tL9y7N52vtMTKNmj0e-vE-kYfYQXog6qnnCjmRj8QaPRKkq3fLrYvd9ZTaLSLwqeb_2D8	ufwZJRvYLhN-gf1ZiIHIxw	0	2026-08-06 19:10:48
+272	toyohide	https://fcm.googleapis.com/fcm/send/db0MzK87Lb4:APA91bEbiqXxoeSCNex7KGU9a9rskcOjLlV54a7UpTtJX4jIwKZ7axdP6Qs9wG3sgO3uEvSSKc4K95NkkYVtGFD21gqIwydEFHfLURyScbjvNid9NNTb_4wyp-h6Gi963hMA1_2HapX5	BEl3mweINoEst4PV3ZRe35ketOCN8wbbvzJow3D--pehWFsPz2bw2kcY7TC06Vu4A1Rjfrw_0y0yPVZn6KSKzs8	1dguxrRpXURQfbpngDbpmg	0	2026-08-14 09:00:39
+387	yoshida0896	https://web.push.apple.com/QDhLUkd5PIDJw4D3miYZIP-awFweSJDT0Q6TJi3rt9l4D34UHhXeiQrrxPzSNwu_DeyapdsmpPJcz2ilnsNRObI2iIre0WL0vjuW4snrwEADti_itnmrx9xmnExsfnSNJiN9d6oM4y0zNUz45DVAWQK5U2ClNp88PhULZ9lY2dY	BExdDLNnJ_dowmCnFv6VbLNLfiqUM8AiP2MqepRVr4weVI2nA9fDQij_PElrD7Ivhbeq6D4CryWDar1Frvoi04s	LZE6L3kZbkjFr3Sf-fq5PQ	0	2026-08-22 14:14:56
 
 
 =================================================================================
@@ -781,8 +769,9 @@ CREATE TABLE `t_horse_odds_finder_race_introspection` (
   `race_name` text,
   `introspection` text,
   `finish` int DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=552 DEFAULT CHARSET=utf8mb3;
+  PRIMARY KEY (`id`),
+  KEY `idx_race` (`date`(10),`basho_code`,`day`,`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=981 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -815,7 +804,7 @@ CREATE TABLE `t_horse_odds_finder_race_result_history` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_race_horse` (`date`,`kaisuu`,`basho_code`,`day`,`race`,`num`),
   KEY `idx_pop_date` (`popularity_rank`,`date`)
-) ENGINE=InnoDB AUTO_INCREMENT=197119 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=225452 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 1	2023-01-05	1	中山	06	1	1	3歳未勝利	1	レディアス	36.1	4.8	12.4	6	3
@@ -855,14 +844,13 @@ CREATE TABLE `t_horse_odds_finder_race_result_payout` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_race_payout` (`date`,`kaisuu`,`basho_code`,`day`,`race`),
   KEY `idx_date_basho` (`date`,`basho_code`)
-) ENGINE=InnoDB AUTO_INCREMENT=12510 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=12582 DEFAULT CHARSET=utf8mb3;
 
 
 
-1	2023-01-05	1	中山	06	1	1	3歳未勝利	ダート	1200	-	14|180	14|110/5|150/1|480	3-7|470	5-14|220/1-14|790/1-5|1550	5-14|470	14-5|660	1-5-14|3040	14-5-1|8890
-2	2023-01-05	1	中山	06	1	2	3歳未勝利	ダート	1800	-	8|1380	8|460/7|440/13|400	4-4|7010	7-8|1930/8-13|2810/7-13|2490	7-8|6420	8-7|15240	7-8-13|32390	8-7-13|199190
-3	2023-01-05	1	中山	06	1	3	メイクデビュー中山	ダート	1800	-	16|1590	16|540/9|1000/2|440	5-8|2580	9-16|6100/2-16|3510/2-9|5930	9-16|24290	16-9|47840	2-9-16|117380	16-9-2|649440
-
+1	2023-01-05	1	中山	06	1	1	3歳未勝利	NULL	ダート	1200	-	14|180	14|110/5|150/1|480	3-7|470	5-14|220/1-14|790/1-5|1550	5-14|470	14-5|660	1-5-14|3040	14-5-1|8890
+2	2023-01-05	1	中山	06	1	2	3歳未勝利	NULL	ダート	1800	-	8|1380	8|460/7|440/13|400	4-4|7010	7-8|1930/8-13|2810/7-13|2490	7-8|6420	8-7|15240	7-8-13|32390	8-7-13|199190
+3	2023-01-05	1	中山	06	1	3	メイクデビュー中山	NULL	ダート	1800	-	16|1590	16|540/9|1000/2|440	5-8|2580	9-16|6100/2-16|3510/2-9|5930	9-16|24290	16-9|47840	2-9-16|117380	16-9-2|649440
 
 
 =================================================================================
@@ -887,15 +875,15 @@ CREATE TABLE `t_horse_odds_finder_race_results` (
   `horse_name` text,
   `result` int DEFAULT NULL,
   `notified_at` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=915 DEFAULT CHARSET=utf8mb3;
+  PRIMARY KEY (`id`),
+  KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
+) ENGINE=InnoDB AUTO_INCREMENT=942 DEFAULT CHARSET=utf8mb3;
 
 
 
-1	2026-08-08	2	04	新潟	5	1	2歳未勝利（混合）［指定］	13	グルーヴェンス	1	2026-08-08 09:51:23
-2	2026-08-08	2	04	新潟	5	1	2歳未勝利（混合）［指定］	8	セイウンイーリス	2	2026-08-08 09:51:23
-3	2026-08-08	2	04	新潟	5	1	2歳未勝利（混合）［指定］	2	トランサルピナ	3	2026-08-08 09:51:23
-
+1	2026-09-05	2	01	札幌	5	1	2歳未勝利（混合）［指定］	11	ロジアコース	1	2026-09-05 10:00:55
+2	2026-09-05	2	01	札幌	5	1	2歳未勝利（混合）［指定］	9	サトノフルーク	2	2026-09-05 10:00:55
+3	2026-09-05	2	01	札幌	5	1	2歳未勝利（混合）［指定］	5	ロードリバイバル	3	2026-09-05 10:00:55
 
 
 =================================================================================
@@ -915,6 +903,7 @@ CREATE TABLE `t_horse_odds_finder_races` (
   `day` text,
   `race` int DEFAULT NULL,
   `race_name` text,
+  `grade` text,
   `course` text,
   `dist` int DEFAULT NULL,
   `inner_outer` text,
@@ -923,15 +912,15 @@ CREATE TABLE `t_horse_odds_finder_races` (
   `popularity_ratio` text,
   `popularity_ratio_table_ids` text,
   `popularity_ratio_match_percent` text,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
 ) ENGINE=InnoDB AUTO_INCREMENT=73 DEFAULT CHARSET=utf8mb3;
 
 
 
-1	2026-08-08	2	04	新潟	5	1	2歳未勝利（混合）［指定］	芝	1400	内	09:40:00	13	3|1.1|1.4|1.5|1.2|1|1.5|1.4|1.2|1.2|1.9|1.8	800|2765|2414|9302|6849|8915|6613|8495	76.9|76.5|74|73.2|72.9|71.7|70.7|70.1
-2	2026-08-08	2	04	新潟	5	2	メイクデビュー新潟	ダート	1200	内	10:10:00	10	1.4|1.6|1.1|1.8|1|1.5|1.6|1.2|1.7	7240|1218|3565|6224|1944|8137|8197	75.1|74.6|74.4|74|73.5|73.3|70.8
-3	2026-08-08	2	04	新潟	5	3	メイクデビュー新潟	芝	1800	外	10:40:00	12	1.2|1.4|1.2|1.7|2.2|1.8|1.3|1.1|1.8|1|1.1	1932|243|2632	75|74.4|71.7
-
+1	2026-09-05	4	06	中山	1	1	障害3歳以上オープン（混合）	NULL	芝→ダート	3200	内	10:05:00	8	1.3|1.6|1.3|1.5|1.1|2.3|1.2	5807|7394	74.6|71.7
+2	2026-09-05	4	06	中山	1	2	3歳未勝利[指定]	NULL	芝	1600	外	10:40:00	16	2.9|1.1|1.3|1|1.7|1.4|1|1.1|1.1|1|1.4|1.2|1.1|1.2|1.8	8765|2915|1508|8478|9692|6827|5364|9918|1089|8234|8766|2570|286|3129|5212	82.1|77.1|73.9|73.8|72.8|72.3|71.8|71.7|71.4|71|71|70.6|70.4|70.2|70.2
+3	2026-09-05	4	06	中山	1	3	2歳未勝利（混合）［指定］	NULL	ダート	1800	内	11:10:00	10	1.8|2|1.2|1.1|1.4|1.2|1.3|1.9|1.6	8713|5078|1498|10299|11983	80.3|77.4|76.2|74.2|70.4
 
 =================================================================================
 
@@ -952,7 +941,7 @@ CREATE TABLE `t_horse_odds_finder_races_popularity_ratio` (
   `num_horses` int DEFAULT NULL,
   `popularity_ratio` text,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=12328 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=12688 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -983,9 +972,9 @@ CREATE TABLE `t_horse_odds_finder_schedules` (
 
 
 
-1	2026-08-08	2	04	新潟	5
-2	2026-08-08	2	07	中京	5
-3	2026-08-08	1	01	札幌	5
+1	2026-09-05	4	06	中山	1
+2	2026-09-05	4	09	阪神	1
+3	2026-09-05	2	01	札幌	5
 
 
 
@@ -1027,7 +1016,7 @@ CREATE TABLE `t_horse_odds_finder_shutsuba_history` (
   UNIQUE KEY `uq_shutsuba_history` (`name`,`date`,`basho_code`),
   KEY `idx_shutsuba_history_name` (`name`),
   KEY `idx_shutsuba_history_date` (`date`,`basho_code`)
-) ENGINE=InnoDB AUTO_INCREMENT=10943 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=19854 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -1063,11 +1052,9 @@ CREATE TABLE `t_horse_odds_finder_similar_race_stats` (
 
 
 
-
-1	6	large	0.2112	0.3989	7.25	0.7888	7544	normal	2026-08-23 23:30:03
-2	13	large	0.0346	0.0982	10.76	0.9654	7535	normal	2026-08-23 23:30:03
-3	9	large	0.1084	0.2357	8.79	0.8916	7536	normal	2026-08-23 23:30:03
-
+1	6	large	0.2118	0.3994	7.25	0.7882	7616	normal	2026-09-09 23:10:03
+2	13	large	0.0346	0.0982	10.77	0.9654	7607	normal	2026-09-09 23:10:03
+3	9	large	0.1084	0.2357	8.78	0.8916	7608	normal	2026-09-09 23:10:03
 
 
 
@@ -1112,7 +1099,7 @@ CREATE TABLE `t_horse_odds_finder_summary` (
   `result` int DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_race_search` (`date`,`kaisuu`,`basho`,`day`,`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=8260 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=13056 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -1123,6 +1110,11 @@ CREATE TABLE `t_horse_odds_finder_summary` (
 
 
 =================================================================================
+
+
+
+
+
 
 
 

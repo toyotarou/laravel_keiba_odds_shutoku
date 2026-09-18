@@ -167,7 +167,12 @@
 
 
   # 当日開催のレースのAI予想データが存在しない場合、補完実行する
-  40 23 * * * php /var/www/horse_odds_finder/artisan keiba:ai-analysis-compensate >> /var/www/horse_odds_finder/storage/logs/summaryAiAnalysisCompensate.log 2>&1
+  20 23 * * * php /var/www/horse_odds_finder/artisan keiba:ai-analysis-compensate >> /var/www/horse_odds_finder/storage/logs/summaryAiAnalysisCompensate.log 2>&1
+
+
+
+  # 毎日23:40 断層パターン学習の正解ラベル(M1〜M4)をレース結果から算出しml_snapshotへ保存する
+  40 23 * * * flock -n /tmp/keiba_updateMlResultLabels.lock php /var/www/horse_odds_finder/artisan keiba:updateMlResultLabels >> /var/www/horse_odds_finder/storage/logs/updateMlResultLabels.log 2>&1
 
 
 

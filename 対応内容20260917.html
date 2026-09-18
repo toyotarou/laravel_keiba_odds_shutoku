@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>対応内容 2026-09-17</title>
+<style>
+  body { font-family: -apple-system, 'Hiragino Sans', sans-serif; font-size: 15px; line-height: 1.7; background: #f5f5f5; color: #333; margin: 0; padding: 0; }
+  header { background: #1a2a3a; color: #fff; padding: 16px; }
+  header h1 { font-size: 1.1rem; margin: 0 0 4px; }
+  header p { font-size: 0.75rem; color: #9ab; margin: 0; }
+  .container { max-width: 640px; margin: 0 auto; padding: 12px 12px 32px; }
+  .intro { background: #e8f5e9; border-left: 4px solid #4caf50; border-radius: 6px; padding: 14px; margin-bottom: 16px; font-size: 0.95rem; font-weight: 600; }
+  .section { background: #fff; border-radius: 8px; margin-bottom: 14px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .sec-head { background: #1a2a3a; color: #fff; padding: 10px 14px; font-size: 0.9rem; font-weight: 700; }
+  .sec-body { padding: 14px; }
+  .item { border-left: 4px solid #ccc; padding: 10px 12px; margin-bottom: 10px; border-radius: 0 6px 6px 0; background: #fafafa; }
+  .item:last-child { margin-bottom: 0; }
+  .item.ok   { border-color: #4caf50; }
+  .item.fix  { border-color: #2196f3; }
+  .item.note { border-color: #ff9800; }
+  .item-title { font-weight: 700; font-size: 0.88rem; margin-bottom: 6px; }
+  .item-body { font-size: 0.84rem; color: #444; }
+  .badge { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 4px; margin-left: 5px; vertical-align: middle; }
+  .badge-ok  { background: #4caf50; color: #fff; }
+  .badge-fix { background: #2196f3; color: #fff; }
+  .badge-hold{ background: #ff9800; color: #fff; }
+  .ok-box   { background: #e8f5e9; border-radius: 5px; padding: 8px 10px; margin-top: 6px; font-size: 0.83rem; }
+  .warn-box { background: #fff8e1; border-radius: 5px; padding: 8px 10px; margin-top: 6px; font-size: 0.83rem; }
+  .info-box { background: #e3f2fd; border-radius: 5px; padding: 8px 10px; margin-top: 6px; font-size: 0.83rem; }
+  pre { background: #1e2d3d; color: #c0d8f0; border-radius: 5px; padding: 10px; font-size: 0.75rem; overflow-x: auto; margin: 8px 0; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  th { background: #1a2a3a; color: #fff; padding: 7px 8px; text-align: left; }
+  td { padding: 7px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8f8f8; }
+  footer { text-align: center; font-size: 0.75rem; color: #aaa; padding: 16px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>馬眼力 対応内容報告書</h1>
+  <p>作成日：2026-09-17　作成：英之（エンジニア）</p>
+</header>
+
+<div class="container">
+
+<div class="intro">よっしーの指摘、全部受け取りました。<br>「お前の意見、全部入ってるぜ」</div>
+
+<div class="section">
+  <div class="sec-head">よっしー指摘6点への回答</div>
+  <div class="sec-body">
+
+    <div class="item ok">
+      <div class="item-title">① 「62合格・6保留=68」で70と合わない <span class="badge badge-ok">報告書修正</span></div>
+      <div class="item-body">
+        前回報告書（2026-09-15版）の集計ミスでした。
+        <div class="ok-box"><strong>正しい集計：67合格・3保留（合計70）</strong><br>保留はB-14断層学習の3項目のみです。</div>
+      </div>
+    </div>
+
+    <div class="item ok">
+      <div class="item-title">② B-14チェック番号 #66〜#68 が仕様書と違う <span class="badge badge-ok">説明追加</span></div>
+      <div class="item-body">
+        おっしゃる通りです。仕様書上の #66・#67 はB-7（AI失敗時縮退）です（依頼の解釈20260913.html L313に明記）。
+        <div class="info-box">エンジニア報告書内で独自に付番した整理番号でした。以降は「B-14断層学習（報告書整理番号 #66〜#68）」と仕様書番号との対応を明記します。</div>
+      </div>
+    </div>
+
+    <div class="item ok">
+      <div class="item-title">③ 「全対応完了」と「保留あり」が矛盾 <span class="badge badge-ok">表現修正</span></div>
+      <div class="item-body">
+        ご指摘の通り、不正確な表現でした。
+        <div class="ok-box">今後は「現フェーズ対応完了・推論フェーズ待ち3項目」と記載します。「全対応完了」は使いません。</div>
+      </div>
+    </div>
+
+    <div class="item note">
+      <div class="item-title">④ M4は着順ラベル保存だけでは完成ではない <span class="badge badge-hold">現状説明</span></div>
+      <div class="item-body">
+        ご指摘は正確です。正直に現状を説明します。
+        <div class="ok-box">実装済み：出走全頭の着順ラベル（1/0/null）保存、取消・除外はnull</div>
+        <div class="warn-box">未実装：全頭の特徴量ベクトル保存・固定長変換・推論モデル。推論フェーズ移行時に実装予定。</div>
+      </div>
+    </div>
+
+    <div class="item fix">
+      <div class="item-title">⑤ finishing_position=99 の除外判定を確認すべき <span class="badge badge-fix">コード修正済み</span></div>
+      <div class="item-body">
+        DBのコードを確認したところ、取消・除外・失格は <strong>-1</strong> で保存されることが判明しました（99は使用されていません）。
+        <div class="ok-box"><strong>DBの実際の値（SummaryHistoryFinishingPosition.php より）：</strong><br>
+        NULL / 0 → 未取得（cronの再処理対象）<br>
+        1〜 → 着順確定<br>
+        <strong>-1 → 中止・除外・取消・失格（再処理対象外）</strong></div>
+        <div class="warn-box"><strong>発見されたバグ（修正済み）：</strong><br>
+        旧コード：<code>if ($fp === null || (int)$fp &gt; 99)</code><br>
+        -1 の馬は「&gt; 99」を通過し、<code>(-1) &lt;= 5 → true → label=1</code>（5着以内と誤判定！）になっていました。<br>取消馬がMLの正解ラベルに含まれるという重大バグでした。</div>
+        <div class="ok-box"><strong>修正後（UpdateMlResultLabels.php）：</strong><br>
+        <code>if ($fp === null || (int)$fp &lt;= 0)</code> → null（学習対象外）<br>
+        NULL/0（未取得）も -1（取消・除外）もまとめてnullとして除外します。</div>
+      </div>
+    </div>
+
+    <div class="item fix">
+      <div class="item-title">⑥ 複勝馬券判定が6分前オッズを使っている <span class="badge badge-fix">コード修正済み</span></div>
+      <div class="item-body">
+        ご指摘の通りバグでした。本日修正しました。
+        <div class="ok-box">修正後：estimated_final_fuku_min（= fuku_min_6 × avg_correction_ratio）を使用。補正データなしは6分前でフォールバック。</div>
+<pre>// 推定確定複勝最小オッズ計算（L588付近）
+$h['estimated_final_fuku_min'] =
+  ($h['fuku_min_6'] !== null && $h['fuku_min_6'] > 0)
+  ? round($h['fuku_min_6'] * floatval($corr->avg_correction_ratio), 2)
+  : null;
+
+// 参照先変更（L2753付近）
+// BEFORE: $bB13FukuMin = $bB13OdData['fuku_min_6'] ?? null;
+// AFTER:
+$bB13FukuMin = $bB13OdData['estimated_final_fuku_min']
+    ?? $bB13OdData['fuku_min_6'] ?? null;</pre>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <div class="sec-head">受入チェック70項目（正確な集計）</div>
+  <div class="sec-body">
+    <div class="ok-box" style="margin-bottom:12px;"><strong>67合格・3保留（合計70）</strong>　前回集計ミスを修正</div>
+    <table>
+      <tr><th>ブロック</th><th>チェック</th><th>結果</th></tr>
+      <tr><td>B-1 外部AI制御</td><td>#1〜#5</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-2 候補統合</td><td>#6〜#12</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-3 基準点フィルター</td><td>#13〜#18</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-4 市場妙味基礎点</td><td>#19〜#25</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-5 偽流入警戒</td><td>#26〜#32</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-6 回収率除外</td><td>#33〜#36</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-7 AI失敗時縮退</td><td>#37〜#40</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-8 市場過小評価（シャドー）</td><td>#41〜#46</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-9 能力適性評価</td><td>#47〜#51</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-10 高配当シャドー制御</td><td>#52〜#57</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-11 PHP処理順序</td><td>#58〜#61</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-12 高配当総合点</td><td>#62〜#63</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-13 市場過小評価フラグ</td><td>#64〜#65</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+      <tr><td>B-14 断層学習</td><td>#66〜#68</td><td><span class="badge badge-hold">⏳保留</span></td></tr>
+      <tr><td>B-15 上限制御</td><td>#69〜#70</td><td><span class="badge badge-ok">✅合格</span></td></tr>
+    </table>
+    <div class="warn-box" style="margin-top:10px;">⏳保留 = 「未実装」ではありません。データ保存は実装済み。MLフェーズ未到達のため推論なし。</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="sec-head">累積対応サマリー（2026-09-12〜）</div>
+  <div class="sec-body">
+    <table>
+      <tr><th>日付</th><th>対応内容</th></tr>
+      <tr><td>09-12</td><td>B-8シャドー・B-10シャドー初期実装、受入チェック70項目初回確認</td></tr>
+      <tr><td>09-12-1</td><td>B-6回収率ハード除外条件修正、B-7 AI失敗時縮退（制御済みエラー）修正</td></tr>
+      <tr><td>09-13</td><td>依頼の解釈70項目整理HTML作成、最新確定版TXTを正規仕様として確認</td></tr>
+      <tr><td>09-15</td><td>B-13市場過小評価フラグ実装、B-10馬券判定をB-13実値評価へ変更、M4全頭記録実装、WebPush空振り通知追加</td></tr>
+      <tr><td>09-17</td><td>複勝馬券判定バグ修正（estimated_final_fuku_min導入）、報告書集計ミス修正</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="section">
+  <div class="sec-head">今後の約束</div>
+  <div class="sec-body">
+    <div class="item ok">
+      <div class="item-title">最新確定版TXTが唯一の正規仕様</div>
+      <div class="item-body">依頼の解釈HTMLやClaudeの要約はあくまで「理解確認用」。TXTと食い違った場合は必ずTXTを優先します。</div>
+    </div>
+    <div class="item ok">
+      <div class="item-title">70項目全合格が完成基準</div>
+      <div class="item-body">全項目合格＋証跡提出まで「完成」とは言いません。</div>
+    </div>
+    <div class="item ok">
+      <div class="item-title">シャドーと本番を完全分離</div>
+      <div class="item-body">強化情報は内部算出・ログ保存のみ。Flutterへは既存候補を従来通り出力します。</div>
+    </div>
+    <div class="item ok">
+      <div class="item-title">本番有効化は人間が明示的に</div>
+      <div class="item-body">200〜300レースシャドー検証後、よっしーの明示判断で有効化。プログラムが自動切り替えすることはありません。</div>
+    </div>
+    <div class="item ok">
+      <div class="item-title">断層学習と高配当強化の条件を混同しない</div>
+      <div class="item-body">高配当強化：200〜300レース後。断層学習：2,000レース以上＋評価500レース以上＋全条件合格。まったく別の条件です。</div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<footer>
+  作成：英之（エンジニア）　2026-09-17<br>
+  統合元：依頼の解釈20260913.html / 追加対応20260912.html / 追加対応20260912-1.html / 対応内容20260915.html
+</footer>
+
+</body>
+</html>

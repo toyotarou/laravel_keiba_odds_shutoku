@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>追加対応 2026-09-13</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #222;
+    background: #fff;
+    padding: 16px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  .meta {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: 17px;
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+  h2 {
+    font-size: 14px;
+    font-weight: bold;
+    margin: 24px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #ddd;
+  }
+  h3 {
+    font-size: 13px;
+    font-weight: bold;
+    margin: 16px 0 6px;
+    color: #333;
+  }
+  p { margin-bottom: 8px; }
+  ul { padding-left: 18px; margin-bottom: 8px; }
+  li { margin-bottom: 4px; }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .badge-red    { background: #fee2e2; color: #b91c1c; }
+  .badge-yellow { background: #fef9c3; color: #92400e; }
+  .badge-green  { background: #dcfce7; color: #166534; }
+  .badge-blue   { background: #dbeafe; color: #1e40af; }
+  .badge-gray   { background: #f3f4f6; color: #6b7280; }
+  .block-list { border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+  .block-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 8px 12px;
+    border-bottom: 1px solid #f3f4f6;
+    gap: 8px;
+  }
+  .block-item:last-child { border-bottom: none; }
+  .block-item.done { background: #f0fdf4; }
+  .block-item.pending { background: #fff; }
+  .block-num {
+    font-size: 11px;
+    color: #888;
+    min-width: 36px;
+    padding-top: 2px;
+  }
+  .block-body { flex: 1; }
+  .block-title { font-size: 13px; font-weight: bold; }
+  .block-desc  { font-size: 12px; color: #555; margin-top: 2px; }
+  .block-detail { font-size: 11px; color: #888; margin-top: 4px; border-left: 2px solid #e5e7eb; padding-left: 8px; line-height: 1.6; }
+  .session-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 12px; }
+  .session-table th {
+    background: #f9fafb;
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: bold;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 12px;
+  }
+  .session-table td {
+    padding: 7px 8px;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: top;
+  }
+  .session-table tr.done td { background: #f0fdf4; }
+  .session-table tr:last-child td { border-bottom: none; }
+  .note {
+    background: #f9fafb;
+    border-left: 3px solid #d1d5db;
+    padding: 10px 12px;
+    font-size: 13px;
+    margin-bottom: 12px;
+    border-radius: 0 4px 4px 0;
+  }
+  .progress-box {
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+  }
+  .progress-bar-wrap {
+    background: #e5e7eb;
+    border-radius: 99px;
+    height: 10px;
+    margin: 10px 0 6px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    background: #16a34a;
+    height: 100%;
+    border-radius: 99px;
+    width: 100%;
+  }
+  .progress-label {
+    font-size: 12px;
+    color: #555;
+    display: flex;
+    justify-content: space-between;
+  }
+  .progress-headline {
+    font-size: 15px;
+    font-weight: bold;
+    color: #166534;
+    margin-bottom: 4px;
+  }
+  .keep-list { font-size: 13px; }
+  .keep-list li { margin-bottom: 6px; }
+  .divider { border: none; border-top: 1px solid #e5e7eb; margin: 28px 0; }
+  .check { color: #16a34a; font-weight: bold; margin-right: 4px; }
+  .pending-icon { color: #9ca3af; margin-right: 4px; }
+  .session-detail { font-size: 11px; color: #6b7280; margin-top: 3px; }
+</style>
+</head>
+<body>
+
+<p class="meta">2026-09-11 22:25 の依頼内容から読み取ったこと　／　最終更新：2026-09-13（Flutter説明ページ更新完了）</p>
+<h1>馬眼力 AI機能 追加対応方針</h1>
+
+<hr class="divider">
+
+<!-- ▼ 進捗サマリー（全ブロック完了） -->
+<h2>📊 進捗サマリー（2026-09-13 時点）</h2>
+
+<div class="progress-box">
+  <div class="progress-headline">🎉 全ブロック実装完了 ― ブロック 15 / 15 完了</div>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" style="width:100%;"></div>
+  </div>
+  <div class="progress-label">
+    <span>0%</span>
+    <span style="color:#16a34a; font-weight:bold;">100%（全15ブロック完了）</span>
+    <span>100%</span>
+  </div>
+</div>
+
+<table class="session-table">
+  <thead>
+    <tr>
+      <th>セッション</th>
+      <th>実装内容</th>
+      <th>状態</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="done">
+      <td><span class="badge badge-blue">S1</span></td>
+      <td>
+        B-4・B-5：DeepSeek 基礎修正
+        <div class="session-detail">DeepSeekのシステムプロンプトを仕様書に合わせて改訂し、AIの出力にプロンプト本文が混入するバグを除去</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S2</span></td>
+      <td>
+        B-1：レース指標 PHP解析
+        <div class="session-detail">AIが出力する「波乱度・下位進入度・大穴進入度」の3指標をPHPで正規表現パースし、DBに保存・Flutterへ返す処理を実装</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S3</span></td>
+      <td>
+        B-2 前半：システムプロンプト差し替え
+        <div class="session-detail">毎回変わる自動生成プロンプトを仕様書の固定テキストに置き換え、AIへの指示を安定させる</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S4</span></td>
+      <td>
+        B-2 後半：brain.txt 統計サマリー化
+        <div class="session-detail">brain.txtの役割を「判断基準の提示」から「回収率・勝率の統計データ補足」に変更し、プロンプト末尾に付加する形に切り替え</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S5</span></td>
+      <td>
+        B-3・B-15：固定配点 ＋ 穴レース再判定
+        <div class="session-detail">信頼度60点・妙味40点の採点ルールをAI指示に明文化。1st/2nd統合後に厳選穴レースフラグを再評価して最終確定</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S6</span></td>
+      <td>
+        B-13・B-7：タイブレーカー ＋ TypeA枠
+        <div class="session-detail">同点時の優先順位ロジック（複勝流入→OPI→推定確定オッズ）を実装。タイプAでDeepSeek枠が常に0になるバグを修正</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S7</span></td>
+      <td>
+        B-8 前半：断層位置別制限の設計・実装
+        <div class="session-detail">断層が「上位・中間・下位」のどこに発生しているかを判定し、位置ごとの選出頭数上限テーブルを設計・実装</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S8</span></td>
+      <td>
+        B-8 後半・B-12：制限適用 ＋ 回収率除外
+        <div class="session-detail">人気帯別（1〜6 / 7〜10 / 11〜）の選出上限を適用。3種類の回収率がすべて閾値以下の馬を選出前にハード除外</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S9</span></td>
+      <td>
+        B-6：F1〜F8 DB値判定への切り替え
+        <div class="session-detail">穴馬フラグをAIテキストのキーワード解析（不安定）からDBカラム値・計算値の比較（確定的）に完全置き換え。evidenceKeywords廃止</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S10</span></td>
+      <td>
+        B-9 前半：出走履歴取得・プロンプト組み立て
+        <div class="session-detail">shutsuba_historyテーブルから各馬の過去5走を取得し、DeepSeekへのプロンプト末尾に「各馬の直近成績」として付加</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S11</span></td>
+      <td>
+        B-9 後半：能力適性グレード解析・点数反映
+        <div class="session-detail">DeepSeekが返す「能力適性:A（85点）」形式の採点をパースし、高配当総合点に加算する処理を実装</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S12</span></td>
+      <td>
+        B-14：統合結果テーブル保存
+        <div class="session-detail">最終選出馬・統合おすすめ度・レース指標・断層タイプ等をai_merge_resultテーブルに保存し、振り返り分析に活用</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S13</span></td>
+      <td>
+        B-10：高配当精度ログ記録
+        <div class="session-detail">オッズ・回収率・OPIから市場妙味基礎点をPHPで算出し、market_score_logテーブルへ記録（採点反映はPhase 2）</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+    <tr class="done">
+      <td><span class="badge badge-blue">S14</span></td>
+      <td>
+        B-11：断層パターン特徴量保存
+        <div class="session-detail">断層タイプ・波乱度・各馬のオッズ推移パターン等を機械学習の訓練データとしてml_snapshotテーブルへ記録</div>
+      </td>
+      <td><span class="check">✓</span>完了</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>全セッション完了（Block 6 の詳細：最後のSession 9）</h3>
+<ul style="font-size:13px; margin-bottom:12px;">
+  <li><strong>evidenceKeywords（20パターン正規表現）を完全廃止</strong>：AIが「複勝流入あり」と書いたかどうかを判定していた不安定な方法をすべて撤廃</li>
+  <li>F2: 複勝人気 − 単勝人気 ≥ 2　→ t_horse_odds_finder_odds の6分前データをDBから直接比較</li>
+  <li>F3: 複勝流入ランク ≤ 2　→ $oddsData のテキストから流入ランク数値を抽出して判定</li>
+  <li>F4: 7番人気以下 かつ 9→6分前で単複ともに −2% 超の下落　→ $oddsData テキストパース</li>
+  <li>F6: 類似レース N≥30 かつ 5着以内率 ≥ 70%　→ $oddsData テキストパース</li>
+  <li>F7: 予測補正OPI ≤ 0.95（市場が過小評価）　→ $oddsData テキストパース</li>
+  <li>F8: 回収率 ≥ 110% かつ N≥30　→ $oddsData テキストパース</li>
+  <li>F1・F5: Block 9（出走履歴）完了に伴い有効化済み（true/false 判定コード実装完了）</li>
+  <li>タイプA昇格ロジック: F-flags ≥ 3 かつ score ≥ 80 → secondUniqueLimit を 0 → 1 に昇格</li>
+</ul>
+
+<hr class="divider">
+
+<h2>対応の概要</h2>
+<p>ご提出いただいた仕様書（馬眼力_エンジニア提出用_最終確定版_固定配点・断層パターン学習強化_20260910.txt）をもとに、現行の <code>AiController.php</code> を仕様書の内容に合わせて改造します。</p>
+
+<h3>仕様書から読み取った主な変更点</h3>
+<ul>
+  <li><strong>おすすめ度の採点方式を固定化</strong>：信頼度60点（7項目）＋ 妙味40点（4項目）= 100点満点に統一</li>
+  <li><strong>断層（オッズの段差）の活用強化</strong>：隣接人気間のオッズ比率 ≥ 2.0 を断層とし、タイプA〜Eに分類して選出ロジックに反映</li>
+  <li><strong>第2AI（DeepSeek）の役割明確化</strong>：ユニーク馬の評価専用に絞り、DB値ベースのF1〜F8フラグで対象を判定（AIテキストのキーワード判定は廃止）</li>
+  <li><strong>高配当精度の強化</strong>：市場妙味基礎点（PHP算出）＋ 能力適性補正（DeepSeek採点）で高配当総合点を算出</li>
+  <li><strong>レース指標の追加</strong>：波乱度・下位進入度・大穴進入度をAI出力から取り出し、Flutter画面に表示（※Flutter側の表示UIは実装済み）</li>
+  <li><strong>断層パターン学習の基盤整備</strong>：機械学習モデル（M1〜M4）の将来実装に向けて、特徴量の記録を開始</li>
+</ul>
+
+<hr class="divider">
+
+<h2>実装ブロック一覧</h2>
+<p>優先度：<span class="badge badge-red">必須</span> まず対応 ／ <span class="badge badge-yellow">重要</span> できるだけ対応 ／ <span class="badge badge-green">将来</span> 基盤のみ整備</p>
+
+<div class="block-list">
+  <div class="block-item done">
+    <div class="block-num">B-1</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-red">必須</span>レース指標の出力・解析 <span class="check">✓</span></div>
+      <div class="block-desc">AIが出力する固定フォーマット行「レース指標|波乱度:X|下位進入度:X|大穴進入度:X」を正規表現でパースし、各数値をFlutterに返す（1行目は「厳選穴レース|0または1」、レース指標は2行目）</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（1st AIレスポンス解析部）<br>
+        AIが毎レース必ず出力するフォーマット固定行から3つの数値（各1〜5）を抽出。
+        パース失敗時はデフォルト値を設定し、Flutter側の表示が壊れないよう保護。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-2</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-red">必須</span>第1AIシステムプロンプトの差し替え <span class="check">✓</span></div>
+      <div class="block-desc">毎レース変わる自動生成プロンプトを仕様書の固定テキストに置き換え。brain.txtは「統計サマリー」として末尾に付加する補足情報に転用</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（$firstAiSystemPrompt 変数、$lines[] 構築部）<br>
+        固定システムプロンプトは「DB値再計算禁止・全頭評価・回収率優先・フォーマット厳守」を明示。
+        brain.txtから取り出した過去回収率の統計数値をユーザープロンプト末尾に追加し、AIの判断材料として活用。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-3</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-red">必須</span>固定配点指示の組み込み <span class="check">✓</span></div>
+      <div class="block-desc">信頼度60点（7項目）・妙味40点（4項目）の採点テンプレートをAIへの指示に明文化し、AIが自己流の採点をしないよう固定化</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（ユーザープロンプト内【おすすめ度の計算方法】セクション）<br>
+        7項目の信頼度：複勝支持・資金流入・単複人気差・断層位置・類似統計・直前傾向・能力適性。
+        4項目の妙味：推定確定配当・3種回収率・OPI・配当と断層の整合性。各項目に点数上限を明示。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-4</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-red">必須</span>第2AI（DeepSeek）システムプロンプト修正 <span class="check">✓</span></div>
+      <div class="block-desc">「1st AIへの縛りは自分には関係ない」→「DB値再計算禁止は自分にも適用」に改訂。能力・適性評価（100点満点・6項目）セクションを新規追加</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（$secondAiSystemPrompt 変数）<br>
+        旧プロンプトでは「OPI・断層タイプは参考情報として自由に扱ってよい」としていたが、
+        「解釈・重み付けは自由、ただし値自体の再計算は禁止」に変更。
+        能力適性評価6項目（基礎能力・近走内容・コース適性・脚質適性・上がり性能・補正）を追加し、
+        選出理由の先頭に「能力適性:A（85点）」形式で必ず出力させる。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-5</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-red">必須</span>第2AIレスポンスのプロンプト除去修正 <span class="check">✓</span></div>
+      <div class="block-desc">DeepSeekが出力の冒頭に入力プロンプト本文をそのまま返してしまう不具合を、レスポンス前処理のトリムで除去</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（2nd AIレスポンス解析部）<br>
+        DeepSeek-V3 がまれにシステムプロンプトやユーザープロンプトをそのまま先頭に出力するケースへの対策。
+        「馬番：X、馬名：」で始まる最初の行を起点とし、それ以前のテキストをすべて破棄する前処理を実装。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-6</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-red">必須</span>F1〜F8フラグのDB値判定への切り替え <span class="check">✓</span></div>
+      <div class="block-desc">ユニーク馬の選定条件をAIテキストのキーワード解析（不安定）からDBカラム値・計算値の直接比較（確定的）に完全置き換え。evidenceKeywords廃止</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（2nd AI ユニーク馬評価処理部）<br>
+        F1：能力適性B以上（Block 9完了に伴い有効化済み）。F2：複勝人気−単勝人気≥2をDBから比較。
+        F3：複勝流入ランク≤2を$oddsDataパース。F4：7番人気以下で9→6分前に単複−2%超の下落。
+        F5：1st AIが落とした馬でF-flags≥2（Block 9完了に伴い有効化済み）。
+        F6：類似レースN≥30かつ5着以内率≥70%。F7：予測補正OPI≤0.95。F8：回収率≥110%かつN≥30。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-7</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-red">必須</span>断層タイプA 固定枠の修正 <span class="check">✓</span></div>
+      <div class="block-desc">タイプAのレースでDeepSeek独自馬の選出枠が常に0になるバグを修正。F-flags≥3かつscore≥80の場合に限り枠を0→1に昇格</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（2nd AI 選出枠数決定処理部）<br>
+        タイプA（二重断層・上位完結型）は堅いレースのため、2nd AI独自馬の選出枠はデフォルト0。
+        ただし「穴馬フラグ3個以上かつスコア80点以上」の馬が存在する場合のみ例外的に1枠を付与し、
+        過度な堅い予想に偏らないよう保護する昇格ロジックを追加。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-8</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-yellow">重要</span>断層位置別・人気帯別の選出上限 <span class="check">✓</span></div>
+      <div class="block-desc">断層の位置（上位/中間/下位）と人気帯（1〜6 / 7〜10 / 11〜番人気）の組み合わせごとに選出頭数の上限テーブルを設定・適用</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（断層位置別・人気帯別 選出上限適用処理部）<br>
+        断層が1〜3番人気内（上位断層）のレースで人気薄を多く選びすぎることを防ぐ。
+        例：タイプBで断層上位の場合、7〜10番人気は最大1頭・11番人気以下は0頭に制限。
+        タイプD（断層なし・混戦）は制限緩め。断層位置とタイプの組み合わせで上限マトリクスを定義。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-9</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-yellow">重要</span>出走履歴による能力適性評価 <span class="check">✓</span></div>
+      <div class="block-desc">t_horse_odds_finder_shutsuba_historyから各馬の過去5走を取得しDeepSeekに渡す。DeepSeekが能力・適性を100点満点で採点し、高配当総合点に反映</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（2nd AI プロンプト生成部・レスポンス解析部）<br>
+        【前半 S10】shutsuba_historyから馬番・日付・着順・タイム・コース・距離・馬場・騎手を取得し、
+        プロンプト末尾の「各馬の直近成績（過去5走）」セクションに整形して付加。<br>
+        【後半 S11】DeepSeekが返す「能力適性:X（XX点）」の文字列をパースし、高配当総合点に加算。
+        出走履歴なしの馬はD評価（0点）扱い。完了に伴いF1・F5フラグを有効化。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-10</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-yellow">重要</span>高配当精度強化ログの記録開始 <span class="check">✓</span></div>
+      <div class="block-desc">各馬のオッズ・回収率・OPIをもとに市場妙味基礎点をPHPで算出し、t_horse_odds_finder_market_score_logに記録（採点への反映はPhase 2）</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（市場妙味基礎点算出・ログ保存処理部）、t_horse_odds_finder_market_score_log テーブル<br>
+        市場妙味基礎点＝推定確定オッズ帯の回収実績スコア＋OPIによる過小評価スコア。
+        今フェーズでは記録のみ。蓄積後に採点への加算・重みの校正を行うPhase 2に引き継ぐ。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-11</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-green">将来</span>断層パターン学習の特徴量保存 <span class="check">✓</span></div>
+      <div class="block-desc">断層タイプ・波乱度・各馬のオッズ推移パターンなどのレース特徴量を機械学習の訓練データ用テーブルt_horse_odds_finder_ml_snapshotに記録開始</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（断層特徴量保存処理部）、t_horse_odds_finder_ml_snapshot テーブル<br>
+        保存する特徴量：断層タイプ・断層位置・波乱度・下位進入度・大穴進入度・上位3頭のOPI・
+        1番人気の複勝支持推移・断層時系列の拡大/縮小傾向・最終的な1〜3着馬番（レース後に別処理で更新）。
+        将来的にM1〜M4モデル（断層タイプ別の精度向上モデル）の訓練データとして活用予定。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-12</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-yellow">重要</span>回収率によるハード除外 <span class="check">✓</span></div>
+      <div class="block-desc">3種類の回収率（オッズ下落率別・OPI帯別・フェーズパターン別）がすべて閾値以下の馬を選出前に除外。race_result_payoutテーブルを参照</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（回収率フィルター処理部）<br>
+        除外条件：単勝回収率55%以下かつ複勝回収率65%以下かつサンプル数N≥20が3種すべてで成立。
+        サンプル不足（N＜20）の馬は除外対象外とし、データ蓄積を待つ。
+        除外馬は選出リストから取り除くが、AI出力結果のログには残す（後で検証できるように）。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-13</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-yellow">重要</span>同点タイブレーカーの追加 <span class="check">✓</span></div>
+      <div class="block-desc">おすすめ度が同点の馬が複数いる場合、複勝流入ランク→OPI→推定確定オッズの順で優先順位を決め、頭数上限に収める</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（同点時ソート処理部）<br>
+        優先順位①：複勝流入ランクが低い（＝より資金が入っている）馬を優先。
+        優先順位②：OPIが高い（＝市場が過小評価している）馬を優先。
+        優先順位③：推定確定オッズが高い（＝配当妙味がある）馬を優先。
+        いずれも同値の場合は馬番の小さい馬を優先（決定論的な処理）。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-14</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-yellow">重要</span>統合結果テーブルへの保存 <span class="check">✓</span></div>
+      <div class="block-desc">AI統合の最終結果（選出馬・統合おすすめ度・レース指標・断層タイプ・波乱度等）をt_horse_odds_finder_ai_merge_resultに保存し、振り返り分析に活用</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（AI統合結果保存処理部）、t_horse_odds_finder_ai_merge_result テーブル<br>
+        保存内容：race_id・horse_id・1st AIおすすめ度・2nd AIおすすめ度・統合おすすめ度・
+        一致区分（両AI一致/1st独自/2nd独自）・波乱度・下位進入度・大穴進入度・断層タイプ・厳選穴レースフラグ。
+        レース結果確定後にt_race_resultsと突合して的中状況を更新し、精度分析に使用。
+      </div>
+    </div>
+  </div>
+  <div class="block-item done">
+    <div class="block-num">B-15</div>
+    <div class="block-body">
+      <div class="block-title"><span class="badge badge-red">必須</span>厳選穴レース の再判定 <span class="check">✓</span></div>
+      <div class="block-desc">1st AI・2nd AIの統合マージ後に、AIが出力した波乱度・大穴進入度等を使って厳選穴レースフラグを再評価し最終値を確定</div>
+      <div class="block-detail">
+        実装箇所：AiController.php（厳選穴レースフラグ統合処理部）<br>
+        統合前は1st AIの出力フラグをそのまま使用していたが、2nd AIの選出馬が加わることで
+        実際の穴馬傾向が変わるケースへの対応。
+        どちらかのAIが「厳選穴レース=1」と出力していれば最終フラグを1に確定する統合ルールを適用。
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<h2>変更しないもの</h2>
+<div class="note">
+  以下は今回の改造対象外です。現行のまま継続します。
+</div>
+<ul class="keep-list">
+  <li><strong>20:50 cron（SummaryRacesIntrospection）</strong>：レース振り返りテキストを生成。Flutter の結果表示でも使用しているため継続</li>
+  <li><strong>23:50 cron（makeBaganrikiBrain）</strong>：生成内容を「判断基準」から「統計サマリー」に切り替えつつ、cronは継続</li>
+  <li><strong>22:10 cron（importShutsubaHistory）</strong>：B-9（能力評価）のデータ源。継続</li>
+  <li><strong>21:40・21:50・22:30 cron（回収率系）</strong>：B-12・F8の計算元。継続</li>
+  <li><strong>Flutter のレース指標UI</strong>：ai_analysis_display_alert.dart の表示実装はすでに完了しているため、PHP側の対応のみで完結</li>
+</ul>
+
+<hr class="divider">
+
+<h2>新規作成するDBテーブル</h2>
+<ul>
+  <li><code>t_horse_odds_finder_ai_merge_result</code>：AI統合結果の保存（B-14）</li>
+  <li><code>t_horse_odds_finder_market_score_log</code>：高配当精度強化のログ（B-10）</li>
+  <li><code>t_horse_odds_finder_ml_snapshot</code>：断層パターン学習の特徴量（B-11）</li>
+</ul>
+
+<hr class="divider">
+
+<p style="font-size:12px; color:#888; text-align:center; padding-top: 8px;">
+  作成日：2026-09-13　最終更新：2026-09-13（全15ブロック完了・Flutter説明ページ更新完了）　エンジニア：豊田英之
+</p>
+
+</body>
+</html>

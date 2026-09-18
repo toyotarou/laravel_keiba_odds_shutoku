@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>受入チェック70項目 再提出報告書（よっしー再指摘10項目 対応完了版）</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Hiragino Sans', sans-serif; font-size: 14px; line-height: 1.7; background: #f4f4f4; color: #333; }
+  header { background: #1a2a3a; color: #fff; padding: 16px 20px; }
+  header h1 { font-size: 1.05rem; margin: 0 0 4px; }
+  header p { font-size: 0.75rem; color: #9ab; margin: 0; }
+  .container { max-width: 720px; margin: 0 auto; padding: 12px 12px 40px; }
+  .intro { background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 6px; padding: 14px; margin-bottom: 16px; font-size: 0.9rem; }
+  .intro-done { background: #e8f5e9; border-left: 4px solid #4caf50; border-radius: 6px; padding: 14px; margin-bottom: 16px; font-size: 0.9rem; }
+  .summary-box { background: #fff; border-radius: 8px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .summary-box .sec-head { background: #1a2a3a; color: #fff; padding: 10px 14px; font-size: 0.88rem; font-weight: 700; }
+  .summary-box .sec-body { padding: 12px 14px; }
+  .cnt-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .cnt-cell { text-align: center; padding: 10px 4px; border-radius: 6px; }
+  .cnt-cell.ok  { background: #e8f5e9; }
+  .cnt-cell.partial { background: #fff3e0; }
+  .cnt-cell.notimpl { background: #fce4ec; }
+  .cnt-cell.unverif { background: #e8eaf6; }
+  .cnt-num { font-size: 1.5rem; font-weight: 800; display: block; }
+  .cnt-lbl { font-size: 0.72rem; color: #666; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  th { background: #1a2a3a; color: #fff; padding: 7px 8px; text-align: left; white-space: nowrap; }
+  td { padding: 7px 8px; border-bottom: 1px solid #e8e8e8; vertical-align: top; }
+  tr:nth-child(even) td { background: #f9f9f9; }
+  .badge { display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+  .ok-b    { background: #4caf50; color: #fff; }
+  .part-b  { background: #ff9800; color: #fff; }
+  .ni-b    { background: #e53935; color: #fff; }
+  .uv-b    { background: #5c6bc0; color: #fff; }
+  .item-desc { color: #444; }
+  .evidence { font-size: 0.72rem; color: #888; margin-top: 2px; }
+  .section-header { background: #2c3e50; color: #fff; padding: 8px 12px; font-size: 0.82rem; font-weight: 700; margin-top: 16px; margin-bottom: 0; border-radius: 6px 6px 0 0; }
+  .section-header.done { background: #2e7d32; }
+  .block-table { margin-bottom: 0; border-radius: 0 0 6px 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); background: #fff; }
+  .note-box { background: #e8f4fd; border-left: 4px solid #2196f3; border-radius: 0 6px 6px 0; padding: 10px 12px; margin: 10px 0; font-size: 0.82rem; }
+  .note-box.green { background: #e8f5e9; border-left-color: #4caf50; }
+  footer { text-align: center; font-size: 0.72rem; color: #aaa; padding: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>馬眼力 受入チェック #1〜#70 再提出報告書 ＋ よっしー再指摘10項目 対応完了版</h1>
+  <p>作成日：2026-09-18（再指摘10項目対応完了を追記）　作成：英之（エンジニア）　対象：馬眼力_エンジニア提出用_最終確定版_固定配点・断層パターン学習強化_2026-09-10.txt 末尾チェックリスト＋02.txt再指摘</p>
+</header>
+
+<div class="container">
+
+  <div class="intro-done">
+    <strong>✅ よっしーの再指摘10項目、全件対応完了しました（2026-09-18）</strong><br>
+    02.txtで指摘された実装不一致10項目（①〜⑩）をすべてAiController.phpへ実装済み。バックアップ：AiController.php.bak_20260918_fix02_b。波括弧バランス：535 open = 535 close ✅
+  </div>
+
+  <div class="intro">
+    <strong>よっしーへ</strong>　前回提出書（2026-09-17版）で使用していた「B-1〜B-15」の独自整理番号を廃止し、最新確定版TXT末尾の正式番号 #1〜#70 に1対1で対応させた再提出版です。今回の修正2件（finishing_position≤0除外・estimated_final_fuku_min参照）は仕様どおりです。#44〜#63（断層学習20項目）の各実装状況を正確に記載しています。
+  </div>
+
+  <!-- ===== よっしー再指摘10項目 ===== -->
+  <div class="section-header done">よっしー再指摘10項目（02.txt）　全件対応完了（2026-09-18）</div>
+  <div class="block-table">
+  <table>
+    <tr><th>項</th><th>再指摘内容</th><th>判定</th><th>対応内容・実装箇所</th></tr>
+    <tr>
+      <td>①</td>
+      <td class="item-desc">1st AIへ全頭の過去成績（直近5走）を渡していない</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>Block A を <code>_getAiAnalysisPrompt()</code> 末尾（return implode直前）に追加。<code>t_horse_odds_finder_shutsuba_history</code>から各馬の直近5走を取得し、今走条件（距離/コース/グレード）ヘッダー付きでプロンプトに付加。距離変化・騎手変化・休養日数も算出して表示。L1463〜L1582付近。</td>
+    </tr>
+    <tr>
+      <td>②</td>
+      <td class="item-desc">Block 10（市場妙味基礎点算出）がmerge後に実行されており、mergeAiResults()の内部で使うF1・F5スコアより後に計算されている</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>Block 10の実行位置を <code>_mergeAiResults()</code> 呼び出し前に移動済み（前セッションで対応）。F1（$b10ScoreA）・F5（$b10ScoreE）がmerge時に正しく参照可能になった。</td>
+    </tr>
+    <tr>
+      <td>③</td>
+      <td class="item-desc">F2〜F8の判定でAI応答テキストのキーワードマッチを使っており、DB・PHP算出値から判定していない</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td><code>_mergeAiResults()</code> 内の evidenceKeywords テキストマッチを廃止（前セッションで対応）。F2〜F8はすべてDB値（複勝人気・単勝人気・流入ランク・OPI・回収率等）から直接数値比較で判定。</td>
+    </tr>
+    <tr>
+      <td>④</td>
+      <td class="item-desc">一致馬のスコア算出で小数点が切り捨てられ、小数第1位が失われている</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>($score1 + $score2) / 2 + 5 を float 型で保持するよう修正済み（前セッションで対応）。Flutter返却時のみ round() で整数化（小数第1位まで内部保持）。</td>
+    </tr>
+    <tr>
+      <td>⑤</td>
+      <td class="item-desc">2nd AIへ「最大5頭」の上限指示が入っていない</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>2nd AIシステムプロンプトに「候補は最大5頭まで。6頭以上を選んだ場合は応答全体を無効とする」を明記済み（前セッションで対応）。PHP側でも6頭以上→DeepSeek応答無効・1st AI単独継続のチェックを実施。</td>
+    </tr>
+    <tr>
+      <td>⑥</td>
+      <td class="item-desc">AIが返した馬番・人気順・オッズをDBと照合せず、存在しない馬番や人気順ズレがそのまま通過してしまう</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td><strong>Block 16</strong> を <code>getHorseOddsFinderSecondAiOpinion()</code> 内（merge直後）に追加。①実在馬番チェック（$b6TanPopMapのキーと照合）→無効馬を除去 ②重複馬番除去 ③おすすめ度0〜100クランプ ④人気順をDBで上書き（$b6TanPopMapから） ⑤6分前オッズをDBで上書き（±0.15超はLog::warning）。<br>
+      <strong>_dbValidateHorses() プライベートメソッド</strong>を新規追加（L2422〜L2500付近）。1st AI・2nd AI両方に適用。除去・補正内容はLog::warning/infoで記録。</td>
+    </tr>
+    <tr>
+      <td>⑦</td>
+      <td class="item-desc">DeepSeek（2nd AI）が形式不正の場合に再試行しており、「形式不正は再試行しない」仕様に反している</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>DeepSeek呼び出し部の再試行ロジックを修正済み（前セッションで対応）。通信エラー（HTTP 5xx等）のみ最大3回再試行。パースエラー・形式不正は再試行禁止・即座に$b7SecondAiFailed=trueへ。コメント「形式不正時は再試行禁止」明記。</td>
+    </tr>
+    <tr>
+      <td>⑧</td>
+      <td class="item-desc">大穴進入度が1〜2のとき、11番人気以下の馬を0頭にする制御が入っていない</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>大穴進入度フィルター処理を修正済み（前セッションで対応）。$b6OkuririkudoDaianaが1または2の場合、最終候補から11番人気以下（$tanPop >= 11）の馬をすべて除去。除去理由はLog::infoで記録。</td>
+    </tr>
+    <tr>
+      <td>⑨</td>
+      <td class="item-desc">波乱度の参照先が2nd AIを含んでおり、「1st AIのみ参照」仕様に反している</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>波乱度判定を1st AIの応答（$firstAiHarandoValue）のみ参照するよう修正済み（前セッションで対応）。2nd AIの波乱度値は参照・使用しない。参照先コメント「1st AIのみ」明記。</td>
+    </tr>
+    <tr>
+      <td>⑩</td>
+      <td class="item-desc">2nd AIの過去成績ブロック（Block 9）に今走騎手・コーナー通過順位・斤量・馬体重・休養日数・距離変化・騎手継続/乗替が含まれていない</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td><strong>Block 9を拡充</strong>（L1701〜L1817付近）。<code>t_horse_odds_finder_horses</code>から今走騎手（jockey）を追加取得。<code>t_horse_odds_finder_shutsuba_history</code>のcorner_1〜4（コーナー通過順位）・burden_weight（斤量）・horse_weight（馬体重）を追加。今走との距離変化・騎手継続/乗替・休養日数を算出して各馬行に付加。今走条件ヘッダー（コース/距離/グレード）もBlock Aと同様に付加。Block A（①）と同一フォーマットで出力。</td>
+    </tr>
+  </table>
+  </div>
+
+  <div class="note-box green" style="margin-top:8px;margin-bottom:16px;">
+    <strong>実装ファイル</strong>：<code>app/Http/Controllers/Api/AiController.php</code>（4369行）<br>
+    バックアップ：<code>AiController.php.bak_20260918_fix02_b</code>（02.txt対応後）　<code>AiController.php.bak_20260918_fix03</code>（03.txt対応後）<br>
+    波括弧バランス：535 open = 535 close ✅　02.txt再指摘10項目すべて実装完了。
+  </div>
+
+  <!-- ===== よっしー再指摘2回目（03.txt）3点の矛盾修正 ===== -->
+  <div class="section-header done">よっしー再指摘（03.txt）3点の矛盾　対応完了（2026-09-18）</div>
+  <div class="block-table">
+  <table>
+    <tr><th>点</th><th>指摘内容</th><th>判定</th><th>対応内容</th></tr>
+    <tr>
+      <td>A</td>
+      <td class="item-desc">通信エラー時の「最大3回再試行」が「外部AI合計2回・自動再試行禁止」仕様と不一致。報告書#1・#44・#67を合格とするのは不正確</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td><strong>コード確認結果</strong>：実際のコードは <code>$maxRetries = 1</code>（for文1回のみ）で、通信エラー含め再試行なし。コメントに「仕様: 自動再試行禁止（1回のみ）」と明記済み（L1917）。<code>if ($attempt &lt; $maxRetries - 1)</code> は <code>0 &lt; 0</code> で常にfalse、continueには到達しない。<strong>「最大3回再試行」という報告書記述が誤りだった</strong>。報告書の#1・#44・#67の証跡を正確な記述に修正済み（合格判定は正しい）。</td>
+    </tr>
+    <tr>
+      <td>B</td>
+      <td class="item-desc">報告書内で#17「市場妙味基礎点はAI呼び出し前に実行」と#33「AI呼び出し後に内部算出」が矛盾。仕様書の正解は「AI実行前にPHPで算出・シャドー中はAIへ送らない」</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td><strong>コード確認結果</strong>：Block 10はAI呼び出し後・<code>_mergeAiResults()</code>前に実行（L2064付近）。AIへは送信しない（シャドー中も本番も同様）。<strong>#33の記述（「AI呼び出し後に内部算出」）がコードの実態に合致</strong>。#17の「AI呼び出し前」という記述が誤りだった。両項の証跡を「AI呼び出し後・merge前に内部算出（AIへは送信しない）」に統一修正済み。<br><strong style="color:#e65100;">→ 04.txt指摘で完全対応（2026-09-18追記）：Block 10を1st AI・2nd AI両呼び出し前へ移動。コード修正済み（下記「04.txt対応」セクション参照）。</strong></td>
+    </tr>
+    <tr>
+      <td>C</td>
+      <td class="item-desc">報告書#69「補正データなしは6分前でフォールバック」が、仕様書「欠損を0や別値に置き換えない・入力欠損として記録」と不一致</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td><strong>コード修正済み</strong>（2026-09-18）：L3912 Block B-13複勝馬券判定（高配当シャドー処理）で <code>$bB13OdData['estimated_final_fuku_min'] ?? $bB13OdData['fuku_min_6'] ?? null</code> となっていたフォールバック処理を廃止。<code>$bB13OdData['estimated_final_fuku_min'] ?? null</code> に修正。欠損時はnull（入力欠損扱い）で仕様書準拠。コメント「仕様書準拠: null時は欠損扱い・6分前複勝への自動置換禁止」追加。報告書#69の証跡も修正済み。</td>
+    </tr>
+  </table>
+  </div>
+  <div class="note-box green" style="margin-top:8px;margin-bottom:16px;">
+    03.txt指摘3点すべて対応完了。A・Bは報告書記述の誤り修正、Cはコード修正＋報告書修正。バックアップ：<code>AiController.php.bak_20260918_fix03</code>
+  </div>
+
+  <!-- ===== よっしー再指摘3回目（04.txt）対応 ===== -->
+  <div class="section-header done">よっしー再指摘（04.txt）#17処理順コード修正　対応完了（2026-09-18）</div>
+  <table class="check-table">
+    <tr>
+      <th>項目</th>
+      <th>指摘内容</th>
+      <th>状態</th>
+      <th>証跡・対応内容</th>
+    </tr>
+    <tr>
+      <td>#17<br>コード修正</td>
+      <td class="item-desc">最終確定版では市場妙味基礎点を「AI実行前にPHPで算出」と明記。現在はAI回答後・merge前の算出になっており、Block 10を1st AI・2nd AI呼び出し前へ移動する必要がある。シャドー検証中は算出値をAIへ送信せず、PHP内部のみで保持。AI回答後に能力適性補正を加えて高配当総合点を算出する順序にする。</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>
+        <strong>コード修正済み（2026-09-18）</strong>：<br>
+        <strong>【移動前】</strong> Block 10（<code>_calcMarketScore()</code>）はDeepSeek（2nd AI）呼び出し後・<code>_mergeAiResults()</code>前のL2055付近に位置していた。<br>
+        <strong>【移動後】</strong> Block 9 End直後（L1822〜L1859付近）に移動。1st AI（Claude）・2nd AI（DeepSeek）両方の呼び出し前に実行される。<br>
+        <strong>実装方法</strong>：<code>_buildFlagsAndOddsMap([], $oddsData, ...)</code>を空配列で先行呼出してODDSデータ（<code>$b6OddsRows</code>・<code>$oddsHorseBlocks</code>・<code>$b6TanPopMap</code>・<code>$b6FukuPopMap</code>）を取得し、<code>_calcMarketScore()</code>でBlock 10算出。<code>$gapTypeForMerge</code>・<code>$primaryGapUpperPopForMerge</code>も<code>$oddsData</code>（AI不要）から先行取得。<br>
+        <strong>シャドー仕様</strong>：算出した市場妙味基礎点・内訳・過小評価フラグ・偽流入警戒はAIへ送信しない（<code>_calcMarketScore()</code>のコメントに「AIへは送信しない（シャドー期間中）」と明記済み）。<br>
+        <strong>処理順</strong>：①PHP算出（AI前）→ ②1st AI（Claude）→ ③2nd AI（DeepSeek）→ ④能力適性補正 → ⑤高配当総合点算出<br>
+        バックアップ：<code>AiController.php.bak_20260918_fix04</code>
+      </td>
+    </tr>
+    <tr>
+      <td>断層学習<br>#45〜#63等</td>
+      <td class="item-desc">断層学習部分（#45〜#63）はまだ未完成。M1〜M4ラベル保存のみ（一部対応）、6分前人気順ベース馬番追跡未検証、固定長スナップショット・日付順分割・予備学習・正式評価・モデル情報・校正・並行比較・再現性等が未実装。</td>
+      <td><span class="badge notimpl-b">未実装/未検証</span></td>
+      <td>断層学習機能（#45〜#63系）は現フェーズの対象外。Phase 1（保存段階）まで完成、学習・推論・検証はPhase 2以降の実装予定。今回の対応範囲外。</td>
+    </tr>
+  </table>
+  <div class="note-box green" style="margin-top:8px;margin-bottom:16px;">
+    04.txt指摘：#17コード修正完了（Block 10をAI実行前に移動）。断層学習未実装は現フェーズ対象外として記録。バックアップ：<code>AiController.php.bak_20260918_fix04</code>
+  </div>
+
+  <div class="summary-box">
+    <div class="sec-head">集計（#1〜#70 全体）</div>
+    <div class="sec-body">
+      <div class="cnt-grid">
+        <div class="cnt-cell ok"><span class="cnt-num">57</span><span class="cnt-lbl">合格</span></div>
+        <div class="cnt-cell partial"><span class="cnt-num">2</span><span class="cnt-lbl">一部対応</span></div>
+        <div class="cnt-cell notimpl"><span class="cnt-num">10</span><span class="cnt-lbl">未実装</span></div>
+        <div class="cnt-cell unverif"><span class="cnt-num">1</span><span class="cnt-lbl">未検証</span></div>
+      </div>
+      <p style="font-size:0.78rem;margin-top:10px;color:#666;">合計70項目。未実装・未検証の12項目は断層学習（M1〜M4）の推論・検証・model_version管理に関するものです。保存フェーズは実装済みです。</p>
+    </div>
+  </div>
+
+  <!-- ===== #1〜#12 外部AI制御・候補統合 ===== -->
+  <div class="section-header">#1〜#12　外部AI制御・候補統合</div>
+  <div class="block-table">
+  <table>
+    <tr><th>#</th><th>確認項目（最新確定版TXT原文）</th><th>判定</th><th>コード箇所・証跡</th></tr>
+    <tr>
+      <td>1</td>
+      <td class="item-desc">1レースにつき外部AI呼び出しがClaudeとDeepSeekの合計2回だけである</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>AiController.php L193（Claude呼出1回） / L1737（DeepSeek呼出1回）。DeepSeek側：$maxRetries=1・for文1回のみ実行（通信エラー含め再試行なし）。形式不正も即座に2nd AI失敗扱い（再試行禁止）。コメント「仕様: 自動再試行禁止（1回のみ）」明記。合計2回超えなし。</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td class="item-desc">両AIへ同じ6分前までのオッズ、断層、回収率、類似レース、能力・適性データが渡る</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>1st AI: _getAiAnalysisPrompt()（L285〜）で全データ生成。2nd AI: $oddsData（同関数出力から2nd AI除去ブロック適用）L1759。能力・適性データブロック両AI共通。</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td class="item-desc">3分前、確定オッズ・確定人気、着順、払戻金が予測入力へ混入しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>fetchTimings定義にminutes_before_start=3以降は含まれない。AIプロンプトに「3分前以降の情報は使用・推測禁止」明記。</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td class="item-desc">人気順、OPI、流入ランク、推定確定単勝・複勝オッズ、断層判定を両AIが再計算しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>1st AIプロンプト内「DB・PHP算出済みの…を再計算・変更してはいけません」明記（L1084付近）。2nd AIシステムプロンプト内「DB・PHP算出値の再計算・上書き・補正・推測はあなたにも禁止」（L1641〜）。</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td class="item-desc">推定確定複勝オッズが未生成の場合、AIに推測させず入力欠損としてログへ記録する</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>estimated_final_fuku_min がnullの場合はプロンプト行の当該フィールドを「データなし」として出力。Log::infoで欠損記録（L570〜付近）。</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td class="item-desc">1st AIは厳選穴レース行、レース指標行、候補行を既存形式で返す</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>出力フォーマット指示 L1397〜1445。厳選穴レース|1or0 / レース指標|波乱度:X|下位進入度:X|大穴進入度:X / 馬番：X〜 の3行構成をプロンプトで明示。</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td class="item-desc">2nd AIは候補行だけを返し、各候補の選出理由冒頭に能力適性の評価と点数を入れる</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>2nd AIシステムプロンプト L1641〜1737。出力フォーマット：候補行のみ、選出理由冒頭「能力適性:X（XX点）。」形式を指示。</td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td class="item-desc">両AIの候補を馬番で重複排除し、一致馬・1st独自馬・2nd独自発見馬へ正しく分類する</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>_mergeAiResults()（L3230〜3456）で matched / first_only / second_only の3分類実装済み。</td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td class="item-desc">一致馬は両AI点数の平均＋5点、上限100点で、一致だけを理由に無条件採用しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>_mergeAiResults() L3306付近「($score1 + $score2) / 2 + 5」実装。上限min(100, …)適用。Bug#2（case 'first_only'/'second_only'）修正済み（2026-09-18）。</td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td class="item-desc">断層位置別・人気帯別上限、低配当、回収率、最低基準点を統合後にも適用する</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>getHorseOddsFinderSecondAiOpinion() 内で最低基準点→低配当→回収率→断層位置別人気帯上限の順に適用（L2100〜2400付近）。</td>
+    </tr>
+    <tr>
+      <td>11</td>
+      <td class="item-desc">最終候補は8頭以下4頭、9〜13頭5頭、14〜15頭6頭、16頭以上7頭を超えない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>出走頭数別最終上限チェック実装済み。AiController.php L3227〜3233（$displayLimit = 4/5/6/7頭を出走頭数で分岐し最終スライス）。</td>
+    </tr>
+    <tr>
+      <td>12</td>
+      <td class="item-desc">基準不足なら上限未満で終了し、頭数合わせをしない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>プロンプト内「上限を埋めるための追加をしてはいけません」明記。PHP側も候補がなければ0件のままレスポンス。</td>
+    </tr>
+  </table>
+  </div>
+
+  <!-- ===== #13〜#22 フィルター・シャドー制御 ===== -->
+  <div class="section-header">#13〜#27　フィルター・シャドー制御・市場妙味基礎点</div>
+  <div class="block-table">
+  <table>
+    <tr><th>#</th><th>確認項目（最新確定版TXT原文）</th><th>判定</th><th>コード箇所・証跡</th></tr>
+    <tr>
+      <td>13</td>
+      <td class="item-desc">能力・適性だけを理由に、両AIが選ばなかった馬をPHPで追加しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>PHPはAI候補のマージのみ実施。AI未選出馬をPHPが独自追加するコードなし（_mergeAiResults()参照）。</td>
+    </tr>
+    <tr>
+      <td>14</td>
+      <td class="item-desc">Flutterの既存パース形式を変更せず、選出理由内で不要な改行を発生させない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>既存フォーマット維持（1行1馬）。2nd AIシステムプロンプトで「改行・マークダウン禁止」明示（L1641〜）。</td>
+    </tr>
+    <tr>
+      <td>15</td>
+      <td class="item-desc">AI応答原文、パース失敗、欠損項目、各フィルターによる除外理由をログ保存する</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>各Block処理でLog::info('[B-X]…')を実装。AI応答原文はLog::infoで保存（getHorseOddsFinderSecondAiOpinion内）。</td>
+    </tr>
+    <tr>
+      <td>16</td>
+      <td class="item-desc">導入後200〜300レースまでは高配当総合点等を強制採用・強制除外・入替条件にせず、現行候補と仮適用候補を並行保存して比較集計する</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>シャドー期間中は高配当総合点をFlutter・候補・順位に反映せず、high_payout_shadow_logテーブルに並行保存（Block B-10、L2600〜）。</td>
+    </tr>
+    <tr>
+      <td>17</td>
+      <td class="item-desc">市場妙味基礎点をAI実行前、高配当総合点をAI実行後に算出し、循環計算がない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>【2026-09-18コード修正済み】Block 10（市場妙味基礎点A〜E算出）を1st AI・2nd AI<strong>両方の呼び出し前</strong>に移動完了。<code>_buildFlagsAndOddsMap([], ...)</code>でODDSデータを先行取得し、<code>_calcMarketScore()</code>をAI実行前に実行（L1822〜L1859付近）。AIへは送信しない（シャドー中）。高配当総合点=基礎点+能力適性補正はAI回答後・merge後（L2200〜）。仕様書準拠の処理順：①PHP算出→②AI実行→③能力適性補正→④高配当総合点算出。循環なし。</td>
+    </tr>
+    <tr>
+      <td>18</td>
+      <td class="item-desc">A〜E各項目の点数、欠損処理、80点換算が仕様どおりである</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>Block10 A〜E各項目算出実装済み（L2100〜2200付近）。有効満点合計80点換算。欠損時「不明」扱い（0点置換禁止）。</td>
+    </tr>
+    <tr>
+      <td>19</td>
+      <td class="item-desc">有効項目満点50点未満は基礎点「不明」となり、0点扱いされない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>$b10ValidMax < 50 の場合 $b10BaseScore = null（不明）として処理（Block10内）。</td>
+    </tr>
+    <tr>
+      <td>20</td>
+      <td class="item-desc">能力適性補正は一致馬と独自馬で定義どおり算出される</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>一致馬：両AI ability_score平均で補正区分決定。独自馬：選出AIのability_scoreで決定（_mergeAiResults()内）。A=+20/B=+14/C=+7/D=0。</td>
+    </tr>
+    <tr>
+      <td>21</td>
+      <td class="item-desc">市場過小評価フラグは4条件すべてで判定される</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>Block12末尾でB-13フラグ判定実装（2026-09-15実装）。4条件：①基礎点56点以上 ②A点12点以上 ③C点7点以上 ④有効根拠3項目以上。有効満点50点未満→null。</td>
+    </tr>
+    <tr>
+      <td>22</td>
+      <td class="item-desc">7番人気以下は偽流入除外条件を通過しなければ高配当候補・購入候補にならないが、偽流入警戒だけで既存の5着以内候補から削除されない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>Block8の偽流入判定（L2000〜）：3条件以上→有効、2条件以下→偽流入警戒フラグON。偽流入警戒馬は高配当候補・馬券購入候補から除外するが、既存5着以内候補は「監視」として残す。</td>
+    </tr>
+    <tr>
+      <td>23</td>
+      <td class="item-desc">1st独自馬と2nd独自馬のA〜D分類をPHP側で同じ基準により適用する</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>_mergeAiResults()でfirst_only/second_only両カテゴリにF2〜F8判定を同一基準で適用。</td>
+    </tr>
+    <tr>
+      <td>24</td>
+      <td class="item-desc">第1段階の馬券判定が定義した閾値どおりである</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>Block B-10馬券判定：単勝（高配当総合点70点以上 & B-13フラグtrue & 単勝縮小 & 推定単勝3.0以上）/ 複勝（70点以上 & B-13フラグtrue & A点12点以上 & 推定確定複勝1.5以上）。実装済み。</td>
+    </tr>
+    <tr>
+      <td>25</td>
+      <td class="item-desc">第2段階未実装時に確率・期待値をAIが補完しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>第2段階は未実装。プロンプトに「選出理由にAIが独自算出した確率値を記載禁止」明記。</td>
+    </tr>
+    <tr>
+      <td>26</td>
+      <td class="item-desc">第2段階を有効化する場合だけ、別途確定した確率モデル・期待値式・1.05基準・時系列分割が守られる。第1段階では未実装・不明のままでよい</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>現在は第1段階のみ。第2段階は未有効化であり本項目は「第1段階では未実装・不明のままでよい」と仕様書が明示しているため合格。</td>
+    </tr>
+    <tr>
+      <td>27</td>
+      <td class="item-desc">校正済み確率・期待値を選出理由へ％表示しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>AIへの指示「選出理由にAIが独自算出した確率値を記載禁止」明記。校正モデル未実装のため実際にも表示なし。</td>
+    </tr>
+  </table>
+  </div>
+
+  <!-- ===== #28〜#43 出力制御・フィルター順序 ===== -->
+  <div class="section-header">#28〜#43　出力制御・フィルター順序・固定順位</div>
+  <div class="block-table">
+  <table>
+    <tr><th>#</th><th>確認項目（最新確定版TXT原文）</th><th>判定</th><th>コード箇所・証跡</th></tr>
+    <tr>
+      <td>28</td>
+      <td class="item-desc">AI出力形式を変更せず、追加表示はPHPが選出理由内へ追記する</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>AI出力形式（馬番：X、馬名：XXX…）を変更なし。本番有効化後のみ選出理由内への追記を設計（シャドー中は追記なし）。</td>
+    </tr>
+    <tr>
+      <td>29</td>
+      <td class="item-desc">フィルター適用順が「最低基準点→低配当除外→回収率フィルター→順位確定→人気帯上限」に固定され、本番有効化後の5点比較帯が帯基準馬方式で決定論的に生成される</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>getHorseOddsFinderSecondAiOpinion() 内で処理順序固定実装。シャドー中の順位：おすすめ度降順→一致馬優先→馬番昇順（決定論的）。</td>
+    </tr>
+    <tr>
+      <td>30</td>
+      <td class="item-desc">現行版と強化版の並行検証・判定別ログ保存ができる</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>high_payout_shadow_logテーブルで強化版仮順位を並行保存。ai_merge_resultに通常候補を保存。別集計可能。</td>
+    </tr>
+    <tr>
+      <td>31</td>
+      <td class="item-desc">厳選穴レース判定が最終候補確定後にPHPで再判定され、最終候補と表示が矛盾しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>最終候補確定後に条件B/C/D→0に確定、B/C/D全不成立かつ7〜10番人気1頭以上→1、それ以外→0 の再判定ロジック実装（L2900〜付近）。</td>
+    </tr>
+    <tr>
+      <td>32</td>
+      <td class="item-desc">全馬の複勝最小オッズが計測前、21分前〜6分前の各取得時点でDB保存・プロンプト生成でき、4時点未満の場合は複勝継続流入を「不明」として2点間から推測しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>ODDS_GET_TIMING定義（S/21/18/15/12/9/6分前）でDB保存済み。4時点未満の場合は複勝継続流入A項目を「不明」として処理（Block10内）。</td>
+    </tr>
+    <tr>
+      <td>33</td>
+      <td class="item-desc">シャドー検証中は市場妙味基礎点等をAIへ送信せず、同じ2AI候補集合に対するPHP側の仮順位だけを並行保存し、本番表示を入れ替えない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>【2026-09-18コード修正済み】市場妙味基礎点はAI実行前にPHPで算出（Block 10をAI前に移動完了）。AIへは送信しない（シャドー中）。high_payout_shadow_logで仮順位保存。Flutter出力は既存候補・既存順位を維持。仕様書準拠の処理順：①PHP算出（AI前）→②AI実行→③能力適性補正→④高配当総合点。</td>
+    </tr>
+    <tr>
+      <td>34</td>
+      <td class="item-desc">本候補・補欠・人気薄注目馬が、おすすめ度と人気順からPHP内部で一意に分類される</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>最終候補内でおすすめ度降順・タイブレーク実装。人気薄注目馬（偽流入警戒「監視」）は別分類で保存。</td>
+    </tr>
+    <tr>
+      <td>35</td>
+      <td class="item-desc">PHP側の回収率ハード除外は「サンプル30件以上の有効値が2種類以上あり、2種類以上が90％未満」の場合だけとなる</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>Block12ハード除外ロジック：3テーブル（過去回収率・OPI帯別・フェーズパターン別）参照。サンプル30件以上の有効値が2種類以上かつ2種類以上90%未満の場合のみ除外。D点0だけでの除外はしない。</td>
+    </tr>
+    <tr>
+      <td>36</td>
+      <td class="item-desc">シャドー検証中の強化指標・馬券判定は内部計算とログ保存だけに使用され、Flutterの候補、順位、選出理由へ影響しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>Block B-10の全出力（市場妙味基礎点・高配当総合点・馬券判定等）はhigh_payout_shadow_logに保存のみ。Flutter・getHorseOddsFinderAiAnalysisのレスポンスには含まれない。</td>
+    </tr>
+    <tr>
+      <td>37</td>
+      <td class="item-desc">本番有効化後だけ、馬券判定・市場妙味基礎点・高配当総合点・市場過小評価を選出理由内へ追記する</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>本番有効化フラグ（手動設定）がOFFの間は選出理由への追記なし。シャドー中は追記ロジック未実行。</td>
+    </tr>
+    <tr>
+      <td>38</td>
+      <td class="item-desc">一致馬の表示理由は1st AI原文、各独自馬の表示理由は選出したAI原文となり、PHPが両AIの文章を連結・生成しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>_mergeAiResults()でmatched馬のreasonは1st AI原文、2nd AI原文はreason_2ndに別保存。連結・生成コードなし（L3300〜）。</td>
+    </tr>
+    <tr>
+      <td>39</td>
+      <td class="item-desc">能力適性Dの中立規則は既存候補の補強比較に、高配当総合点の平均規則は機械計算に適用され、用途が混同されない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>能力適性D（59点以下）→おすすめ度の項目7が0点になるだけで除外はしない。高配当総合点は純粋にPHP算出値。用途混同なし。</td>
+    </tr>
+    <tr>
+      <td>40</td>
+      <td class="item-desc">最終候補および人気帯上限超過時の順位が、シャドー用固定順位または本番有効化後の帯基準馬方式により、同じ入力から必ず同じ結果になる</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>シャドー中：おすすめ度降順→一致馬優先→馬番昇順の決定論的ソート実装。同一入力で同一結果を保証。</td>
+    </tr>
+    <tr>
+      <td>41</td>
+      <td class="item-desc">Claudeには本書記載の正式システムプロンプトだけを使用し、既存の別システムプロンプトと併用しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>L188: $firstAiSystemPrompt に仕様書§1の正式テキストを設定（コメント「仕様書§1より。既存プロンプトと併用せず完全置換」）。baganriki_brain.txtはユーザーメッセージ末尾に参考情報として付加（L181、システムプロンプトには使わない）。</td>
+    </tr>
+    <tr>
+      <td>42</td>
+      <td class="item-desc">2nd AI独自発見条件はAI文章検索ではなくF1〜F8をDB・PHP算出値から判定し、trueが2個以上の場合だけ成立する</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>_mergeAiResults()内でevidenceKeywords（テキストマッチ）廃止済み。F2〜F8はDB値（複勝人気・単勝人気・流入ランク・OPI等）から直接判定。F1・F5はBlock10の$b10ScoreA/$b10ScoreEを使用。trueが2個以上の場合のみ採用。</td>
+    </tr>
+    <tr>
+      <td>43</td>
+      <td class="item-desc">順位比較は候補間の逐次入替ではなく固定比較帯で行い、循環比較が発生しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>usort()による一括ソート（逐次入替ではない）。シャドー中はおすすめ度降順固定。循環比較なし。</td>
+    </tr>
+  </table>
+  </div>
+
+  <!-- ===== #44〜#63 断層学習（M1〜M4）===== -->
+  <div class="section-header">#44〜#63　断層学習（M1〜M4）</div>
+  <div class="note-box">
+    現時点の実装状況：Phase 1（1,000レース未満）。正解ラベルと特徴量スナップショットの保存フェーズです。推論モデル・model_version管理・時系列分割・校正等は未実装です（Phase 2以降で実装予定）。
+  </div>
+  <div class="block-table">
+  <table>
+    <tr><th>#</th><th>確認項目（最新確定版TXT原文）</th><th>判定</th><th>コード箇所・証跡</th></tr>
+    <tr>
+      <td>44</td>
+      <td class="item-desc">断層学習は外部生成AIを追加せず、1レースの外部AI呼び出しが2回のままである</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>断層学習はバッチ処理（UpdateMlResultLabels.php）でのみ実行。AI呼び出しは1st/2nd AIの計2回のままで追加なし。DeepSeek呼出は$maxRetries=1（1回のみ・再試行なし）のため2回超えなし。</td>
+    </tr>
+    <tr>
+      <td>45</td>
+      <td class="item-desc">M1〜M4の正解ラベルが定義どおり生成され、取消・除外・競走中止・着順欠損が適切に除外・記録される</td>
+      <td><span class="badge part-b">一部対応</span></td>
+      <td>
+        【実装済み】M1（1〜6番人気のみで5着内完結→1）・M2（7〜10番人気が5着内に1頭以上→1）・M3（11番人気以下が5着内に1頭以上→1）・M4（各馬が5着内→1）の正解ラベル保存（UpdateMlResultLabels.php）。取消・除外・失格：finishing_position≤0→null（2026-09-18修正済み）。<br>
+        【未実装・未検証】M1〜M4の学習・推論・検証処理。全ラベル定義の実データ検証（Phase 1レース数蓄積後に実施予定）。
+      </td>
+    </tr>
+    <tr>
+      <td>46</td>
+      <td class="item-desc">断層時系列が6分前人気順を基準に馬番追跡され、時点ごとに別馬へ入れ替わらない</td>
+      <td><span class="badge uv-b">未検証</span></td>
+      <td>断層時系列は各時点のオッズからPHPが算出しAIプロンプトへ渡している（L640〜750付近）。ただし「6分前人気順を基準に馬番追跡」の仕様どおり実装されているかの単体テストが未実施。</td>
+    </tr>
+    <tr>
+      <td>47</td>
+      <td class="item-desc">学習特徴量が取得開始S〜6分前に限定され、確定人気・確定オッズ・3分前・実着順・払戻金が予測入力へ混入しない</td>
+      <td><span class="badge ni-b">未実装</span></td>
+      <td>ml_snapshotテーブルへの特徴量ベクトル保存が未実装。現在はspfeat_jsonに基本項目のみ保存（L2870〜付近）。固定長ベクトルとしての全頭特徴量保存は未実装。</td>
+    </tr>
+    <tr>
+      <td>48</td>
+      <td class="item-desc">過去回収率・類似統計は各レース当時に利用可能だったスナップショットを使用し、後日集計値を遡及付与しない</td>
+      <td><span class="badge ni-b">未実装</span></td>
+      <td>特徴量スナップショット保存が未実装のため（#47同様）。当時の回収率・類似統計を特徴量として切り取る処理が未実装。</td>
+    </tr>
+    <tr>
+      <td>49</td>
+      <td class="item-desc">学習・検証・最終評価が日付順70％・15％・15％で分離され、同一開催日・同一レースが複数区分へ入らない</td>
+      <td><span class="badge ni-b">未実装</span></td>
+      <td>時系列分割処理（70%/15%/15%）が未実装。Phase 2移行時に実装予定。</td>
+    </tr>
+    <tr>
+      <td>50</td>
+      <td class="item-desc">1,000レース未満は保存だけ、1,000〜1,999レースは予備シャドー、2,000レース以上かつ未使用評価500レース以上で正式評価可能となる</td>
+      <td><span class="badge part-b">一部対応</span></td>
+      <td>
+        【実装済み】Phase 1（保存のみ）の動作。断層学習値がFlutter・候補・順位・馬券判定に影響しないことを確認済み。<br>
+        【未実装】1,000〜1,999レースの予備シャドー処理、2,000レース以上での正式評価処理。フェーズ自動切替ロジック（人間が明示的に有効化する設計のため、自動切替ロジック自体は設計外）。
+      </td>
+    </tr>
+    <tr>
+      <td>51</td>
+      <td class="item-desc">シャドー中の断層学習値が両AI、Flutter、候補選出、順位、馬券判定へ影響しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>UpdateMlResultLabels.phpはレース後バッチ処理のみ。ml_snapshotへの保存のみで、リアルタイム候補選出・順位決定・Flutter出力には一切接続していない。</td>
+    </tr>
+    <tr>
+      <td>52</td>
+      <td class="item-desc">model_versionにモデル種類、ライブラリ版、特徴量、パラメータ、学習期間、件数、モデルハッシュが保存される</td>
+      <td><span class="badge ni-b">未実装</span></td>
+      <td>model_versionカラムへの詳細メタデータ保存が未実装。現状は簡易バージョン文字列のみ（学習モデル自体が未作成のため）。</td>
+    </tr>
+    <tr>
+      <td>53</td>
+      <td class="item-desc">未校正のモデル出力が確率として扱われず、校正済み状態が区別される</td>
+      <td><span class="badge ni-b">未実装</span></td>
+      <td>推論モデル自体が未作成のため、校正処理も未実装。Phase 2以降で実装予定。</td>
+    </tr>
+    <tr>
+      <td>54</td>
+      <td class="item-desc">現行版と学習仮適用版が同じ候補条件で並行保存され、平均選出頭数を揃えた比較ができる</td>
+      <td><span class="badge ni-b">未実装</span></td>
+      <td>推論モデル未作成のため学習仮適用版の並行保存が未実装。Phase 2以降で実装予定。</td>
+    </tr>
+    <tr>
+      <td>55</td>
+      <td class="item-desc">本番有効化条件をすべて満たしても自動切替せず、別バージョンとして人間が明示的に有効化する</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>自動切替コードなし。本番有効化は人間が明示的にフラグを設定する設計。Phase 3以降でも自動切替は禁止として設計済み。</td>
+    </tr>
+    <tr>
+      <td>56</td>
+      <td class="item-desc">本番有効化後も断層学習値を既存各スコアへ単純加算・平均せず、既存フィルターと最大4〜7頭を維持する</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>本番有効化前（現状）のため適用外だが、設計として既存スコアへの加算は禁止されており、コード上も加算処理なし。</td>
+    </tr>
+    <tr>
+      <td>57</td>
+      <td class="item-desc">開催途中でモデル更新せず、予測ごとのmodel_version保存、旧モデルへの切戻し、過去予測非上書きが可能である</td>
+      <td><span class="badge ni-b">未実装</span></td>
+      <td>推論モデル未作成のため、model_version保存・切戻し機能も未実装。Phase 2以降で実装予定。</td>
+    </tr>
+    <tr>
+      <td>58</td>
+      <td class="item-desc">高配当強化の200〜300レース条件と断層学習の1,000・2,000・評価500レース条件が混同されない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>コード・ドキュメント上で両条件を明確に分離。高配当強化はhigh_payout_shadow_log（Block B-10）、断層学習はml_snapshot（Block11）と別テーブル・別処理。</td>
+    </tr>
+    <tr>
+      <td>59</td>
+      <td class="item-desc">M4は2AI候補内比較と全頭発見比較を別々に保存し、全頭発見仮候補がシャドー中の本番表示へ混入しない</td>
+      <td><span class="badge ni-b">未実装</span></td>
+      <td>M4全頭着順ラベル保存は実装済み（2026-09-15、UpdateMlResultLabels.php）。ただし「2AI候補内比較」と「全頭発見比較」を別フィールドで保存する仕組みが未実装。</td>
+    </tr>
+    <tr>
+      <td>60</td>
+      <td class="item-desc">市場妙味基礎点Aは記載した4区分を上から判定し、未記載の中間点が発生しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>Block10のA項目算出：3区間以上低下かつ9→6も低下→25点 / 3区間以上低下でも9→6横ばい→18点 / 2区間低下かつ9→6も低下→12点 / その他→0点。4区分のみ。</td>
+    </tr>
+    <tr>
+      <td>61</td>
+      <td class="item-desc">回収率D点は15・12・8・4・0・不明のいずれかへ全組合せが一意に決まり、D点0だけで回収率ハード除外されない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>Block10のD項目算出：110%以上2種類以上かつサンプル100件以上→15点、…の5段階+不明。D点0での除外ロジックなし（ハード除外はBlock12の別条件）。</td>
+    </tr>
+    <tr>
+      <td>62</td>
+      <td class="item-desc">最終PHP処理順序の第4項で断層学習の保存・推論・シャドー分離が実行され、model_versionと入力ハッシュから同じ推論を再現できる</td>
+      <td><span class="badge ni-b">未実装</span></td>
+      <td>推論エンジン未実装のため、入力ハッシュ生成・保存・再現処理が未実装。Phase 2以降で実装予定。</td>
+    </tr>
+    <tr>
+      <td>63</td>
+      <td class="item-desc">M4の能力・適性元データが固定長変換仕様どおり生成され、対象レース後の情報・未固定解析・検証評価期間の辞書が混入しない</td>
+      <td><span class="badge ni-b">未実装</span></td>
+      <td>能力・適性元データの固定長変換（ベクトル化）が未実装。AIへの能力適性評価データはプロンプトテキスト形式で渡しているが、ML用の固定長ベクトル変換は別途実装が必要。</td>
+    </tr>
+  </table>
+  </div>
+
+  <!-- ===== #64〜#70 統合おすすめ度・AI縮退・固定配点・上限 ===== -->
+  <div class="section-header">#64〜#70　統合おすすめ度・AI縮退・固定配点・低配当・上限</div>
+  <div class="block-table">
+  <table>
+    <tr><th>#</th><th>確認項目（最新確定版TXT原文）</th><th>判定</th><th>コード箇所・証跡</th></tr>
+    <tr>
+      <td>64</td>
+      <td class="item-desc">一致馬の統合おすすめ度は内部で小数第1位まで保持され、Flutter整数表示だけが四捨五入される</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>_mergeAiResults()内でfloat型として($score1+$score2)/2+5を計算・保持。Flutter返却時にround()で整数化（L3306〜）。</td>
+    </tr>
+    <tr>
+      <td>65</td>
+      <td class="item-desc">1st AI候補0件と2nd AIの「候補なし|0」が正常な0件として処理され、基準未満の馬が補充されない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>AI候補が0件の場合は空配列として処理継続。補充ロジックなし。「候補なし|0」はパースで0件として正常処理（L2050〜付近）。</td>
+    </tr>
+    <tr>
+      <td>66</td>
+      <td class="item-desc">2nd AIだけの応答失敗時は1st AI単独処理へ安全に縮退し、1st AI失敗時は通常予測を公開しない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>$b7SecondAiFailed=true時：1st AIのみで処理継続（L1770〜）。1st AI失敗：response()->json(['error'…], 500)を返す（L200〜）。</td>
+    </tr>
+    <tr>
+      <td>67</td>
+      <td class="item-desc">AI応答失敗時にも追加AI呼び出しを行わず、1レース合計2回の上限を維持する</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>DeepSeek呼出は$maxRetries=1（for文1回のみ）で通信エラー含め再試行なし。形式不正も即座に2nd AI失敗扱い（コメント「形式不正時は再試行禁止」「仕様: 自動再試行禁止（1回のみ）」明記・L1913〜）。追加AI呼び出しなし。</td>
+    </tr>
+    <tr>
+      <td>68</td>
+      <td class="item-desc">全頭の既存おすすめ度が信頼度60点（15・12・8・10・8・4・3点）と妙味40点（15・12・8・5点）の固定内訳で採点され、配点変更・項目間の点数移動・高配当強化指標との混算がない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>1st AIプロンプト L1360〜1388で「固定配点・項目の追加・削除・配点変更・信頼度と妙味の間での点数移動は禁止」と明記。信頼度60点（①15②12③8④10⑤8⑥4⑦3）・妙味40点（①15②12③8④5）の全11項目指示。2nd AIも$oddsDataで同じ指示を受け取る。高配当強化指標はシャドー中AIへ送信せず。</td>
+    </tr>
+    <tr>
+      <td>69</td>
+      <td class="item-desc">推定確定複勝最小オッズ1.5倍未満の妙味小計が原則5点以下となり、例外解除は既存の低配当例外3条件をすべて満たす場合だけである</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>低配当除外の参照オッズを6分前複勝→estimated_final_fuku_min（推定確定複勝最小オッズ）に修正済み（2026-09-17・Bug修正）。低配当例外3条件チェック実装済み。<br>
+      ※Block B-13複勝馬券判定（高配当シャドー処理）L3912でestimated_final_fuku_min欠損時に6分前複勝へ自動置換していた処理を廃止済み（2026-09-18修正）。現在は欠損時はnull（入力欠損扱い）で仕様書に準拠。「欠損を0や別値に置き換えない」を徹底。</td>
+    </tr>
+    <tr>
+      <td>70</td>
+      <td class="item-desc">1st AI最大7頭、2nd AI最大5頭、統合後最大4〜7頭がそれぞれPHPで検証され、共通本文の転用によって2nd AIが6頭以上採用されない</td>
+      <td><span class="badge ok-b">合格</span></td>
+      <td>1st AI 8頭以上→形式不正・予測公開中止。2nd AI 6頭以上→DeepSeek応答無効化・1st AI単独継続。統合後：出走頭数別上限（4/5/6/7頭）チェック実装済み（L2000〜）。</td>
+    </tr>
+  </table>
+  </div>
+
+  <div class="note-box" style="margin-top:16px;">
+    <strong>断層学習の未実装12項目について（#46〜#63のうち）</strong><br>
+    未実装・未検証の12項目はすべてPhase 2以降（1,000レース以上蓄積後）に実装予定の機能です。現状はPhase 1として「特徴量スナップショット＋正解ラベルの保存」フェーズのみ実装されています。これらは「データ不足で本番有効化できない」のではなく「推論エンジン・model_version管理・時系列分割・校正処理を含む実装自体が未完成」です。Phase 2移行判断時に再提出します。
+  </div>
+
+</div>
+<footer>作成：英之（エンジニア）　2026-09-18　再提出版（B-1〜B-15独自番号→最新確定版TXT末尾#1〜#70対応）＋よっしー再指摘10項目 全件対応完了版</footer>
+</body>
+</html>

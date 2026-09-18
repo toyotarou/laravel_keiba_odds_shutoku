@@ -83,6 +83,9 @@ class SummaryRacesIntrospection extends Command
             $brainFile = public_path('baganriki_brain/baganriki_brain.txt');
             $brain     = file_exists($brainFile) ? trim(file_get_contents($brainFile)) : '';
             $this->info('  → 馬眼力ブレイン: ' . ($brain !== '' ? '読み込み済み' : 'ファイルなし'));
+
+            // ─── 振り返り専用固定システムプロンプト ─────────────────────────────────
+            $introspectionSystemPrompt = 'あなたは競馬オッズ分析の振り返り専門家です。提供された単勝オッズ推移データと実際の入賞結果を分析し、回収率向上につながる教訓を抽出してください。DB算出値の再計算は行わず、提供されたデータのみを使用してください。指定されたフォーマット以外の前置き・後書き・補足を出力しないでください。';
             $this->info('');
 
             // ─────────────────────────────────────────────────────────────────
@@ -354,9 +357,10 @@ ORDER BY date, kaisuu, basho, day, race;
 
                 if ($brain !== '') {
                     $msgs[] = '';
-                    $msgs[] = 'あなたの馬眼力ブレインに蓄積された知識と判断基準を最大限に発揮して、今日もベストな分析を頼みます！全力でお願いします！！';
+                    $msgs[] = '【参考情報：過去レース統計サマリー（脳みそ）】';
+                    $msgs[] = '以下は過去のレース分析から得られた統計的傾向です。あくまで参考として使用してください。';
+                    $msgs[] = $brain;
                 }
-
                 $prompt = implode("\n", $msgs);
 
                 // プロンプトをファイルに出力
@@ -405,7 +409,7 @@ ORDER BY date, kaisuu, basho, day, race;
 
                 $this->info("[フェーズ2] バッチ {$batchNum}/{$batchTotal} — " . count($batch) . " 件を並列送信中...");
 
-                $responses = $this->anthropic->sendPool(array_column($batch, 'prompt'), $brain !== '' ? $brain : null);
+                $responses = $this->anthropic->sendPool(array_column($batch, 'prompt'), $introspectionSystemPrompt);
 
                 $this->info("[フェーズ3] バッチ {$batchNum}/{$batchTotal} — 結果処理中...");
 
@@ -487,7 +491,7 @@ ORDER BY date, kaisuu, basho, day, race;
                         $this->line("  [試行 {$attempt}/3] {$label} — {$waitSec}秒待機...");
                         sleep($waitSec);
 
-                        $response = $this->anthropic->send($item['prompt'], $brain !== '' ? $brain : null);
+                        $response = $this->anthropic->send($item['prompt'], $introspectionSystemPrompt);
 
                         if (in_array($response->status(), [429, 529])) {
                             $this->warn("  [試行 {$attempt}/3] {$label} — まだ HTTP {$response->status()}");

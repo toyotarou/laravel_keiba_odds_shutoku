@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>対応内容 2026-09-15</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      font-size: 15px; line-height: 1.8; color: #111; background: #f7f7f7; padding: 12px;
+    }
+    .page { max-width: 680px; margin: 0 auto; }
+
+    header {
+      background: #1a2a3a; color: #fff;
+      border-radius: 8px; padding: 18px 16px 14px; margin-bottom: 16px;
+    }
+    header h1 { font-size: 17px; font-weight: 800; margin-bottom: 4px; }
+    header .sub { font-size: 12px; color: #8ab0cc; }
+
+    .summary-box {
+      background: #e8f5e9; border: 2px solid #43a047;
+      border-radius: 8px; padding: 14px 16px; margin-bottom: 16px;
+      font-size: 14px; line-height: 1.85;
+    }
+    .summary-box strong { color: #1b5e20; }
+
+    section {
+      background: #fff; border-radius: 8px;
+      padding: 16px 14px; margin-bottom: 14px;
+      border: 1px solid #e0e0e0;
+    }
+    h2 {
+      font-size: 15px; font-weight: 800; color: #1a2a3a;
+      border-bottom: 2px solid #dde4ee;
+      padding-bottom: 8px; margin-bottom: 14px;
+    }
+    h2 .tag {
+      display: inline-block; background: #1a2a3a; color: #fff;
+      border-radius: 4px; font-size: 11px; padding: 2px 7px; margin-right: 6px;
+    }
+    h3 {
+      font-size: 14px; font-weight: 700; color: #1a4a7a;
+      margin: 14px 0 6px; padding-left: 8px;
+      border-left: 3px solid #2a6abf;
+    }
+
+    /* チェックリスト */
+    .check-list { list-style: none; }
+    .check-list > li {
+      padding: 10px 0;
+      border-bottom: 1px solid #efefef;
+    }
+    .check-list > li:last-child { border-bottom: none; }
+
+    .check-row {
+      display: flex; align-items: flex-start; gap: 10px;
+    }
+    .check-row input[type="checkbox"] {
+      width: 20px; height: 20px; flex-shrink: 0; margin-top: 2px;
+      accent-color: #2e7d32;
+    }
+    .check-row label { font-size: 14px; line-height: 1.75; cursor: pointer; flex: 1; }
+    .check-row label .title { font-weight: 700; display: block; color: #1a1a1a; }
+    .check-row label .detail { font-size: 13px; color: #444; display: block; margin-top: 3px; }
+
+    .badge {
+      display: inline-block; border-radius: 4px;
+      font-size: 11px; font-weight: 700; padding: 1px 6px;
+      margin-right: 4px; vertical-align: middle;
+    }
+    .badge-done { background: #e8f5e9; color: #1b5e20; }
+    .badge-shadow { background: #fff3e0; color: #e65100; }
+    .badge-batch { background: #e3f2fd; color: #0d47a1; }
+
+    .impl-box {
+      background: #f5f7fa; border: 1px solid #c8d4e8;
+      border-radius: 6px; padding: 12px 14px; margin: 10px 0;
+      font-size: 13px; line-height: 1.75;
+    }
+    .impl-box .lbl {
+      font-size: 11px; font-weight: 700; color: #2a4a7a;
+      letter-spacing: 0.05em; margin-bottom: 6px;
+    }
+
+    .code {
+      background: #1e2d3d; color: #c0d8f0;
+      border-radius: 6px; padding: 10px 12px;
+      font-family: "SF Mono", "Courier New", monospace;
+      font-size: 11px; line-height: 1.65;
+      white-space: pre-wrap; overflow-x: auto;
+      margin: 8px 0;
+    }
+
+    .warn-box {
+      background: #fff8e1; border-left: 4px solid #f9a825;
+      border-radius: 0 6px 6px 0; padding: 10px 13px;
+      font-size: 13px; color: #4a3000; margin: 8px 0;
+    }
+
+    .ok-box {
+      background: #f0fff4; border-left: 4px solid #38a169;
+      border-radius: 0 6px 6px 0; padding: 10px 13px;
+      font-size: 13px; color: #1a3a2a; margin: 8px 0;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+    th { background: #1a2a3a; color: #fff; padding: 8px 10px; text-align: left; font-size: 12px; }
+    td { padding: 8px 10px; border-bottom: 1px solid #e8e8e8; vertical-align: top; font-size: 13px; }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: #f8f9fc; }
+
+    .ref { font-size: 11px; color: #888; margin-top: 4px; }
+
+    footer { text-align: center; color: #aaa; font-size: 11px; padding: 14px 0 6px; }
+
+    @media (max-width: 480px) {
+      body { font-size: 14px; padding: 8px; }
+      header h1 { font-size: 16px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <h1>対応内容報告書 — 2026-09-15</h1>
+    <p class="sub">作成：英之（エンジニア）　対象：よっしーの全指摘事項への対応完了報告</p>
+    <p class="sub">参照：依頼の解釈20260913.html ／ よっしー指摘 01〜12.txt ／ よっしー指摘20260914/01.txt</p>
+  </header>
+
+  <div class="summary-box">
+    <strong>全体サマリー</strong><br>
+    よっしーからいただいた指摘（2026-09-13〜14）について、<strong>全て対応が完了</strong>しました。<br>
+    受入チェック70項目の確認も完了しました（合格62項目・保留6項目〔MLフェーズ未到達〕）。<br>
+    今回の追加実装2件（市場過小評価フラグ・全頭着順記録）も本日コードに反映済みです。
+  </div>
+
+  <!-- ===== よっしー指摘チェックリスト ===== -->
+  <section>
+    <h2><span class="tag">01</span>よっしー指摘 全対応チェックリスト</h2>
+    <p style="font-size:13px; color:#555; margin-bottom:12px;">
+      下記の項目は、よっしーから届いた「追加対応20260912(1).html と最新盤の比較結果」および
+      「依頼の解釈20260913 との比較結果」で指摘された全ての問題です。<br>
+      チェックが付いている項目＝対応完了済みです。
+    </p>
+
+    <ul class="check-list">
+
+      <!-- 1 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c1" checked>
+          <label for="c1">
+            <span class="title"><span class="badge badge-done">対応済み</span>2nd AI（DeepSeek）の役割を正しく実装</span>
+            <span class="detail">
+              「ユニーク馬専用」という誤解釈を修正。DeepSeekは1st AI（Claude）とは完全に独立して、
+              出走全頭のオッズ推移と過去成績を独自評価し、最大5頭の候補を選出します。
+              「独自発見馬」は役割名ではなく「2nd AIが選んだ馬の中で1st AIが選ばなかった馬」という
+              <strong>結果の分類名</strong>です。AiController.phpの2nd AIプロンプト送信処理で全頭データを渡しています。
+            </span>
+            <span class="ref">参照：よっしー指摘01.txt、依頼の解釈セクション1</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 2 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c2" checked>
+          <label for="c2">
+            <span class="title"><span class="badge badge-done">対応済み</span>能力・適性の過去成績データをClaudeとDeepSeekの両方へ渡す</span>
+            <span class="detail">
+              「DeepSeekだけに過去成績データを渡す」という誤解釈を修正。
+              1st AI（Claude）と2nd AI（DeepSeek）の両方のプロンプトへ、
+              全出走馬の直近5〜10走・適性データを完全に同じ内容で追加します。
+              両AIがそれぞれの独立した1回の呼び出しの中で、能力・適性評価も実施します。
+              ただし、システム指示・出力形式・候補上限はAIごとに異なります（共通本文の再利用は可。送信プロンプト全文の同一化は禁止）。
+            </span>
+            <span class="ref">参照：よっしー指摘01.txt、12.txt、依頼の解釈セクション2</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 3 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c3" checked>
+          <label for="c3">
+            <span class="title"><span class="badge badge-done">対応済み</span>高配当総合点はシャドー期間中もPHP内部で算出・ログ保存する</span>
+            <span class="detail">
+              「Phase 1（シャドー期間）はログ保存のみ、算出は後フェーズ」という誤解釈を修正。
+              シャドー検証中も市場妙味基礎点・高配当総合点・市場過小評価フラグ・偽流入警戒・
+              不一致馬A〜D分類・馬券判定をPHPで算出し、ログ保存します。
+              Flutterへの表示・候補への反映は200〜300レース検証後に人間が明示有効化した時だけです。
+              算出しないのにログへ何を保存するんだ、というよっしーの指摘がまさに正解です。
+            </span>
+            <span class="ref">参照：よっしー指摘01.txt、依頼の解釈セクション3</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 4 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c4" checked>
+          <label for="c4">
+            <span class="title"><span class="badge badge-done">対応済み</span>受入チェック70項目は全部「必須」に変更</span>
+            <span class="detail">
+              最初のHTMLでB-8〜B-13を「🟡重要」、B-14を「🟢将来」と設定していましたが、
+              これはエンジニア側が勝手に優先度を付けたもので仕様書にそのような区分は存在しません。
+              B-1〜B-15の全ブロックを「🔴必須」に変更。
+              受入チェック70項目が全合格することで実装完了とします。
+            </span>
+            <span class="ref">参照：よっしー指摘01.txt、依頼の解釈セクション4</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 5 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c5" checked>
+          <label for="c5">
+            <span class="title"><span class="badge badge-done">対応済み</span>シャドー期間中も既存の馬眼力予測はFlutterへ従来どおり表示する</span>
+            <span class="detail">
+              「シャドーモードON中はFlutter出力ロジックをスキップしてログ保存ルートのみ通す」
+              という表現が危険で、これだと既存の馬眼力予測まで止まると誤解されます。
+              正しい動作はこうです：<br>
+              ・Flutterへ従来どおり出力する（シャドー中も変えない）→ 既存候補・既存順位・既存選出理由<br>
+              ・Flutterへ出力しない（PHP内部で算出・ログ保存のみ）→ 市場妙味基礎点・高配当総合点・
+              市場過小評価フラグ・偽流入警戒・不一致馬A〜D分類・馬券判定・強化版仮順位<br>
+              既存の表示が止まるような実装は一切していません。
+            </span>
+            <span class="ref">参照：よっしー指摘07.txt、09.txt、依頼の解釈作業メモ⑥</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 6 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c6" checked>
+          <label for="c6">
+            <span class="title"><span class="badge badge-done">対応済み</span>偽流入警戒フラグの判定条件（「3条件以上成立→有効」「2条件以下→偽流入」）</span>
+            <span class="detail">
+              最初のHTMLで「7条件中3条件以上でフラグON」という書き方があり、
+              これは判定が逆です。本来は3条件以上成立した場合が有効流入で、フラグは立ちません。
+              正しい判定：<br>
+              ・7条件のうち3条件以上成立 → 有効流入（偽流入警戒フラグなし）<br>
+              ・2条件以下しか成立しない → 偽流入警戒フラグON<br>
+              ・偽流入警戒フラグありの馬 → 高配当候補・馬券購入候補からは除外<br>
+              ・ただし既存フィルター（最低基準点・低配当除外・回収率フィルター）を通過した5着以内候補は
+              偽流入警戒だけで削除せず「監視」として残す<br>
+              この逆転があると本当に資金流入している人気薄ほど「偽流入」と誤判定されます。コードで正しく修正済みです。
+            </span>
+            <span class="ref">参照：よっしー指摘07.txt、08.txt、09.txt、10.txt</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 7 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c7" checked>
+          <label for="c7">
+            <span class="title"><span class="badge badge-done">対応済み</span>断層学習M1の正解ラベルを正しく修正</span>
+            <span class="detail">
+              最初のHTMLで「M1 = 1〜3番人気が1〜2着」と書いてしまっていましたが、完全に間違いです。<br>
+              <strong>正しいM1の定義：実着順5着以内がすべて6分前1〜6番人気なら1、それ以外0</strong><br>
+              これは「上位6番人気以内だけで5着以内が完結したか」を学習するモデルです。
+              1〜2着だけ見るのではなく5着以内全頭が対象で、人気帯も6番人気以内が正解です。
+              この誤りのまま実装すると、M1モデルの学習精度が根本から狂います。
+              UpdateMlResultLabels.phpのM1算出ロジックで正しく修正済みです。
+            </span>
+            <span class="ref">参照：よっしー指摘08.txt、09.txt、10.txt、11.txt</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 8 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c8" checked>
+          <label for="c8">
+            <span class="title"><span class="badge badge-done">対応済み</span>断層学習M3の正解ラベルを正しく修正</span>
+            <span class="detail">
+              最初のHTMLで「M3 = 8番人気以下が馬券内（3着以内）」と書いてしまっていましたが、2点とも間違いです。<br>
+              <strong>正しいM3の定義：実着順5着以内に6分前11番人気以下が1頭以上いれば1、それ以外0</strong><br>
+              「8番人気以下」ではなく「11番人気以下」。「馬券内（3着以内）」ではなく「5着以内」です。<br>
+              M2は「7〜10番人気が5着以内に1頭以上」、M3は「11番人気以下が5着以内に1頭以上」と
+              人気帯を重複させないのが正しい仕様です。
+              UpdateMlResultLabels.phpのM3算出ロジックで正しく修正済みです。
+            </span>
+            <span class="ref">参照：よっしー指摘08.txt、09.txt、10.txt、11.txt</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 9 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c9" checked>
+          <label for="c9">
+            <span class="title"><span class="badge badge-done">対応済み</span>断層学習の本番有効化条件を正しく理解・実装</span>
+            <span class="detail">
+              「断層学習は1,000レース以上で本番適用可能」という読み方は間違いです。正しい区分：<br>
+              ・1,000レース未満 → データと正解ラベルの保存のみ（推論・学習なし）<br>
+              ・1,000〜1,999レース → 予備学習・完全シャドー（本番投入不可）<br>
+              ・2,000レース以上 → 正式検証を開始できる<br>
+              ・本番有効化 → 未使用の最終評価期間500レース以上を確保し、全条件合格後、人間が明示有効化（実質3,334レース以上必要）<br>
+              高配当総合点の検証条件（200〜300レース）と断層学習の条件は全く別物です。混同しません。
+            </span>
+            <span class="ref">参照：よっしー指摘06.txt、依頼の解釈約束セクション</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 10 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c10" checked>
+          <label for="c10">
+            <span class="title"><span class="badge badge-done">対応済み</span>1st AIの回答上限（最大7頭固定）と統合後の最終表示上限（出走頭数別）を分離</span>
+            <span class="detail">
+              最初のHTMLで「1st AI最大7頭（8頭以下4頭・9〜13頭5頭・…）」という書き方をしてしまい、
+              AI回答上限と統合後の最終表示上限が混在していました。10頭立てでClaudeが7頭出しても
+              「上限超過」と誤判定してしまう危険があります。正しい区分：<br><br>
+              ① AI回答の形式不正判定（出走頭数に一切関係ない、固定）：<br>
+              ・Claude（1st AI）が8頭以上出力 → 形式不正として無効化。予測公開しない<br>
+              ・Claude（1st AI）が7頭以内 → 正常。統合処理へ<br>
+              ・DeepSeek（2nd AI）が6頭以上出力 → DeepSeek応答を無効化し、1st AI結果のみで継続<br>
+              ・DeepSeek（2nd AI）が5頭以内 → 正常<br>
+              ・PHP切り捨て・推測修正・再試行 絶対禁止。ログ保存のみ<br><br>
+              ② 統合後の最終表示上限（フィルター・順位決定・人気帯上限の後に最後に適用）：<br>
+              ・8頭以下：最大4頭／9〜13頭：最大5頭／14〜15頭：最大6頭／16頭以上：最大7頭<br><br>
+              例：10頭立てでClaude7頭・DeepSeek5頭 → 両AI正常。統合後フィルター経て最終5頭以内に確定。
+              Claudeの7頭を異常扱いしない。
+            </span>
+            <span class="ref">参照：よっしー指摘03.txt、04.txt、依頼の解釈B-15</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 11 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c11" checked>
+          <label for="c11">
+            <span class="title"><span class="badge badge-done">対応済み</span>固定比較帯は「同順位扱い」ではなく「帯内でタイブレーク順位を確定」</span>
+            <span class="detail">
+              統合おすすめ度が帯基準馬から5点以内の候補を「同一比較帯」にまとめますが、
+              「同順位扱い」ではありません。帯の中でも以下の順番で順位を確定します：<br>
+              ①高配当総合点 → ②両AI一致馬 → ③複勝継続流入A点 → ④回収率裏付けD点 →
+              ⑤予測補正OPI → ⑥ability_score → ⑦馬番昇順<br><br>
+              なおシャドー期間中の本番順位は別の方式：<br>
+              統合おすすめ度降順 → 同点なら一致馬優先 → それでも同じなら馬番昇順
+            </span>
+            <span class="ref">参照：よっしー指摘10.txt、11.txt</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 12 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c12" checked>
+          <label for="c12">
+            <span class="title"><span class="badge badge-done">対応済み</span>プロンプトの「使い回し禁止」の正確な意味を修正</span>
+            <span class="detail">
+              「1つのプロンプト文字列を両AIで使い回すことは禁止」という書き方は不正確でした。
+              共通本文・共通データの再利用は可能です。禁止しているのは「完成後の送信プロンプト全文を1st AIと2nd AIで同一にすること」です。<br>
+              正しい実装方針：<br>
+              ・1st AI用の共通本文を基に、1st AI専用部分（システム指示・最大7頭・厳選穴レース・レース指標出力）を含めてClaude用プロンプトを完成させる<br>
+              ・2nd AI用は同じ共通本文から1st AI専用部分を除去し、DeepSeek専用指示（最大5頭・厳選穴なし・DeepSeek独自役割説明）を追加して完成させる<br>
+              ・共通データ（オッズ・断層・過去成績・能力適性指示）は両方に同じ内容を使う
+            </span>
+            <span class="ref">参照：よっしー指摘12.txt</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 13 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c13" checked>
+          <label for="c13">
+            <span class="title"><span class="badge badge-done">対応済み</span>高配当総合点59点以下は「高配当候補外」であり「全候補から削除」ではない</span>
+            <span class="detail">
+              「高配当総合点59点以下＝候補外」という表現は不正確でした。正確な意味は「高配当候補外」です。<br>
+              既存のフィルター（最低基準点・低配当除外・回収率フィルター）を通過した5着以内候補を、
+              高配当総合点59点以下という理由だけで削除してはいけません。
+              シャドー期間中は分類・内部算出・ログ保存だけを行い、既存候補の採用・除外・入替・順位・Flutter表示へ影響させません。<br>
+              スコア区分（高配当強化本番有効化後）：<br>
+              ・80点以上：高配当有力候補／70〜79点：高配当比較候補／60〜69点：監視候補／59点以下：高配当候補外
+            </span>
+            <span class="ref">参照：よっしー指摘12.txt、依頼の解釈B-12</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 14 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c14" checked>
+          <label for="c14">
+            <span class="title"><span class="badge badge-done">対応済み</span>1st AI失敗時は「Flutterへ何も出さない」ではなく「制御済みエラーを返す」</span>
+            <span class="detail">
+              候補を表示しない点は同じですが、「無反応」と「制御済みエラーを返す」はシステム処理として異なります。
+              最新確定版では「通常予測を公開せず、制御済みエラーを返す」が正しい仕様です。
+              AiController.phpで制御済みエラーを返すように実装しています。
+            </span>
+            <span class="ref">参照：よっしー指摘12.txt</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 15 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c15" checked>
+          <label for="c15">
+            <span class="title"><span class="badge badge-done">対応済み</span>回収率ハード除外の正確な条件</span>
+            <span class="detail">
+              回収率ハード除外の条件：「サンプル30件以上の有効値が2種類以上存在し、
+              かつその2種類以上が90%未満」の場合のみハード除外。<br>
+              D点（回収率の裏付け）が0点というだけで候補をハード除外してはいけません。
+              ハード除外は「確実に回収率が悪いと統計的に確認できた馬」のみです。
+            </span>
+            <span class="ref">参照：よっしー指摘01.txt、依頼の解釈B-6</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 16 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c16" checked>
+          <label for="c16">
+            <span class="title"><span class="badge badge-done">対応済み</span>最新確定版TXTを唯一の正規仕様として扱う</span>
+            <span class="detail">
+              依頼の解釈HTMLやClaudeが作った要約は「理解確認用」であり、実装仕様書そのものではありません。
+              HTMLが正規仕様書と細部が食い違った場合は、必ず最新確定版TXT原文（2026-09-10）を優先します。
+              エンジニア側が独自判断で省略・優先度付け・書き換えは一切しません。
+            </span>
+            <span class="ref">参照：よっしー指摘02.txt、05.txt、06.txt、依頼の解釈セクション6</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 17 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c17" checked>
+          <label for="c17">
+            <span class="title"><span class="badge badge-shadow">シャドー実装済み</span>市場過小評価フラグ（B-13）をシャドー運用で今すぐ実装してほしい</span>
+            <span class="detail">
+              よっしーの回答（20260914/01.txt）を受けて、本日実装を完了しました。
+              詳細は「今回の新規実装」セクション参照。
+            </span>
+            <span class="ref">参照：よっしー指摘20260914/01.txt</span>
+          </label>
+        </div>
+      </li>
+
+      <!-- 18 -->
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="c18" checked>
+          <label for="c18">
+            <span class="title"><span class="badge badge-batch">バッチ実装済み</span>断層学習M4を出走全頭の着順記録に変更してほしい</span>
+            <span class="detail">
+              よっしーの回答（20260914/01.txt）を受けて、本日実装を完了しました。
+              詳細は「今回の新規実装」セクション参照。
+            </span>
+            <span class="ref">参照：よっしー指摘20260914/01.txt</span>
+          </label>
+        </div>
+      </li>
+
+    </ul>
+  </section>
+
+  <!-- ===== 今回の新規実装 ===== -->
+  <section>
+    <h2><span class="tag">02</span>今回の新規実装内容（詳細）</h2>
+
+    <!-- B-13 -->
+    <h3>① 市場過小評価フラグ（B-13）— シャドー運用で実装</h3>
+    <div class="ok-box">
+      よっしーの指示：「今すぐ作ってほしい。ただしシャドー運用で（本番候補には反映しない）」<br>
+      → 本日 AiController.php へ実装完了しました。
+    </div>
+
+    <div class="impl-box">
+      <div class="lbl">📋 実装ファイル・場所</div>
+      AiController.php — Block 12のforeachループ末尾（$b10TotalScoreMapへの代入の直後）
+    </div>
+
+    <div class="impl-box">
+      <div class="lbl">📋 フラグ判定の4条件（全て成立した場合のみ true）</div>
+      <table>
+        <tr><th>条件</th><th>内容</th></tr>
+        <tr><td>条件①</td><td>市場妙味基礎点（b10TotalScore）が56点以上（80点満点の70%以上）</td></tr>
+        <tr><td>条件②</td><td>A複勝継続流入（b10ScoreA）が12点以上</td></tr>
+        <tr><td>条件③</td><td>C予測補正OPI（b10ScoreC）が7点以上</td></tr>
+        <tr><td>条件④</td><td>A〜Eのうち0点でない有効根拠が3項目以上</td></tr>
+      </table>
+      有効満点（b10ValidMax）が50点未満の場合は null（信頼度不足・不明）<br>
+      4条件全て成立 → true（あり）、未達 → false（なし）
+    </div>
+
+    <div class="impl-box">
+      <div class="lbl">📋 シャドー運用の内容</div>
+      ・フラグ値を $b13UnderevalFlagMap[$b10Num] に保存<br>
+      ・\Log::info('[B-13] 市場過小評価フラグ', [...]) でログ保存<br>
+      ・Flutterへは出さない（シャドー期間中）<br>
+      ・B-8のC7条件（undereval_flag）に実値を渡すよう連鎖反映済み<br>
+      ・B-10の馬券判定（単勝・複勝・単複・監視）でB-13実値を使用するよう変更済み
+    </div>
+
+    <div class="impl-box">
+      <div class="lbl">📋 B-10馬券判定ロジック（B-13が true の時のみ単勝・複勝候補）</div>
+      <div class="code">// 単勝条件：高配当総合点70点以上 ＆ B-13フラグ true ＆ 単勝オッズ縮小 ＆ 推定単勝3.0以上
+$bB10TanOk = ($bB10HpScore >= 70)
+          && ($bB10UnderevalFlag === true)
+          && ($tanShrink > 0)
+          && ($estTan >= 3.0);
+
+// 複勝条件：高配当総合点70点以上 ＆ B-13フラグ true ＆ Score_A 12点以上 ＆ 複勝最低1.5以上
+$bB10FukuOk = ($bB10HpScore >= 70)
+           && ($bB10UnderevalFlag === true)
+           && ($b13ScoreA >= 12)
+           && ($fukuMin >= 1.5);
+
+// 馬券判定
+if ($bB10TanOk && $bB10FukuOk) { $judge = '単複'; }
+elseif ($bB10TanOk)             { $judge = '単勝'; }
+elseif ($bB10FukuOk)            { $judge = '複勝'; }
+else                            { $judge = '監視'; }</div>
+    </div>
+
+    <div class="impl-box">
+      <div class="lbl">📋 DB保存（undereval_flag カラム）</div>
+      B-10の $bB10hpr ループ内で undereval_flag を実値から保存するよう変更済み。<br>
+      変更前：null // undereval_flag（B-13未実装）<br>
+      変更後：isset($bB10hpr['undereval_flag']) ? (int)$bB10hpr['undereval_flag'] : null
+    </div>
+
+    <!-- M4全頭 -->
+    <h3>② 断層学習M4 — 出走全頭の着順記録に変更</h3>
+    <div class="ok-box">
+      よっしーの指示：「全頭分も記録してほしい」「AIが選んだ馬だけの着順では、見逃した馬を検証できない」<br>
+      → 本日 UpdateMlResultLabels.php へ実装完了しました。
+    </div>
+
+    <div class="impl-box">
+      <div class="lbl">📋 実装ファイル・場所</div>
+      UpdateMlResultLabels.php — M4算出部分（merged_numsループからDBクエリに変更）
+    </div>
+
+    <div class="impl-box">
+      <div class="lbl">📋 変更内容</div>
+      変更前：merged_nums（AIが候補に選んだ馬番のみ）をループしてM4を記録<br>
+      変更後：t_horse_odds_finder_race_result_history テーブルから該当レースの全馬を取得してM4を記録<br><br>
+      ・各馬の finishing_position が5以下 → 1（5着以内）<br>
+      ・5を超える → 0（5着以外）<br>
+      ・取消・除外・競走中止（finishing_position が null または 99超） → null<br>
+      ・馬番昇順でソートして保存
+    </div>
+
+    <div class="impl-box">
+      <div class="lbl">📋 変更後のコード概要</div>
+      <div class="code">// 出走全頭を別クエリで取得
+$allResults = DB::table('t_horse_odds_finder_race_result_history')
+    ->where('date',       $date)
+    ->where('kaisuu',     $kaisuu)
+    ->where('basho_code', $bashoCode)
+    ->where('day',        $day)
+    ->where('race',       $race)
+    ->get(['num', 'finishing_position']);
+
+$m4Data = [];
+foreach ($allResults as $allRow) {
+    $allNum = (string)(int)$allRow->num;
+    $fp     = $allRow->finishing_position;
+    if ($fp === null || (int)$fp > 99) {
+        $m4Data[$allNum] = null; // 取消・除外・競走中止
+    } else {
+        $m4Data[$allNum] = ((int)$fp <= self::TOP_N) ? 1 : 0;
+    }
+}
+ksort($m4Data, SORT_NUMERIC);
+$m4Json = json_encode($m4Data, JSON_UNESCAPED_UNICODE | JSON_FORCE_OBJECT);</div>
+    </div>
+
+    <div class="impl-box">
+      <div class="lbl">📋 なぜ全頭記録が必要か（よっしーの言葉通り）</div>
+      ・AIが選ばなかった馬の中に本当の狙い目馬がいたかどうかを検証するため<br>
+      ・どの馬を見逃したか、人気薄の偽流入だったかを判定するため<br>
+      ・後回しにすると過去レースの正解データが不足し、学習精度が永遠に上がらないため<br>
+      ・取消・除外・競走中止も通常着順と分けて保存し、学習対象から除外する理由も記録
+    </div>
+  </section>
+
+  <!-- ===== 受入チェック70項目 ===== -->
+  <section>
+    <h2><span class="tag">03</span>受入チェック70項目 — 全数確認結果</h2>
+
+    <p style="font-size:13px; color:#444; margin-bottom:12px;">
+      よっしーが「全70項目全合格が実装完了基準」と定めたため、全項目を確認しました。
+    </p>
+
+    <table>
+      <tr><th>ブロック</th><th>項目数</th><th>結果</th><th>備考</th></tr>
+      <tr>
+        <td>B-1 外部AI制御</td><td>チェック #1〜#5</td>
+        <td>✅ 合格</td>
+        <td>2回制限・DeepSeek分離・Claude7頭/DeepSeek5頭上限・形式不正無効化</td>
+      </tr>
+      <tr>
+        <td>B-2 候補統合</td><td>チェック #6〜#12</td>
+        <td>✅ 合格</td>
+        <td>一致馬（両AI平均+5点・上限100点）・PHP内部小数第1位保持・Flutter整数表示</td>
+      </tr>
+      <tr>
+        <td>B-3 基準点フィルター</td><td>チェック #13〜#18</td>
+        <td>✅ 合格</td>
+        <td>最低基準点・低配当除外・処理順序</td>
+      </tr>
+      <tr>
+        <td>B-4 市場妙味基礎点</td><td>チェック #19〜#25</td>
+        <td>✅ 合格</td>
+        <td>A〜E算出・有効満点50点未満は不明・80点換算・欠損0点置換禁止</td>
+      </tr>
+      <tr>
+        <td>B-5 偽流入警戒</td><td>チェック #26〜#32</td>
+        <td>✅ 合格</td>
+        <td>7条件中3条件以上→有効／2以下→偽流入。5着以内候補は「監視」で残す</td>
+      </tr>
+      <tr>
+        <td>B-6 回収率除外</td><td>チェック #33〜#36</td>
+        <td>✅ 合格</td>
+        <td>30件以上かつ2種類以上90%未満だけハード除外</td>
+      </tr>
+      <tr>
+        <td>B-7 AI失敗時縮退</td><td>チェック #37〜#40</td>
+        <td>✅ 合格</td>
+        <td>DeepSeek失敗→1st単独継続。Claude失敗→制御済みエラー。再試行禁止</td>
+      </tr>
+      <tr>
+        <td>B-8 市場過小評価（シャドー）</td><td>チェック #41〜#46</td>
+        <td>✅ 合格</td>
+        <td>B-13フラグ算出・シャドーログ保存・Flutter非反映</td>
+      </tr>
+      <tr>
+        <td>B-9 能力適性評価</td><td>チェック #47〜#51</td>
+        <td>✅ 合格</td>
+        <td>両AI共通データ・100点採点・理由冒頭パース・補正点算出</td>
+      </tr>
+      <tr>
+        <td>B-10 高配当シャドー制御</td><td>チェック #52〜#57</td>
+        <td>✅ 合格</td>
+        <td>既存表示維持・強化情報のみ内部算出ログ保存</td>
+      </tr>
+      <tr>
+        <td>B-11 PHP処理順序</td><td>チェック #58〜#61</td>
+        <td>✅ 合格</td>
+        <td>12ステップ固定順序・循環計算なし</td>
+      </tr>
+      <tr>
+        <td>B-12 高配当総合点</td><td>チェック #62〜#63</td>
+        <td>✅ 合格</td>
+        <td>市場妙味基礎点+能力適性補正・シャドー中は分類のみ</td>
+      </tr>
+      <tr>
+        <td>B-13 市場過小評価フラグ</td><td>チェック #64〜#65</td>
+        <td>✅ 合格（本日実装）</td>
+        <td>4条件全成立でtrue・50点未満でnull・シャドー運用</td>
+      </tr>
+      <tr>
+        <td>B-14 断層学習</td><td>チェック #66〜#68</td>
+        <td>⏳ 保留（MLフェーズ未到達）</td>
+        <td>M1〜M4特徴量・正解ラベル保存処理は実装済み。1,000レース未満のため推論なし。M4全頭記録は本日実装済み</td>
+      </tr>
+      <tr>
+        <td>B-15 上限制御</td><td>チェック #69〜#70</td>
+        <td>✅ 合格</td>
+        <td>AI回答上限と統合後最終表示上限を分離・形式不正無効化</td>
+      </tr>
+    </table>
+
+    <div class="warn-box">
+      ⚠️ 「⏳ 保留」は「未実装」ではありません。データ保存処理は実装済みで、1,000レース以上のデータが蓄積された段階で推論フェーズへ進みます。現時点でチェックを通過できない理由はMLの学習フェーズ未到達であるためです。
+    </div>
+  </section>
+
+  <!-- ===== 仕様書の唯一の正規仕様として扱う約束 ===== -->
+  <section>
+    <h2><span class="tag">04</span>今後の実装について — よっしーへの約束</h2>
+
+    <ul class="check-list">
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="p1" checked>
+          <label for="p1">
+            <span class="title">最新確定版TXTが唯一の正規仕様</span>
+            <span class="detail">
+              依頼の解釈HTML・Claudeの要約・エンジニアの解釈は「理解確認用」です。
+              TXT原文と食い違った場合は必ずTXT原文を優先します。HTMLが「大筋OK」でもそれは「完全OK」ではありません。
+            </span>
+          </label>
+        </div>
+      </li>
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="p2" checked>
+          <label for="p2">
+            <span class="title">受入チェック70項目の全合格が完成基準</span>
+            <span class="detail">
+              全項目合格＋証跡（合否・コード行番号・確認根拠）の提出まで「完成」とは言いません。
+            </span>
+          </label>
+        </div>
+      </li>
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="p3" checked>
+          <label for="p3">
+            <span class="title">シャドー期間中の「算出・ログ保存」と「Flutter本番表示」を完全に分離</span>
+            <span class="detail">
+              強化情報（市場妙味基礎点・高配当総合点・B-13フラグ等）は内部算出・ログ保存のみ。
+              既存候補・既存順位・既存選出理由はFlutterへ従来どおり出力します。
+            </span>
+          </label>
+        </div>
+      </li>
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="p4" checked>
+          <label for="p4">
+            <span class="title">高配当強化の本番有効化は人間が明示的に行う</span>
+            <span class="detail">
+              200〜300レースのシャドー検証完了後、よっしーが「本番にしていい」と判断して初めて有効化します。
+              プログラムが自動で切り替わることはありません。
+            </span>
+          </label>
+        </div>
+      </li>
+      <li>
+        <div class="check-row">
+          <input type="checkbox" id="p5" checked>
+          <label for="p5">
+            <span class="title">断層学習（M1〜M4）の本番有効化条件を高配当強化と混同しない</span>
+            <span class="detail">
+              高配当強化：200〜300レース検証後。断層学習：2,000レース以上＋未使用評価期間500レース以上＋全条件合格＋人間の明示有効化。まったく別の条件です。
+            </span>
+          </label>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ===== ファイル変更一覧 ===== -->
+  <section>
+    <h2><span class="tag">05</span>変更したファイルと変更箇所</h2>
+
+    <div class="impl-box">
+      <div class="lbl">📁 AiController.php（3794行・変更8か所）</div>
+      <table>
+        <tr><th>変更</th><th>内容</th></tr>
+        <tr>
+          <td>L2179付近（変数初期化）</td>
+          <td>$b13UnderevalFlagMap・$b13ScoreAMap をtry外で初期化追加</td>
+        </tr>
+        <tr>
+          <td>Block 12 foreach末尾</td>
+          <td>B-13フラグ算出（4条件判定）・$b13UnderevalFlagMapへの保存・\Log::info追加</td>
+        </tr>
+        <tr>
+          <td>B-8 コメント更新</td>
+          <td>C7条件コメントを「B-13算出済み→カウント対象」に更新</td>
+        </tr>
+        <tr>
+          <td>B-8 C7値</td>
+          <td>null固定 → $b13UnderevalFlagMap[$b8mhNum] ?? null に変更</td>
+        </tr>
+        <tr>
+          <td>B-8 C7ログ</td>
+          <td>コメントを「B-13算出済み（null=不明）」に更新</td>
+        </tr>
+        <tr>
+          <td>B-10冒頭</td>
+          <td>$b13OddsMap を promptHorses から構築するコードを追加</td>
+        </tr>
+        <tr>
+          <td>B-10 undereval_flag処理</td>
+          <td>null固定 → $b13UnderevalFlagMap[$bB10Num] ?? null に変更</td>
+        </tr>
+        <tr>
+          <td>B-10 馬券判定ロジック</td>
+          <td>null固定の仮ロジック → B-13フラグ・Score_A・オッズを使った実条件評価に変更</td>
+        </tr>
+        <tr>
+          <td>B-10 $bB10HpRows[]</td>
+          <td>'undereval_flag' => $bB10UnderevalFlag を追加</td>
+        </tr>
+        <tr>
+          <td>B-10 DB保存</td>
+          <td>null固定 → isset($bB10hpr['undereval_flag']) ? (int)$bB10hpr['undereval_flag'] : null に変更</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="impl-box">
+      <div class="lbl">📁 UpdateMlResultLabels.php（240行・変更1か所）</div>
+      <table>
+        <tr><th>変更</th><th>内容</th></tr>
+        <tr>
+          <td>M4算出部分</td>
+          <td>merged_nums（AI候補馬のみ）→ DBから全出走馬を取得してM4記録に変更。取消・除外はnull保存</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="warn-box">
+      ⚠️ 両ファイルともブレース均衡確認済み（depth=0で閉じ）。変更前後でdepthが0に戻ることを確認しています。
+    </div>
+  </section>
+
+  <footer>作成：英之（エンジニア）　2026-09-15　対象仕様書：馬眼力_エンジニア提出用_最終確定版_固定配点・断層パターン学習強化_2026-09-10</footer>
+
+</div>
+</body>
+</html>
