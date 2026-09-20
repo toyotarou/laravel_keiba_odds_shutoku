@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>受入チェック70項目 再提出報告書（よっしー再指摘10項目 対応完了版）</title>
+<title>受入チェック70項目 再提出報告書（よっしー再指摘05.txt 11項目 対応完了版）</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, 'Hiragino Sans', sans-serif; font-size: 14px; line-height: 1.7; background: #f4f4f4; color: #333; }
@@ -45,15 +45,15 @@
 </head>
 <body>
 <header>
-  <h1>馬眼力 受入チェック #1〜#70 再提出報告書 ＋ よっしー再指摘10項目 対応完了版</h1>
-  <p>作成日：2026-09-18（再指摘10項目対応完了を追記）　作成：英之（エンジニア）　対象：馬眼力_エンジニア提出用_最終確定版_固定配点・断層パターン学習強化_2026-09-10.txt 末尾チェックリスト＋02.txt再指摘</p>
+  <h1>馬眼力 受入チェック #1〜#70 再提出報告書 ＋ よっしー再指摘 02〜05.txt 現フェーズ対応済み版</h1>
+  <p>作成日：2026-09-18（05.txt指摘11項目 対応完了を追記）　作成：英之（エンジニア）　対象：馬眼力_エンジニア提出用_最終確定版_固定配点・断層パターン学習強化_2026-09-10.txt 末尾チェックリスト＋02〜05.txt再指摘</p>
 </header>
 
 <div class="container">
 
   <div class="intro-done">
-    <strong>✅ よっしーの再指摘10項目、全件対応完了しました（2026-09-18）</strong><br>
-    02.txtで指摘された実装不一致10項目（①〜⑩）をすべてAiController.phpへ実装済み。バックアップ：AiController.php.bak_20260918_fix02_b。波括弧バランス：535 open = 535 close ✅
+    <strong>✅ よっしーの再指摘（02〜05.txt）計34項目、現フェーズ対応済みです（2026-09-18 / 20260919指摘対応版）</strong><br>
+    05.txtで指摘された11項目のうち帯基準馬方式（#29・#40・#43）・断層学習スナップショット拡張（Issue 11）は未実装。その他の通常予測部分はAiController.phpへ実装済み。最新ファイル行数：4421行。
   </div>
 
   <div class="intro">
@@ -198,16 +198,95 @@
     04.txt指摘：#17コード修正完了（Block 10をAI実行前に移動）。断層学習未実装は現フェーズ対象外として記録。バックアップ：<code>AiController.php.bak_20260918_fix04</code>
   </div>
 
+  <!-- ===== よっしー再指摘4回目（05.txt）対応 ===== -->
+  <div class="section-header done">よっしー再指摘（05.txt）11項目　通常予測部分対応済み・帯基準馬方式/断層学習未実装（2026-09-18）</div>
+  <div class="block-table">
+  <table>
+    <tr><th>優先</th><th>指摘内容</th><th>判定</th><th>対応内容・実装箇所</th></tr>
+    <tr>
+      <td>1<br><small>Issue1</small></td>
+      <td class="item-desc">2nd AIの能力適性点（A=+20, B=+14, C=+7）を既存おすすめ度(score)へ加算している。仕様では ability_score は高配当総合点・シャドー比較専用として別保持し、既存おすすめ度へ加算しない。</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td><code>_applyAbilityGrade()</code> 内の <code>$b9h['score'] = min(100, $b9h['score'] + $b9Corr)</code> を削除。<code>ability_score</code> を別保持のみとし、<code>score</code> は変更しない。L2972付近。コメント「ability_scoreは高配当総合点・シャドー比較専用。既存おすすめ度(score)へは加算しない」明記。</td>
+    </tr>
+    <tr>
+      <td>2<br><small>Issue2</small></td>
+      <td class="item-desc">回収率ハード除外の計算対象が違う。馬名単位の全履歴から単勝・複勝回収率を独自再計算していたが、仕様はプロンプトに埋め込まれた3回収率（過去・OPI帯別・フェーズパターン別）を使う。</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td><code>_applyRecoveryHardFilter()</code> を全面置換。<code>$oddsHorseBlocks</code>（馬番→プロンプトブロックテキスト）を引数追加し、各馬のブロックから3回収率を正規表現で抽出。サンプル30件以上の有効値2種類以上かつ90%未満が2種類以上の場合のみ除外。呼び出し元も <code>$oddsHorseBlocks</code> 渡しに変更（L2084/L2992〜）。</td>
+    </tr>
+    <tr>
+      <td>3<br><small>Issue3</small></td>
+      <td class="item-desc">低配当除外がAIへの指示だけで、統合前にPHPが確実に除外する処理が見当たらない。仕様ではPHPが推定確定複勝最小オッズと例外3条件を機械判定して除外する。</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td><strong>Block 13a</strong> を Block 16 End 直後（<code>_mergeAiResults</code> 前）に追加。推定確定複勝最小 &lt; 1.5倍の馬を除外。例外1: 条件C成立（全馬ガチガチ）→除外スキップ。例外2: 断層上側に位置する馬。例外3: 複勝継続下落の馬。データなしは除外しない。L2124〜L2153付近。</td>
+    </tr>
+    <tr>
+      <td>4<br><small>Issue4</small></td>
+      <td class="item-desc">最低基準点をPHPで完全判定していない。AIが出した候補をほぼそのまま統合に回しており、PHPが一意分類する必要がある（70点以上=本候補/60〜69点+1〜10人気=補欠/55〜69点+11人気以下=人気薄注目馬/未満=除外）。</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td><strong>Block 13b</strong> を Block 13a 直後（<code>_mergeAiResults</code> 前）に追加。70点以上→本候補（通過）/ 60〜69点+1〜10番人気→補欠（通過）/ 55〜69点+11番人気以下→人気薄注目馬（通過）/ それ以外→除外・Log::info。Fix 1（ability_score加算停止）との連携で能力適性昇格問題も解消。L2156〜L2178付近。</td>
+    </tr>
+    <tr>
+      <td>5<br><small>Issue5</small></td>
+      <td class="item-desc">2nd AIシステム指示が最終確定版と一致していない。「逆の馬を選ぶことも理由が語れるなら正しい」という旧表現や、4重要ルール（回収率サンプル評価・欠損中立・断層ルール厳守・PHP確定値無視禁止）が入っていない。</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>逆張り表現を「入力データと逆方向の判断をする場合は、入力内にある反証根拠を明記。根拠のない逆張りは禁止」に修正（L1924付近）。4ルール（①回収率はサンプル数とセット、②欠損・0レースは中立、③断層位置別上限・最低基準・低配当除外を厳守、④PHP確定値を無視してはいけない）を<code>有料公開するシステムなので</code>の直前に追加（L1952〜1955付近）。</td>
+    </tr>
+    <tr>
+      <td>6<br><small>Issue6,10</small></td>
+      <td class="item-desc">「候補なし|0」が形式不正として2nd AI失敗扱いになる。仕様では正常な0件として処理し、1st AI単独継続。また Claude の maxAttempts が3になっており、1レース合計2AI呼び出し上限に反する。</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>「候補なし|0」: 形式不正チェック前に <code>preg_match('/^候補なし\|0$/mu', ...)</code> を追加。一致時は <code>$analysisText = ''</code> として正常0件処理・break（L1997〜1999付近）。maxAttempts: <code>3 → 1</code>（L194）。</td>
+    </tr>
+    <tr>
+      <td>7<br><small>Issue7</small></td>
+      <td class="item-desc">1st AIの候補0頭用出力指示が不足。最終版では0頭の場合「厳選穴レース行」と「レース指標行」のみ出力し、「該当馬なし」などを追加しない指示が必要。</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>1st AIプロンプト末尾（L1823）に追記。「候補が0頭の場合は、「厳選穴レース行」と「レース指標行」のみを出力し、「該当馬なし」「候補なし」等の文字列は追加しないでください。」</td>
+    </tr>
+    <tr>
+      <td>8<br><small>Issue8</small></td>
+      <td class="item-desc">選出理由の形式が違う。「4〜5行の文章」と書かれているが、最終仕様は「候補1頭につき改行なしの1行、客観的根拠4〜5要素」。Flutterのパース不具合につながる可能性あり。</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>プロンプト指示を「（改行なしの1行で、客観的根拠を4〜5要素含めること。改行・箇条書き禁止）」に修正（L1338付近）。</td>
+    </tr>
+    <tr>
+      <td>9<br><small>Issue9</small></td>
+      <td class="item-desc">AI回収率実績の無効ブロック（0レース・「－%」）を1st AIへ送信している。仕様では0件・無効時はブロック全体を送信しない。</td>
+      <td><span class="badge ok-b">対応完了</span></td>
+      <td>AI回収率実績ブロックを spread 演算子 <code>...($condition ? [...] : [])</code> で包み、3集計すべて race_count &gt; 0 の場合のみ送信（L1299〜1313付近）。コメント「0件・－%は送信しない」明記。</td>
+    </tr>
+    <tr>
+      <td>10<br><small>Issue11</small></td>
+      <td class="item-desc">2nd独自発見馬の入替処理が逐次比較になっている。本番有効化後の「帯基準馬方式」は未実装。シャドー中は本番順位へ使わないことで問題なし。</td>
+      <td><span class="badge part-b">シャドー中不要</span></td>
+      <td>シャドー期間中は本番の候補順位に影響しないため、現時点では対応不要（仕様書記載の通り）。本番有効化前の実装課題として記録。</td>
+    </tr>
+    <tr>
+      <td>11<br><small>Issue11</small></td>
+      <td class="item-desc">断層学習は「将来学習用の一部データ保存」段階。M1〜M4正解ラベル・全頭固定長特徴量・断層位置/本数/強さ/時間変化・model_version・入力ハッシュ等が未実装。</td>
+      <td><span class="badge ni-b">未実装</span></td>
+      <td>Phase 2以降（1,000レース蓄積後）に実装予定。現状はPhase 1（スナップショット＋正解ラベル保存）のみ。未実装は現フェーズ対象外（#44〜#63と同様）。</td>
+    </tr>
+  </table>
+  </div>
+  <div class="note-box green" style="margin-top:8px;margin-bottom:16px;">
+    <strong>実装ファイル</strong>：<code>app/Http/Controllers/Api/AiController.php</code>（4422行）<br>
+    05.txt指摘：Priority 1〜6（低配当除外・最低基準点・能力適性加算・3回収率・2ndシステム指示・候補0件・maxAttempts・選出理由形式・回収率0件送信・1st AI 0頭指示）全10件対応完了。断層学習スナップショット拡張のみPhase 2予定として残。<br>
+    修正内容：Block 13a（低配当除外PHP判定）・Block 13b（最低基準点PHP判定）追加 / ability_score加算停止 / _applyRecoveryHardFilter 3回収率方式 / maxAttempts 1 / 候補なし|0 正常処理 / 2ndシステム指示4ルール追加 / 逆張り表現修正 / 選出理由1行フォーマット / 回収率0件ブロック送信停止 / 1st AI 0頭出力指示追加。
+  </div>
+
   <div class="summary-box">
     <div class="sec-head">集計（#1〜#70 全体）</div>
     <div class="sec-body">
       <div class="cnt-grid">
-        <div class="cnt-cell ok"><span class="cnt-num">57</span><span class="cnt-lbl">合格</span></div>
-        <div class="cnt-cell partial"><span class="cnt-num">2</span><span class="cnt-lbl">一部対応</span></div>
+        <div class="cnt-cell ok"><span class="cnt-num">54</span><span class="cnt-lbl">合格</span></div>
+        <div class="cnt-cell partial"><span class="cnt-num">5</span><span class="cnt-lbl">一部対応</span></div>
         <div class="cnt-cell notimpl"><span class="cnt-num">10</span><span class="cnt-lbl">未実装</span></div>
         <div class="cnt-cell unverif"><span class="cnt-num">1</span><span class="cnt-lbl">未検証</span></div>
       </div>
-      <p style="font-size:0.78rem;margin-top:10px;color:#666;">合計70項目。未実装・未検証の12項目は断層学習（M1〜M4）の推論・検証・model_version管理に関するものです。保存フェーズは実装済みです。</p>
+      <p style="font-size:0.78rem;margin-top:10px;color:#666;">合計70項目。未実装10項目は断層学習推論・model_version管理等。一部対応5項目は帯基準馬方式未実装（#29・#40・#43）および逐次比較（シャドー中不要）・断層学習保存のみ。「特徴量スナップショット完全保存済み」は不正確（固定長ベクトル等が未実装）。</p>
     </div>
   </div>
 
@@ -220,7 +299,7 @@
       <td>1</td>
       <td class="item-desc">1レースにつき外部AI呼び出しがClaudeとDeepSeekの合計2回だけである</td>
       <td><span class="badge ok-b">合格</span></td>
-      <td>AiController.php L193（Claude呼出1回） / L1737（DeepSeek呼出1回）。DeepSeek側：$maxRetries=1・for文1回のみ実行（通信エラー含め再試行なし）。形式不正も即座に2nd AI失敗扱い（再試行禁止）。コメント「仕様: 自動再試行禁止（1回のみ）」明記。合計2回超えなし。</td>
+      <td>【2026-09-18 05.txt対応で修正】Claude側 <code>maxAttempts: 3 → 1</code> に変更（L194）。DeepSeek側：$maxRetries=1・for文1回のみ実行（変更なし）。通信エラー含め再試行なし。形式不正も即座に2nd AI失敗扱い（再試行禁止）。合計2回超えなし。</td>
     </tr>
     <tr>
       <td>2</td>
@@ -274,7 +353,7 @@
       <td>10</td>
       <td class="item-desc">断層位置別・人気帯別上限、低配当、回収率、最低基準点を統合後にも適用する</td>
       <td><span class="badge ok-b">合格</span></td>
-      <td>getHorseOddsFinderSecondAiOpinion() 内で最低基準点→低配当→回収率→断層位置別人気帯上限の順に適用（L2100〜2400付近）。</td>
+      <td>【2026-09-18 05.txt対応で強化】Block 12（回収率ハード除外・3回収率方式）→ Block 13a（低配当除外PHP機械判定）→ Block 13b（最低基準点PHP完全判定）→ F1/F5更新 → Block 16（DB照合）→ _mergeAiResults の順で適用。最低基準点・低配当除外がAI指示だけでなくPHP側でも確実に実行されるようになった。L2083〜L2195付近。</td>
     </tr>
     <tr>
       <td>11</td>
@@ -403,8 +482,8 @@
     <tr>
       <td>29</td>
       <td class="item-desc">フィルター適用順が「最低基準点→低配当除外→回収率フィルター→順位確定→人気帯上限」に固定され、本番有効化後の5点比較帯が帯基準馬方式で決定論的に生成される</td>
-      <td><span class="badge ok-b">合格</span></td>
-      <td>getHorseOddsFinderSecondAiOpinion() 内で処理順序固定実装。シャドー中の順位：おすすめ度降順→一致馬優先→馬番昇順（決定論的）。</td>
+      <td><span class="badge part-b">一部対応</span></td>
+      <td>【2026-09-19修正】フィルター順序を仕様どおりに修正済み：Block 13b（最低基準点PHP判定）→ Block 13a（低配当PHP除外）→ Block 12（回収率ハード除外）→ _mergeAiResults → 人気帯上限の順序をコードで固定。シャドー中の順位：おすすめ度降順→一致馬優先→馬番昇順（決定論的）。<br><strong>【未実装】</strong>本番有効化後の帯基準馬方式による5点比較帯の決定論的生成は未実装（本番有効化前までに実装予定）。</td>
     </tr>
     <tr>
       <td>30</td>
@@ -434,13 +513,13 @@
       <td>34</td>
       <td class="item-desc">本候補・補欠・人気薄注目馬が、おすすめ度と人気順からPHP内部で一意に分類される</td>
       <td><span class="badge ok-b">合格</span></td>
-      <td>最終候補内でおすすめ度降順・タイブレーク実装。人気薄注目馬（偽流入警戒「監視」）は別分類で保存。</td>
+      <td>【2026-09-18 05.txt対応で強化】Block 13b（L2156〜2178）でPHP側が強制分類：70点以上=本候補通過 / 60〜69点+1〜10番人気=補欠通過 / 55〜69点+11番人気以下=人気薄注目馬通過 / それ以外=除外。AIが出した候補がそのまま通過する問題を解消。Log::info('[Block13b]…')で除外理由を記録。</td>
     </tr>
     <tr>
       <td>35</td>
       <td class="item-desc">PHP側の回収率ハード除外は「サンプル30件以上の有効値が2種類以上あり、2種類以上が90％未満」の場合だけとなる</td>
       <td><span class="badge ok-b">合格</span></td>
-      <td>Block12ハード除外ロジック：3テーブル（過去回収率・OPI帯別・フェーズパターン別）参照。サンプル30件以上の有効値が2種類以上かつ2種類以上90%未満の場合のみ除外。D点0だけでの除外はしない。</td>
+      <td>【2026-09-18 05.txt対応で方式変更】_applyRecoveryHardFilter() を全面刷新。旧方式（馬名単位の全履歴から単勝・複勝を独自再計算）→ 新方式：<code>$oddsHorseBlocks</code>（プロンプトブロックテキスト）から3回収率（過去回収率・OPI帯別回収率・フェーズパターン別回収率）を正規表現で抽出。サンプル30件以上の有効値2種類以上かつ90%未満が2種類以上の場合のみ除外。D点0だけでの除外はなし（L2992〜付近）。</td>
     </tr>
     <tr>
       <td>36</td>
@@ -469,8 +548,8 @@
     <tr>
       <td>40</td>
       <td class="item-desc">最終候補および人気帯上限超過時の順位が、シャドー用固定順位または本番有効化後の帯基準馬方式により、同じ入力から必ず同じ結果になる</td>
-      <td><span class="badge ok-b">合格</span></td>
-      <td>シャドー中：おすすめ度降順→一致馬優先→馬番昇順の決定論的ソート実装。同一入力で同一結果を保証。</td>
+      <td><span class="badge part-b">一部対応</span></td>
+      <td>シャドー中：おすすめ度降順→一致馬優先→馬番昇順の決定論的ソート実装。同一入力で同一結果を保証。<br><strong>【未実装】</strong>本番有効化後の帯基準馬方式による決定論的順位生成は未実装（本番有効化前までに実装予定）。</td>
     </tr>
     <tr>
       <td>41</td>
@@ -487,8 +566,8 @@
     <tr>
       <td>43</td>
       <td class="item-desc">順位比較は候補間の逐次入替ではなく固定比較帯で行い、循環比較が発生しない</td>
-      <td><span class="badge ok-b">合格</span></td>
-      <td>usort()による一括ソート（逐次入替ではない）。シャドー中はおすすめ度降順固定。循環比較なし。</td>
+      <td><span class="badge part-b">一部対応</span></td>
+      <td>シャドー中：usort()による一括ソート（逐次入替ではない）。おすすめ度降順固定。循環比較なし。<br><strong>【未実装】</strong>本番有効化後の帯基準馬方式による固定比較帯は未実装（本番有効化前までに実装予定）。</td>
     </tr>
   </table>
   </div>
@@ -496,7 +575,7 @@
   <!-- ===== #44〜#63 断層学習（M1〜M4）===== -->
   <div class="section-header">#44〜#63　断層学習（M1〜M4）</div>
   <div class="note-box">
-    現時点の実装状況：Phase 1（1,000レース未満）。正解ラベルと特徴量スナップショットの保存フェーズです。推論モデル・model_version管理・時系列分割・校正等は未実装です（Phase 2以降で実装予定）。
+    現時点の実装状況：Phase 1（1,000レース未満・保存段階のみ）。正解ラベルと一部基本データの保存のみ実装。固定長特徴量ベクトル・回収率スナップショット・断層位置/本数/時間変化・model_version・入力ハッシュ・M4の2種類比較保存は未実装。「特徴量スナップショット保存済み」ではなく「正解ラベル＋一部基本データのみ保存」が正確な表現です。推論モデル・model_version管理・時系列分割・校正等は未実装（Phase 2以降で実装予定）。
   </div>
   <div class="block-table">
   <table>
@@ -645,7 +724,7 @@
       <td>65</td>
       <td class="item-desc">1st AI候補0件と2nd AIの「候補なし|0」が正常な0件として処理され、基準未満の馬が補充されない</td>
       <td><span class="badge ok-b">合格</span></td>
-      <td>AI候補が0件の場合は空配列として処理継続。補充ロジックなし。「候補なし|0」はパースで0件として正常処理（L2050〜付近）。</td>
+      <td>【2026-09-18 05.txt対応で修正】「候補なし|0」: 形式不正チェック前に <code>preg_match('/^候補なし\|0$/mu', $analysisText)</code> を追加（L1997〜1999）。一致時は <code>$analysisText = ''</code> として正常0件処理・<code>break</code>（$b7SecondAiFailed は false のまま維持）。1st AI候補0件は空配列として処理継続（補充なし）。</td>
     </tr>
     <tr>
       <td>66</td>
@@ -663,7 +742,7 @@
       <td>68</td>
       <td class="item-desc">全頭の既存おすすめ度が信頼度60点（15・12・8・10・8・4・3点）と妙味40点（15・12・8・5点）の固定内訳で採点され、配点変更・項目間の点数移動・高配当強化指標との混算がない</td>
       <td><span class="badge ok-b">合格</span></td>
-      <td>1st AIプロンプト L1360〜1388で「固定配点・項目の追加・削除・配点変更・信頼度と妙味の間での点数移動は禁止」と明記。信頼度60点（①15②12③8④10⑤8⑥4⑦3）・妙味40点（①15②12③8④5）の全11項目指示。2nd AIも$oddsDataで同じ指示を受け取る。高配当強化指標はシャドー中AIへ送信せず。</td>
+      <td>【2026-09-18 05.txt対応で修正】<code>_applyAbilityGrade()</code> 内の ability_score→score への加算（A=+20, B=+14, C=+7）を削除。既存おすすめ度(score)は変更せず、ability_score を高配当総合点・シャドー比較専用として別保持のみ（L2972付近）。プロンプト側の固定配点指示（⑦能力適性:0〜3点）は維持。高配当強化指標はシャドー中AIへ送信せず（混算なし）。</td>
     </tr>
     <tr>
       <td>69</td>
@@ -687,6 +766,6 @@
   </div>
 
 </div>
-<footer>作成：英之（エンジニア）　2026-09-18　再提出版（B-1〜B-15独自番号→最新確定版TXT末尾#1〜#70対応）＋よっしー再指摘10項目 全件対応完了版</footer>
+<footer>作成：英之（エンジニア）　2026-09-18 / 20260919指摘対応版（B-1〜B-15独自番号→最新確定版TXT末尾#1〜#70対応）＋よっしー再指摘02〜05.txt 現フェーズ対応済み版（帯基準馬方式・断層学習スナップショット拡張は未実装）</footer>
 </body>
 </html>
