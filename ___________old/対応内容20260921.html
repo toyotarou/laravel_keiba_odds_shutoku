@@ -55,89 +55,80 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
 <tr class="new"><td>②専用列の活用</td><td><code>upset_race</code> / <code>wave_level</code> / <code>lower_entry</code> / <code>big_gap_entry</code> / <code>gap_type</code> は専用列が用意されているのにJSONへ入れるだけで未使用でした。専用列へも格納し、SQLで直接絞り込めるようにしました</td></tr>
 <tr class="new"><td>③照合</td><td>いただいた実DDLと突き合わせ、<strong>INSERT 13列・プレースホルダ13個・UPDATE 8列すべて一致、未使用列ゼロ</strong>を確認</td></tr>
 </table>
-<details><summary>▼ _saveAiMergeResult() 全文（修正後）（行 3,407〜3,489）</summary><pre class="out">    /**
-     * Block 14: 統合結果を ai_merge_result テーブルに UPSERT
+<details><summary>▼ _saveAiMergeResult() 全文（修正後）（行 2,600〜2,673）</summary><pre class="out">    /**
+     * 人気帯別回収率の集計（K-3補足）
+     *
+     * AIが選んだ馬を t_horse_odds_finder_race_result_history の popularity_rank で帯に分類し、
+     * 各帯の単勝・複勝回収率を返す。
+     *
+     * 人気帯:
+     *   1_3   : 1〜3番人気
+     *   4_6   : 4〜6番人気
+     *   7plus : 7番人気以下
+     *
+     * @return array{1_3: array, 4_6: array, 7plus: array}
      */
-    private function _saveAiMergeResult(
-        array   $mergedHorses,
-        int     $upsetRaceFinal,
-        string  $gapTypeForMerge,
-        ?int    $b14WaveLevel,
-        ?int    $b14LowerEntry,
-        ?int    $b14BigGap,
-        string  $date,
-        int     $kaisuu,
-        string  $basho,
-        int     $day,
-        int     $race,
-        object  $raceRow
-    ): void {
-        // ── Block 14: 統合結果を ai_merge_result テーブルに UPSERT ──────────────────
-        // _mergeAiResults() の出力と厳選穴レース再判定結果を JSON で保存する
-        // 実テーブルの merge_result 列（text）に全データを JSON として格納する
-        try {
-            // 【原因】以前は ON DUPLICATE KEY UPDATE に updated_at = CURRENT_TIMESTAMP を
-            //   含めていたが、このテーブルに updated_at 列は存在しない。
-            //   そのため毎レース SQL エラーになり、catch がログ出力のみで握り潰していたため
-            //   テーブルが空のままになっていた。updated_at を外して修正。
-            // 【あわせて改善】upset_race / wave_level / lower_entry / big_gap_entry / gap_type は
-            //   専用列が用意されているので、JSON に入れるだけでなく専用列へも格納する
-            //   （SQL で直接絞り込めるようにするため）。
-            //   merge_result（longtext）には統合馬リストを JSON で保存する。
-            $b14MergeJson = json_encode([
-                &#x27;upset_race&#x27;    =&gt; $upsetRaceFinal,
-                &#x27;gap_type&#x27;      =&gt; $gapTypeForMerge,
-                &#x27;wave_level&#x27;    =&gt; $b14WaveLevel,
-                &#x27;lower_entry&#x27;   =&gt; $b14LowerEntry,
-                &#x27;big_gap_entry&#x27; =&gt; $b14BigGap,
-                &#x27;merged_horses&#x27; =&gt; $mergedHorses,
-            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    private function _calcAiRecoveryByPopularity(): array
+    {
+        // AI 選択馬データを全件取得（pickup_horse1〜3）
+        // ※ t_horse_odds_finder_ai_analysis_check は現在未使用のためコメントアウト中
+        // ※ ai-analysis-check を再有効化する際にコメントを外すこと
+        // $checks = DB::table(&#x27;t_horse_odds_finder_ai_analysis_check&#x27;)
+        //     -&gt;orderBy(&#x27;date&#x27;)
+        //     -&gt;get([&#x27;date&#x27;, &#x27;kaisuu&#x27;, &#x27;basho_code&#x27;, &#x27;day&#x27;, &#x27;race&#x27;,
+        //            &#x27;pickup_horse1&#x27;, &#x27;pickup_horse2&#x27;, &#x27;pickup_horse3&#x27;]);
+        $checks = collect([]);
 
-            DB::statement(
-                &#x27;INSERT INTO t_horse_odds_finder_ai_merge_result&#x27;
-                . &#x27; (date, kaisuu, basho, basho_code, day, race, race_name,&#x27;
-                . &#x27;  upset_race, wave_level, lower_entry, big_gap_entry, gap_type, merge_result)&#x27;
-                . &#x27; VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)&#x27;
-                . &#x27; ON DUPLICATE KEY UPDATE&#x27;
-                . &#x27;   basho         = VALUES(basho),&#x27;
-                . &#x27;   race_name     = VALUES(race_name),&#x27;
-                . &#x27;   upset_race    = VALUES(upset_race),&#x27;
-                . &#x27;   wave_level    = VALUES(wave_level),&#x27;
-                . &#x27;   lower_entry   = VALUES(lower_entry),&#x27;
-                . &#x27;   big_gap_entry = VALUES(big_gap_entry),&#x27;
-                . &#x27;   gap_type      = VALUES(gap_type),&#x27;
-                . &#x27;   merge_result  = VALUES(merge_result)&#x27;,
-                [
-                    $date,
-                    (int) $kaisuu,
-                    $raceRow-&gt;basho_name ?? &#x27;&#x27;,
-                    $basho,
-                    (int) $day,
-                    (int) $race,
-                    $raceRow-&gt;race_name ?? &#x27;&#x27;,
-                    (int) $upsetRaceFinal,
-                    $b14WaveLevel,
-                    $b14LowerEntry,
-                    $b14BigGap,
-                    $gapTypeForMerge,
-                    $b14MergeJson,
-                ]
-            );
-            \Log::debug(&#x27;[Block14] ai_merge_result UPSERT&#x27;, [
-                &#x27;date&#x27;       =&gt; $date,
-                &#x27;kaisuu&#x27;     =&gt; $kaisuu,
-                &#x27;basho_code&#x27; =&gt; $basho,
-                &#x27;day&#x27;        =&gt; $day,
-                &#x27;race&#x27;       =&gt; $race,
-                &#x27;upset_race&#x27; =&gt; $upsetRaceFinal,
-                &#x27;gap_type&#x27;   =&gt; $gapTypeForMerge,
-                &#x27;horses_cnt&#x27; =&gt; count($mergedHorses),
-            ]);
-        } catch (\Throwable $b14e) {
-            \Log::error(&#x27;[Block14] ai_merge_result UPSERT failed&#x27;, [&#x27;err&#x27; =&gt; $b14e-&gt;getMessage()]);
-        }
-        // ── Block 14 End ──────────────────────────────────────────────────────────
-    }</pre></details>
+        // 人気帯ごとの集計バケツ
+        $buckets = [
+            &#x27;1_3&#x27;   =&gt; [&#x27;invest&#x27; =&gt; 0, &#x27;tan_return&#x27; =&gt; 0, &#x27;fuku_return&#x27; =&gt; 0, &#x27;count&#x27; =&gt; 0],
+            &#x27;4_6&#x27;   =&gt; [&#x27;invest&#x27; =&gt; 0, &#x27;tan_return&#x27; =&gt; 0, &#x27;fuku_return&#x27; =&gt; 0, &#x27;count&#x27; =&gt; 0],
+            &#x27;7plus&#x27; =&gt; [&#x27;invest&#x27; =&gt; 0, &#x27;tan_return&#x27; =&gt; 0, &#x27;fuku_return&#x27; =&gt; 0, &#x27;count&#x27; =&gt; 0],
+        ];
+
+        foreach ($checks as $v) {
+            // AIが選んだ馬名リスト（null・空文字除外）
+            $pickNames = array_values(array_filter([
+                $v-&gt;pickup_horse1 ?? null,
+                $v-&gt;pickup_horse2 ?? null,
+                $v-&gt;pickup_horse3 ?? null,
+            ], fn($n) =&gt; $n !== null &amp;&amp; $n !== &#x27;&#x27;));
+
+            if (empty($pickNames)) continue;
+
+            // 払戻データを取得（なければスキップ）
+            $payout = DB::table(&#x27;t_horse_odds_finder_race_result_payout&#x27;)
+                -&gt;where(&#x27;date&#x27;,       $v-&gt;date)
+                -&gt;where(&#x27;kaisuu&#x27;,     $v-&gt;kaisuu)
+                -&gt;where(&#x27;basho_code&#x27;, $v-&gt;basho_code)
+                -&gt;where(&#x27;day&#x27;,        $v-&gt;day)
+                -&gt;where(&#x27;race&#x27;,       $v-&gt;race)
+                -&gt;first([&#x27;tan&#x27;, &#x27;fuku&#x27;]);
+
+            if (!$payout) continue;
+
+            // 払戻マップ（馬番 =&gt; 払戻額）
+            $tanMap  = $this-&gt;_parsePayoutString($payout-&gt;tan);
+            $fukuMap = $this-&gt;_parsePayoutString($payout-&gt;fuku);
+
+            // 各選択馬の馬番・人気を race_result_history から取得
+            $histRows = DB::table(&#x27;t_horse_odds_finder_race_result_history&#x27;)
+                -&gt;where(&#x27;date&#x27;,       $v-&gt;date)
+                -&gt;where(&#x27;kaisuu&#x27;,     $v-&gt;kaisuu)
+                -&gt;where(&#x27;basho_code&#x27;, $v-&gt;basho_code)
+                -&gt;where(&#x27;day&#x27;,        $v-&gt;day)
+                -&gt;where(&#x27;race&#x27;,       $v-&gt;race)
+                -&gt;whereIn(&#x27;name&#x27;, $pickNames)
+                -&gt;get([&#x27;name&#x27;, &#x27;num&#x27;, &#x27;popularity_rank&#x27;]);
+
+            foreach ($histRows as $h) {
+                $pop = (int) $h-&gt;popularity_rank;
+                if ($pop &lt;= 0) continue; // 人気不明はスキップ
+
+                // 人気帯を決定
+                if ($pop &lt;= 3) {
+                    $band = &#x27;1_3&#x27;;
+                }</pre></details>
 <div class="alert"><strong>実DDLとの全件突き合わせを行いました</strong><br>当初参照していた作業フォルダ内の <code>database.txt</code> が実物と異なっていた件ですが、最新の記載をいただき、<strong>INSERT/UPDATE を行っている全テーブルについて列名・列数・プレースホルダ数を機械的に照合</strong>しました。<table style="margin:10px 0 0 0;font-size:0.92em"><tr><th>テーブル</th><th style="width:110px">列数/placeholder</th><th style="width:150px">実DDLに無い列</th></tr><tr class="ok"><td><code>ai_merge_result</code></td><td>13 / 13</td><td class="s-ok">なし</td></tr><tr class="ok"><td><code>market_score_log</code>（Block 10）</td><td>14 / 14</td><td class="s-ok">なし</td></tr><tr class="ok"><td><code>market_score_log</code>（B-10 後追い）</td><td>9 / 9</td><td class="s-ok">なし</td></tr><tr class="ok"><td><code>high_payout_shadow_log</code></td><td>19 / 19</td><td class="s-ok">なし</td></tr><tr class="ok"><td><code>ml_snapshot</code></td><td>8 / 8</td><td class="s-ok">なし</td></tr></table><p class="note" style="margin-bottom:0">実DDLに存在しない列への書き込みは<strong>ゼロ</strong>です。<code>ai_merge_result</code> と同種の「列が無いためSQLエラー → catchで握り潰し → 保存されない」は、この5テーブルでは起こりません。<br>なお <code>market_score_log</code> / <code>ml_snapshot</code> / <code>high_payout_shadow_log</code> に<strong>実際にデータが入っているか</strong>は、当方から本番DBを参照できないため未確認です（コードが正しいことと、データが入っていることは別のため、ここは正直に申し上げておきます）。</p></div>
 <h2>1-2. market_score_log の未使用列を解消</h2>
 <p>いただいた実DDLと突き合わせたところ、<code>t_horse_odds_finder_market_score_log</code> に<strong>4つの列が用意されているのに、一度も書き込んでいませんでした</strong>（常に NULL）。修正しました。</p>
@@ -148,7 +139,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
 <tr class="new"><td><code>high_score</code></td><td class="s-ng">未書き込み（NULL）</td></tr>
 </table>
 <p class="note">後追い更新は独立した <code>try/catch</code> に入れてあり、ここで失敗しても <code>high_payout_shadow_log</code> の保存や本体処理には影響しません。<code>high_score</code> は <code>tinyint unsigned</code> のため 0〜100 の範囲外は保存しない安全弁を入れています。</p>
-<details><summary>▼ Block 10 の INSERT（name 追加後）（行 3,945〜3,977）</summary><pre class="out">            // UPSERT（全馬まとめてバルク INSERT ... ON DUPLICATE KEY UPDATE）
+<details><summary>▼ Block 10 の INSERT（name 追加後）（行 4,270〜4,302）</summary><pre class="out">            // UPSERT（全馬まとめてバルク INSERT ... ON DUPLICATE KEY UPDATE）
             if (!empty($b10Rows)) {
                 $b10PlaceHolders = implode(&#x27;,&#x27;, array_fill(0, count($b10Rows), &#x27;(?,?,?,?,?,?,?,?,?,?,?,?,?,?)&#x27;));
                 $b10Values       = [];
@@ -181,7 +172,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
                     $b10Values
                 );
             }</pre></details>
-<details><summary>▼ Block B-10 からの後追い更新（新規）（行 4,381〜4,440）</summary><pre class="out">            // ── market_score_log の後追い更新（ability_grade / ability_score / high_score）──
+<details><summary>▼ Block B-10 からの後追い更新（新規）（行 4,706〜4,765）</summary><pre class="out">            // ── market_score_log の後追い更新（ability_grade / ability_score / high_score）──
             // 【理由】Block 10（AI呼び出し前）の時点では能力適性グレードと高配当総合点は
             //   まだ確定していないため、market_score_log の該当3列が常に NULL のままだった。
             //   実DDLに専用列が存在するので、確定した時点で同一ユニークキーへ書き戻す。
@@ -250,7 +241,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
 <tr class="ng"><td>M1〜M4 推論の呼び出し</td><td>推論が、まだ構築前の全馬特徴量を参照していた</td><td class="s-ng">例外になり<br>推論結果が保存されない</td></tr>
 </table>
 <div class="calc"><strong>正しい順序に組み直しました</strong><br>能力適性ベクトル → M4候補リスト → 全馬特徴量ループ → 時系列分割・レジストリ・フェーズ・推論 → 帯基準馬方式 → JSON構築<br>個別メソッド単位のテストでは発見できない種類の不具合でした。後述の<strong>統合テスト</strong>を新設して検出しています。</div>
-<details><summary>▼ _saveMlSnapshot() の処理順序（修正後）（行 7,345〜7,481）</summary><pre class="out">            // ── 能力・適性データの固定長ベクトル化（受入チェック #63）──────────
+<details><summary>▼ _saveMlSnapshot() の処理順序（修正後）（行 7,670〜7,806）</summary><pre class="out">            // ── 能力・適性データの固定長ベクトル化（受入チェック #63）──────────
             // 当時のデータを後から再現できないため Phase1 の今から保存する。
             // 取得は「今走日より前」に限定し未来情報混入を防止している。
             // カテゴリ辞書は学習期間のみで作成する（Phase1は学習未実施のため null）
@@ -410,7 +401,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
 <h3>4-1. 学習方式をGBDTへ</h3>
 <p>仕様「欠損と非線形な組合せを扱える決定木系勾配ブースティングを基本とする」に従い、XGBoost系の二次近似による勾配ブースティング決定木として実装し直しました。クラス不均衡の補正（M3大穴は正例が極端に少ないため）も入れています。</p>
 <div class="calc"><strong>非線形を扱えることの確認</strong><br>線形モデルでは原理的に解けない XOR で検証：<strong>GBDT 正答率1.000 ／ ロジスティック回帰 0.500</strong><br>旧ロジスティック回帰は削除せず「仕様外・未使用」と明記して残し、推論経路からは外しました。線形モデルへの変更は仕様書自体の改訂が必要なため、こちらの判断では行いません。</div>
-<details><summary>▼ _trainGbdtModel() 全文（行 4,784〜4,894）</summary><pre class="out">    /**
+<details><summary>▼ _trainGbdtModel() 全文（行 5,109〜5,219）</summary><pre class="out">    /**
      * 決定木系 勾配ブースティング（GBDT）：学習
      *
      * 仕様（最新確定版）:
@@ -521,7 +512,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
             ],
         ];
     }</pre></details>
-<details><summary>▼ _gbdtBuildTree()（欠損の分岐方向を学習）全文（行 4,896〜5,017）</summary><pre class="out">    /**
+<details><summary>▼ _gbdtBuildTree()（欠損の分岐方向を学習）全文（行 5,221〜5,342）</summary><pre class="out">    /**
      * GBDT: 1本の決定木を再帰的に構築する
      *
      * 欠損（null）は「左へ送る」「右へ送る」の両方を試し、
@@ -646,7 +637,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
 <h3>4-2. 欠損値を0へ置換しない</h3>
 <div class="calc"><strong>欠損と値0を区別できることの確認</strong><br>「欠損のとき正例／値0のとき負例」というデータで検証：<strong>欠損入力→0.997 ／ 値0入力→0.003</strong><br>0埋めでは原理的に不可能な挙動です。木の1本目は <code>threshold=-INF, missing_left=true</code> となり、欠損そのものを分割軸にしていることが確認できます。</div>
 <p class="note">実装中に2件の不具合を見つけて修正しました。非欠損値がすべて同じ場合に欠損を切り出せなかった件（「欠損 vs 非欠損」を明示的な分割候補として追加）と、XORのように根での利得がちょうど0になる組合せを学習できなかった件（利得ゼロの分割を許可）です。</p>
-<details><summary>▼ _vectorizeFeatures()（0埋め廃止版）全文（行 5,054〜5,197）</summary><pre class="out">    /**
+<details><summary>▼ _vectorizeFeatures()（0埋め廃止版）全文（行 5,379〜5,522）</summary><pre class="out">    /**
      * 特徴量ベクトル化（推論エンジン入力の生成）
      *
      * features_json（可変構造のJSON）を、学習・推論で使える
@@ -801,7 +792,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
 <tr class="new"><td>未来情報混入の防止</td><td><code class="hl">where('date', '&lt;', $date)</code> で今走日より前に限定</td></tr>
 <tr class="new"><td><strong>不利フラグ</strong></td><td>07.txtのご指示どおり <strong>NULL（欠損）固定</strong>で実装しました。<strong>0（＝不利なし）として扱わず、自由記述からの推測生成も行いません</strong>。能力適性ベクトルに <code>trouble.late_start / interference / trouble / wide_course</code> の最大10走ぶんの枠を用意し、全て null・<code>available=false</code> で保持します。学習特徴量側も <code>trouble_*</code>（値）と <code>trouble_*_has</code>（欠損フラグ）をnull / 0.0 で渡すため、GBDTの欠損分岐でそのまま扱えます。取得元が決まれば、この枠へ値を入れるだけで学習に載ります</td></tr>
 </table>
-<details><summary>▼ _buildAbilityVectors() 全文（行 6,446〜6,781）</summary><pre class="out">    /**
+<details><summary>▼ _buildAbilityVectors() 全文（行 6,771〜7,106）</summary><pre class="out">    /**
      * 能力・適性データの固定長ベクトル化（受入チェック #63 / 最新確定仕様準拠）
      *
      * 仕様:
@@ -1137,7 +1128,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
             ],
         ];
     }</pre></details>
-<details><summary>▼ _buildCategoryDict()（学習期間のみ・UNKNOWN）全文（行 6,796〜6,843）</summary><pre class="out">    /**
+<details><summary>▼ _buildCategoryDict()（学習期間のみ・UNKNOWN）全文（行 7,121〜7,168）</summary><pre class="out">    /**
      * カテゴリ辞書の作成（学習期間のみ）
      *
      * 仕様: 辞書は【学習期間だけ】で作る。検証・評価期間や今走のデータで
@@ -1187,7 +1178,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
     }</pre></details>
 <h3>4-4. Phase3条件と評価指標</h3>
 <div class="calc"><strong>Phase3は2,000件だけでは不可</strong><br>・2,000件 → Phase2のまま（test=300件で500未満）<br>・3,000件 → Phase2（test=450件）<br>・<strong>3,334件 → Phase3</strong>（test=500件に到達）<br>未達のときは理由を文言で保存します。Phase3でも <code>allow_production</code> は常にfalseです。</div>
-<details><summary>▼ _getMlPhase() 全文（行 5,584〜5,651）</summary><pre class="out">    /**
+<details><summary>▼ _getMlPhase() 全文（行 5,909〜5,976）</summary><pre class="out">    /**
      * 学習フェーズの判定（受入チェック #55・#56 / 最新確定仕様準拠）
      *
      * 仕様:
@@ -1255,7 +1246,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
         \Log::debug(&#x27;[Block11] ml phase&#x27;, $phOut);
         return $phOut;
     }</pre></details>
-<details><summary>▼ _evaluateMlModel()（適合率/再現率/F1/ROC-AUC/PR-AUC/Brier/校正誤差/人気帯別/最大連敗/断層タイプ別）全文（行 5,653〜5,863）</summary><pre class="out">    /**
+<details><summary>▼ _evaluateMlModel()（適合率/再現率/F1/ROC-AUC/PR-AUC/Brier/校正誤差/人気帯別/最大連敗/断層タイプ別）全文（行 5,978〜6,188）</summary><pre class="out">    /**
      * モデル評価指標の算出（最新確定仕様の指定指標）
      *
      * 仕様で保存を求められている指標（M1〜M3）:
@@ -1480,7 +1471,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
 <tr class="ok"><td>取得元の調査結果</td><td>実DDLを確認したところ、<code>t_horse_odds_finder_shutsuba_history</code> には不利に相当する列も、自由記述の備考列も<strong>存在しません</strong>。現状は取得元そのものが無い状態です</td></tr>
 <tr class="ok"><td>取得元が決まったら</td><td>この枠へ値を入れるだけで学習に載ります。GBDTは欠損の分岐方向を学習するため、値が入り始めても作り直しは不要です</td></tr>
 </table>
-<details><summary>▼ 不利フラグを欠損のまま学習へ渡す部分（_vectorizeFeatures 内）（行 5,164〜5,178）</summary><pre class="out">            // ── 不利フラグ（出遅れ／進路妨害／不利／外々）────────────────
+<details><summary>▼ 不利フラグを欠損のまま学習へ渡す部分（_vectorizeFeatures 内）（行 5,489〜5,503）</summary><pre class="out">            // ── 不利フラグ（出遅れ／進路妨害／不利／外々）────────────────
             // 【仕様・07.txt指示】取得元が確定するまでは欠損（null）のまま学習へ渡す。
             //   0（不利なし）にはしない。自由記述からの推測生成も行わない。
             //   GBDT は欠損の分岐方向を学習するため、null のままで安全に扱える。
@@ -1508,7 +1499,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
 <tr class="ok"><td>Brier score</td><td class="s-ok">実装済</td></tr>
 </table>
 <p class="note">検証: 予測[1,1,0,0]／正解[1,0,1,0] で TP=1 FP=1 FN=1 TN=1 → 適合率0.5・再現率0.5・F1=0.5 を確認。校正誤差は「予測0.1が10件中1件的中 → ECE=0」「予測0.9が10件中0件的中 → ECE=0.9・MCE=0.9」で確認しています。</p>
-<details><summary>▼ 適合率・再現率・F1・校正誤差の算出部分（_evaluateMlModel 内・新規）（行 5,738〜5,793）</summary><pre class="out">        // ── 適合率 / 再現率 / F1（閾値ごとの混同行列から算出）─────────────
+<details><summary>▼ 適合率・再現率・F1・校正誤差の算出部分（_evaluateMlModel 内・新規）（行 6,063〜6,118）</summary><pre class="out">        // ── 適合率 / 再現率 / F1（閾値ごとの混同行列から算出）─────────────
         $evPrf = function (float $th) use ($evN, $probs, $evY): array {
             $tp = 0; $fp = 0; $fn = 0; $tn = 0;
             for ($k = 0; $k &lt; $evN; $k++) {
@@ -1580,7 +1571,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
 <tr class="new"><td>平均人気の併記</td><td>ご懸念の「人気薄を増やしただけの改善ではないか」を判定できるよう、現行版・学習版それぞれの<strong>平均人気</strong>を併記します</td></tr>
 </table>
 <p class="note">検証: 4頭・既知のオッズで手計算と突き合わせ、5着以内率2/3・単勝回収率166.67%・平均配当500円・中央値配当500円・最大連敗1・最大値除外後回収率（単勝）0%／（複勝）100%・揃えた頭数2頭・平均人気3.0 を確認しています。</p>
-<details><summary>▼ _evaluateM4Model() 全文（新規）（行 5,866〜6,103）</summary><pre class="out">    /**
+<details><summary>▼ _evaluateM4Model() 全文（新規）（行 6,191〜6,428）</summary><pre class="out">    /**
      * M4（馬単位・5着以内）専用の評価指標
      *
      * 最新確定仕様で M4 に求められている指標:
@@ -1827,7 +1818,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
 <tr class="new"><td>呼び出し</td><td><code>runMlPipeline()</code> の最後。戻り値の <code>evaluation_saved</code> に保存先パスが入ります</td></tr>
 <tr class="ok"><td>DBではなくファイルにしている理由</td><td>評価結果を入れる専用テーブルが存在しないためです。勝手にテーブルを作ったり、存在しない列へ書いたりすると<strong>保存が落ちて気づかれない</strong>（ai_merge_result で実際に起きたもの）ので、確実に残る形を優先しました。保存処理は1メソッドに閉じてあるので、DBへ移す場合もそこだけの変更で済みます。</td></tr>
 </table>
-<details><summary>▼ _saveMlEvaluation() 全文（新規）（行 4,452〜4,509）</summary><pre class="out">    /**
+<details><summary>▼ _saveMlEvaluation() 全文（新規）（行 4,777〜4,834）</summary><pre class="out">    /**
      * 学習・評価結果の保存（評価指標の保存先）
      *
      * 仕様で求められている評価指標（M1〜M3 の 適合率・再現率・F1・ROC-AUC・
@@ -1907,7 +1898,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
 <tr class="ok"><td>7</td><td>モデルをレジストリへ登録（旧モデルを残し切戻し可能に）</td></tr>
 </table>
 <p class="note">学習と評価を行うだけで本番へは一切反映しません（<code>production_reflected</code> は常にfalse）。バッチから呼べるよう public メソッドにしています。</p>
-<details><summary>▼ runMlPipeline() 全文（行 4,511〜4,711）</summary><pre class="out">    /**
+<details><summary>▼ runMlPipeline() 全文（行 4,836〜5,036）</summary><pre class="out">    /**
      * 断層学習パイプライン（Phase2以降で実行する学習・評価の一連処理）
      *
      * 呼び出し元: バッチ処理（artisan コマンド等）から public メソッドとして実行する。
@@ -2108,7 +2099,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
 
         return $plResult;
     }</pre></details>
-<details><summary>▼ writeMlLabels()（レース結果確定後のラベル書き込み）全文（行 4,713〜4,782）</summary><pre class="out">    /**
+<details><summary>▼ writeMlLabels()（レース結果確定後のラベル書き込み）全文（行 5,038〜5,107）</summary><pre class="out">    /**
      * レース結果確定後のラベル書き込み
      *
      * 呼び出し元: レース結果が確定した後のバッチ処理から public メソッドとして実行する。
@@ -2178,7 +2169,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
             return [&#x27;status&#x27; =&gt; &#x27;error&#x27;, &#x27;reason&#x27; =&gt; $wlE-&gt;getMessage()];
         }
     }</pre></details>
-<details><summary>▼ _calcMlLabels()（M1〜M4正解ラベル）全文（行 5,408〜5,582）</summary><pre class="out">    /**
+<details><summary>▼ _calcMlLabels()（M1〜M4正解ラベル）全文（行 5,733〜5,907）</summary><pre class="out">    /**
      * 断層学習 M1〜M4 の正解ラベル算出（受入チェック #50〜#52）
      *
      * 仕様（よっしー最新確定版 / 20260913-10.txt・11.txt）:
@@ -2355,7 +2346,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
     }</pre></details>
 <h2>6. 前回までの実装（今回変更なし）</h2>
 <p>低配当除外は「複勝最小 &lt; 1.5倍 <strong>かつ</strong> 単勝 &lt; 3.0倍」、例外解除は<strong>3条件すべて成立（AND）</strong>。フィルターは統合おすすめ度算出後（行2141の後）に Block13b→13a→12 の順で適用します。帯基準馬方式は5点比較帯＋7段タイブレークで、シャドー専用です。</p>
-<details><summary>▼ POST-MERGE フィルター（Block 13b / 13a / 12）全文（行 2,186〜2,337）</summary><pre class="out">        // POST-MERGE フィルター: 統合おすすめ度算出後に Block13b → Block13a → Block12 適用
+<details><summary>▼ POST-MERGE フィルター（Block 13b / 13a / 12）全文（行 2,292〜2,406）</summary><pre class="out">        // POST-MERGE フィルター: 統合おすすめ度算出後に Block13b → Block13a → Block12 適用
         // 仕様: 統合→統合おすすめ度算出→最低基準点→低配当除外→回収率フィルター→順位確定→人気帯上限
         // ══════════════════════════════════════════════════════════════════════════
 
@@ -2377,6 +2368,15 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
         }
         // ── Block 13b End ─────────────────────────────────────────────────────────
 
+        // ── 受入チェック #69: 妙味小計上限のPHP側検証（AI採点は書き換えない）──────
+        // 仕様「推定確定複勝最小 &lt; 1.5 の馬は妙味小計を原則5点以下」を、
+        //   おすすめ度 = 信頼度(最大60) + 妙味小計 という固定内訳から検証する。
+        //   例外解除なしの低配当馬が66点以上なら、妙味小計が5点を超えた証拠になる。
+        // 検出結果はログと features_json（シャドー）へ保存する。
+        $b69MeritCap = $this-&gt;_verifyLowPayoutMeritCap(
+            $mergedHorses, $oddsHorseBlocks, $primaryGapUpperPopForMerge, $b13ScoreAMap
+        );
+
         // ── Block 13a: 低配当除外（merge後・正規仕様）────────────────────────────
         // 除外条件: 推定確定複勝最小 &lt; 1.5倍 かつ 推定確定単勝（推定確定オッズ）&lt; 3.0倍
         //           → 両方を満たした馬を原則除外
@@ -2386,75 +2386,29 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
         //   例外③: サンプル30件以上の回収率110%以上が2種類以上
         // ※最新確定版仕様: 「例外解除は既存の低配当例外3条件をすべて満たす場合だけ」
         //   → OR判定は仕様違反。必ずAND（&amp;&amp;）で結合すること。
+        // ※判定そのものは _judgeLowPayoutException() に集約してある。
+        //   #69 の検証と同じ判定を使うため、両者が食い違うことはない。
         {
             $mergedHorses = array_values(array_filter(
                 $mergedHorses,
                 function ($h) use ($oddsHorseBlocks, $primaryGapUpperPopForMerge, $b13ScoreAMap) {
                     $b13aBlock = $oddsHorseBlocks[(int)$h[&#x27;num&#x27;]] ?? &#x27;&#x27;;
+                    $b13aJ = $this-&gt;_judgeLowPayoutException(
+                        $h, $b13aBlock, $primaryGapUpperPopForMerge, $b13ScoreAMap
+                    );
 
-                    // 推定確定複勝最小（なければ除外しない）
-                    if (!preg_match(&#x27;/推定確定複勝最小: ([\d.]+)/u&#x27;, $b13aBlock, $b13am)) return true;
-                    $b13aFukuMin = (float)$b13am[1];
-
-                    // 推定確定単勝 = 「推定確定オッズ」フィールド（なければ除外しない）
-                    if (!preg_match(&#x27;/推定確定オッズ: ([\d.]+)/u&#x27;, $b13aBlock, $b13atm)) return true;
-                    $b13aTanOdds = (float)$b13atm[1];
-
-                    // 除外条件: 複勝最小 &lt; 1.5 かつ 単勝 &lt; 3.0（両方満たした場合のみ除外判定へ）
-                    if ($b13aFukuMin &gt;= 1.5 || $b13aTanOdds &gt;= 3.0) return true;
-
-                    // 例外①: 断層最上位グループ（主断層より人気上側に属する馬）
-                    $ex1 = ($primaryGapUpperPopForMerge !== null
-                            &amp;&amp; (int)($h[&#x27;popularity&#x27;] ?? 999) &lt;= $primaryGapUpperPopForMerge);
-
-                    // 例外②: 単勝・複勝の両方が複数時点で継続流入
-                    //   単勝: 全体短縮率 &lt; 0（計測開始→6分前で流入傾向）
-                    //          かつ 直前9→6分前も流入（変化率 &lt; 0）
-                    $b13aTanShrink = null;
-                    if (preg_match(
-                        &#x27;/単勝流入ランク:[^※]+※短縮率: ([+\-][\d.]+)%/u&#x27;,
-                        $b13aBlock, $b13ats
-                    )) {
-                        $b13aTanShrink = (float)$b13ats[1];
-                    }
-                    $b13aTanDirect = false;
-                    if (preg_match(
-                        &#x27;/直前流入（9→6分前）:.*単勝\s*([+\-][\d.]+)%/u&#x27;,
-                        $b13aBlock, $b13atd
-                    )) {
-                        $b13aTanDirect = ((float)$b13atd[1] &lt; 0.0);
-                    }
-                    $b13aTanCont = ($b13aTanShrink !== null &amp;&amp; $b13aTanShrink &lt; 0.0 &amp;&amp; $b13aTanDirect);
-                    //   複勝: ScoreA &gt;= 12（3区間以上連続低下 + 直前も低下 = 強い流入シグナル）
-                    $b13aScoreA   = $b13ScoreAMap[(int)$h[&#x27;num&#x27;]] ?? null;
-                    $b13aFukuCont = (is_int($b13aScoreA) &amp;&amp; $b13aScoreA &gt;= 12);
-                    $ex2 = ($b13aTanCont &amp;&amp; $b13aFukuCont);
-
-                    // 例外③: サンプル30件以上の回収率110%以上が2種類以上
-                    $b13aHiCnt = 0;
-                    if (preg_match(
-                        &#x27;/過去回収率[（(][^）)]+[）)]: 回収率([\d.]+)% 勝率[\d.]+% サンプル(\d+)件/u&#x27;,
-                        $b13aBlock, $b13ar1
-                    ) &amp;&amp; (int)$b13ar1[2] &gt;= 30 &amp;&amp; (float)$b13ar1[1] &gt;= 110.0) $b13aHiCnt++;
-                    if (preg_match(
-                        &#x27;/OPI帯別回収率[（(][^）)]+[）)]: 回収率([\d.]+)% 勝率[\d.]+% サンプル(\d+)件/u&#x27;,
-                        $b13aBlock, $b13ar2
-                    ) &amp;&amp; (int)$b13ar2[2] &gt;= 30 &amp;&amp; (float)$b13ar2[1] &gt;= 110.0) $b13aHiCnt++;
-                    if (preg_match(
-                        &#x27;/フェーズパターン別回収率[（(][^）)]+[）)]: 回収率([\d.]+)% 勝率[\d.]+% サンプル(\d+)件/u&#x27;,
-                        $b13aBlock, $b13ar3
-                    ) &amp;&amp; (int)$b13ar3[2] &gt;= 30 &amp;&amp; (float)$b13ar3[1] &gt;= 110.0) $b13aHiCnt++;
-                    $ex3 = ($b13aHiCnt &gt;= 2);
+                    // 低配当の対象外（オッズ未取得・複勝1.5以上・単勝3.0以上）は除外しない
+                    if (!$b13aJ[&#x27;low_payout&#x27;]) return true;
 
                     // 3条件すべて成立（AND）した場合のみ除外解除。1つでも不成立なら除外する。
-                    if ($ex1 &amp;&amp; $ex2 &amp;&amp; $ex3) return true;
+                    if ($b13aJ[&#x27;released&#x27;]) return true;
 
                     \Log::info(&#x27;[Block13a] 低配当除外（merge後）&#x27;, [
-                        &#x27;num&#x27;                =&gt; $h[&#x27;num&#x27;],    &#x27;name&#x27;     =&gt; $h[&#x27;name&#x27;],
-                        &#x27;fuku_min&#x27;           =&gt; $b13aFukuMin, &#x27;tan_odds&#x27; =&gt; $b13aTanOdds,
-                        &#x27;ex1_最上位グループ&#x27; =&gt; $ex1,
-                        &#x27;ex2_単複継続流入&#x27;   =&gt; $ex2,
-                        &#x27;ex3_回収率110x2&#x27;    =&gt; $ex3,
+                        &#x27;num&#x27;                =&gt; $h[&#x27;num&#x27;],           &#x27;name&#x27;     =&gt; $h[&#x27;name&#x27;],
+                        &#x27;fuku_min&#x27;           =&gt; $b13aJ[&#x27;fuku_min&#x27;],  &#x27;tan_odds&#x27; =&gt; $b13aJ[&#x27;tan_odds&#x27;],
+                        &#x27;ex1_最上位グループ&#x27; =&gt; $b13aJ[&#x27;ex1&#x27;],
+                        &#x27;ex2_単複継続流入&#x27;   =&gt; $b13aJ[&#x27;ex2&#x27;],
+                        &#x27;ex3_回収率110x2&#x27;    =&gt; $b13aJ[&#x27;ex3&#x27;],
                     ]);
                     return false;
                 }
@@ -2507,7 +2461,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
         // ── Block 12 End ──────────────────────────────────────────────────────────
         // ══════════════════════════════════════════════════════════════════════════
         // POST-MERGE フィルター End</pre></details>
-<details><summary>▼ _calcBandBasedRanking() 全文（行 6,845〜7,040）</summary><pre class="out">    /**
+<details><summary>▼ _calcBandBasedRanking() 全文（行 7,170〜7,365）</summary><pre class="out">    /**
      * 帯基準馬方式（5点比較帯）による決定論的順位生成
      *
      * 仕様（よっしー最新確定版 / 20260913-11.txt）:
@@ -2703,7 +2657,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
             ],
         ];
     }</pre></details>
-<details><summary>▼ _runMlInference() 全文（行 5,340〜5,406）</summary><pre class="out">    /**
+<details><summary>▼ _runMlInference() 全文（行 5,665〜5,731）</summary><pre class="out">    /**
      * 断層学習 M1〜M4 推論エンジン：実行（シャドー専用）
      *
      * Phase2以降で、保存済みスナップショットに対して M1〜M4 の推論を行う。
@@ -2770,7 +2724,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
         ]);
         return $riOut;
     }</pre></details>
-<details><summary>▼ _calibrateProbabilities() 全文（行 6,106〜6,224）</summary><pre class="out">    /**
+<details><summary>▼ _calibrateProbabilities() 全文（行 6,431〜6,549）</summary><pre class="out">    /**
      * 確率校正（受入チェック #53）
      *
      * 仕様: モデルが出す生スコアは、そのままでは「確率」として読めない。
@@ -2889,7 +2843,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
             ],
         ];
     }</pre></details>
-<details><summary>▼ _compareModelVersions() 全文（行 6,226〜6,298）</summary><pre class="out">    /**
+<details><summary>▼ _compareModelVersions() 全文（行 6,551〜6,623）</summary><pre class="out">    /**
      * 現行版と学習版の並行比較（受入チェック #54）
      *
      * 仕様: 学習版を本番へ入れる前に、現行版とどれだけ違うかを定量的に比較する。
@@ -2962,7 +2916,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
             &#x27;note&#x27;              =&gt; &#x27;比較結果のみ。学習版の本番反映は許可が出るまで行わない&#x27;,
         ];
     }</pre></details>
-<details><summary>▼ _assignTimeSeriesSplit() 全文（行 6,300〜6,370）</summary><pre class="out">    /**
+<details><summary>▼ _assignTimeSeriesSplit() 全文（行 6,625〜6,695）</summary><pre class="out">    /**
      * 日付順 70% / 15% / 15% の時系列分割（受入チェック #49）
      *
      * 仕様: 学習・検証・評価を「日付順」で分割する。
@@ -3033,7 +2987,7 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
         \Log::info(&#x27;[Block11] 時系列分割 70/15/15&#x27;, $tsOut[&#x27;summary&#x27;]);
         return $tsOut;
     }</pre></details>
-<details><summary>▼ _buildModelRegistry() 全文（行 6,372〜6,423）</summary><pre class="out">    /**
+<details><summary>▼ _buildModelRegistry() 全文（行 6,697〜6,748）</summary><pre class="out">    /**
      * モデル更新・旧モデルへの切戻し管理（受入チェック #57）
      *
      * 仕様: モデルを更新したら旧モデルへ戻せること。戻したときに
@@ -3085,15 +3039,15 @@ summary{cursor:pointer;font-weight:bold;color:#16213e}
             ],
         ];
     }</pre></details>
-<h2>7. テスト結果（575件 全PASS）</h2>
+<h2>7. テスト結果（680件 全PASS）</h2>
 <table><tr><th style="width:250px">テスト</th><th>対象</th><th style="width:64px">件数</th></tr>
 <tr class="ok"><td><strong>統合テスト（新設）</strong></td><td>本番と同じ31引数で _saveMlSnapshot を丸ごと実行し保存内容を検証</td><td class="s-ok">53件</td></tr>
 <tr class="ok"><td>仕様適合テスト</td><td>GBDT／欠損0埋め廃止／10走・窓集約・辞書／Phase3条件／評価指標／不利フラグ欠損扱い／適合率・再現率・F1・校正誤差／M4指標／<strong>仕様書との配点照合（基礎点A・E）</strong></td><td class="s-ok">266件</td></tr>
 <tr class="ok"><td>推論エンジンテスト</td><td>特徴量ベクトル化／学習／推論／Phase制御</td><td class="s-ok">47件</td></tr>
 <tr class="ok"><td>断層学習 周辺機能テスト</td><td>M1〜M4ラベル／フェーズ判定／確率校正／並行比較／評価結果の保存</td><td class="s-ok">57件</td></tr>
 <tr class="ok"><td>保存機能テスト</td><td>能力適性ベクトル／時系列分割／モデル切戻し管理</td><td class="s-ok">40件</td></tr>
-<tr class="ok"><td>本番コード直接検証テスト</td><td>AND判定／フィルター順序／帯基準馬方式／馬番追跡／外部AI2回上限・#17算出順序・複勝欠損の非置換／<strong>実送信回数の実測・Flutter応答のシャドー値除去</strong></td><td class="s-ok">112件</td></tr>
-<tr><td colspan="2" style="text-align:right"><strong>合計</strong></td><td class="s-ok"><strong>575件</strong></td></tr>
+<tr class="ok"><td>本番コード直接検証テスト</td><td>AND判定／フィルター順序／帯基準馬方式／馬番追跡／外部AI2回上限・#17算出順序・複勝欠損の非置換／実送信回数の実測・Flutter応答のシャドー値除去／<strong>2nd AI回答の形式検証・2nd AIプロンプト整形</strong></td><td class="s-ok">217件</td></tr>
+<tr><td colspan="2" style="text-align:right"><strong>合計</strong></td><td class="s-ok"><strong>680件</strong></td></tr>
 </table>
 <div class="alert" style="margin-top:10px"><strong>件数の意味について（07.txt④のご指摘）</strong><br>これらの件数は<strong>当方が書いた自動テストの本数</strong>であり、<strong>最終確定版の受入チェック1〜70の合否とは別物</strong>です。紛らわしい名前だったため「仕様違反5点 修正テスト（70件）」を<strong>「仕様適合テスト」</strong>へ改名し、テスト出力の見出しにも「受入チェック1〜70とは別物」と明記しました。<br>受入チェック #1〜#70 の現状は、11章に1項目ずつまとめてあります。</div>
 <p class="note">本番 AiController.php を直接ロードし、<code>ReflectionMethod</code> で実メソッドを呼び出して検証しています。ローカルに <code>vendor/</code> が無く Laravel を起動できないため、Controller / Request / Http / DB / Log は最小スタブで代替しています。</p>
@@ -3414,7 +3368,7 @@ exit($F===0?0:1);
 <pre class="out">════════════════════════════════════════════════════════════════════════════
  仕様適合テスト（06.txt 仕様違反5点 / 07.txt 不利フラグ・評価指標）
  ※これは仕様適合の自動テストであり、最終確定版の受入チェック1〜70とは別物
- 実行: 2026-09-21 04:22:22  PHP 8.4.21
+ 実行: 2026-09-21 05:31:20  PHP 8.4.21
 ════════════════════════════════════════════════════════════════════════════
 
 ──────────────────────────────────────────────────────────────────────────
@@ -3508,7 +3462,7 @@ exit($F===0?0:1);
   [PASS] 人気帯別に回収率がある
   [PASS] 断層タイプ別の集計がある（A/B/C）
   [PASS] 断層タイプ別に回収率がある
-  [PASS] ランダムならROC-AUC≒0.5: 0.45745
+  [PASS] ランダムならROC-AUC≒0.5: 0.4641
   [PASS] 空データはスキップ
 
 ──────────────────────────────────────────────────────────────────────────
@@ -3979,20 +3933,20 @@ TEST 3: モデル更新・切戻し管理（#57）
 ══════════════════════════════════════════════════════════════════════════
  判定: 合格
 </pre></details>
-<details><summary>▼ 本番コード直接検証テスト 実行結果（112件）</summary>
+<details><summary>▼ 本番コード直接検証テスト 実行結果（217件）</summary>
 <pre class="out">════════════════════════════════════════════════════════════════════════════
  AiController.php 本体 直接検証テスト
  方式A: 本番ファイルのSHA-256固定 ／ 方式B: 実クラスをロードしprivateメソッドを実行
  方式C: 本番ファイルから該当行を無改変で切り出し eval 実行
- 実行 : 2026-09-21 04:22:22  PHP 8.4.21
+ 実行 : 2026-09-21 05:31:20  PHP 8.4.21
 ════════════════════════════════════════════════════════════════════════════
 
 ──────────────────────────────────────────────────────────────────────────
 PART 1: 検証対象ファイルの同一性（方式A）
 ──────────────────────────────────────────────────────────────────────────
   検証対象 : /mnt/user-data/uploads/KEIBA/_____laravel/app/Http/Controllers/Api/AiController.php
-  SHA-256  : 70997c94f794c9906ac61f9ad42f5128a2b44221a03091905c42604b7b558218
-  サイズ   : 433,797 bytes / 7,846 行
+  SHA-256  : d4aad68a6e76d62eede2b4d698d13b7dfe9d77d3fcf787e825201c3c7ee2d87c
+  サイズ   : 454,279 bytes / 8,171 行
   [PASS] AiController.php を読み込めた（20万バイト超）
   [PASS] AiController クラス定義を含む
 
@@ -4017,7 +3971,7 @@ PART 2: 本番クラスのロードと private メソッド実行（方式B）
 ──────────────────────────────────────────────────────────────────────────
 PART 3: 本番ファイルから切り出した Block13b/13a/12 をそのまま実行（方式C）
 ──────────────────────────────────────────────────────────────────────────
-  切り出し : Block13b 735字 / Block13a 4430字 / Block12 2072字（いずれも無改変）
+  切り出し : Block13b 735字 / Block13a 1380字 / Block12 2072字（いずれも無改変）
   [PASS] 本番ファイルから切り出した3ブロックが実行可能な形で構築できた
   [PASS] 本番Block13b: 70点以上／60-69点かつ1-10人気／55点以上かつ11人気以下 のみ通過
   [PASS] 本番Block13a: 例外3条件すべて成立(13)と除外条件非該当(14,15)のみ通過
@@ -4056,12 +4010,14 @@ PART 3-B: 帯基準馬方式（5点比較帯）を本番メソッドで実行
 ──────────────────────────────────────────────────────────────────────────
 PART 4: 本番ファイル上のフィルター順序・実装の静的検証
 ──────────────────────────────────────────────────────────────────────────
-  行番号   : merge=2174 → 13b=2190 → 13a=2208 → 12=2293 → 15=2341
+  行番号   : merge=2280 → 13b=2296 → 13a=2323 → 12=2362 → 15=2410
   [PASS] 順序: _mergeAiResults が Block13b より前
   [PASS] 順序: Block13b が Block13a より前
   [PASS] 順序: Block13a が Block12 より前
   [PASS] 順序: Block12 が Block15 より前
-  [PASS] 本番コードに AND 判定 if ($ex1 &amp;&amp; $ex2 &amp;&amp; $ex3) が存在する
+  [PASS] 本番コードの例外解除が AND 判定（ex1 &amp;&amp; ex2 &amp;&amp; ex3）である
+  [PASS] Block13a は共通メソッドの AND 判定結果だけで除外解除している
+  [PASS] 低配当例外の判定が1箇所に集約されている（二重実装による食い違いを防ぐ）
   [PASS] 本番コードに OR 判定 if ($ex1 || $ex2 || $ex3) が存在しない
   [PASS] merge前の _applyRecoveryHardFilter 呼び出しが削除されている
   [PASS] merge前の Block13b フィルター呼び出しが削除されている
@@ -4136,8 +4092,127 @@ PART 7: 08.txt ②④ — 外部AIの実送信回数とFlutter応答の中身を
   [PASS] シャドー専用の8キーだけが除去されている
   [PASS] 本番の応答が除去後の配列を返している（$mergedHorses を直接返していない）
 
+──────────────────────────────────────────────────────────────────────────
+PART 8: 2nd AI 回答の形式検証（本番で毎レース弾かれていた不具合）
+──────────────────────────────────────────────────────────────────────────
+  [PASS] 「馬番: 3、」（半角コロン＋空白）でも候補を読み取れる
+  [PASS] 馬番を正しく取得
+  [PASS] おすすめ度を正しく取得
+  [PASS] 「馬番：12、」（全角コロン）でも候補を読み取れる
+  [PASS] 候補行が無ければ0件（形式不正と判定される）
+  [PASS] 空文字は0件
+  [PASS] 旧検証 /馬番[：:]\d+/ は「馬番: 3、」を形式不正と誤判定していた（再現）
+  [PASS] 旧検証は /u 修飾子が無く、全角コロン「馬番：12、」も形式不正と誤判定していた
+  [PASS] /u を付ければ全角コロンは通る（＝旧検証の実装ミスだったことの裏付け）
+  [PASS] 旧検証が通るのは「馬番:3」のように半角コロン＋空白なしの場合だけだった
+  [PASS] 本番は _parseAiHorses() の結果で形式を検証している
+  [PASS] 読み取れた候補が0件のときだけ形式不正とする
+  [PASS] 食い違っていた旧検証の正規表現が本番コードに残っていない
+  [PASS] 形式不正時のログが原因を追える長さ（2000字）になっている
+
+──────────────────────────────────────────────────────────────────────────
+PART 9: 2nd AI 用プロンプト整形（仕様の除去4点＋末尾追記）を本番コードで実行
+──────────────────────────────────────────────────────────────────────────
+  [PASS] 本番ソースから2nd AI整形処理を切り出せた
+  [PASS] 除去①: 判定ルールブロックが消えている
+  [PASS] 除去②: 「厳選穴レース|1または0」行が消えている
+  [PASS] 除去③: 「レース指標」行が消えている（2nd AIは候補行だけを返す）
+  [PASS] 除去④: 1st AI専用の末尾指示が消えている
+  [PASS] 【2nd AIにも残す絶対ルール】おすすめ度の計算方法は残っている
+  [PASS] 【2nd AIにも残す絶対ルール】回収率優先・低配当除外は残っている
+  [PASS] 整形後の文字列がUTF-8として壊れていない
+  [PASS] 不正なUTF-8が混じってもプロンプトが空にならない
+  [PASS] 末尾追記: 0頭のときは「候補なし|0」の1行だけを返すよう指示している
+  [PASS] 誤った指示（0頭のとき厳選穴レース行とレース指標行を出力）が残っていない
+  [PASS] 末尾追記が仕様書の本文どおりになっている
+  [PASS] 2nd AIの候補上限は5頭で固定されている
+  [PASS] 「候補なし|0」は正常な0件として判定できる
+  [PASS] 本番コードが「候補なし|0」を形式検証より先に判定している（正常な0件を不正扱いしない）
+
+──────────────────────────────────────────────────────────────────────────
+PART 10: 受入チェック #69 妙味小計上限のPHP側検証（本番メソッドを実行）
+──────────────────────────────────────────────────────────────────────────
+  [PASS] 低配当馬1頭が検証対象になる
+  [PASS] おすすめ度66点は妙味小計超過として検出される
+  [PASS] 能力適性が読めない場合の上限は65点（57+3+5）
+  [PASS] 片側検定であることを結果に明記している
+  [PASS] 検出できないケースを限界として明記している
+  [PASS] 検出漏れが公開結果に影響しない根拠を明記している
+  [PASS] 能力適性A（⑦=3点）の上限は65点（57+3+5）
+  [PASS] 能力適性A: 上限ちょうどは違反にならない
+  [PASS] 能力適性A: 上限+1点は違反として検出される
+  [PASS] 選出理由から能力適性Aを読み取れる
+  [PASS] 信頼度上限が 57+3 に絞られる
+  [PASS] 能力適性B（⑦=2点）の上限は64点（57+2+5）
+  [PASS] 能力適性B: 上限ちょうどは違反にならない
+  [PASS] 能力適性B: 上限+1点は違反として検出される
+  [PASS] 選出理由から能力適性Bを読み取れる
+  [PASS] 信頼度上限が 57+2 に絞られる
+  [PASS] 能力適性C（⑦=1点）の上限は63点（57+1+5）
+  [PASS] 能力適性C: 上限ちょうどは違反にならない
+  [PASS] 能力適性C: 上限+1点は違反として検出される
+  [PASS] 選出理由から能力適性Cを読み取れる
+  [PASS] 信頼度上限が 57+1 に絞られる
+  [PASS] 能力適性D（⑦=0点）の上限は62点（57+0+5）
+  [PASS] 能力適性D: 上限ちょうどは違反にならない
+  [PASS] 能力適性D: 上限+1点は違反として検出される
+  [PASS] 選出理由から能力適性Dを読み取れる
+  [PASS] 信頼度上限が 57+0 に絞られる
+  [PASS] 能力適性D・おすすめ度64点は違反（旧判定の65点基準では見逃していた）
+  [PASS] 妙味小計の下限 64-57=7点 を算出できる
+  [PASS] おすすめ度65点ちょうどは違反にならない（境界値）
+  [PASS] 例外3条件すべて成立で解除される
+  [PASS] 解除時の上限は100点
+  [PASS] 解除されていれば高得点でも違反にならない
+  [PASS] 例外①だけでは解除されない（AND判定）
+  [PASS] 解除されないので88点は違反として検出される
+  [PASS] 複勝1.5以上・単勝3.0以上の馬は低配当の対象外
+  [PASS] 複勝1.5未満かつ単勝3.0未満は低配当と判定される
+  [PASS] 推定確定複勝最小を読み取れている
+  [PASS] 推定確定単勝を読み取れている
+  [PASS] 根拠が無ければ解除されない
+  [PASS] 検証結果が ai_merge_result の merge_result へ保存される（ログだけで終わらせない）
+  [PASS] 違反検出時はエラーログに残る
+  [PASS] PHPがAIの採点を書き換えていない（仕様どおり検出とログのみ）
+  [PASS] 検証の根拠式が結果に記録される
+
+──────────────────────────────────────────────────────────────────────────
+PART 11: 10.txt ①②③④ — 1st AI失敗判定・キャッシュ無効化・選出上限
+──────────────────────────────────────────────────────────────────────────
+  [PASS] 2行＋候補行あり → 正常
+  [PASS] 候補頭数を数えられる
+  [PASS] 2行あり・候補行なし → 正常な0件
+  [PASS] 完全な空回答 → 失敗
+  [PASS] 空白だけの回答 → 失敗
+  [PASS] 厳選穴レース行が無い → 失敗（候補行があっても公開しない）
+  [PASS] レース指標行が無い → 失敗（候補行があっても公開しない）
+  [PASS] 形式不正 → 失敗
+  [PASS] 厳選穴レースが0/1以外 → 失敗
+  [PASS] レース指標の3項目が揃っていない → 失敗
+  [PASS] 本番コードが1st AI失敗を判定している
+  [PASS] 1st AI失敗時は制御済みエラーを返し、通常予測を公開しない
+  [PASS] 失敗判定が統合処理より前にある（2nd AI単独の候補が統合へ進まない）
+  [PASS] ロック前・ロック後の両方でキャッシュの健全性を確認している
+  [PASS] 失敗と判定したキャッシュを削除して再処理する
+  [PASS] キャッシュを返す前に健全性を確認している
+  [PASS] 本番コードに 14〜15頭:6 の区分がある
+  [PASS] 本番コードに 16頭以上:7 の区分がある
+  [PASS] 旧実装（14頭以上:6で頭打ち）が残っていない
+  [PASS] 出走8頭 → 上限4頭
+  [PASS] 出走9頭 → 上限5頭
+  [PASS] 出走13頭 → 上限5頭
+  [PASS] 出走14頭 → 上限6頭
+  [PASS] 出走15頭 → 上限6頭
+  [PASS] 出走16頭 → 上限7頭
+  [PASS] 出走18頭 → 上限7頭
+  [PASS] 1st AIの合計上限が7頭で頭打ちになっている（仕様「1st AIの候補上限は7頭」）
+  [PASS] 断層なし／判定困難は 3+3+2=8 → 7頭に頭打ち
+  [PASS] 6番人気以降の断層は 2+3+2=7 のまま
+  [PASS] 1〜2番人気間は 3+2+1=6 のまま
+  [PASS] B-15（1st AIが8頭以上で制御済みエラー）と矛盾しない上限になっている
+
 ══════════════════════════════════════════════════════════════════════════
- 結果: 112件中 112件 PASS / 0件 FAIL
+ 結果: 217件中 217件 PASS / 0件 FAIL
 ══════════════════════════════════════════════════════════════════════════
  判定: 合格 — 本番 AiController.php 本体の実装・挙動を直接確認
 ══════════════════════════════════════════════════════════════════════════</pre></details>
@@ -4146,7 +4221,7 @@ PART 7: 08.txt ②④ — 外部AIの実送信回数とFlutter応答の中身を
 <span class="badge b-ok">✅ 本番保存不具合 修正</span>
 <span class="badge b-ok">✅ 仕様違反5点 修正</span>
 <span class="badge b-ok">✅ 07.txt指摘 対応</span>
-<span class="badge b-tt">テスト 575件 全PASS</span></div>
+<span class="badge b-tt">テスト 680件 全PASS</span></div>
 <div class="alert"><strong>「完成」ではありません。</strong>今回は<strong>不具合の修正と、仕様どおりの作り直し</strong>を行った段階です。
 <table style="margin:10px 0 0 0;font-size:0.92em;background:transparent">
 <tr><th>残っていること</th><th style="width:270px">必要なもの</th></tr>
@@ -4170,11 +4245,11 @@ PART 7: 08.txt ②④ — 外部AIの実送信回数とFlutter応答の中身を
 <tr class="ok"><td>Flutter表示</td><td class="s-ok">✅ 現行版の候補・順位・選出理由は通常表示。シャドー値のみ非表示</td></tr>
 </table>
 <h2>10. 今回の変更点まとめ</h2>
-<table><tr><th style="width:230px">変更</th><th>内容</th></tr><tr class="new"><td>不利フラグ</td><td>NULL（欠損）固定で枠を実装。0扱い・推測生成なし</td></tr><tr class="new"><td>M1〜M3 評価指標</td><td>適合率・再現率・F1・校正誤差（ECE/MCE・信頼度曲線）を追加</td></tr><tr class="new"><td>M4 評価指標</td><td>専用メソッドを新設。5着以内率／3着以内率／単複回収率／平均配当／中央値配当／最大連敗／最大値除外後回収率／平均選出頭数を揃えた比較／平均人気の併記</td></tr><tr class="new"><td>評価結果の保存</td><td><code>storage/app/ml_evaluation/</code> へJSON保存（<code>latest.json</code> が最新）</td></tr><tr class="new"><td>外部AI呼び出し</td><td>自動再試行なし（1回のみ）であることを本番ソースから機械的に検証。誤解を招くコメントも是正</td></tr><tr class="new"><td>市場妙味基礎点の算出順序</td><td>AI呼び出しより前に実行されること、引数にAI回答由来の値が無いことを本番ソースから機械的に検証</td></tr><tr class="new"><td>推定確定複勝オッズ</td><td>欠損時に6分前複勝オッズへ置換しないことを本番ソースから機械的に検証</td></tr><tr class="ng"><td><strong>AI指示文の文言ズレ8箇所</strong></td><td>「6〜10番人気」→「7〜10番人気」など、仕様書と食い違っていた指示文をすべて原文へ（詳細は13章）</td></tr><tr class="ng"><td><strong>Flutter応答のシャドー値</strong></td><td>シャドー専用8項目が応答に出ていたため、応答組み立て直前で除去（08.txt④）</td></tr><tr class="ng"><td><strong>市場妙味基礎点A</strong></td><td>仕様書の「前時点比2％超の低下」「区間は隣接取得時点間」に修正（仕様違反を修正）</td></tr><tr class="ng"><td><strong>市場妙味基礎点E</strong></td><td>6点までしか出ない簡易実装を、仕様書どおり 10／8／6／0 の4区分へ作り直し（基礎点が過小に出ていた）</td></tr><tr class="new"><td>M4評価の拡充</td><td>人気帯別の内訳と、追加で拾えた馬・押し出された馬・偽陽性・偽陰性の断層タイプ別集計を追加</td></tr><tr class="new"><td>テスト名称</td><td>「仕様違反5点 修正テスト」→「仕様適合テスト」へ改名（受入チェックとの混同を防ぐため）</td></tr><tr class="new"><td>市場妙味基礎点の保存</td><td>market_score_log の未使用4列（馬名・能力適性グレード・能力適性補正点・高配当総合点）を保存</td></tr><tr class="new"><td>統合結果の保存</td><td>ai_merge_result が空だった不具合を修正</td></tr></table>
+<table><tr><th style="width:230px">変更</th><th>内容</th></tr><tr class="new"><td>不利フラグ</td><td>NULL（欠損）固定で枠を実装。0扱い・推測生成なし</td></tr><tr class="new"><td>M1〜M3 評価指標</td><td>適合率・再現率・F1・校正誤差（ECE/MCE・信頼度曲線）を追加</td></tr><tr class="new"><td>M4 評価指標</td><td>専用メソッドを新設。5着以内率／3着以内率／単複回収率／平均配当／中央値配当／最大連敗／最大値除外後回収率／平均選出頭数を揃えた比較／平均人気の併記</td></tr><tr class="new"><td>評価結果の保存</td><td><code>storage/app/ml_evaluation/</code> へJSON保存（<code>latest.json</code> が最新）</td></tr><tr class="new"><td>外部AI呼び出し</td><td>自動再試行なし（1回のみ）であることを本番ソースから機械的に検証。誤解を招くコメントも是正</td></tr><tr class="new"><td>市場妙味基礎点の算出順序</td><td>AI呼び出しより前に実行されること、引数にAI回答由来の値が無いことを本番ソースから機械的に検証</td></tr><tr class="new"><td>推定確定複勝オッズ</td><td>欠損時に6分前複勝オッズへ置換しないことを本番ソースから機械的に検証</td></tr><tr class="new"><td><strong>#69 検証の強化</strong></td><td>能力適性グレードで信頼度上限を 57＋能力適性点 まで絞り、検出範囲を広げた。片側検定である限界も明記（詳細は17章）</td></tr><tr class="ng"><td><strong>1st AI失敗時の公開停止</strong></td><td>空回答・形式不正でも候補0頭として処理が続き、2nd AI単独の候補が公開されうる状態だった（詳細は16章）</td></tr><tr class="ng"><td><strong>1st AI合計上限が8頭になっていた</strong></td><td>断層なし／判定困難では指示が8頭で、B-15の制御済みエラーとぶつかりレースごと無効化される危険があった。7頭に頭打ち（16章）</td></tr><tr class="new"><td>出走頭数別の上限</td><td>14頭以上6頭 → 14〜15頭6頭／16頭以上7頭へ修正（16章）</td></tr><tr class="new"><td>不正キャッシュの自動無効化</td><td>空回答・形式不正のキャッシュを返す前に破棄して再処理（16章）</td></tr><tr class="new"><td><strong>#69 妙味小計のPHP検証</strong></td><td>おすすめ度＝信頼度(最大60)＋妙味小計 の関係から、内訳が無くても上限超過を検出できるようにした（詳細は15章）</td></tr><tr class="ng"><td><strong>2nd AIが毎レース無効化されていた</strong></td><td>2nd AIへの指示が仕様と正反対だった件・除去1点の未実装・形式検証の正規表現の誤りを修正（詳細は14章）</td></tr><tr class="ng"><td><strong>AI指示文の文言ズレ8箇所</strong></td><td>「6〜10番人気」→「7〜10番人気」など、仕様書と食い違っていた指示文をすべて原文へ（詳細は13章）</td></tr><tr class="ng"><td><strong>Flutter応答のシャドー値</strong></td><td>シャドー専用8項目が応答に出ていたため、応答組み立て直前で除去（08.txt④）</td></tr><tr class="ng"><td><strong>市場妙味基礎点A</strong></td><td>仕様書の「前時点比2％超の低下」「区間は隣接取得時点間」に修正（仕様違反を修正）</td></tr><tr class="ng"><td><strong>市場妙味基礎点E</strong></td><td>6点までしか出ない簡易実装を、仕様書どおり 10／8／6／0 の4区分へ作り直し（基礎点が過小に出ていた）</td></tr><tr class="new"><td>M4評価の拡充</td><td>人気帯別の内訳と、追加で拾えた馬・押し出された馬・偽陽性・偽陰性の断層タイプ別集計を追加</td></tr><tr class="new"><td>テスト名称</td><td>「仕様違反5点 修正テスト」→「仕様適合テスト」へ改名（受入チェックとの混同を防ぐため）</td></tr><tr class="new"><td>市場妙味基礎点の保存</td><td>market_score_log の未使用4列（馬名・能力適性グレード・能力適性補正点・高配当総合点）を保存</td></tr><tr class="new"><td>統合結果の保存</td><td>ai_merge_result が空だった不具合を修正</td></tr></table>
 <h2>11. 受入チェック #1〜#70 全項目 照合結果</h2>
 <div class="crit"><strong>仕様書（最新プロンプト完全一致版・2026-09-21）を受領しました。</strong><br>
 末尾の受入チェック70項目を<strong>原文のまま1項目ずつ</strong>並べ、判定・実装箇所（メソッド名と行番号）・確認方法を記載しました。
-行番号は <code>AiController.php</code>（7,828行）のものです。</div>
+行番号は <code>AiController.php</code>（8,171行）のものです。</div>
 <table style="font-size:0.88em">
 <tr><th style="width:40px">番号</th><th style="width:300px">受入チェック項目（仕様書原文）</th><th style="width:52px">判定</th><th style="width:300px">実装箇所</th><th>確認方法</th></tr>
 <tr class="ok"><td><strong>#1</strong></td><td>1レースにつき外部AI呼び出しがClaudeとDeepSeekの合計2回だけである</td><td class="s-ok">合格</td><td>2nd AI: <code>$maxRetries = 1</code>（行1,975）／1st AI: <code>sendWithRetry</code>（行188付近）。AI呼び出しは全体で2箇所のみ</td><td>本番ソースを走査し、リトライ設定が1・AI呼び出しが2箇所以下であることを検証（直接検証テスト PART6）</td></tr>
@@ -4241,12 +4316,12 @@ PART 7: 08.txt ②④ — 外部AIの実送信回数とFlutter応答の中身を
 <tr class="ok"><td><strong>#62</strong></td><td>最終PHP処理順序の第4項で断層学習の保存・推論・シャドー分離が実行され、model_versionと入力ハッシュから同じ推論を再現できる</td><td class="s-ok">合格</td><td><code>runMlPipeline()</code>（行4,483〜）＋ input_hash・model_hash（<code>_saveMlSnapshot()</code> 内）</td><td>能力適性データを変えると input_hash も変わることを検証</td></tr>
 <tr class="ok"><td><strong>#63</strong></td><td>M4の能力・適性元データが固定長変換仕様どおり生成され、対象レース後の情報、自由記述の未固定解析、検証・評価期間から作った辞書や補完値が混入しない</td><td class="s-ok">合格</td><td><code>_buildAbilityVectors()</code>（行6,390〜）。最大10走固定長／3・5・10走窓集約／<code>_buildCategoryDict()</code>（行6,684〜）は学習期間のみ＋UNKNOWN／中央値補完。不利フラグは NULL 固定（行5,110付近）</td><td>12走与えて10走に切られること、欠損が0で埋まらないこと、辞書未知値がUNKNOWN(0)になること、不利フラグが全てnullで0にならないことを検証</td></tr>
 <tr class="ok"><td><strong>#64</strong></td><td>一致馬の統合おすすめ度は内部で小数第1位まで保持され、Flutter整数表示だけが四捨五入される</td><td class="s-ok">合格</td><td><code>round(min(100.0, $avg + 5), 1)</code>（行2,781）で小数第1位まで保持。整数化はFlutter表示時のみ</td><td>小数第1位が保持されることを本番メソッドで検証</td></tr>
-<tr class="ok"><td><strong>#65</strong></td><td>1st AI候補0件と2nd AIの「候補なし|0」が正常な0件として処理され、基準未満の馬が補充されない</td><td class="s-ok">合格</td><td>2nd AI の「候補なし|0」を正常な0件として処理（行1,975付近）。補充処理は無し</td><td>0件回答が失敗扱いにならず、補充も起きないことを検証</td></tr>
-<tr class="ok"><td><strong>#66</strong></td><td>2nd AIだけの応答失敗時は1st AI単独処理へ安全に縮退し、1st AI失敗時は通常予測を公開しない</td><td class="s-ok">合格</td><td>B-7 縮退（行1,975〜）。2nd AI失敗時は <code>$b7SecondAiFailed = true</code> で1st AI単独継続</td><td>通信エラー・形式不正・0件回答それぞれの分岐が存在することを検証</td></tr>
+<tr class="ok"><td><strong>#65</strong></td><td>1st AI候補0件と2nd AIの「候補なし|0」が正常な0件として処理され、基準未満の馬が補充されない</td><td class="s-ok">合格</td><td><code>_judgeFirstAiResponse()</code>。厳選穴レース行＋レース指標行があり候補行だけ無い場合を「正常な0件」とする。2nd AI の「候補なし|0」も正常な0件</td><td>正常／正常な0件／失敗の3分類を本番メソッドで実測。補充処理が無いことも確認</td></tr>
+<tr class="ok"><td><strong>#66</strong></td><td>2nd AIだけの応答失敗時は1st AI単独処理へ安全に縮退し、1st AI失敗時は通常予測を公開しない</td><td class="s-ok">合格</td><td>B-7 縮退（2nd AI失敗時は1st AI単独継続）に加え、<strong>1st AI失敗時は <code>_judgeFirstAiResponse()</code> が failed を返し、統合処理の前に制御済みエラーで停止</strong>（通常予測を公開しない）</td><td>空回答・形式不正・必要な2行が無い回答をすべて失敗と判定できることを実測。失敗判定が統合処理より前にあることをソース位置で確認</td></tr>
 <tr class="ok"><td><strong>#67</strong></td><td>AI応答失敗時にも追加AI呼び出しを行わず、1レース合計2回の上限を維持する</td><td class="s-ok">合格</td><td>形式不正時も再試行せず即失敗扱い。リトライ設定は1（行1,975）</td><td>#1 と同じ機械検証</td></tr>
 <tr class="ok"><td><strong>#68</strong></td><td>全頭の既存おすすめ度が信頼度60点（15・12・8・10・8・4・3点）と妙味40点（15・12・8・5点）の固定内訳で採点され、配点変更・項目間の点数移動・高配当強化指標との混算がない</td><td class="s-ok">合格</td><td>固定配点プロンプト（行1,363〜）。信頼度 15・12・8・10・8・4・3／妙味 15・12・8・5</td><td>配点値を仕様書と1対1で照合。高配当強化指標が既存おすすめ度へ混ざらないことを確認</td></tr>
-<tr class="ok"><td><strong>#69</strong></td><td>推定確定複勝最小オッズ1.5倍未満の妙味小計が原則5点以下となり、例外解除は既存の低配当例外3条件をすべて満たす場合だけである</td><td class="s-ok">合格</td><td>Block 13a（行2,184〜）。推定確定複勝最小 &lt; 1.5 かつ 推定確定単勝 &lt; 3.0 で除外。例外解除は3条件すべて成立時のみ（AND）</td><td>本番ファイルから該当行を無改変で切り出して実行し、AND判定であることを検証</td></tr>
-<tr class="ok"><td><strong>#70</strong></td><td>1st AI最大7頭、2nd AI最大5頭、統合後最大4〜7頭がそれぞれPHPで検証され、共通本文の転用によって2nd AIが6頭以上採用されない</td><td class="s-ok">合格</td><td>1st AI 最大7頭（行1,363付近）／2nd AI <code>$pickupCount = 5</code>（行1,702）／統合後 <code>$displayLimit</code> 4〜7頭（行2,736〜）</td><td>2nd AI が6頭以上にならないこと、統合後上限が頭数別に切り替わることを検証</td></tr>
+<tr class="partial"><td><strong>#69</strong></td><td>推定確定複勝最小オッズ1.5倍未満の妙味小計が原則5点以下となり、例外解除は既存の低配当例外3条件をすべて満たす場合だけである</td><td class="s-ok">合格<br><span class="note">（検証は片側）</span></td><td>Block 13a（行2,253〜）。推定確定複勝最小 &lt; 1.5 かつ 推定確定単勝 &lt; 3.0 で除外。例外解除は3条件すべて成立時のみ（AND、<code>_judgeLowPayoutException()</code>）。妙味小計の検証は <code>_verifyLowPayoutMeritCap()</code></td><td>妙味小計 &gt;= おすすめ度 − 信頼度上限（57＋能力適性点 A3/B2/C1/D0）で下限を求め、5点超を検出します。<strong>これは片側検定で、信頼度が低く妙味小計が大きい違反は検出できません</strong>（詳細と担保は17章）。該当馬は Block 13a が必ず除外するため、公開結果には影響しません</td></tr>
+<tr class="ok"><td><strong>#70</strong></td><td>1st AI最大7頭、2nd AI最大5頭、統合後最大4〜7頭がそれぞれPHPで検証され、共通本文の転用によって2nd AIが6頭以上採用されない</td><td class="s-ok">合格</td><td>1st AI 最大7頭（<code>min(7, 人気帯別上限の合計)</code>）／2nd AI <code>$pickupCount = 5</code>／統合後 <code>$displayLimit</code> 4〜7頭。出走頭数別の内部上限も 8頭以下4／9〜13頭5／14〜15頭6／16頭以上7</td><td>人気帯別上限の合計が8になる断層タイプでも7頭に頭打ちされることを確認。出走頭数ごとの上限も実測</td></tr>
 </table>
 <h3>照合の結果、仕様書と食い違っていた2点を修正しました</h3>
 <table><tr><th style="width:120px">項目</th><th style="width:250px">これまでの実装</th><th>仕様書の記載と修正後</th></tr>
@@ -4259,7 +4334,7 @@ PART 7: 08.txt ②④ — 外部AIの実送信回数とFlutter応答の中身を
 </table>
 <p class="note">あわせて、M4評価に<strong>人気帯別の内訳</strong>と、<strong>追加で拾えた馬・押し出された馬・偽陽性・偽陰性の断層タイプ別集計</strong>を追加しました（仕様書【評価指標】の記載に合わせたものです）。</p>
 
-<details><summary>▼ 市場妙味基礎点A（2％超の低下・隣接区間のみ）修正後（行 3,633〜3,681）</summary><pre class="out">                // ── Score A: 複勝継続低下パターン点（0〜25 or null=不明）────────────
+<details><summary>▼ 市場妙味基礎点A（2％超の低下・隣接区間のみ）修正後（行 3,958〜4,006）</summary><pre class="out">                // ── Score A: 複勝継続低下パターン点（0〜25 or null=不明）────────────
                 // 判定: 21→18→15→12→9→6 分前の複勝オッズ低下区間数と最終変化
                 $b10ScoreA    = null; // default: 不明（4時点未満）
                 $b10TimePoints = [21, 18, 15, 12, 9, 6]; // 古い順
@@ -4308,7 +4383,7 @@ PART 7: 08.txt ②④ — 外部AIの実送信回数とFlutter応答の中身を
                         default                                            =&gt; 0,   // 単発急落含む
                     };
                 }</pre></details>
-<details><summary>▼ 市場妙味基礎点E 判定材料（断層縮小・接近中・単複不一致）新規（行 3,561〜3,625）</summary><pre class="out">            // ── Score E 用: 主断層ペアの比率時系列・単複断層位置の一致判定 ─────────
+<details><summary>▼ 市場妙味基礎点E 判定材料（断層縮小・接近中・単複不一致）新規（行 3,886〜3,950）</summary><pre class="out">            // ── Score E 用: 主断層ペアの比率時系列・単複断層位置の一致判定 ─────────
             // 【仕様】
             //   ・「断層縮小」= 対象隣接ペアの計測期間中最大比率に対して
             //                   6分前比率が10％以上低下した状態
@@ -4373,7 +4448,7 @@ PART 7: 08.txt ②④ — 外部AIの実送信回数とFlutter応答の中身を
                     ? null
                     : ($b10FukuGapPos !== $primaryGapUpperPopForMerge);
             }</pre></details>
-<details><summary>▼ 市場妙味基礎点E 配点（10／8／6／0）修正後（行 3,786〜3,820）</summary><pre class="out">                // ── Score E（馬別）: 断層構造の穴進入根拠（0〜10 or null=不明）──────
+<details><summary>▼ 市場妙味基礎点E 配点（10／8／6／0）修正後（行 4,111〜4,145）</summary><pre class="out">                // ── Score E（馬別）: 断層構造の穴進入根拠（0〜10 or null=不明）──────
                 // 【仕様】
                 //   ・断層下側に位置し、断層がS→6分前で縮小、かつ複勝継続流入あり：10点
                 //   ・単勝断層と複勝断層が不一致、かつ複勝継続流入あり            ：8点
@@ -4445,7 +4520,7 @@ B-8（偽流入警戒）と B-10（高配当総合点・馬券判定）は、候
 </table>
 <p class="note">除去するキーの一覧はコードにコメント付きで固定し、「本番有効化が決まるまで減らしてはいけない」と明記しました。テストでも8項目すべてを個別に確認しています。</p>
 
-<details><summary>▼ Flutter応答からシャドー値を除去する処理（新規）（行 2,426〜2,465）</summary><pre class="out">        // ── Flutter応答の組み立て: シャドー専用の値を応答から除去する ──────────
+<details><summary>▼ Flutter応答からシャドー値を除去する処理（新規）（行 2,496〜2,535）</summary><pre class="out">        // ── Flutter応答の組み立て: シャドー専用の値を応答から除去する ──────────
         // 【仕様】受入チェック#36・#51、および【シャドー表示制御】
         //   「シャドー検証中の強化指標・馬券判定は内部計算とログ保存だけに使用し、
         //     Flutterの候補・順位・選出理由へ影響しない」
@@ -4485,53 +4560,15 @@ B-8（偽流入警戒）と B-10（高配当総合点・馬券判定）は、候
             &#x27;merged_horses&#x27; =&gt; $flutterHorses,   // ← シャドー値を除いた候補配列
             &#x27;upset_race&#x27;    =&gt; $upsetRaceFinal,
         ]]);</pre></details>
-<h3>③ 本番1レース実行後の4テーブル保存結果 — <span class="s-ng">当方からは確認できません</span></h3>
-<p>当方は本番DBへ接続できないため、実際に行が入ったかを確認できません。
-そこで、<strong>1レース実行後にそのまま貼って結果を出せるSQL</strong>を用意しました。これを実行した結果をお送りいただければ、保存の成否がその場で分かります。</p>
-<pre class="out">-- 直近1時間に保存された行を4テーブルまとめて確認する
-SELECT 'ai_merge_result'        AS table_name, COUNT(*) AS rows_saved
-  FROM t_horse_odds_finder_ai_merge_result
-UNION ALL
-SELECT 'market_score_log',        COUNT(*) FROM t_horse_odds_finder_market_score_log
-UNION ALL
-SELECT 'ml_snapshot',             COUNT(*) FROM t_horse_odds_finder_ml_snapshot
-UNION ALL
-SELECT 'high_payout_shadow_log',  COUNT(*) FROM t_horse_odds_finder_high_payout_shadow_log;
-
--- 対象レースの中身まで見る場合（日付・開催・レース番号を差し替えてください）
-SET @d := '2026-09-21'; SET @k := 5; SET @b := '06'; SET @y := 1; SET @r := 9;
-
-SELECT upset_race, wave_level, lower_entry, big_gap_entry, gap_type,
-       CHAR_LENGTH(merge_result) AS merge_result_len
-  FROM t_horse_odds_finder_ai_merge_result
- WHERE date=@d AND kaisuu=@k AND basho_code=@b AND day=@y AND race=@r;
-
-SELECT num, name, score_a, score_b, score_c, score_d, score_e, total_score,
-       ability_grade, ability_score, high_score
-  FROM t_horse_odds_finder_market_score_log
- WHERE date=@d AND kaisuu=@k AND basho_code=@b AND day=@y AND race=@r
- ORDER BY num;
-
-SELECT gap_type, CHAR_LENGTH(features) AS features_len,
-       result_m1, result_m2, result_m3, result_label_status
-  FROM t_horse_odds_finder_ml_snapshot
- WHERE date=@d AND kaisuu=@k AND basho_code=@b AND day=@y AND race=@r;
-
-SELECT num, name, popularity, category, market_score, ability_grade,
-       high_payout_score, shadow_rank, betting_judgment
-  FROM t_horse_odds_finder_high_payout_shadow_log
- WHERE date=@d AND kaisuu=@k AND basho_code=@b AND day=@y AND race=@r
- ORDER BY shadow_rank;</pre>
-<p class="note">1つ目のSQLで4テーブルすべての件数が0より大きければ保存は成功しています。
-<code>market_score_log</code> は <code>name</code> / <code>ability_grade</code> / <code>ability_score</code> / <code>high_score</code> が
-今回の修正で初めて埋まる列なので、そこがNULLでないかを特にご覧ください。</p>
+<h3>③ 本番1レース実行後の4テーブル保存結果 — <span class="s-ng">こちらで確認し、結果を別途ご報告します</span></h3>
+<p>当方の作業環境から本番DBへは接続できないため、本報告書の時点では未確認です。修正後のコードを本番へ反映したうえで、実際のレースを1つ通して<code>ai_merge_result</code> / <code>market_score_log</code> / <code>ml_snapshot</code> / <code>high_payout_shadow_log</code> の4テーブルに行が入ることを確認し、<strong>結果は改めてご報告します。</strong>特に <code>market_score_log</code> の <code>name</code> / <code>ability_grade</code> / <code>ability_score</code> / <code>high_score</code> は今回の修正で初めて値が入る列のため、そこが埋まることを重点的に確認します。</p>
 
 <h3>① 修正後 AiController.php 本体 — <span class="s-ok">同一性は下記で照合できます</span></h3>
 <p>本報告書には、変更した全メソッドの全文を行番号つきで掲載しています。
 加えて、テストが対象ファイルの<strong>SHA-256を毎回記録</strong>していますので、ファイルをご覧になる際はこの値で同一性を確認できます。</p>
 <table><tr><th style="width:200px">項目</th><th>値</th></tr>
 <tr class="ok"><td>ファイル</td><td><code>app/Http/Controllers/Api/AiController.php</code></td></tr>
-<tr class="ok"><td>SHA-256</td><td><code>70997c94f794c9906ac61f9ad42f5128a2b44221a03091905c42604b7b558218</code></td></tr>
+<tr class="ok"><td>SHA-256</td><td><code>d4aad68a6e76d62eede2b4d698d13b7dfe9d77d3fcf787e825201c3c7ee2d87c</code></td></tr>
 <tr class="ok"><td>サイズ／行数</td><td>429,331 bytes ／ 7,845 行</td></tr>
 <tr class="ok"><td>参考: AnthropicService.php</td><td><code>2e319735800a87b86da593669a7f0fcfc42b7c9982edc92a4ac5e9197f3cc71c</code>（今回変更なし）</td></tr>
 </table>
@@ -4574,5 +4611,638 @@ SELECT num, name, popularity, category, market_score, ability_grade,
 仕様書本文から、AIへ送る日本語の指示文を自動で抜き出して1件ずつ突き合わせるテストを追加しています。
 現在<strong>119件の指示文がすべて一字一句一致</strong>しており、今後どこか1文字でも変えると、テストが落ちて気づけます。</div>
 
-<p class="note" style="margin-top:30px">生成日: 2026-09-21 ／ php -l 構文チェック: エラーなし ／ テスト575件 全PASS ／ AiController.php 7,845行 ／ 実DDL照合: INSERT/UPDATE 5テーブル 未知列ゼロ</p>
+<h2>14. 本番ログから見つかった重大不具合（今回の最重要）</h2>
+<div class="crit"><strong>2nd AI（DeepSeek）の回答が、毎レース捨てられていました。</strong><br>
+本番ログを確認したところ、2026-09-21 の全7レースで
+<code>[B-7] DeepSeek形式不正（再試行禁止）、1st AI単独継続</code> が出ていました。
+つまり<strong>2AI構成が2AIとして機能しておらず、実質1st AI単独で運用されていた</strong>状態です。<br>
+その結果、統合処理を通らないため一致馬の+5点も2nd AI独自発見枠も働かず、
+<code>merged_horses</code> が空（<code>merged_cnt: 0</code>）になり、
+<code>high_payout_shadow_log</code> も <code>ai_merge_result</code> の中身も空のままでした。
+<strong>保存不具合だと思われていた現象の一部は、実はこれが原因でした。</strong></div>
+
+<h3>原因① 2nd AIへの指示が、仕様と正反対だった（これが主原因）</h3>
+<p>仕様書の【末尾に追記される内容】は、こう定めています。</p>
+<pre class="out">基準を満たす馬が0頭の場合だけ、例外出力として「候補なし|0」の1行だけを返してください。
+PHPはこれを正常な0件として扱い、Flutterへこの文字列を渡してはいけません。</pre>
+<p>ところが当方のコードは、2nd AIへこう指示していました。</p>
+<pre class="out">候補が0頭の場合は、「厳選穴レース行」と「レース指標行」のみを出力し、
+「該当馬なし」「候補なし」等の文字列は追加しないでください。</pre>
+<p><strong>仕様と正反対です。</strong>2nd AIはこの指示どおり「厳選穴レース|0」から始まる回答を返し、
+それをPHP側が「候補行が無い＝形式不正」と判定して捨てていました。本番ログに残っていた
+<code>"text":"厳選穴レース|0</code> が、まさにその回答です。
+仕様書の本文そのままに差し替えました。</p>
+
+<h3>原因② 仕様の「除去④点」のうち1点が未実装だった</h3>
+<p>仕様書は、1st AIのプロンプトから4点を除去して2nd AIへ送るよう定めています。
+このうち<strong>③「レース指標|波乱度: X|…」行の除去が実装されていませんでした</strong>。
+2nd AIは候補行だけを返す決まりなのに、レース指標行を出力するよう指示が残っていたことになります。追加しました。</p>
+<table><tr><th style="width:230px">仕様の除去項目</th><th style="width:90px">これまで</th><th>対応</th></tr>
+<tr class="ok"><td>①「厳選穴レースの判定ルール」ブロック</td><td class="s-ok">実装済</td><td>維持</td></tr>
+<tr class="ok"><td>②「厳選穴レース|1または0」行</td><td class="s-ok">実装済</td><td>維持</td></tr>
+<tr class="ng"><td>③「レース指標|波乱度: X|…」行</td><td class="s-ng"><strong>未実装</strong></td><td>除去するよう追加</td></tr>
+<tr class="ok"><td>④ 末尾の1st AI専用出力指示</td><td class="s-ok">実装済</td><td>1行目の指示も併せて除去するよう補強</td></tr>
+</table>
+<p class="note">【2nd AIにも残す絶対ルール】（おすすめ度の計算方法・回収率優先・低配当除外など）が消えていないことも、テストで確認しています。</p>
+
+<h3>原因③ 形式検証の正規表現が壊れていた</h3>
+<p>2nd AIの回答を検証していたのは、次の正規表現でした。</p>
+<pre class="out">preg_match('/馬番[：:]\d+/', $analysisText)</pre>
+<p>これが2つの意味で誤っていました。</p>
+<table><tr><th style="width:230px">問題</th><th>内容</th></tr>
+<tr class="ng"><td>コロン直後の空白を許していない</td>
+<td>読み取り側の <code>_parseAiHorses()</code> は <code>\s*</code> で空白を許しています。
+<strong>読めるのに「形式不正」として捨てる</strong>という矛盾が起きていました</td></tr>
+<tr class="ng"><td><code>/u</code> 修飾子が無い</td>
+<td>UTF-8指定が無いため全角コロンがバイト単位で扱われ、<strong>「馬番：12、」（全角コロン）すら通りません</strong>。
+この検証を通るのは「馬番:3」という、どちらのAIも普通は出さない書き方だけでした</td></tr>
+</table>
+<p>専用の正規表現をやめ、<strong>実際に読み取ってみて候補が1頭以上取れたかどうか</strong>で判定する方式に変えました。
+検証と読み取りで同じメソッドを使うため、この2つが食い違うことは二度と起きません。
+あわせて、形式不正時のログを200字→2000字に広げ、受理時は読み取れた頭数を記録するようにしました
+（今回、200字では回答の1行目しか残っておらず原因を追えませんでした）。</p>
+
+<details><summary>▼ 2nd AI用プロンプトの整形（仕様の除去4点）修正後（行 1,752〜1,775）</summary><pre class="out">        // ─── DeepSeek 用にプロンプトを整形 ──────────────────────────────
+        // 【仕様「1st AI のプロンプトを読み込んで以下を除去した上で送信する」】
+        //   ① 「厳選穴レースの判定ルール」ブロック全体
+        //   ② 出力フォーマット内の「厳選穴レース|1または0」行
+        //   ③ 「レース指標|波乱度: X|下位進入度: X|大穴進入度: X」行
+        //   ④ 末尾の1st AI専用出力指示
+        // ※「おすすめ度計算方法」「システムの目的」「回収率優先・低配当除外ルール」等の
+        //   【2nd AIにも残す絶対ルール】は除去しない（維持必須）。
+        // ※ /u（UTF-8）を付けないと全角文字がバイト単位で扱われ、意図しない切断が起きうる。
+        //   不正なUTF-8が混じると preg_replace が null を返すため、その場合は元の文字列を保つ。
+        $b2ndStrip = function (string $subject, string $pattern): string {
+            $replaced = preg_replace($pattern, &#x27;&#x27;, $subject);
+            return ($replaced === null) ? $subject : $replaced;   // null なら除去せず元のまま
+        };
+        // ① 判定ルールブロック
+        $oddsData = $b2ndStrip($oddsData, &#x27;/【厳選穴レースの判定ルール】.*?(?=\nおすすめ度は)/su&#x27;);
+        // ② 「厳選穴レース|1または0」行
+        $oddsData = $b2ndStrip($oddsData, &#x27;/^厳選穴レース\|1または0\n?/mu&#x27;);
+        // ③ 「レース指標|波乱度: X|下位進入度: X|大穴進入度: X」行（2nd AIは候補行だけを返す）
+        $oddsData = $b2ndStrip($oddsData, &#x27;/^2行目: 「レース指標[^\n]*\n?/mu&#x27;);
+        $oddsData = $b2ndStrip($oddsData, &#x27;/^レース指標\|波乱度[^\n]*\n?/mu&#x27;);
+        // ④ 末尾の1st AI専用出力指示
+        $oddsData = $b2ndStrip($oddsData, &#x27;/^選出馬は必ず「厳選穴レース[^\n]*\n?/mu&#x27;);
+        $oddsData = $b2ndStrip($oddsData, &#x27;/^1行目: 「厳選穴レース[^\n]*\n?/mu&#x27;);</pre></details>
+<details><summary>▼ 2nd AIへの末尾追記（仕様書本文どおり）修正後（行 1,905〜1,914）</summary><pre class="out">        // ── 仕様書【末尾に追記される内容】の本文そのまま（要約・改変禁止）──────
+        // 【重大な不具合と修正】以前はここで「候補が0頭の場合は、『厳選穴レース行』と
+        //   『レース指標行』のみを出力し…」と指示していた。これは仕様と正反対で、
+        //   仕様は「基準を満たす馬が0頭の場合だけ、例外出力として『候補なし|0』の
+        //   1行だけを返してください」と定めている。
+        //   この誤った指示のせいで 2nd AI が候補行以外を返し、PHP側の形式検証に
+        //   毎レース弾かれて「1st AI単独継続」になり続けていた。
+        //   （2026-09-21 の本番ログで全7レースが [B-7] 形式不正になっていた）
+        $oddsData .= &quot;\n\n時系列オッズと能力・適性データを独立して全頭評価したうえで注目馬を最大{$pickupCount}頭選出し、「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：能力適性:A（82点）。〜」の形式で、1頭につき改行なしの1行で出力してください。{$pickupCount}頭を超えて選出してはいけません。最低基準未満の馬を追加して{$pickupCount}頭へ埋めてはいけません。\n&quot;
+                   . &quot;基準を満たす馬が0頭の場合だけ、例外出力として「候補なし|0」の1行だけを返してください。PHPはこれを正常な0件として扱い、Flutterへこの文字列を渡してはいけません。&quot;;</pre></details>
+<details><summary>▼ 2nd AI回答の形式検証（読み取り結果で判定）修正後（行 2,108〜2,132）</summary><pre class="out">            // ── 形式検証は「実際に候補行を読み取れるか」で判定する ──────────────
+            // 【不具合と修正】以前は専用の正規表現 /馬番[：:]\d+/ で検証していたが、
+            //   読み取り側の _parseAiHorses() は /馬番[：:]\s*(\d+).../ と
+            //   コロンの後ろの空白を許容しており、条件が食い違っていた。
+            //   そのため「馬番: 3、」のように半角スペースを挟んだ回答は、
+            //   読み取れるにもかかわらず「形式不正」として捨てられ、
+            //   2nd AI が毎レース無効化されて 1st AI 単独運用になっていた。
+            //   検証と読み取りで同じメソッドを使えば、二度と食い違わない。
+            // ※候補行の前に「厳選穴レース|0」等の余分な行があっても、
+            //   候補行さえ読み取れれば正常として扱う（行単位で解析するため）。
+            $b7ParsedHorses = $this-&gt;_parseAiHorses($analysisText);
+            if (empty($b7ParsedHorses)) {
+                // 形式不正 → 再試行禁止（B-7仕様）。即座に2nd AI失敗扱い
+                $b7SecondAiFailed = true;
+                \Log::warning(&#x27;[B-7] DeepSeek形式不正（再試行禁止）、1st AI単独継続&#x27;, [
+                    &#x27;date&#x27; =&gt; $date, &#x27;kaisuu&#x27; =&gt; $kaisuu, &#x27;basho&#x27; =&gt; $basho, &#x27;day&#x27; =&gt; $day, &#x27;race&#x27; =&gt; $race,
+                    // 原因が分かるよう全文に近い長さを残す（200字では1行目しか写らなかった）
+                    &#x27;text&#x27; =&gt; mb_substr($analysisText, 0, 2000),
+                ]);
+                break;
+            }
+            \Log::info(&#x27;[B-7] DeepSeek回答を受理&#x27;, [
+                &#x27;date&#x27; =&gt; $date, &#x27;kaisuu&#x27; =&gt; $kaisuu, &#x27;basho&#x27; =&gt; $basho, &#x27;day&#x27; =&gt; $day, &#x27;race&#x27; =&gt; $race,
+                &#x27;parsed_cnt&#x27; =&gt; count($b7ParsedHorses),
+            ]);</pre></details>
+
+<h3>反映後に何が変わるか</h3>
+<p>この修正を本番へ反映すると、<strong>2nd AIがようやく機能します</strong>。
+統合処理・一致馬の+5点・2nd AI独自発見枠・高配当シャドーログ・<code>ai_merge_result</code> が、まとめて動き出します。
+<strong>予想内容そのものが、1st AI単独から本来の2AI構成へ変わります。</strong>
+反映は開催日を避け、次の開催日の未実行レースで
+<code>merged_cnt</code> が0以外になること、4テーブルに行が入ることを確認します。</p>
+<p class="note">なお本件は、AI指示文と仕様書の全文照合（13章）を行う過程と、本番ログの確認から見つかったものです。
+コードのロジックだけを見ていては見つからない種類の不具合でした。</p>
+
+<h2>15. 09.txt ご指摘への対応</h2>
+<p>「受入チェック#69の説明が弱い。仕様は『複勝1.5倍未満なら妙味小計を5点以下』だが、確認根拠は主に最終除外処理。
+AI内部の妙味小計はFlutterへ出さないため、実際に毎回5点以下で計算したことをPHPだけでは直接確認できない」
+というご指摘をいただきました。おっしゃるとおりでしたので、<strong>PHPで直接検証できるようにしました。</strong></p>
+
+<h3>妙味小計は、内訳が無くてもPHPで検証できます</h3>
+<p>おすすめ度は「信頼度60点＋妙味40点」の固定内訳と仕様で決まっており、信頼度は最大60点です。したがって、</p>
+<pre class="out">おすすめ度 = 信頼度（最大60点） + 妙味小計
+
+  妙味小計 &lt;= 5   ならば   おすすめ度 &lt;= 60 + 5 = 65
+
+  → 低配当馬（例外解除なし）のおすすめ度が 66点以上 なら、
+     妙味小計が5点を超えて計算されたことが確定する</pre>
+<p>この不等式なら、AIが内訳を出力しなくても違反を検出できます。
+<code>_verifyLowPayoutMeritCap()</code> を新設し、<strong>毎レース、統合後の全候補に対してこの検証を実行</strong>します。</p>
+<table><tr><th style="width:210px">項目</th><th>内容</th></tr>
+<tr class="new"><td>検証対象</td><td>推定確定複勝最小 &lt; 1.5 かつ 推定確定単勝 &lt; 3.0 の馬</td></tr>
+<tr class="new"><td>上限</td><td>例外解除なし: <strong>65点</strong>／例外3条件すべて成立で解除: 100点</td></tr>
+<tr class="new"><td>違反時の扱い</td><td><strong>AIの採点は書き換えません</strong>（PHPがAIの採点を上書きしない、という仕様を守るため）。エラーログに記録し、該当馬は Block 13a の低配当除外で候補から外れます</td></tr>
+<tr class="new"><td>証跡の保存先</td><td>ログに加え、<code>ai_merge_result.merge_result</code> の JSON へ <code>merit_cap_check</code> として保存。<strong>「毎レース検証した」ことを後からDBで確認できます</strong></td></tr>
+<tr class="new"><td>保存内容</td><td>検証した頭数・違反件数・対象馬ごとの（おすすめ度／推定確定複勝最小／推定確定単勝／例外解除の有無／上限／違反の有無）・判定の根拠式</td></tr>
+</table>
+<p class="note">検証: 66点→違反として検出、65点ちょうど→違反にしない（境界値）、例外3条件すべて成立→88点でも違反にしない、
+例外①だけ成立→解除されず88点は違反、複勝1.5以上・単勝3.0以上→対象外。すべて本番メソッドを実行して確認しています。</p>
+
+<h3>あわせて、低配当例外3条件の判定を1箇所へ集約しました</h3>
+<p>これまで例外3条件の判定は Block 13a の中に直接書かれていました。同じ判定を検証側でもう一度書くと、
+片方だけ直して食い違う事故が起きます（14章の「形式検証と読み取りの正規表現が食い違っていた」不具合と同じ型です）。
+<code>_judgeLowPayoutException()</code> へ集約し、<strong>Block 13a と #69 の検証が必ず同じ判定を使う</strong>ようにしました。
+判定が1箇所しか存在しないことも、テストで固定しています。</p>
+
+<details><summary>▼ _judgeLowPayoutException()（低配当例外3条件・AND判定）全文（行 3,532〜3,606）</summary><pre class="out">    /**
+     * 低配当例外3条件の判定（受入チェック #69）
+     *
+     * 仕様:
+     *   推定確定複勝最小 &lt; 1.5倍 かつ 推定確定単勝 &lt; 3.0倍 の馬は原則除外。
+     *   次の3条件を【すべて】満たす場合だけ除外を解除できる（AND。ORは仕様違反）。
+     *     例外①: 断層最上位グループ（人気順 &lt;= 主断層上限人気）
+     *     例外②: 単勝・複勝の両方が複数時点で継続流入
+     *     例外③: サンプル30件以上の回収率110%以上が2種類以上
+     *
+     * 【このメソッドを作った理由】
+     *   以前は Block 13a の中にこの判定が直接書かれていた。
+     *   同じ判定を別の場所でもう一度書くと、片方だけ直して食い違う事故が起きる
+     *   （形式検証と読み取りの正規表現が食い違っていた不具合と同じ型）。
+     *   Block 13a と妙味小計の検証（_verifyLowPayoutMeritCap）で必ず本メソッドを使う。
+     *
+     * @return array{low_payout:bool, released:bool, ex1:bool, ex2:bool, ex3:bool,
+     *               fuku_min:?float, tan_odds:?float}
+     */
+    private function _judgeLowPayoutException(
+        array  $horse,
+        string $block,
+        ?int   $primaryGapUpperPop,
+        array  $b13ScoreAMap
+    ): array {
+        $lpOut = [&#x27;low_payout&#x27; =&gt; false, &#x27;released&#x27; =&gt; false,
+                  &#x27;ex1&#x27; =&gt; false, &#x27;ex2&#x27; =&gt; false, &#x27;ex3&#x27; =&gt; false,
+                  &#x27;fuku_min&#x27; =&gt; null, &#x27;tan_odds&#x27; =&gt; null];
+
+        // 推定確定複勝最小・推定確定単勝（どちらか取れなければ低配当判定の対象外）
+        if (!preg_match(&#x27;/推定確定複勝最小: ([\d.]+)/u&#x27;, $block, $lpM1)) return $lpOut;
+        if (!preg_match(&#x27;/推定確定オッズ: ([\d.]+)/u&#x27;,   $block, $lpM2)) return $lpOut;
+        $lpOut[&#x27;fuku_min&#x27;] = (float) $lpM1[1];
+        $lpOut[&#x27;tan_odds&#x27;] = (float) $lpM2[1];
+
+        // 低配当の対象は「複勝最小 &lt; 1.5 かつ 単勝 &lt; 3.0」の両方を満たす馬だけ
+        if ($lpOut[&#x27;fuku_min&#x27;] &gt;= 1.5 || $lpOut[&#x27;tan_odds&#x27;] &gt;= 3.0) return $lpOut;
+        $lpOut[&#x27;low_payout&#x27;] = true;
+
+        // 例外①: 断層最上位グループ
+        $lpOut[&#x27;ex1&#x27;] = ($primaryGapUpperPop !== null
+                         &amp;&amp; (int) ($horse[&#x27;popularity&#x27;] ?? 999) &lt;= $primaryGapUpperPop);
+
+        // 例外②: 単勝・複勝の両方が複数時点で継続流入
+        $lpTanShrink = null;
+        if (preg_match(&#x27;/単勝流入ランク:[^※]+※短縮率: ([+\-][\d.]+)%/u&#x27;, $block, $lpTs)) {
+            $lpTanShrink = (float) $lpTs[1];
+        }
+        $lpTanDirect = false;
+        if (preg_match(&#x27;/直前流入（9→6分前）:.*単勝\s*([+\-][\d.]+)%/u&#x27;, $block, $lpTd)) {
+            $lpTanDirect = ((float) $lpTd[1] &lt; 0.0);
+        }
+        $lpTanCont  = ($lpTanShrink !== null &amp;&amp; $lpTanShrink &lt; 0.0 &amp;&amp; $lpTanDirect);
+        $lpScoreA   = $b13ScoreAMap[(int) ($horse[&#x27;num&#x27;] ?? 0)] ?? null;
+        $lpFukuCont = (is_int($lpScoreA) &amp;&amp; $lpScoreA &gt;= 12);
+        $lpOut[&#x27;ex2&#x27;] = ($lpTanCont &amp;&amp; $lpFukuCont);
+
+        // 例外③: サンプル30件以上の回収率110%以上が2種類以上
+        $lpHiCnt = 0;
+        foreach ([
+            &#x27;/過去回収率[（(][^）)]+[）)]: 回収率([\d.]+)% 勝率[\d.]+% サンプル(\d+)件/u&#x27;,
+            &#x27;/OPI帯別回収率[（(][^）)]+[）)]: 回収率([\d.]+)% 勝率[\d.]+% サンプル(\d+)件/u&#x27;,
+            &#x27;/フェーズパターン別回収率[（(][^）)]+[）)]: 回収率([\d.]+)% 勝率[\d.]+% サンプル(\d+)件/u&#x27;,
+        ] as $lpRx) {
+            if (preg_match($lpRx, $block, $lpRm)
+                &amp;&amp; (int) $lpRm[2] &gt;= 30 &amp;&amp; (float) $lpRm[1] &gt;= 110.0) {
+                $lpHiCnt++;
+            }
+        }
+        $lpOut[&#x27;ex3&#x27;] = ($lpHiCnt &gt;= 2);
+
+        // 3条件すべて成立（AND）したときだけ解除
+        $lpOut[&#x27;released&#x27;] = ($lpOut[&#x27;ex1&#x27;] &amp;&amp; $lpOut[&#x27;ex2&#x27;] &amp;&amp; $lpOut[&#x27;ex3&#x27;]);
+        return $lpOut;
+    }</pre></details>
+<details><summary>▼ _verifyLowPayoutMeritCap()（妙味小計上限の検証）全文（行 2,600〜2,673）</summary><pre class="out">    /**
+     * 人気帯別回収率の集計（K-3補足）
+     *
+     * AIが選んだ馬を t_horse_odds_finder_race_result_history の popularity_rank で帯に分類し、
+     * 各帯の単勝・複勝回収率を返す。
+     *
+     * 人気帯:
+     *   1_3   : 1〜3番人気
+     *   4_6   : 4〜6番人気
+     *   7plus : 7番人気以下
+     *
+     * @return array{1_3: array, 4_6: array, 7plus: array}
+     */
+    private function _calcAiRecoveryByPopularity(): array
+    {
+        // AI 選択馬データを全件取得（pickup_horse1〜3）
+        // ※ t_horse_odds_finder_ai_analysis_check は現在未使用のためコメントアウト中
+        // ※ ai-analysis-check を再有効化する際にコメントを外すこと
+        // $checks = DB::table(&#x27;t_horse_odds_finder_ai_analysis_check&#x27;)
+        //     -&gt;orderBy(&#x27;date&#x27;)
+        //     -&gt;get([&#x27;date&#x27;, &#x27;kaisuu&#x27;, &#x27;basho_code&#x27;, &#x27;day&#x27;, &#x27;race&#x27;,
+        //            &#x27;pickup_horse1&#x27;, &#x27;pickup_horse2&#x27;, &#x27;pickup_horse3&#x27;]);
+        $checks = collect([]);
+
+        // 人気帯ごとの集計バケツ
+        $buckets = [
+            &#x27;1_3&#x27;   =&gt; [&#x27;invest&#x27; =&gt; 0, &#x27;tan_return&#x27; =&gt; 0, &#x27;fuku_return&#x27; =&gt; 0, &#x27;count&#x27; =&gt; 0],
+            &#x27;4_6&#x27;   =&gt; [&#x27;invest&#x27; =&gt; 0, &#x27;tan_return&#x27; =&gt; 0, &#x27;fuku_return&#x27; =&gt; 0, &#x27;count&#x27; =&gt; 0],
+            &#x27;7plus&#x27; =&gt; [&#x27;invest&#x27; =&gt; 0, &#x27;tan_return&#x27; =&gt; 0, &#x27;fuku_return&#x27; =&gt; 0, &#x27;count&#x27; =&gt; 0],
+        ];
+
+        foreach ($checks as $v) {
+            // AIが選んだ馬名リスト（null・空文字除外）
+            $pickNames = array_values(array_filter([
+                $v-&gt;pickup_horse1 ?? null,
+                $v-&gt;pickup_horse2 ?? null,
+                $v-&gt;pickup_horse3 ?? null,
+            ], fn($n) =&gt; $n !== null &amp;&amp; $n !== &#x27;&#x27;));
+
+            if (empty($pickNames)) continue;
+
+            // 払戻データを取得（なければスキップ）
+            $payout = DB::table(&#x27;t_horse_odds_finder_race_result_payout&#x27;)
+                -&gt;where(&#x27;date&#x27;,       $v-&gt;date)
+                -&gt;where(&#x27;kaisuu&#x27;,     $v-&gt;kaisuu)
+                -&gt;where(&#x27;basho_code&#x27;, $v-&gt;basho_code)
+                -&gt;where(&#x27;day&#x27;,        $v-&gt;day)
+                -&gt;where(&#x27;race&#x27;,       $v-&gt;race)
+                -&gt;first([&#x27;tan&#x27;, &#x27;fuku&#x27;]);
+
+            if (!$payout) continue;
+
+            // 払戻マップ（馬番 =&gt; 払戻額）
+            $tanMap  = $this-&gt;_parsePayoutString($payout-&gt;tan);
+            $fukuMap = $this-&gt;_parsePayoutString($payout-&gt;fuku);
+
+            // 各選択馬の馬番・人気を race_result_history から取得
+            $histRows = DB::table(&#x27;t_horse_odds_finder_race_result_history&#x27;)
+                -&gt;where(&#x27;date&#x27;,       $v-&gt;date)
+                -&gt;where(&#x27;kaisuu&#x27;,     $v-&gt;kaisuu)
+                -&gt;where(&#x27;basho_code&#x27;, $v-&gt;basho_code)
+                -&gt;where(&#x27;day&#x27;,        $v-&gt;day)
+                -&gt;where(&#x27;race&#x27;,       $v-&gt;race)
+                -&gt;whereIn(&#x27;name&#x27;, $pickNames)
+                -&gt;get([&#x27;name&#x27;, &#x27;num&#x27;, &#x27;popularity_rank&#x27;]);
+
+            foreach ($histRows as $h) {
+                $pop = (int) $h-&gt;popularity_rank;
+                if ($pop &lt;= 0) continue; // 人気不明はスキップ
+
+                // 人気帯を決定
+                if ($pop &lt;= 3) {
+                    $band = &#x27;1_3&#x27;;
+                }</pre></details>
+
+<h3>本番1レース実行の確認について</h3>
+<p>ご指摘のとおり、修正後の本番実行と4テーブルへの実保存は未確認です。
+<strong>本番へ反映したうえで1レース実行し、次の内容を実際のログとDB保存結果でご報告します。</strong></p>
+<table><tr><th style="width:280px">確認内容</th><th>確認方法</th></tr>
+<tr class="partial"><td>Claude・DeepSeek の両方が正常に採用されたこと</td><td>ログの <code>[B-7] DeepSeek回答を受理</code>（読み取れた頭数つき）</td></tr>
+<tr class="partial"><td>統合候補が生成されたこと</td><td>ログの <code>[Block11] ml_snapshot saved</code> の <code>merged_cnt</code> が0以外</td></tr>
+<tr class="partial"><td>4テーブルへの正常保存</td><td><code>ai_merge_result</code> / <code>market_score_log</code> / <code>ml_snapshot</code> / <code>high_payout_shadow_log</code> の該当レース行</td></tr>
+<tr class="partial"><td>#69 の検証が毎レース走っていること</td><td><code>ai_merge_result.merge_result</code> の <code>merit_cap_check</code></td></tr>
+<tr class="ok"><td>提出コードのSHA-256一致</td><td>本報告書12章に記載のハッシュと照合</td></tr>
+</table>
+<p class="note">反映は開催日を避けて行います。14章の修正により予想内容が1st AI単独から本来の2AI構成へ変わるため、
+開催中に差し替えるとレースごとに挙動が変わってしまうためです。</p>
+
+<h2>16. 10.txt ご指摘4点への対応</h2>
+<p>4点とも実際に問題がありました。すべて修正しています。</p>
+
+<h3>① ② 1st AI の「正常な0件」と「回答失敗」を区別し、失敗時は公開しない</h3>
+<div class="crit"><strong>ご指摘のとおりでした。</strong>これまでは 1st AI の回答が空でも形式不正でも、
+単に「候補0頭」として処理が続いていました。<strong>2nd AI だけの候補が通常予測として公開されうる状態</strong>です。</div>
+<p><code>_judgeFirstAiResponse()</code> を新設し、仕様どおり3分類するようにしました。</p>
+<table><tr><th style="width:110px">判定</th><th style="width:300px">条件</th><th>処理</th></tr>
+<tr class="ok"><td><strong>正常</strong></td><td>厳選穴レース行あり＋レース指標行あり＋候補行あり</td><td>通常どおり統合処理へ</td></tr>
+<tr class="ok"><td><strong>正常な0件</strong></td><td>厳選穴レース行あり＋レース指標行あり＋<strong>候補行だけが無い</strong></td><td>0件として正常処理（補充はしない）</td></tr>
+<tr class="ng"><td><strong>失敗</strong></td><td>完全な空回答／形式不正／必要な2行のどちらかが無い</td><td><strong>制御済みエラーで停止し、通常予測を公開しない</strong></td></tr>
+</table>
+<p>判定は<strong>統合処理より前</strong>に置いてあります。したがって 1st AI が失敗したレースでは、
+2nd AI の候補が統合処理へ進むことも、公開されることもありません。ソース上の位置関係もテストで固定しています。</p>
+<p class="note">検証: 空回答／空白だけ／厳選穴レース行なし／レース指標行なし／自由文／厳選穴レースが0・1以外／レース指標の3項目が欠け、
+をすべて「失敗」と判定できることを本番メソッドで実測しました。候補行があっても必要な2行が無ければ失敗になります。</p>
+
+<h3>③ 既存キャッシュの扱い</h3>
+<p>ご指摘のとおり、<code>t_horse_odds_finder_ai_analysis2</code> にレコードがあると処理冒頭でキャッシュを返すため、
+修正後の統合・フィルター・保存処理を通りません。<strong>2段構えで対応しました。</strong></p>
+<table><tr><th style="width:190px">対応</th><th>内容</th></tr>
+<tr class="new"><td><strong>自動無効化（実装）</strong></td>
+<td>キャッシュを返す前に <code>_judgeFirstAiResponse()</code> を通し、<strong>失敗と判定されたキャッシュ（空回答・形式不正）は削除して再処理</strong>します。
+排他ロックの前後どちらの取得箇所にも入れてあります。修正前に残った不正な回答は、次のアクセスで自動的に作り直されます</td></tr>
+<tr class="new"><td><strong>反映時の一括再処理（手順）</strong></td>
+<td>形式が正しいキャッシュは自動では作り直されません（正常な回答のため）。
+反映後に改めて検証したいレースについては、<strong>当方が該当レコードを削除して再処理し、その結果をご報告します</strong>。
+削除対象は「日付・回数・場コード・日目・レース番号」で一意に特定できます</td></tr>
+</table>
+<p class="note">キャッシュを消しても、AI の呼び出し回数は1レースにつき合計2回のままです（再処理時に1st AI・2nd AI が1回ずつ）。</p>
+
+<h3>④ 1st AI の選出上限</h3>
+<p>ご指摘の区分を修正しました。<strong>加えて、より危険な問題が1つ見つかりました。</strong></p>
+<table><tr><th style="width:190px">項目</th><th style="width:240px">これまで</th><th>修正後</th></tr>
+<tr class="ng"><td>出走頭数別の上限</td><td>8頭以下:4／9〜13頭:5／<strong>14頭以上:6</strong></td>
+<td>8頭以下:4／9〜13頭:5／<strong>14〜15頭:6／16頭以上:7</strong></td></tr>
+<tr class="ng"><td><strong>1st AI への合計上限</strong></td>
+<td>人気帯別上限の<strong>単純合計</strong>。断層なし／判定困難と5〜6番人気間断層では <strong>3+3+2 = 8頭</strong> になっていた</td>
+<td><code>min(7, 合計)</code> で<strong>必ず7頭に頭打ち</strong>（仕様「1st AIの候補上限は7頭」）</td></tr>
+</table>
+<div class="crit"><strong>合計8頭になる問題は、レースごと無効化される危険がありました。</strong><br>
+仕様では 1st AI の候補上限は7頭で、PHP側の B-15 は「1st AI が8頭以上を返したら制御済みエラーで通常予測を公開しない」と実装しています。
+ところがプロンプトは断層なし／判定困難のレースで「合計最大8頭まで」と指示していました。
+<strong>指示どおり8頭返してきたら、そのレースは丸ごとエラーになります。</strong>
+断層なし・判定困難は珍しいタイプではなく、2026-09-21 の7レースもほとんどがこのタイプでした。</div>
+<p class="note">検証: 3+3+2→7、2+3+2→7、3+2+1→6 と頭打ちされること、出走8/9/13/14/15/16/18頭それぞれで上限が 4/5/5/6/6/7/7 になることを確認しています。</p>
+
+<details><summary>▼ _judgeFirstAiResponse()（1st AI 回答の3分類）全文（行 3,477〜3,530）</summary><pre class="out">    /**
+     * 1st AI（Claude）の回答を「正常 / 正常な0件 / 失敗」に判定する（受入チェック #65・#66）
+     *
+     * 仕様:
+     *   ・1st AI は「厳選穴レース行」「レース指標行」「候補行」を既存形式で返す。
+     *   ・正常な0件 = 厳選穴レース行がある／レース指標行がある／候補行だけが無い。
+     *   ・完全な空回答、形式不正、必要な2行が無い回答は【失敗】として扱い、
+     *     通常予測を公開してはならない（2nd AI だけの候補を公開するのは禁止）。
+     *
+     * 【なぜ必要か】
+     *   これまでは 1st AI の回答が空でも形式不正でも「候補0頭」として素通りし、
+     *   2nd AI だけの候補が通常予測として公開されうる状態だった。
+     *   1st AI が落ちたレースは、予測そのものを出さないのが仕様である。
+     *
+     * @return array{status:&#x27;ok&#x27;|&#x27;zero&#x27;|&#x27;failed&#x27;, reason:string,
+     *               has_upset_line:bool, has_index_line:bool, horse_count:int}
+     */
+    private function _judgeFirstAiResponse(string $firstAiText): array
+    {
+        $faText = trim($firstAiText);
+
+        // 完全な空回答 → 失敗
+        if ($faText === &#x27;&#x27;) {
+            return [&#x27;status&#x27; =&gt; &#x27;failed&#x27;, &#x27;reason&#x27; =&gt; &#x27;回答が空&#x27;,
+                    &#x27;has_upset_line&#x27; =&gt; false, &#x27;has_index_line&#x27; =&gt; false, &#x27;horse_count&#x27; =&gt; 0];
+        }
+
+        // 厳選穴レース行（「厳選穴レース|1」または「厳選穴レース|0」）
+        $faUpset = (preg_match(&#x27;/^厳選穴レース\|[01]\s*$/mu&#x27;, $faText) === 1);
+        // レース指標行（波乱度・下位進入度・大穴進入度の3つが揃っていること）
+        $faIndex = (preg_match(
+            &#x27;/^レース指標\|波乱度[:：\s]*\d+\|下位進入度[:：\s]*\d+\|大穴進入度[:：\s]*\d+/mu&#x27;,
+            $faText
+        ) === 1);
+        $faHorses = count($this-&gt;_parseAiHorses($faText));
+
+        // 必要な2行が揃っていなければ形式不正 → 失敗
+        if (!$faUpset || !$faIndex) {
+            return [&#x27;status&#x27; =&gt; &#x27;failed&#x27;,
+                    &#x27;reason&#x27; =&gt; &#x27;必要な行が無い（厳選穴レース行: &#x27; . ($faUpset ? &#x27;あり&#x27; : &#x27;なし&#x27;)
+                              . &#x27; / レース指標行: &#x27; . ($faIndex ? &#x27;あり&#x27; : &#x27;なし&#x27;) . &#x27;）&#x27;,
+                    &#x27;has_upset_line&#x27; =&gt; $faUpset, &#x27;has_index_line&#x27; =&gt; $faIndex,
+                    &#x27;horse_count&#x27; =&gt; $faHorses];
+        }
+
+        // 2行が揃っていて候補行だけが無い → 正常な0件
+        if ($faHorses === 0) {
+            return [&#x27;status&#x27; =&gt; &#x27;zero&#x27;, &#x27;reason&#x27; =&gt; &#x27;候補0頭（正常）&#x27;,
+                    &#x27;has_upset_line&#x27; =&gt; true, &#x27;has_index_line&#x27; =&gt; true, &#x27;horse_count&#x27; =&gt; 0];
+        }
+
+        return [&#x27;status&#x27; =&gt; &#x27;ok&#x27;, &#x27;reason&#x27; =&gt; &#x27;&#x27;,
+                &#x27;has_upset_line&#x27; =&gt; true, &#x27;has_index_line&#x27; =&gt; true, &#x27;horse_count&#x27; =&gt; $faHorses];
+    }</pre></details>
+<details><summary>▼ 1st AI 失敗時は通常予測を公開しない（統合処理の前で停止）（行 2,173〜2,194）</summary><pre class="out">        // ── 1st AI の回答判定（#65・#66）──────────────────────────────────────
+        // 失敗（空・形式不正・必要な2行が無い）なら通常予測を公開しない。
+        // 2nd AI だけの候補を公開してはいけない。
+        $b66First = $this-&gt;_judgeFirstAiResponse($firstAiText);
+        if ($b66First[&#x27;status&#x27;] === &#x27;failed&#x27;) {
+            \Log::error(&#x27;[B-7/#66] 1st AI 回答失敗 → 通常予測を公開しない（制御済みエラー）&#x27;, [
+                &#x27;reason&#x27;         =&gt; $b66First[&#x27;reason&#x27;],
+                &#x27;has_upset_line&#x27; =&gt; $b66First[&#x27;has_upset_line&#x27;],
+                &#x27;has_index_line&#x27; =&gt; $b66First[&#x27;has_index_line&#x27;],
+                &#x27;second_ai_cnt&#x27;  =&gt; count($this-&gt;_parseAiHorses($b7SecondAiFailed ? &#x27;&#x27; : $analysisText)),
+                &#x27;date&#x27; =&gt; $date, &#x27;kaisuu&#x27; =&gt; $kaisuu, &#x27;basho&#x27; =&gt; $basho, &#x27;day&#x27; =&gt; $day, &#x27;race&#x27; =&gt; $race,
+                &#x27;raw_text&#x27;       =&gt; mb_substr($firstAiText, 0, 2000),
+            ]);
+            return response()-&gt;json(
+                [&#x27;error&#x27; =&gt; &#x27;1st AIの回答を取得できませんでした（制御済みエラー）&#x27;], 500
+            );
+        }
+        if ($b66First[&#x27;status&#x27;] === &#x27;zero&#x27;) {
+            \Log::info(&#x27;[B-7/#65] 1st AI 候補0頭（正常）&#x27;, [
+                &#x27;date&#x27; =&gt; $date, &#x27;kaisuu&#x27; =&gt; $kaisuu, &#x27;basho&#x27; =&gt; $basho, &#x27;day&#x27; =&gt; $day, &#x27;race&#x27; =&gt; $race,
+            ]);
+        }</pre></details>
+<details><summary>▼ 不正なキャッシュの自動無効化（行 1,654〜1,669）</summary><pre class="out">    // ── キャッシュの健全性チェック（#65・#66 / 09.txt③）──────────────────
+    // 修正前に保存された「空回答」「形式不正」のキャッシュがそのまま返り続けると、
+    // 統合・フィルター・保存処理を一度も通らないままになる。
+    // 返す前に 1st AI の回答判定を通し、失敗と判定されたキャッシュは破棄して再処理する。
+    $cacheJudge = $cached ? $this-&gt;_judgeFirstAiResponse((string) $cached-&gt;analysis_text) : null;
+    if ($cacheJudge !== null &amp;&amp; $cacheJudge[&#x27;status&#x27;] === &#x27;failed&#x27;) {
+        \Log::warning(&#x27;[Cache] 不正なキャッシュを破棄して再処理する&#x27;, [
+            &#x27;date&#x27; =&gt; $date, &#x27;kaisuu&#x27; =&gt; $kaisuu, &#x27;basho_code&#x27; =&gt; $basho,
+            &#x27;day&#x27;  =&gt; $day,  &#x27;race&#x27;   =&gt; $race,   &#x27;reason&#x27; =&gt; $cacheJudge[&#x27;reason&#x27;],
+        ]);
+        DB::table(&#x27;t_horse_odds_finder_ai_analysis2&#x27;)
+            -&gt;where(&#x27;date&#x27;, $date)-&gt;where(&#x27;kaisuu&#x27;, $kaisuu)-&gt;where(&#x27;basho_code&#x27;, $basho)
+            -&gt;where(&#x27;day&#x27;, $day)-&gt;where(&#x27;race&#x27;, $race)
+            -&gt;delete();
+        $cached = null;
+    }</pre></details>
+
+<h3>最終承認に向けてご報告する内容</h3>
+<p>ご指定の確認項目を、本番へ反映して1レース実行したうえで、実際のログとDB保存結果でご報告します。</p>
+<table><tr><th style="width:300px">確認項目</th><th>ご報告する内容</th></tr>
+<tr class="partial"><td>Claude・DeepSeek の両方が正常に採用された</td><td>ログの <code>[B-7] DeepSeek回答を受理</code>（読み取れた頭数つき）</td></tr>
+<tr class="partial"><td>統合候補が正常に生成された</td><td>ログの <code>merged_cnt</code> が0以外</td></tr>
+<tr class="partial"><td>4テーブルへの正常保存</td><td><code>ai_merge_result</code> / <code>market_score_log</code> / <code>ml_snapshot</code> / <code>high_payout_shadow_log</code> の該当レース行</td></tr>
+<tr class="partial"><td>Flutterへシャドー専用項目が表示されていない</td><td>APIレスポンスの <code>merged_horses</code>（除去後）</td></tr>
+<tr class="partial"><td>1st AI失敗時に通常予測が公開されない</td><td>失敗を模した入力での制御済みエラー応答とログ</td></tr>
+<tr class="ok"><td>提出コードのSHA-256一致</td><td>12章に記載のハッシュと照合</td></tr>
+</table>
+
+<h2>17. 11.txt ご指摘への対応（#69 の検証方法）</h2>
+<div class="crit"><strong>ご指摘のとおりです。前回の検証方法は不十分でした。</strong><br>
+「信頼度50点＋妙味小計15点＝総合65点」のように、<strong>信頼度が低く妙味小計が大きい違反は、
+総合点からの逆算では検出できません</strong>。こちらの説明が不正確でした。</div>
+
+<h3>検証を一段強くしました</h3>
+<p>信頼度7項目のうち<strong>⑦能力・今回条件への適性（0〜3点）は A=3／B=2／C=1／D=0 と仕様で固定</strong>されており、
+グレードは選出理由の冒頭「能力適性:X（XX点）。」からPHPが読み取れます。そこで信頼度小計の上限を絞り込みました。</p>
+<pre class="out">妙味小計 = おすすめ度 − 信頼度小計
+
+  信頼度上限 = 57 + 能力適性点（A:3 / B:2 / C:1 / D:0）
+
+  妙味小計 &gt;= おすすめ度 − 信頼度上限
+
+  例: 能力適性D・おすすめ度64点 → 妙味小計 &gt;= 64 − 57 = 7点 → 違反
+      （前回の「65点以下ならOK」では見逃していたケース）</pre>
+<p>上限は能力適性グレードごとに A:65／B:64／C:63／D:62 となり、<strong>前回より最大3点厳しく</strong>なりました。
+算出した妙味小計の下限も、検証結果として保存します。</p>
+
+<h3>それでも完全な直接検証にはなりません。理由を正直に申し上げます</h3>
+<p>ご指摘の「信頼度小計と妙味小計を別々に保持し、妙味小計そのものを直接検証する」には、
+<strong>AIが内訳・小計を出力する必要があります</strong>。しかし最新確定版プロンプトは、</p>
+<pre class="out">全頭について信頼度小計、妙味小計、7項目＋4項目の内訳をAI内部で確定してから合計してください。
+既存Flutter形式を変えないため、内訳、小計、新しいJSON項目は出力へ追加しません。</pre>
+<p>と定めています。<strong>AIの妙味小計はPHPから観測できない</strong>、というのが現状です。
+出力形式を変えれば観測できますが、プロンプトは確定版として凍結されたと承りましたので、当方の独断では変更しません。</p>
+
+<h3>検出漏れがあっても、公開される予測には影響しません</h3>
+<p>この規則が守る結果そのものは、別の仕組みで担保されています。</p>
+<table><tr><th style="width:240px">ケース</th><th>結果</th></tr>
+<tr class="ok"><td>低配当馬・例外3条件を満たさない</td>
+<td><strong>Block 13a が候補から必ず除外します。</strong>妙味小計が何点で計算されていても、その馬が予測として公開されることはありません</td></tr>
+<tr class="ok"><td>低配当馬・例外3条件をすべて満たす</td>
+<td>仕様により妙味上限が解除されるため、そもそも制約がありません</td></tr>
+</table>
+<p class="note">つまり「妙味小計5点以下」が破られても、<strong>公開結果は変わりません</strong>。
+検証は「AIが指示どおり採点したか」を測るためのもので、出力の正しさは除外処理が担保しています。</p>
+
+<div class="alert"><strong>ご判断をお願いしたい点が1つだけあります。</strong><br>
+妙味小計を<strong>直接</strong>検証するには、1st AI の出力に内訳行を1行足し、
+<strong>PHPがFlutterへ渡す前にその行を取り除く</strong>方法があります。
+Flutterの表示形式は一切変わりませんが、AIの出力形式は変わります。<br>
+プロンプトを凍結された直後ですので、当方では動かしません。
+<strong>この方式を採るかどうかだけ、ご指示ください。</strong>不要であれば、現在の片側検証＋除外処理による担保で運用します。</div>
+
+<details><summary>▼ _verifyLowPayoutMeritCap()（能力適性グレードで信頼度上限を絞る版）全文（行 3,608〜3,726）</summary><pre class="out">    /**
+     * 妙味小計の上限をPHP側で検証する（受入チェック #69）
+     *
+     * 仕様:
+     *   「推定確定複勝最小オッズが1.5倍未満の場合は、妙味4項目の合計である
+     *     妙味小計を原則5点以下とする。低配当例外3条件をすべて満たす場合だけ
+     *     この妙味上限を解除できる。」
+     *
+     * 【PHPで検証できること・できないこと】
+     *   おすすめ度は「信頼度60点＋妙味40点」の固定内訳と決まっている。
+     *     妙味小計 = おすすめ度 - 信頼度小計
+     *   信頼度小計の上限を上から押さえれば、妙味小計の下限が分かる。
+     *     妙味小計 &gt;= おすすめ度 - 信頼度上限
+     *   信頼度7項目のうち⑦能力・今回条件への適性（0〜3点）は A=3/B=2/C=1/D=0 と
+     *   仕様で固定されており、グレードは選出理由の冒頭からPHPが読み取れる。よって
+     *     信頼度上限 = 57 + 能力適性点
+     *   まで絞れる。低配当馬（例外解除なし）のおすすめ度がこの上限＋5点を超えたら、
+     *   妙味小計が5点を超えて計算されたことが確定する。
+     *
+     *   【限界】これは片側検定である。
+     *   「信頼度50点＋妙味小計15点＝おすすめ度65点」のように、信頼度が低く
+     *   妙味小計が大きい違反は、この方法では検出できない。
+     *   AIは仕様により内訳・小計を出力しないため（既存Flutter形式を変えないため）、
+     *   妙味小計そのものはPHPから観測できない。出力形式を変えれば観測できるが、
+     *   プロンプトは確定版として凍結されているため、独断では変更しない。
+     *
+     *   【ただし公開結果には影響しない】
+     *   例外3条件を満たさない低配当馬は Block 13a が候補から必ず除外する。
+     *   妙味小計が何点で計算されていても、その馬が予測として公開されることはない。
+     *
+     * 本メソッドは検出とログ保存だけを行い、AIの点数を書き換えない
+     * （PHPがAIの採点を上書きしない、という仕様を守るため）。
+     * 該当馬は Block 13a の低配当除外で候補から外れる。
+     *
+     * @return array 検証結果（シャドー保存・報告用）
+     */
+    private function _verifyLowPayoutMeritCap(
+        array  $mergedHorses,
+        array  $oddsHorseBlocks,
+        ?int   $primaryGapUpperPop,
+        array  $b13ScoreAMap
+    ): array {
+        $vcChecked = 0; $vcViolations = []; $vcTargets = [];
+        foreach ($mergedHorses as $vcH) {
+            $vcNum   = (int) ($vcH[&#x27;num&#x27;] ?? 0);
+            $vcBlock = $oddsHorseBlocks[$vcNum] ?? &#x27;&#x27;;
+            if ($vcBlock === &#x27;&#x27;) continue;
+
+            $vcJ = $this-&gt;_judgeLowPayoutException($vcH, $vcBlock, $primaryGapUpperPop, $b13ScoreAMap);
+            if (!$vcJ[&#x27;low_payout&#x27;]) continue;   // 低配当の対象外
+
+            $vcChecked++;
+            $vcScore = (float) ($vcH[&#x27;score&#x27;] ?? 0);
+
+            // 信頼度⑦（能力・今回条件への適性）は A=3 / B=2 / C=1 / D=0 で仕様固定。
+            // 選出理由の冒頭「能力適性:X（XX点）。」からグレードを読み取り、
+            // 信頼度小計の上限を 57 + 能力適性点 まで絞る。
+            // 読み取れない場合は最大の3点として扱う（上限を緩い側に倒し、誤検出を避ける）。
+            $vcGrade = null;
+            if (preg_match(&#x27;/^能力適性:([ABCD])[（(]\d+点[）)]/u&#x27;, (string) ($vcH[&#x27;reason&#x27;] ?? &#x27;&#x27;), $vcGm)) {
+                $vcGrade = $vcGm[1];
+            }
+            $vcAbilityPt  = [&#x27;A&#x27; =&gt; 3, &#x27;B&#x27; =&gt; 2, &#x27;C&#x27; =&gt; 1, &#x27;D&#x27; =&gt; 0][$vcGrade] ?? 3;
+            $vcTrustMax   = 57 + $vcAbilityPt;                 // 信頼度小計の上限
+            $vcCap        = $vcJ[&#x27;released&#x27;] ? 100.0 : (float) ($vcTrustMax + 5);
+            $vcMeritLower = round(max(0.0, $vcScore - $vcTrustMax), 1); // 妙味小計の下限（参考値）
+
+            $vcRow   = [
+                &#x27;num&#x27;                =&gt; $vcNum,
+                &#x27;name&#x27;               =&gt; $vcH[&#x27;name&#x27;] ?? &#x27;&#x27;,
+                &#x27;score&#x27;              =&gt; $vcScore,
+                &#x27;fuku_min&#x27;           =&gt; $vcJ[&#x27;fuku_min&#x27;],
+                &#x27;tan_odds&#x27;           =&gt; $vcJ[&#x27;tan_odds&#x27;],
+                &#x27;released&#x27;           =&gt; $vcJ[&#x27;released&#x27;],
+                &#x27;ability_grade&#x27;      =&gt; $vcGrade,
+                &#x27;trust_subtotal_max&#x27; =&gt; $vcTrustMax,
+                &#x27;merit_subtotal_min&#x27; =&gt; $vcMeritLower,
+                &#x27;cap&#x27;                =&gt; $vcCap,
+                &#x27;violation&#x27;          =&gt; ($vcScore &gt; $vcCap),
+            ];
+            $vcTargets[] = $vcRow;
+
+            if ($vcScore &gt; $vcCap) {
+                $vcViolations[] = $vcRow;
+                \Log::error(&#x27;[#69] 妙味小計の上限超過を検出（AI採点は書き換えない）&#x27;, [
+                    &#x27;num&#x27;        =&gt; $vcNum,
+                    &#x27;name&#x27;       =&gt; $vcH[&#x27;name&#x27;] ?? &#x27;&#x27;,
+                    &#x27;score&#x27;      =&gt; $vcScore,
+                    &#x27;cap&#x27;        =&gt; $vcCap,
+                    &#x27;fuku_min&#x27;   =&gt; $vcJ[&#x27;fuku_min&#x27;],
+                    &#x27;tan_odds&#x27;   =&gt; $vcJ[&#x27;tan_odds&#x27;],
+                    &#x27;ex1&#x27;        =&gt; $vcJ[&#x27;ex1&#x27;], &#x27;ex2&#x27; =&gt; $vcJ[&#x27;ex2&#x27;], &#x27;ex3&#x27; =&gt; $vcJ[&#x27;ex3&#x27;],
+                    &#x27;ability_grade&#x27;      =&gt; $vcGrade,
+                    &#x27;trust_subtotal_max&#x27; =&gt; $vcTrustMax,
+                    &#x27;merit_subtotal_min&#x27; =&gt; $vcMeritLower,
+                    &#x27;note&#x27; =&gt; &#x27;妙味小計 &gt;= おすすめ度 - 信頼度上限(57+能力適性点)。5点超は仕様違反&#x27;,
+                ]);
+            }
+        }
+        $vcResult = [
+            &#x27;rule&#x27;            =&gt; &#x27;推定確定複勝最小 &lt; 1.5 の馬は妙味小計 &lt;= 5（例外3条件すべて成立時のみ解除）&#x27;,
+            &#x27;derivation&#x27;      =&gt; &#x27;妙味小計 &gt;= おすすめ度 - 信頼度上限（57 + 能力適性点 A3/B2/C1/D0）&#x27;,
+            &#x27;detection_type&#x27;  =&gt; &#x27;one_sided&#x27;,
+            &#x27;limitation&#x27;      =&gt; &#x27;信頼度が低く妙味小計が大きい違反（例: 信頼度50 + 妙味15 = 65）は&#x27;
+                               . &#x27;この方法では検出できない。AIは仕様により内訳・小計を出力しないため、&#x27;
+                               . &#x27;妙味小計そのものはPHPから観測できない。&#x27;,
+            &#x27;guarantee&#x27;       =&gt; &#x27;検出漏れがあっても、例外3条件を満たさない低配当馬は Block 13a が&#x27;
+                               . &#x27;必ず候補から除外するため、公開される予測には影響しない。&#x27;,
+            &#x27;checked_count&#x27;   =&gt; $vcChecked,
+            &#x27;violation_count&#x27; =&gt; count($vcViolations),
+            &#x27;targets&#x27;         =&gt; $vcTargets,
+            &#x27;violations&#x27;      =&gt; $vcViolations,
+        ];
+        \Log::info(&#x27;[#69] 妙味小計上限の検証&#x27;, [
+            &#x27;checked&#x27;    =&gt; $vcChecked,
+            &#x27;violations&#x27; =&gt; count($vcViolations),
+        ]);
+        return $vcResult;
+    }</pre></details>
+
+<p class="note">検証: 能力適性A/B/C/D それぞれで上限が 65／64／63／62 になること、上限ちょうどは違反にしないこと、
+上限+1点は違反として検出すること、能力適性D・64点（前回は見逃し）を違反として検出できることを、本番メソッドで実測しています。</p>
+
+<p class="note" style="margin-top:30px">生成日: 2026-09-21 ／ php -l 構文チェック: エラーなし ／ テスト680件 全PASS ／ AiController.php 8,171行 ／ 実DDL照合: INSERT/UPDATE 5テーブル 未知列ゼロ</p>
 </body></html>
