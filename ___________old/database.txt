@@ -10,7 +10,7 @@ CREATE TABLE `t_horse_odds_finder_ai_analysis` (
   `analysis_text` text,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_ai_analysis` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=145 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=242 DEFAULT CHARSET=utf8mb3;
 
 
 1	2026-08-29	3	新潟	04	3	1	障害3歳以上未勝利（混合）	厳選穴レース|1↵馬番：11、馬名：ラパンラピッド、人気順: 1、6分前オッズ: 3.0、おすすめ度: 58、選出理由：1番人気として安定した動きを示しており、複勝は1.2-1.5倍で継続的に狭い幅を保持している。類似レース統計では1番人気の3着以内率が68.2%と高く、単複ともにオッズ変動が最小限に抑えられている。推定確定オッズ2.8倍は6分前より若干下落するパターンで、直前の追加流入を示唆している。OPI0.87は平均並みで過大評価ではなく、過去回収率（±5%以内パターン）で84.3%という水準は堅実性を証明している。複勝1.2-1.5倍という極度な低帯集中の中では市場の最大確信対象であり、複勝流入ランク2位で継続的な資金が投下されている。↵↵馬番：6、馬名：リッケンバッカー、人気順: 3、6分前オッズ: 5.9、おすすめ度: 52、選出理由：3番人気として開始時点の9.1倍から6分前5.9倍へ35.2%の段階的短縮を遂行している。短縮の複数段階（21分8.6倍→18分8.4倍→15分8.4倍→12分6.7倍→9分5.9倍）は市場の継続的買い圧を示しており、特に12分から9分への急速短縮で確信の高まりが明確。複勝も1.3-1.9倍に下落し、複勝流入ランク1位で同グループ内での最大資金流入を示している。単複比4.5倍は勝ちにくさを示すが、類似レース統計の3着以内率44.3%は堅実で、過去回収率で30%以上下落パターンが54.0%と控えめだが、OPI帯別回収率で79.3%の実績がある。直前減速（複勝-18.8%）という警告があるものの、短縮の段階性とOPI1.08の平均並み評価から選出は妥当。↵↵馬番：9、馬名：フォーディアライフ、人気順: 2、6分前オッズ: 4.4、おすすめ度: 51、選出理由：2番人気として開始前から最終まで4.4倍で完全に固定されており、±0%の最安定馬として市場の確実な確信を示している。複勝も1.4-2.1倍で狭い幅を保持し、複勝流入ランク3位ながら安定性は最上級。OPI1.00は過去平均と完全に一致し、過大評価がない証拠。類似レース統計の2番人気における3着以内率56.4%は高く、過去回収率（±5%以内）で84.3%の堅実な実績。フェーズパターン別回収率で「前半上昇・後半下落」パターンが87.3%、勝率31.6%という最強の売却層パターンに該当していることが選出の最大根拠。直前減速は複勝-6.7%で軽微であり、全体的に市場の強い支持を受けている。↵↵馬番：10、馬名：オリンポスカズマ、人気順: 6、6分前オッズ: 9.5、おすすめ度: 46、選出理由：6番人気として開始前の11.8倍から6分前9.5倍へ19.5%の下落を達成し、単勝流入ランク1位で同グループ内（4～6人気）での最大資金流入を示している。複勝は2.2-3.5倍で継続的な下落傾向を見せており、複勝流入ランク1位で複勝の狭い変動幅（-4.8%）とともに安定性を示唆。OPI2.07は過剰人気を示すものの、類似レース統計の6番人気における3着以内率22.5%は悪くなく、直前加速（複勝+0.0%・単勝-5.9%）で単勝は直前減速だが複勝の安定性が優先材料。推定補正OPI1.86は過剰人気圏内だが、複勝の継続的下落と流入ランク1位という組み合わせから、市場の相対的な強い評価を反映している。↵↵馬番：7、馬名：マイネルニコラス、人気順: 7、6分前オッズ: 22.0、おすすめ度: 42、選出理由：7番人気として開始前18.0倍から6分前22.0倍へ22.2%上昇したが、この上昇は段階的（21分17.6倍→18分17.5倍→15分17.0倍→12分19.9倍→9分20.8倍→6分22.0倍）な推移を示しており、短縮ではなく緩やかな相対的人気変動と判断できる。複勝流入ランク4位で同グループ内（7人気以下）での安定性を示し、複勝OPI0.78は妙味あり圏内で過小評価を示唆している。過去回収率（20～30%上昇パターン）で120.2%、OPI帯別回収率で98.8%という高い実績が存在し、フェーズパターン別回収率でも「前半上昇・後後昇」パターンが65.8%。6～10番人気の断層下側（6～7番人気間に2.32倍の大断層あり）に位置しながら複勝的な継続的安定性が見られることで、穴の可能性を示唆している。
@@ -36,7 +36,7 @@ CREATE TABLE `t_horse_odds_finder_ai_analysis2` (
   `analysis_text` text,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_ai_analysis` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=291 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=388 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -69,6 +69,7 @@ CREATE TABLE `t_horse_odds_finder_ai_merge_result` (
   `id` int NOT NULL AUTO_INCREMENT,
   `date` date NOT NULL,
   `kaisuu` tinyint unsigned NOT NULL,
+  `basho` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `basho_code` char(2) COLLATE utf8mb4_unicode_ci NOT NULL,
   `day` tinyint unsigned NOT NULL,
   `race` tinyint unsigned NOT NULL,
@@ -78,7 +79,7 @@ CREATE TABLE `t_horse_odds_finder_ai_merge_result` (
   `lower_entry` tinyint unsigned DEFAULT NULL COMMENT '下位進入度 1〜5',
   `big_gap_entry` tinyint unsigned DEFAULT NULL COMMENT '大穴進入度 1〜5',
   `gap_type` char(1) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '断層タイプ A〜E',
-  `result_json` json DEFAULT NULL COMMENT '統合馬リスト（JSON配列）',
+  `merge_result` longtext COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_merge_result` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -120,8 +121,7 @@ CREATE TABLE `t_horse_odds_finder_compute_odds_correction` (
   `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_popularity_rank` (`popularity_rank`)
-) ENGINE=InnoDB AUTO_INCREMENT=433 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='6分前オッズから確定オッズへの補正係数テーブル';
-
+) ENGINE=InnoDB AUTO_INCREMENT=629 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='6分前オッズから確定オッズへの補正係数テーブル';
 
 
 
@@ -153,7 +153,7 @@ CREATE TABLE `t_horse_odds_finder_forecast_from_last_race` (
   `forecast_nums` text,
   PRIMARY KEY (`id`),
   KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`(2))
-) ENGINE=InnoDB AUTO_INCREMENT=66 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=50 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -179,7 +179,6 @@ CREATE TABLE `t_horse_odds_finder_fuku_popularity_rank_average` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_popularity_rank` (`popularity_rank`)
 ) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='人気順位別・過去平均複勝オッズ（複勝OPI計算用）';
-
 
 
 1	1	1.3	12733	2023-01-05	2026-09-06
@@ -222,8 +221,7 @@ CREATE TABLE `t_horse_odds_finder_high_payout_shadow_log` (
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_hp_shadow` (`date`,`kaisuu`,`basho_code`,`day`,`race`,`num`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='高配当強化指標シャドーログ（シャドー検証期間中の高配当総合点・仮順位・馬券判定の並行保存）';
-
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='高配当強化指標シャドーログ（シャドー検証期間中の高配当総合点・仮順位・馬券判定の並行保存）';
 
 
 
@@ -247,7 +245,7 @@ CREATE TABLE `t_horse_odds_finder_horse_scores` (
   `count` int DEFAULT NULL,
   `score` int DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3861 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=4208 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -278,7 +276,7 @@ CREATE TABLE `t_horse_odds_finder_horses` (
   `trainer` text,
   PRIMARY KEY (`id`),
   KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=947 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=781 DEFAULT CHARSET=utf8mb3;
 
 1	2026-09-05	4	06	中山	1	1	1	1	バニーラビット	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002022104929/76	小牧 加矢太	武 幸四郎
 2	2026-09-05	4	06	中山	1	1	2	2	ナックエルドラド	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002022106304/CF	水沼 元輝	小野 次郎
@@ -300,7 +298,7 @@ CREATE TABLE `t_horse_odds_finder_jockey_scores` (
   `count` int DEFAULT NULL,
   `score` int DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=132 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=136 DEFAULT CHARSET=utf8mb3;
 
 
 1	丹内 祐次	442	59
@@ -365,6 +363,7 @@ CREATE TABLE `t_horse_odds_finder_market_score_log` (
   `id` int NOT NULL AUTO_INCREMENT,
   `date` date NOT NULL,
   `kaisuu` tinyint unsigned NOT NULL,
+  `basho` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `basho_code` char(2) COLLATE utf8mb4_unicode_ci NOT NULL,
   `day` tinyint unsigned NOT NULL,
   `race` tinyint unsigned NOT NULL,
@@ -375,13 +374,13 @@ CREATE TABLE `t_horse_odds_finder_market_score_log` (
   `score_c` tinyint unsigned DEFAULT NULL COMMENT 'OPI妙味点（0〜15）',
   `score_d` tinyint unsigned DEFAULT NULL COMMENT '回収率裏付け点（0〜15）',
   `score_e` tinyint unsigned DEFAULT NULL COMMENT '断層変化根拠点（0〜15）',
-  `base_total` tinyint unsigned DEFAULT NULL COMMENT '市場妙味基礎点合計（0〜80）',
+  `total_score` decimal(8,2) DEFAULT NULL,
   `ability_grade` char(1) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'AI採点能力適性グレード A〜D',
   `ability_score` tinyint unsigned DEFAULT NULL COMMENT '能力適性補正点（20/15/10/0）',
   `high_score` tinyint unsigned DEFAULT NULL COMMENT '高配当総合点（0〜100）',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_market_score` (`date`,`kaisuu`,`basho_code`,`day`,`race`,`num`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=630 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -418,7 +417,7 @@ CREATE TABLE `t_horse_odds_finder_ml_snapshot` (
   `result_label_status` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'filled / excluded / skipped',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_ml_snapshot` (`date`,`kaisuu`,`basho_code`,`day`,`race`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=50 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -449,7 +448,7 @@ CREATE TABLE `t_horse_odds_finder_odds` (
   `minutes_before_start` int DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=8515 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=5893 DEFAULT CHARSET=utf8mb3;
 
 
 1	2026-09-05	2	01	5	1	1	13.8	1.9	10.3	999
@@ -482,8 +481,7 @@ CREATE TABLE `t_horse_odds_finder_odds_gap_recovery` (
   `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_gap_popularity` (`gap_band`,`popularity_band`)
-) ENGINE=InnoDB AUTO_INCREMENT=829 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='計測開始→6分前オッズ変化率帯×人気帯別の単勝回収率';
-
+) ENGINE=InnoDB AUTO_INCREMENT=1225 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='計測開始→6分前オッズ変化率帯×人気帯別の単勝回収率';
 
 
 1	30%以上下落	-999.0	-20.0	1〜3人気	1	3	162	28	17.28	62.84	2026-06-21	2026-09-06	2026-09-09 22:20:02
@@ -513,7 +511,7 @@ CREATE TABLE `t_horse_odds_finder_odds_get_timing` (
   `odds_from` text,
   PRIMARY KEY (`id`),
   KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=649 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=452 DEFAULT CHARSET=utf8mb3;
 
 
 1	2026-09-05	2	01	5	1	999	2026-09-05 09:20:13	JRA
@@ -545,8 +543,7 @@ CREATE TABLE `t_horse_odds_finder_opi_recovery` (
   `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_opi_popularity` (`opi_band`,`popularity_band`)
-) ENGINE=InnoDB AUTO_INCREMENT=645 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OPI帯×人気帯別の単勝回収率';
-
+) ENGINE=InnoDB AUTO_INCREMENT=953 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OPI帯×人気帯別の単勝回収率';
 
 
 1	0.70未満	-999.00	0.70	1〜3人気	1	3	246	33	13.41	83.62	2026-06-06	2026-09-06	2026-09-09 22:30:02
@@ -584,8 +581,7 @@ CREATE TABLE `t_horse_odds_finder_phase_pattern_recovery` (
   `computed_at` datetime DEFAULT NULL COMMENT '最終集計日時',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_phase_popularity` (`phase_pattern`,`popularity_band`)
-) ENGINE=InnoDB AUTO_INCREMENT=829 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='前半・後半フェーズ方向パターン×人気帯別の単勝回収率';
-
+) ENGINE=InnoDB AUTO_INCREMENT=1225 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='前半・後半フェーズ方向パターン×人気帯別の単勝回収率';
 
 
 1	前半下落・後半下落	前半下落	後半下落	1	1	1〜3人気	1	3	488	102	20.90	73.38	2026-06-21	2026-09-06	2026-09-09 21:40:02
@@ -624,7 +620,7 @@ CREATE TABLE `t_horse_odds_finder_popularity_horse_check` (
   `hit_count` int DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=485 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=568 DEFAULT CHARSET=utf8mb3;
 
 1	2026-07-18	1	02	11	2	マーマレードスカイ	ドリームガッサン	ペイシャクロス	チュラヴェール	コシタンタン	NULL	メモリーデイズ	ドリームガッサン	ペイシャクロス	2
 2	2026-07-18	1	02	11	3	ポップアップ	リバーソニック	ゴールデンボブ	ウインガネーシャ	ハイランダー	NULL	リバーソニック	ウインガネーシャ	ポップアップ	3
@@ -695,7 +691,7 @@ CREATE TABLE `t_horse_odds_finder_popularity_rank_median` (
   `median_18` text,
   PRIMARY KEY (`id`),
   KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=60 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=54 DEFAULT CHARSET=utf8mb3;
 
 
 1	2026-09-05	2	01	札幌	5	2	2歳未勝利[指定]	1.5	4.7	7.6	12.3	15.4	22.2	40.5	52.8	70.5	115	163.5	NULL	NULL	NULL	NULL	NULL	NULL	NULL
@@ -715,7 +711,7 @@ CREATE TABLE `t_horse_odds_finder_push_send_logs` (
   `sent_at` datetime NOT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_sent_at` (`sent_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=266 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=162 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -742,7 +738,7 @@ CREATE TABLE `t_horse_odds_finder_push_subscriptions` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_endpoint` (`endpoint`(512))
-) ENGINE=InnoDB AUTO_INCREMENT=547 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=613 DEFAULT CHARSET=utf8mb3;
 
 
 172	toyohide	https://fcm.googleapis.com/fcm/send/c6RWoA3-pW4:APA91bGHcae4LfldzElb6p8L_M4UtWVpm2b_XQjb7U5-VTTnncF0xecAve8XR87Ds57PuUvYAD2SU8wSSnwXEmphe_PG2c563VdLux2uhAgmeKFwk7DH386sZTTl9YLdWMTnpHJYdV3x	BP0lc23AgE-InYOqO2tL9y7N52vtMTKNmj0e-vE-kYfYQXog6qnnCjmRj8QaPRKkq3fLrYvd9ZTaLSLwqeb_2D8	ufwZJRvYLhN-gf1ZiIHIxw	0	2026-08-06 19:10:48
@@ -771,7 +767,7 @@ CREATE TABLE `t_horse_odds_finder_race_introspection` (
   `finish` int DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_race` (`date`(10),`basho_code`,`day`,`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=981 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=1077 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -804,7 +800,7 @@ CREATE TABLE `t_horse_odds_finder_race_result_history` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_race_horse` (`date`,`kaisuu`,`basho_code`,`day`,`race`,`num`),
   KEY `idx_pop_date` (`popularity_rank`,`date`)
-) ENGINE=InnoDB AUTO_INCREMENT=225452 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=232348 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 1	2023-01-05	1	中山	06	1	1	3歳未勝利	1	レディアス	36.1	4.8	12.4	6	3
@@ -844,7 +840,7 @@ CREATE TABLE `t_horse_odds_finder_race_result_payout` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_race_payout` (`date`,`kaisuu`,`basho_code`,`day`,`race`),
   KEY `idx_date_basho` (`date`,`basho_code`)
-) ENGINE=InnoDB AUTO_INCREMENT=12582 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=12678 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -877,7 +873,7 @@ CREATE TABLE `t_horse_odds_finder_race_results` (
   `notified_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=942 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=632 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -914,7 +910,7 @@ CREATE TABLE `t_horse_odds_finder_races` (
   `popularity_ratio_match_percent` text,
   PRIMARY KEY (`id`),
   KEY `idx_race` (`date`(10),`basho`(2),`day`(2),`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=73 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=61 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -941,7 +937,7 @@ CREATE TABLE `t_horse_odds_finder_races_popularity_ratio` (
   `num_horses` int DEFAULT NULL,
   `popularity_ratio` text,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=12688 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=12808 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -967,7 +963,7 @@ CREATE TABLE `t_horse_odds_finder_schedules` (
   `basho_name` text,
   `day` int DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb3;
 
 
 
@@ -1016,7 +1012,7 @@ CREATE TABLE `t_horse_odds_finder_shutsuba_history` (
   UNIQUE KEY `uq_shutsuba_history` (`name`,`date`,`basho_code`),
   KEY `idx_shutsuba_history_name` (`name`),
   KEY `idx_shutsuba_history_date` (`date`,`basho_code`)
-) ENGINE=InnoDB AUTO_INCREMENT=19854 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=22171 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -1099,7 +1095,7 @@ CREATE TABLE `t_horse_odds_finder_summary` (
   `result` int DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_race_search` (`date`,`kaisuu`,`basho`,`day`,`race`)
-) ENGINE=InnoDB AUTO_INCREMENT=13056 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=14307 DEFAULT CHARSET=utf8mb3;
 
 
 
