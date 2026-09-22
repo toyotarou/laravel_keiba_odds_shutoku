@@ -286,7 +286,7 @@ $analysisText = trim($rawText);
                 ]);
                 $selfController->getHorseOddsFinderSecondAiOpinion($req2nd);
             } catch (\Throwable $e) {
-                \Log::info('[2nd AI prefetch] skip: ' . $e->getMessage());
+//                 \Log::info('[2nd AI prefetch] skip: ' . $e->getMessage());
             }
         });
 
@@ -623,11 +623,17 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             $h['estimated_final_fuku_min'] = ($h['fuku_min_6'] !== null && $h['fuku_min_6'] > 0)
                 ? round($h['fuku_min_6'] * floatval($corr->avg_correction_ratio), 2)
                 : null;
+            // ── よっしー20260922指摘②: 推定確定複勝を「最小－最大・誤差」で渡す ──
+            // ※最大側も単勝補正係数の流用。複勝専用補正テーブルの実装は別課題として残る。
+            $h['estimated_final_fuku_max'] = ($h['fuku_max_6'] !== null && $h['fuku_max_6'] > 0)
+                ? round($h['fuku_max_6'] * floatval($corr->avg_correction_ratio), 2)
+                : null;
         } else {
             $h['estimated_final_odds']     = null;
             $h['correction_ratio']         = null;
             $h['correction_std']           = null;
             $h['estimated_final_fuku_min'] = null;
+            $h['estimated_final_fuku_max'] = null;
         }
 
         // 予測補正OPI = 人気順位別の過去平均単勝オッズ ÷ 推定確定オッズ
@@ -780,6 +786,20 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         }
         $tanLine = implode('→', $tanParts) . '倍（' . $h['change_label'] . '）';
 
+        // ── よっしー20260922指摘①: 複勝最小オッズの全時点時系列 ──────────────
+        // 計測前・21・18・15・12・9・6分前の複勝最小オッズを全時点渡す。
+        // 2時点（計測前・6分前）だけでは継続流入・単発急落・反発・直前加速を
+        // 正確に判定できないため。データは fuku_min_series に全時点保持済み。
+        $fukuSeriesParts = [];
+        foreach ($timingLabels as $timing => $label) {
+            if (isset($h['fuku_min_series'][$timing]) && $h['fuku_min_series'][$timing] > 0) {
+                $fukuSeriesParts[] = "[{$label}]" . number_format($h['fuku_min_series'][$timing], 1);
+            }
+        }
+        $fukuSeriesLine = !empty($fukuSeriesParts)
+            ? implode('→', $fukuSeriesParts) . '倍（' . $h['fuku_change'] . '）'
+            : '－（複勝オッズデータなし）';
+
         // 複勝（計測前と6分前のみ表示）
         $fukuMinBase = $h['fuku_min_series'][Constants::ODDS_DB_FIRST] ?? null;
         $fukuMaxBase = $h['fuku_max_series'][Constants::ODDS_DB_FIRST] ?? null;
@@ -843,9 +863,16 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         //     が正規表現で読み取っている。変更してはいけない。
         //   ※小数2桁で出すのは、1.5倍という判定境界を丸めでまたがせないため。
         if ($h['estimated_final_fuku_min'] !== null) {
+            // ※ラベル「推定確定複勝最小: 」と直後の数値の並びは
+            //   _judgeLowPayoutException() / _saveHighPayoutShadow() / _saveMlSnapshot()
+            //   が正規表現で読むため変更禁止。最大・誤差はその後ろへ追記する。
             $estFukuLine = sprintf(
-                '  推定確定複勝最小: %.2f倍  ※6分前%.1f倍×補正係数%.4f',
+                '  推定確定複勝最小: %.2f倍  推定確定複勝最大: %s  補正誤差: ±%.4f  ※6分前%.1f倍×補正係数%.4f',
                 $h['estimated_final_fuku_min'],
+                $h['estimated_final_fuku_max'] !== null
+                    ? number_format($h['estimated_final_fuku_max'], 2) . '倍'
+                    : '－',
+                $h['correction_std'],
                 $h['fuku_min_6'],
                 $h['correction_ratio']
             );
@@ -916,6 +943,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $lines[] = sprintf('%2d番(%2d人気) %s', $h['num'], $h['popularity'], $h['name']);
         $lines[] = '  単勝: ' . $tanLine;
         $lines[] = '  複勝: 計測前' . $fukuBase . '→6分前' . $fuku6 . '（' . $h['fuku_change'] . '）  単複比: ' . $h['tanpuku_ratio'];
+        $lines[] = '  複勝時系列（最小）: ' . $fukuSeriesLine;   // よっしー20260922指摘①
         $lines[] = $tanInflowLine;
         $lines[] = $fukuInflowLine;
         $lines[] = $opiLine;
@@ -1397,6 +1425,20 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         "・7〜10番人気から最大{$pickupMidMax}頭" . ($pickupMidMax === 0 ? "（原則選出なし）" : ""),
         "・11番人気以下（人気薄注目馬）から最大{$pickupLowerMax}頭" . ($pickupLowerMax === 0 ? "（原則選出なし）" : ""),
         "・合計最大{$pickupTotalMax}頭（推奨頭数は上限。最低基準点を満たす馬だけを選出すること）",
+        '・頭数の上限は 1st AI 最大7頭、2nd AI 最大5頭、統合後は出走頭数に応じて最大4〜7頭です。上記のPHP算出上限（人気帯別・合計）がこれより少ない場合は、必ず少ない方を優先してください。',
+        '',
+        '【能力・適性評価（100点満点・6項目）】',
+        'プロンプト末尾の【各馬の直近成績（過去最大10走）と今走データ】を根拠に、選出した各馬を以下の6項目で採点してください。',
+        '1. 基礎能力・クラス実績：25点',
+        '2. 近走内容・着差・相手関係：20点',
+        '3. コース・距離・芝ダート・馬場適性：20点',
+        '4. 脚質・想定展開・枠順との適合：15点',
+        '5. 上がり性能・位置取り・レース内容：10点',
+        '6. 斤量・騎手・馬体重・休養間隔などの補正：10点',
+        '評価区分：A（80〜100点）B（70〜79点）C（60〜69点）D（59点以下）',
+        '出走履歴がない馬はD評価（0点）とする。',
+        '採点結果は、選出理由の冒頭に必ず「能力適性:X（XX点）。」の形式で記載してください。この記載がないとPHP側で能力適性点を抽出できません。',
+        'ただし能力・適性だけで候補を決めてはいけません。時系列オッズの補強材料として扱い、能力適性Dでも強い市場根拠がある馬を自動除外しないでください。',
         '',
         '【出力フォーマット（厳守）】',
         'このフォーマットは画面表示アプリがそのままパースします。',
@@ -1404,7 +1446,8 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '',
         '─────────────────────────────',
         '厳選穴レース|1または0',
-        '馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：XXXXXXXXXXXXXXXXXXXXXXXXXXXX（候補1頭につき改行なしの1行。能力適性を含む客観的根拠を4〜5要素入れ、箇条書きにしない）',
+        'レース指標|波乱度: X|下位進入度: X|大穴進入度: X',
+        '馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：能力適性:A（82点）。XXXXXXXXXXXXXXXXXXXXXXXXXXXX（候補1頭につき改行なしの1行。冒頭の「能力適性:X（XX点）。」は必須。続けて客観的根拠を4〜5要素入れ、箇条書きにしない）',
         '─────────────────────────────',
         '',
         '【厳選穴レースの判定ルール】',
@@ -1468,6 +1511,22 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '',
         'おすすめ度（信頼度＋妙味）の降順でソートしてください。',
         '人気順は上記テーブルの「X人気」欄の値をそのまま出力してください。自分で計算しないでください。',
+        '',
+        '【低配当除外ルール（PHP側でも同基準で強制適用されます）】',
+        '対象: 推定確定複勝最小が1.5倍未満 かつ 推定確定オッズ（単勝）が3.0倍未満 の両方を満たす馬。',
+        '該当馬は原則として最終選出から除外してください（本候補・補欠・人気薄注目馬のいずれにも残しません）。妙味小計は原則5点以下、おすすめ度は原則69点以下とします。下記の例外3条件をすべて満たす場合だけ解除できます。',
+        '・例外①: 主断層の上側グループ（断層最上位グループ）に属している',
+        '・例外②: 単勝・複勝の両方で複数時点にわたる継続流入が確認できる',
+        '・例外③: サンプル30件以上かつ回収率110%以上の回収率が2種類以上ある',
+        '3条件すべてが成立した場合のみ上限を解除し、解除した事実と根拠を選出理由へ明記してください。1つでも欠ければ解除できません。',
+        'この判定はPHP側（Block 13a）でも機械的に行われ、例外3条件を満たさない低配当馬は統合候補から必ず除外されます。AIの判断より優先されます。',
+        '',
+        '【回収率フィルター（PHP側でも同基準で強制適用されます）】',
+        '各馬の3種類の回収率（過去回収率・OPI帯別回収率・フェーズパターン別回収率）は、サンプル30件以上のものだけを有効値として扱ってください。',
+        '・欠損・0件・「－」は不明として中立扱いとし、0点や不振と解釈してはいけません',
+        '・有効値が2種類以上あり、そのうち2種類以上が90%未満の馬は、PHP側（Block 12）でハード除外されます。AI採点でもおすすめ度64点以下としてください',
+        '・有効値のうち2種類以上が110%以上の馬は、妙味を高く評価してください',
+        '・サンプル30件未満の回収率を単独の根拠にして高得点・低得点にしてはいけません',
         '',
         '【選出ルール】',
         '・選出した馬が全員4番人気以内の場合、選出理由の最後に必ず「※妙味補足：〜（なぜ高人気馬だけになったか1行で）」を追記してください',
@@ -1538,7 +1597,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         "選出馬は必ず下記フォーマットを厳守して出力してください（合計{$pickupTotalMax}頭以内。人気帯別上限を超えないこと）。",
         '1行目: 「厳選穴レース|X」（X=1: 厳選穴レース成立, X=0: 不成立）',
         '2行目: 「レース指標|波乱度: X|下位進入度: X|大穴進入度: X」（各X=1〜5の整数。このまま1行で出力すること）',
-        '3行目以降: 「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜」を選出頭数分',
+        '3行目以降: 「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：能力適性:X（XX点）。〜」を選出頭数分',
         '※画面表示に影響するので、この形を必ず守ってください。',
     ]);
 
@@ -1703,10 +1762,10 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
     // 返す前に 1st AI の回答判定を通し、失敗と判定されたキャッシュは破棄して再処理する。
     $cacheJudge = $cached ? $this->_judgeFirstAiResponse((string) $cached->analysis_text) : null;
     if ($cacheJudge !== null && $cacheJudge['status'] === 'failed') {
-        \Log::warning('[Cache] 不正なキャッシュを破棄して再処理する', [
-            'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
-            'day'  => $day,  'race'   => $race,   'reason' => $cacheJudge['reason'],
-        ]);
+//         \Log::warning('[Cache] 不正なキャッシュを破棄して再処理する', [
+//             'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
+//             'day'  => $day,  'race'   => $race,   'reason' => $cacheJudge['reason'],
+//         ]);
         DB::table('t_horse_odds_finder_ai_analysis2')
             ->where('date', $date)->where('kaisuu', $kaisuu)->where('basho_code', $basho)
             ->where('day', $day)->where('race', $race)
@@ -1748,10 +1807,10 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         // 返す前に 1st AI の回答判定を通し、失敗と判定されたキャッシュは破棄して再処理する。
         $cacheJudge2 = $cached ? $this->_judgeFirstAiResponse((string) $cached->analysis_text) : null;
         if ($cacheJudge2 !== null && $cacheJudge2['status'] === 'failed') {
-            \Log::warning('[Cache] 不正なキャッシュを破棄して再処理する', [
-                'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
-                'day'  => $day,  'race'   => $race,   'reason' => $cacheJudge2['reason'],
-            ]);
+//             \Log::warning('[Cache] 不正なキャッシュを破棄して再処理する', [
+//                 'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
+//                 'day'  => $day,  'race'   => $race,   'reason' => $cacheJudge2['reason'],
+//             ]);
             DB::table('t_horse_odds_finder_ai_analysis2')
                 ->where('date', $date)->where('kaisuu', $kaisuu)->where('basho_code', $basho)
                 ->where('day', $day)->where('race', $race)
@@ -1837,14 +1896,30 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         // 仕様:「各馬の直近5走以上（取得可能なら10走）」
         // ⑩ 拡充: grade/jockey/burden_weight/horse_weight/corner_1〜4 を追加
         // 今走条件（$raceRow->dist/$raceRow->course/$raceRow->grade）も先頭に付加
-        $b9HorseRows = DB::table('t_horse_odds_finder_horses')
-            ->where('date',   $date)
-            ->where('kaisuu', $raceRow->kaisuu)
-            ->where('basho',  $raceRow->basho)
-            ->where('day',    $raceRow->day)
-            ->where('race',   $raceRow->race)
-            ->orderBy('num')
-            ->get(['num', 'name', 'jockey']); // ⑩ 今走騎手を追加
+        // ── よっしー20260922-03指摘①: 過去成績の二重送信を防止 ─────────────
+        // 1st AI用プロンプト（.dataファイル）には Block A として同一内容の
+        // 【各馬の直近成績（過去最大10走）と今走データ】が既に含まれている。
+        // そのまま Block 9 を追記すると DeepSeek へ同じ過去成績が2回送られるため、
+        // 未収録の場合（将来 Block A が外れた場合の保険）だけ生成・追記する。
+        // ※ 能力適性ブロックの本文にも同じ見出し文字列が含まれる
+        //   （'プロンプト末尾の【各馬の直近成績…】を根拠に'）ため、
+        //   単純な部分一致では Block A が外れても収録済みと誤判定する。
+        //   Block A は必ず行頭に出るので前後の改行込みで判定する。
+        $b9NeedHistory = (mb_strpos($oddsData, "\n【各馬の直近成績（過去最大10走）と今走データ】\n") === false);
+        if (!$b9NeedHistory) {
+//             \Log::info('[Block9] 過去成績は1st AIプロンプト（Block A）に収録済みのため追記をスキップ');
+        }
+
+        $b9HorseRows = $b9NeedHistory
+            ? DB::table('t_horse_odds_finder_horses')
+                ->where('date',   $date)
+                ->where('kaisuu', $raceRow->kaisuu)
+                ->where('basho',  $raceRow->basho)
+                ->where('day',    $raceRow->day)
+                ->where('race',   $raceRow->race)
+                ->orderBy('num')
+                ->get(['num', 'name', 'jockey']) // ⑩ 今走騎手を追加
+            : collect();
 
         $b9TodayDist   = isset($raceRow->dist)   ? (int)$raceRow->dist   : null;
         $b9TodayCourse = isset($raceRow->course) ? $raceRow->course       : null;
@@ -1948,7 +2023,9 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
             }
             $b9HistoryText .= "\n";
         }
-        $oddsData .= $b9HistoryText;
+        if ($b9NeedHistory) {
+            $oddsData .= $b9HistoryText;   // よっしー20260922-03指摘①: 未収録時のみ追記
+        }
         // ── Block 9 End ────────────────────────────────────────────────────────────
 
         // ── 仕様書【末尾に追記される内容】の本文そのまま（要約・改変禁止）──────
@@ -1961,6 +2038,59 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         //   （2026-09-21 の本番ログで全7レースが [B-7] 形式不正になっていた）
         $oddsData .= "\n\n時系列オッズと能力・適性データを独立して全頭評価したうえで注目馬を最大{$pickupCount}頭選出し、「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：能力適性:A（82点）。〜」の形式で、1頭につき改行なしの1行で出力してください。{$pickupCount}頭を超えて選出してはいけません。最低基準未満の馬を追加して{$pickupCount}頭へ埋めてはいけません。\n"
                    . "基準を満たす馬が0頭の場合だけ、例外出力として「候補なし|0」の1行だけを返してください。PHPはこれを正常な0件として扱い、Flutterへこの文字列を渡してはいけません。";
+
+        // ── よっしー20260922-04指摘: DeepSeek送信直前の $oddsData を自己検証 ──────
+        // 04.txt が「1レース分で確認すべき」とした3点を毎レース自動でログへ記録する。
+        //   ① 過去成績が1回だけか（見出しの出現回数。正常 = 1）
+        //   ② 1st AI専用行（厳選穴レース行・レース指標行）が残っていないか（正常 = 0）
+        //   ③ 注釈記号 ★・☆ が出力指定行に紛れていないか（正常 = 空配列）
+        // ※ $oddsData 全文はログに出さない（1レース数万文字になるため）。
+        //   判定結果とカウントだけを残し、NG時のみ該当行の先頭60文字を添える。
+        // ※ここは診断専用。呼び出し元の try は LockTimeoutException しか捕捉しないため、
+        //   万一の例外で2nd AIの予測が止まらないよう \Throwable で保護する
+        //   （Block B-10 / B-14 と同じ作法）。
+        try {
+            $vfHistoryCount = substr_count($oddsData, "\n【各馬の直近成績（過去最大10走）と今走データ】\n");
+            $vfAnaLine      = preg_match_all('/^厳選穴レース\|/mu',     $oddsData);
+            $vfIdxLine      = preg_match_all('/^レース指標\|波乱度/mu', $oddsData);
+
+            // 出力指定行（厳選穴レース／レース指標／馬番：／N行目:）だけを記号混入の検査対象にする。
+            // 断層テーブル・断層時系列の「★」は正規のプロンプト内容なので対象外。
+            // ※判定は「先頭の記号・空白を取り除いた文字列」に対して行う。
+            //   '★馬番：…' のように記号が先頭へ付くと mb_strpos(...) === 0 が成立せず、
+            //   検知したい当のケースを取りこぼすため（2026-09-22 試験で検出した不具合）。
+            $vfMarkLines = [];
+            foreach (explode("\n", $oddsData) as $vfNo => $vfLine) {
+                $vfTrim   = ltrim($vfLine);
+                $vfNorm   = preg_replace('/^[★☆\s]+/u', '', $vfTrim);
+                if ($vfNorm === null) { $vfNorm = $vfTrim; }   // preg失敗時は元の文字列で判定
+                $vfIsSpec = (mb_strpos($vfNorm, '厳選穴レース') === 0)
+                         || (mb_strpos($vfNorm, 'レース指標')   === 0)
+                         || (mb_strpos($vfNorm, '馬番：')       === 0)
+                         || (bool) preg_match('/^\d行目/u', $vfNorm);
+                if (($vfIsSpec && preg_match('/[★☆]/u', $vfLine))
+                    || mb_strpos($vfLine, '☆') !== false) {   // ☆はプロンプト文字列に出ないため全行で異常
+                    $vfMarkLines[] = ($vfNo + 1) . ': ' . mb_substr($vfTrim, 0, 60);
+                }
+            }
+
+            $vfOk = ($vfHistoryCount === 1 && $vfAnaLine === 0
+                     && $vfIdxLine === 0 && empty($vfMarkLines));
+//             \Log::info('[2nd AI検証] DeepSeek送信直前の$oddsData自己チェック', [
+//                 'race'                   => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+//                 'length'                 => mb_strlen($oddsData),
+//                 'chk1_過去成績の出現回数'   => $vfHistoryCount,  // 正常 = 1
+//                 'chk2_厳選穴レース行の残り' => $vfAnaLine,       // 正常 = 0
+//                 'chk2_レース指標行の残り'   => $vfIdxLine,       // 正常 = 0
+//                 'chk3_記号混入行'           => $vfMarkLines,     // 正常 = []
+//                 'judge'                  => $vfOk ? 'OK' : 'NG（要確認）',
+//             ]);
+        } catch (\Throwable $vfE) {
+            // 検証ログの失敗は予測処理に影響させない
+//             \Log::warning('[2nd AI検証] 自己チェックに失敗（処理は継続）', [
+//                 'error' => $vfE->getMessage(),
+//             ]);
+        }
 
         // ── #17 仕様書準拠: 市場妙味基礎点を AI実行前に PHP で算出（AIへ送信しない）────
         // 断層タイプ・主断層位置を $oddsData から取得（AI不要 / デフォルト: B）
@@ -2067,7 +2197,7 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
 「自由」の意味を正しく理解してください：
 
 ・OPI・断層タイプ・流入ランクの「解釈・重み付け」は自由。ただし値自体の再計算は禁止
-・おすすめ度の採点は自分の判断で。ただし固定スキームの上限・下限（低配当除外等）は遵守
+・おすすめ度は信頼度60点＋妙味40点の固定配点を厳守し、各項目の指定範囲内で独立して採点すること
 ・1〜3番人気だろうが10番人気だろうが、あなたが「来る」と判断すれば選んでいい
 ・入力データと逆方向の判断をする場合は、入力内にある反証根拠を明記。根拠のない逆張りは禁止
 
@@ -2136,9 +2266,9 @@ SYSTEM;
                 }
                 // 全リトライ失敗 → 2nd AI失敗確定
                 $b7SecondAiFailed = true;
-                \Log::warning('[B-7] DeepSeek全リトライ失敗、1st AI単独継続', [
-                    'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
-                ]);
+//                 \Log::warning('[B-7] DeepSeek全リトライ失敗、1st AI単独継続', [
+//                     'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
+//                 ]);
                 break;
             }
 
@@ -2147,9 +2277,9 @@ SYSTEM;
 
             // 候補なし|0 = 正常な0件回答（形式不正ではない・1st AI単独継続）
             if (preg_match('/^候補なし\|0$/mu', $analysisText)) {
-                \Log::info('[B-7] DeepSeek正常0件（候補なし|0）、1st AI単独継続', [
-                    'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
-                ]);
+//                 \Log::info('[B-7] DeepSeek正常0件（候補なし|0）、1st AI単独継続', [
+//                     'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
+//                 ]);
                 $analysisText = ''; // 0件として正常終了（$b7SecondAiFailed は false のまま）
                 break;
             }
@@ -2168,17 +2298,17 @@ SYSTEM;
             if (empty($b7ParsedHorses)) {
                 // 形式不正 → 再試行禁止（B-7仕様）。即座に2nd AI失敗扱い
                 $b7SecondAiFailed = true;
-                \Log::warning('[B-7] DeepSeek形式不正（再試行禁止）、1st AI単独継続', [
-                    'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
-                    // 原因が分かるよう全文に近い長さを残す（200字では1行目しか写らなかった）
-                    'text' => mb_substr($analysisText, 0, 2000),
-                ]);
+//                 \Log::warning('[B-7] DeepSeek形式不正（再試行禁止）、1st AI単独継続', [
+//                     'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
+//                     // 原因が分かるよう全文に近い長さを残す（200字では1行目しか写らなかった）
+//                     'text' => mb_substr($analysisText, 0, 2000),
+//                 ]);
                 break;
             }
-            \Log::info('[B-7] DeepSeek回答を受理', [
-                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
-                'parsed_cnt' => count($b7ParsedHorses),
-            ]);
+//             \Log::info('[B-7] DeepSeek回答を受理', [
+//                 'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
+//                 'parsed_cnt' => count($b7ParsedHorses),
+//             ]);
 
             break; // 正常回答
         }
@@ -2237,9 +2367,9 @@ SYSTEM;
             );
         }
         if ($b66First['status'] === 'zero') {
-            \Log::info('[B-7/#65] 1st AI 候補0頭（正常）', [
-                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
-            ]);
+//             \Log::info('[B-7/#65] 1st AI 候補0頭（正常）', [
+//                 'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
+//             ]);
         }
 
         $firstAiHorses  = $this->_parseAiHorses($firstAiText);
@@ -2350,11 +2480,11 @@ SYSTEM;
                 if ($score >= 70.0) return true;
                 if ($score >= 60.0 && $pop >= 1 && $pop <= 10) return true;
                 if ($score >= 55.0 && $pop >= 11) return true;
-                \Log::info('[Block13b] 最低基準点未満除外（merge後）', [
-                    'num'      => $h['num'], 'name' => $h['name'],
-                    'score'    => $score,    'popularity' => $pop,
-                    'category' => $h['category'] ?? '',
-                ]);
+//                 \Log::info('[Block13b] 最低基準点未満除外（merge後）', [
+//                     'num'      => $h['num'], 'name' => $h['name'],
+//                     'score'    => $score,    'popularity' => $pop,
+//                     'category' => $h['category'] ?? '',
+//                 ]);
                 return false;
             }));
         }
@@ -2395,13 +2525,13 @@ SYSTEM;
                     // 3条件すべて成立（AND）した場合のみ除外解除。1つでも不成立なら除外する。
                     if ($b13aJ['released']) return true;
 
-                    \Log::info('[Block13a] 低配当除外（merge後）', [
-                        'num'                => $h['num'],           'name'     => $h['name'],
-                        'fuku_min'           => $b13aJ['fuku_min'],  'tan_odds' => $b13aJ['tan_odds'],
-                        'ex1_最上位グループ' => $b13aJ['ex1'],
-                        'ex2_単複継続流入'   => $b13aJ['ex2'],
-                        'ex3_回収率110x2'    => $b13aJ['ex3'],
-                    ]);
+//                     \Log::info('[Block13a] 低配当除外（merge後）', [
+//                         'num'                => $h['num'],           'name'     => $h['name'],
+//                         'fuku_min'           => $b13aJ['fuku_min'],  'tan_odds' => $b13aJ['tan_odds'],
+//                         'ex1_最上位グループ' => $b13aJ['ex1'],
+//                         'ex2_単複継続流入'   => $b13aJ['ex2'],
+//                         'ex3_回収率110x2'    => $b13aJ['ex3'],
+//                     ]);
                     return false;
                 }
             ));
@@ -2438,9 +2568,9 @@ SYSTEM;
                 $b12mLow   = array_values(array_filter($b12mValid,   fn($r) => $r['rate'] < 90.0));
                 if (count($b12mValid) >= 2 && count($b12mLow) >= 2) {
                     $b12mExcludeNums[] = $b12mNum;
-                    \Log::info("[Block12] ハード除外（merge後）: 馬番{$b12mNum}", [
-                        'valid_rates' => $b12mValid,
-                    ]);
+//                     \Log::info("[Block12] ハード除外（merge後）: 馬番{$b12mNum}", [
+//                         'valid_rates' => $b12mValid,
+//                     ]);
                 }
             }
             if (!empty($b12mExcludeNums)) {
@@ -2558,10 +2688,10 @@ SYSTEM;
             },
             $mergedHorses
         );
-        \Log::debug('[Flutter] シャドー値を応答から除去', [
-            'removed_keys' => $shadowOnlyKeys,
-            'horses'       => count($flutterHorses),
-        ]);
+//         \Log::debug('[Flutter] シャドー値を応答から除去', [
+//             'removed_keys' => $shadowOnlyKeys,
+//             'horses'       => count($flutterHorses),
+//         ]);
 
         return response()->json(['data' => [
             'date'          => $date,
@@ -2864,10 +2994,10 @@ SYSTEM;
         $aiHorses = array_values($aiHorses);
 
         if (!empty($removed)) {
-            \Log::warning("[B16-{$aiLabel}] 除去: " . implode(', ', $removed));
+//             \Log::warning("[B16-{$aiLabel}] 除去: " . implode(', ', $removed));
         }
         if (!empty($fixed)) {
-            \Log::info("[B16-{$aiLabel}] 補正: " . implode(', ', $fixed));
+//             \Log::info("[B16-{$aiLabel}] 補正: " . implode(', ', $fixed));
         }
     }
 
@@ -3024,12 +3154,12 @@ SYSTEM;
                 }
                 if ($qCount >= 3 && $qh['score'] >= 80) {
                     $secondUniqueLimit = 1;
-                    \Log::info('[Block6] タイプA 独自発見枠昇格', [
-                        'num'       => $qh['num'],
-                        'name'      => $qh['name'],
-                        'score'     => $qh['score'],
-                        'trueCount' => $qCount,
-                    ]);
+//                     \Log::info('[Block6] タイプA 独自発見枠昇格', [
+//                         'num'       => $qh['num'],
+//                         'name'      => $qh['name'],
+//                         'score'     => $qh['score'],
+//                         'trueCount' => $qCount,
+//                     ]);
                     break;
                 }
             }
@@ -3309,14 +3439,14 @@ SYSTEM;
             $b9h['ability_grade'] = $b9Grade;
             $b9h['ability_score'] = $b9Corr;
             // ※ 仕様: ability_scoreは高配当総合点・シャドー比較専用。既存おすすめ度(score)へは加算しない
-            \Log::debug('[Block9] ability', [
-                'num'         => $b9h['num'],
-                'name'        => $b9h['name'],
-                'grade'       => $b9Grade,
-                'pts'         => $b9Pts,
-                'corr'        => $b9Corr,
-                'score_orig'  => $b9h['score'], // scoreは変更しない
-            ]);
+//             \Log::debug('[Block9] ability', [
+//                 'num'         => $b9h['num'],
+//                 'name'        => $b9h['name'],
+//                 'grade'       => $b9Grade,
+//                 'pts'         => $b9Pts,
+//                 'corr'        => $b9Corr,
+//                 'score_orig'  => $b9h['score'], // scoreは変更しない
+//             ]);
         }
         unset($b9h);
         // ── Block 9 Session 11 End ─────────────────────────────────────────────────
@@ -3370,9 +3500,9 @@ SYSTEM;
 
             if (count($b12ValidRates) >= 2 && count($b12LowRates) >= 2) {
                 $hardExcludeNums[] = $b12Num;
-                \Log::info("[Block12] ハード除外: 馬番{$b12Num}", [
-                    'valid_rates' => $b12ValidRates,
-                ]);
+//                 \Log::info("[Block12] ハード除外: 馬番{$b12Num}", [
+//                     'valid_rates' => $b12ValidRates,
+//                 ]);
             }
         }
 
@@ -3507,12 +3637,12 @@ SYSTEM;
                 'F8' => $b6F8,
             ];
 
-            \Log::debug('[Block6] F-flags', [
-                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho,
-                'day'  => $day,  'race'   => $race,
-                'num'  => $b6Num, 'name'  => $b6sh['name'],
-                'flags' => $horseFlagsMap[$b6Num],
-            ]);
+//             \Log::debug('[Block6] F-flags', [
+//                 'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho,
+//                 'day'  => $day,  'race'   => $race,
+//                 'num'  => $b6Num, 'name'  => $b6sh['name'],
+//                 'flags' => $horseFlagsMap[$b6Num],
+//             ]);
         }
         // ── Block 6 End ───────────────────────────────────────────────────────────
 
@@ -3771,10 +3901,10 @@ SYSTEM;
             'targets'         => $vcTargets,
             'violations'      => $vcViolations,
         ];
-        \Log::info('[#69] 妙味小計上限の検証', [
-            'checked'    => $vcChecked,
-            'violations' => count($vcViolations),
-        ]);
+//         \Log::info('[#69] 妙味小計上限の検証', [
+//             'checked'    => $vcChecked,
+//             'violations' => count($vcViolations),
+//         ]);
         return $vcResult;
     }
 
@@ -3808,10 +3938,10 @@ SYSTEM;
                 ->where('race',       (int) $race)
                 ->first();
         } catch (\Throwable $e) {
-            \Log::warning('[Block14] 統合結果の読み出しに失敗（応答には含めない）', [
-                'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
-                'day'  => $day,  'race'   => $race,   'error' => $e->getMessage(),
-            ]);
+//             \Log::warning('[Block14] 統合結果の読み出しに失敗（応答には含めない）', [
+//                 'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
+//                 'day'  => $day,  'race'   => $race,   'error' => $e->getMessage(),
+//             ]);
             return [];
         }
 
@@ -3922,16 +4052,16 @@ SYSTEM;
                     $b14MergeJson,
                 ]
             );
-            \Log::debug('[Block14] ai_merge_result UPSERT', [
-                'date'       => $date,
-                'kaisuu'     => $kaisuu,
-                'basho_code' => $basho,
-                'day'        => $day,
-                'race'       => $race,
-                'upset_race' => $upsetRaceFinal,
-                'gap_type'   => $gapTypeForMerge,
-                'horses_cnt' => count($mergedHorses),
-            ]);
+//             \Log::debug('[Block14] ai_merge_result UPSERT', [
+//                 'date'       => $date,
+//                 'kaisuu'     => $kaisuu,
+//                 'basho_code' => $basho,
+//                 'day'        => $day,
+//                 'race'       => $race,
+//                 'upset_race' => $upsetRaceFinal,
+//                 'gap_type'   => $gapTypeForMerge,
+//                 'horses_cnt' => count($mergedHorses),
+//             ]);
         } catch (\Throwable $b14e) {
             \Log::error('[Block14] ai_merge_result UPSERT failed', ['err' => $b14e->getMessage()]);
         }
@@ -4324,18 +4454,18 @@ SYSTEM;
                     'c6'  => $b8C6,     // 単複両方低下（null=不明）
                 ];
 
-                \Log::debug('[Block10] market_score', [
-                    'num'       => $b10Num,
-                    'score_a'   => $b10ScoreA,
-                    'score_b'   => $b10ScoreB,
-                    'score_c'   => $b10ScoreC,
-                    'score_d'   => $b10ScoreD,
-                    'score_e'   => $b10ScoreEPerHorse,
-                    'valid_max' => $b10ValidMax,
-                    'total'     => $b10TotalScore,
-                    'f1'        => $b10F1Active,
-                    'f5'        => $b10F5Active,
-                ]);
+//                 \Log::debug('[Block10] market_score', [
+//                     'num'       => $b10Num,
+//                     'score_a'   => $b10ScoreA,
+//                     'score_b'   => $b10ScoreB,
+//                     'score_c'   => $b10ScoreC,
+//                     'score_d'   => $b10ScoreD,
+//                     'score_e'   => $b10ScoreEPerHorse,
+//                     'valid_max' => $b10ValidMax,
+//                     'total'     => $b10TotalScore,
+//                     'f1'        => $b10F1Active,
+//                     'f5'        => $b10F5Active,
+//                 ]);
 
                 $b10Rows[] = [
                     'date'        => $date,
@@ -4377,19 +4507,19 @@ SYSTEM;
                 }
                 $b13UnderevalFlagMap[$b10Num] = $b13Flag;
                 $b13ScoreAMap[$b10Num]        = $b10ScoreA; // 複勝継続流入（馬券判定用）
-                \Log::info('[B-13] 市場過小評価フラグ', [
-                    'date'        => $date,
-                    'kaisuu'      => $kaisuu,
-                    'basho_code'  => $basho,
-                    'day'         => $day,
-                    'race'        => $race,
-                    'num'         => $b10Num,
-                    'total_score' => $b10TotalScore,
-                    'score_a'     => $b10ScoreA,
-                    'score_c'     => $b10ScoreC,
-                    'valid_max'   => $b10ValidMax,
-                    'undereval'   => $b13Flag,
-                ]);
+//                 \Log::info('[B-13] 市場過小評価フラグ', [
+//                     'date'        => $date,
+//                     'kaisuu'      => $kaisuu,
+//                     'basho_code'  => $basho,
+//                     'day'         => $day,
+//                     'race'        => $race,
+//                     'num'         => $b10Num,
+//                     'total_score' => $b10TotalScore,
+//                     'score_a'     => $b10ScoreA,
+//                     'score_c'     => $b10ScoreC,
+//                     'valid_max'   => $b10ValidMax,
+//                     'undereval'   => $b13Flag,
+//                 ]);
             }
 
             // UPSERT（全馬まとめてバルク INSERT ... ON DUPLICATE KEY UPDATE）
@@ -4529,27 +4659,27 @@ SYSTEM;
             $b8mh['fake_inflow_true_cnt'] = $b8TrueCount;
 
             // シャドー期間: ログ保存のみ（候補からの除外は行わない）
-            \Log::info('[B-8] 偽流入警戒判定', [
-                'date'        => $date,
-                'kaisuu'      => $kaisuu,
-                'basho_code'  => $basho,
-                'day'         => $day,
-                'race'        => $race,
-                'num'         => $b8mhNum,
-                'popularity'  => $b8mhPop,
-                'true_count'  => $b8TrueCount,
-                'known_count' => $b8KnownCount,
-                'fake_warning'=> $b8FakeWarn,
-                'conditions'  => [
-                    'c1_3area_decline'  => $b8c1Val,
-                    'c2_final_down'     => $b8c2Val,
-                    'c3_fuku_rank_top2' => $b8c3Val,
-                    'c4_fuku_pop_adv2'  => $b8c4Val,
-                    'c5_no_rebound'     => $b8c5Val,
-                    'c6_both_down'      => $b8c6Val,
-                    'c7_undereval_flag' => $b8c7Val, // B-13算出済み（null=不明）
-                ],
-            ]);
+//             \Log::info('[B-8] 偽流入警戒判定', [
+//                 'date'        => $date,
+//                 'kaisuu'      => $kaisuu,
+//                 'basho_code'  => $basho,
+//                 'day'         => $day,
+//                 'race'        => $race,
+//                 'num'         => $b8mhNum,
+//                 'popularity'  => $b8mhPop,
+//                 'true_count'  => $b8TrueCount,
+//                 'known_count' => $b8KnownCount,
+//                 'fake_warning'=> $b8FakeWarn,
+//                 'conditions'  => [
+//                     'c1_3area_decline'  => $b8c1Val,
+//                     'c2_final_down'     => $b8c2Val,
+//                     'c3_fuku_rank_top2' => $b8c3Val,
+//                     'c4_fuku_pop_adv2'  => $b8c4Val,
+//                     'c5_no_rebound'     => $b8c5Val,
+//                     'c6_both_down'      => $b8c6Val,
+//                     'c7_undereval_flag' => $b8c7Val, // B-13算出済み（null=不明）
+//                 ],
+//             ]);
         }
         unset($b8mh); // 参照変数の解放
         // ── Block B-8 End ────────────────────────────────────────────────────────
@@ -4817,12 +4947,12 @@ SYSTEM;
                         . '  betting_judgment=VALUES(betting_judgment)',
                         $bB10shVal
                     );
-                    \Log::info('[B-10] high_payout_shadow_log saved', [
-                        'date'       => $date,    'kaisuu' => $kaisuu,
-                        'basho_code' => $basho,   'day'    => $day,
-                        'race'       => $race,    'count'  => count($bB10HpRows),
-                        'top_score'  => $bB10HpRows[0]['high_payout_score'] ?? null,
-                    ]);
+//                     \Log::info('[B-10] high_payout_shadow_log saved', [
+//                         'date'       => $date,    'kaisuu' => $kaisuu,
+//                         'basho_code' => $basho,   'day'    => $day,
+//                         'race'       => $race,    'count'  => count($bB10HpRows),
+//                         'top_score'  => $bB10HpRows[0]['high_payout_score'] ?? null,
+//                     ]);
                 }
             } catch (\Throwable $bB10she) {
                 \Log::error('[B-10] high_payout_shadow_log INSERT failed', ['err' => $bB10she->getMessage()]);
@@ -4879,11 +5009,11 @@ SYSTEM;
                         . '  high_score=VALUES(high_score)',
                         $bB10MsVal
                     );
-                    \Log::info('[B-10] market_score_log ability/high_score updated', [
-                        'date'       => $date,  'kaisuu' => $kaisuu,
-                        'basho_code' => $basho, 'day'    => $day,
-                        'race'       => $race,  'count'  => count($bB10MsRows),
-                    ]);
+//                     \Log::info('[B-10] market_score_log ability/high_score updated', [
+//                         'date'       => $date,  'kaisuu' => $kaisuu,
+//                         'basho_code' => $basho, 'day'    => $day,
+//                         'race'       => $race,  'count'  => count($bB10MsRows),
+//                     ]);
                 }
             } catch (\Throwable $bB10mse) {
                 \Log::error('[B-10] market_score_log UPDATE failed', ['err' => $bB10mse->getMessage()]);
@@ -4945,11 +5075,11 @@ SYSTEM;
             }
             @file_put_contents($seLatest, $seJson);
 
-            \Log::info('[Block11] 評価結果を保存', [
-                'path'  => $sePath,
-                'bytes' => strlen($seJson),
-                'models'=> array_keys($result['evaluation'] ?? []),
-            ]);
+//             \Log::info('[Block11] 評価結果を保存', [
+//                 'path'  => $sePath,
+//                 'bytes' => strlen($seJson),
+//                 'models'=> array_keys($result['evaluation'] ?? []),
+//             ]);
             return ['saved' => true, 'path' => $sePath, 'latest' => $seLatest, 'reason' => null];
         } catch (\Throwable $seE) {
             \Log::error('[Block11] 評価結果の保存に失敗', ['err' => $seE->getMessage()]);
@@ -5131,11 +5261,11 @@ SYSTEM;
         $plRegistry['active']['phase']              = $plPhase['phase'];
         $plRegistry['active']['category_dict']      = $plDict['meta'] ?? null;
 
-        \Log::info('[Block11] 学習パイプライン実行（本番未反映）', [
-            'phase'      => $plPhase['phase'],
-            'split'      => array_map('count', $plIdx),
-            'trained'    => array_map(fn($m) => $m['metrics']['status'] ?? '', $plModels),
-        ]);
+//         \Log::info('[Block11] 学習パイプライン実行（本番未反映）', [
+//             'phase'      => $plPhase['phase'],
+//             'split'      => array_map('count', $plIdx),
+//             'trained'    => array_map(fn($m) => $m['metrics']['status'] ?? '', $plModels),
+//         ]);
 
         $plResult = [
             'status'     => 'completed',
@@ -5211,19 +5341,19 @@ SYSTEM;
                 );
             } catch (\Throwable $wlColE) {
                 // 専用列が存在しない環境では features だけでも確実に残す
-                \Log::warning('[Block11] 専用列へのUPDATEに失敗。featuresのみ更新する', [
-                    'err' => $wlColE->getMessage(),
-                ]);
+//                 \Log::warning('[Block11] 専用列へのUPDATEに失敗。featuresのみ更新する', [
+//                     'err' => $wlColE->getMessage(),
+//                 ]);
                 DB::statement(
                     'UPDATE t_horse_odds_finder_ml_snapshot SET features = ?'
                     . ' WHERE date = ? AND kaisuu = ? AND basho_code = ? AND day = ? AND race = ?',
                     [$wlFeatJson, $date, $kaisuu, $basho, $day, $race]
                 );
             }
-            \Log::info('[Block11] result_label 書き込み', [
-                'race' => "{$date}_{$kaisuu}_{$basho}_{$day}_{$race}",
-                'm1' => $wlLabels['m1'], 'm2' => $wlLabels['m2'], 'm3' => $wlLabels['m3'],
-            ]);
+//             \Log::info('[Block11] result_label 書き込み', [
+//                 'race' => "{$date}_{$kaisuu}_{$basho}_{$day}_{$race}",
+//                 'm1' => $wlLabels['m1'], 'm2' => $wlLabels['m2'], 'm3' => $wlLabels['m3'],
+//             ]);
             return ['status' => 'written', 'labels' => $wlLabels];
         } catch (\Throwable $wlE) {
             \Log::error('[Block11] result_label 書き込み失敗', ['err' => $wlE->getMessage()]);
@@ -5848,10 +5978,10 @@ SYSTEM;
             $riOut['m4'] = ['status' => 'skipped', 'reason' => 'モデル未登録'];
         }
 
-        \Log::info('[Block11] M1〜M4 推論（シャドー専用・本番未反映）', [
-            'phase' => $riPhase['phase'],
-            'race_models' => array_map(fn($r) => $r['probability'] ?? null, $riOut['race_models']),
-        ]);
+//         \Log::info('[Block11] M1〜M4 推論（シャドー専用・本番未反映）', [
+//             'phase' => $riPhase['phase'],
+//             'race_models' => array_map(fn($r) => $r['probability'] ?? null, $riOut['race_models']),
+//         ]);
         return $riOut;
     }
 
@@ -6023,11 +6153,11 @@ SYSTEM;
             ],
         ];
 
-        \Log::info('[Block11] M1〜M4 正解ラベル算出', [
-            'race' => "{$date}_{$kaisuu}_{$basho}_{$day}_{$race}",
-            'm1' => $mlM1, 'm2' => $mlM2, 'm3' => $mlM3,
-            'top5_pops' => $mlTop5Pops,
-        ]);
+//         \Log::info('[Block11] M1〜M4 正解ラベル算出', [
+//             'race' => "{$date}_{$kaisuu}_{$basho}_{$day}_{$race}",
+//             'm1' => $mlM1, 'm2' => $mlM2, 'm3' => $mlM3,
+//             'top5_pops' => $mlTop5Pops,
+//         ]);
         return $mlOut;
     }
 
@@ -6096,7 +6226,7 @@ SYSTEM;
                              'phase3_holdout' => $phNeedHoldout],
         ];
 
-        \Log::debug('[Block11] ml phase', $phOut);
+//         \Log::debug('[Block11] ml phase', $phOut);
         return $phOut;
     }
 
@@ -6815,7 +6945,7 @@ SYSTEM;
         ];
         reset($tsOut['train']); reset($tsOut['test']);
 
-        \Log::info('[Block11] 時系列分割 70/15/15', $tsOut['summary']);
+//         \Log::info('[Block11] 時系列分割 70/15/15', $tsOut['summary']);
         return $tsOut;
     }
 
@@ -7288,7 +7418,7 @@ SYSTEM;
             'sizes'      => array_map('count', array_diff_key($cdDict, ['meta' => 1])),
             'note'       => '学習期間のみで作成。未知の値は UNKNOWN(0)',
         ];
-        \Log::info('[Block11] カテゴリ辞書作成', $cdDict['meta']);
+//         \Log::info('[Block11] カテゴリ辞書作成', $cdDict['meta']);
         return $cdDict;
     }
 
@@ -7468,15 +7598,15 @@ SYSTEM;
             ];
         }
 
-        \Log::info('[BandMethod] 帯基準馬方式 順位生成（シャドー専用・本番未反映）', [
-            'band_count'  => count($bmBandsOut),
-            'horse_count' => count($bmRanking),
-            'bands'       => array_map(
-                fn($b) => "帯{$b['band_id']}: 基準馬番{$b['base_num']}({$b['base_score']}点) "
-                        . count($b['member_nums']) . '頭',
-                $bmBandsOut
-            ),
-        ]);
+//         \Log::info('[BandMethod] 帯基準馬方式 順位生成（シャドー専用・本番未反映）', [
+//             'band_count'  => count($bmBandsOut),
+//             'horse_count' => count($bmRanking),
+//             'bands'       => array_map(
+//                 fn($b) => "帯{$b['band_id']}: 基準馬番{$b['base_num']}({$b['base_score']}点) "
+//                         . count($b['member_nums']) . '頭',
+//                 $bmBandsOut
+//             ),
+//         ]);
 
         return [
             'bands'          => $bmBandsOut,
@@ -8054,15 +8184,15 @@ SYSTEM;
                     $b11Features,
                 ]
             );
-            \Log::debug('[Block11] ml_snapshot saved', [
-                'date'       => $date,
-                'kaisuu'     => $kaisuu,
-                'basho_code' => $basho,
-                'day'        => $day,
-                'race'       => $race,
-                'gap_type'   => $gapTypeForMerge,
-                'merged_cnt' => count($mergedHorses),
-            ]);
+//             \Log::debug('[Block11] ml_snapshot saved', [
+//                 'date'       => $date,
+//                 'kaisuu'     => $kaisuu,
+//                 'basho_code' => $basho,
+//                 'day'        => $day,
+//                 'race'       => $race,
+//                 'gap_type'   => $gapTypeForMerge,
+//                 'merged_cnt' => count($mergedHorses),
+//             ]);
         } catch (\Throwable $b11e) {
             \Log::error('[Block11] ml_snapshot INSERT failed', ['err' => $b11e->getMessage()]);
         }

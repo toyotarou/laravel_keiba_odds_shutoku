@@ -236,13 +236,13 @@ class UpdateMlResultLabels extends Command
         $this->info("  excluded (結果不足): {$excluded} 件");
         $this->info("  skipped  (未取込): {$skipped} 件");
         $this->info('');
-        \Log::info('[UpdateMlResultLabels] 完了', [
-            'date'     => $targetDate ?? 'all',
-            'force'    => $force,
-            'filled'   => $filled,
-            'excluded' => $excluded,
-            'skipped'  => $skipped,
-        ]);
+//         \Log::info('[UpdateMlResultLabels] 完了', [
+//             'date'     => $targetDate ?? 'all',
+//             'force'    => $force,
+//             'filled'   => $filled,
+//             'excluded' => $excluded,
+//             'skipped'  => $skipped,
+//         ]);
 
         // ── 4. 開発者向けプッシュ通知 ────────────────────────────────────────
         $newsValue = [];

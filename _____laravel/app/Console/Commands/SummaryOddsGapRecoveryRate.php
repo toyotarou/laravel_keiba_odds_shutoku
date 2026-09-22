@@ -231,7 +231,7 @@ class SummaryOddsGapRecoveryRate extends Command
             $news    = "正常終了\nUPSERT: {$upsertCount}件\n経過: {$elapsed}秒";
 
             $this->info('=== 完了 ' . now()->format('Y-m-d H:i:s') . " ({$elapsed}秒) ===");
-            Log::info('SummaryOddsGapRecoveryRate 完了', ['upsert_count' => $upsertCount]);
+//             Log::info('SummaryOddsGapRecoveryRate 完了', ['upsert_count' => $upsertCount]);
 
             (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryOddsGapRecoveryRate::handle\n{$news}");
 

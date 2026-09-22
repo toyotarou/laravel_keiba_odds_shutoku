@@ -74,10 +74,10 @@ class WebPushService
                         $deleted = DB::table('t_horse_odds_finder_push_subscriptions')
                             ->where('endpoint', $report->getEndpoint())
                             ->delete();
-                        Log::info('WebPush購読期限切れ・削除済み (410): endpoint=' . $report->getEndpoint() . ' deleted=' . $deleted);
+//                         Log::info('WebPush購読期限切れ・削除済み (410): endpoint=' . $report->getEndpoint() . ' deleted=' . $deleted);
                     } else {
                         // 410 以外（一時的なネットワークエラー等）は警告のみ・削除しない
-                        Log::warning('WebPush送信失敗: ' . $report->getReason());
+//                         Log::warning('WebPush送信失敗: ' . $report->getReason());
                     }
                 }
             }

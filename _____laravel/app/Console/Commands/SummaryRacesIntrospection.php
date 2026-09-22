@@ -272,12 +272,12 @@ ORDER BY date, kaisuu, basho, day, race;
                 // 着順データが1つでも欠けている場合はスキップ
                 // （バリデーション・自動補正の根拠がなく、不正データが入るリスクがある）
                 if ($actualResult1 === '?' || $actualResult2 === '?' || $actualResult3 === '?') {
-                    Log::warning('SummaryRacesIntrospection: 着順データ不足のためスキップ', [
-                        'label' => "{$race->basho_name} {$race->race}R",
-                        'r1'    => $actualResult1,
-                        'r2'    => $actualResult2,
-                        'r3'    => $actualResult3,
-                    ]);
+//                     Log::warning('SummaryRacesIntrospection: 着順データ不足のためスキップ', [
+//                         'label' => "{$race->basho_name} {$race->race}R",
+//                         'r1'    => $actualResult1,
+//                         'r2'    => $actualResult2,
+//                         'r3'    => $actualResult3,
+//                     ]);
                     $this->warn("  [スキップ] {$race->date} {$race->basho_name} {$race->kaisuu}回{$race->day}日目 {$race->race}R — 着順データ不足（r1={$actualResult1}, r2={$actualResult2}, r3={$actualResult3}）");
                     $totalSkipped++;
                     continue;
@@ -657,7 +657,7 @@ ORDER BY date, kaisuu, basho, day, race;
 
         // 最終フォールバック: 既知のピックアップ馬番（hasPickup=true の場合）
         if (!empty($knownNums)) {
-            Log::warning('SummaryRacesIntrospection: ピックアップ馬番の抽出に失敗。既知馬番でフォールバック。');
+//             Log::warning('SummaryRacesIntrospection: ピックアップ馬番の抽出に失敗。既知馬番でフォールバック。');
             return array_map('strval', $knownNums);
         }
 
@@ -691,12 +691,12 @@ ORDER BY date, kaisuu, basho, day, race;
         }
 
         // 検証失敗 → 自動補正を試みる
-        Log::warning('SummaryRacesIntrospection: ## 結果 の検証失敗。自動補正を試みます。', [
-            'label' => $label,
-            'r1'    => $r1,
-            'r2'    => $r2,
-            'r3'    => $r3,
-        ]);
+//         Log::warning('SummaryRacesIntrospection: ## 結果 の検証失敗。自動補正を試みます。', [
+//             'label' => $label,
+//             'r1'    => $r1,
+//             'r2'    => $r2,
+//             'r3'    => $r3,
+//         ]);
         $this->warn("  [自動補正] {$label} — ## 結果 が不正なため自動補正します");
 
         $corrected = $this->autoCorrectResultSection($introspection, $r1, $r2, $r3, $knownPickupHorses);
@@ -712,7 +712,7 @@ ORDER BY date, kaisuu, basho, day, race;
 
         // 補正後に再検証
         if ($this->validateIntrospection($corrected, $r1, $r2, $r3, $knownPickupHorses)) {
-            Log::info('SummaryRacesIntrospection: 自動補正成功', ['label' => $label]);
+//             Log::info('SummaryRacesIntrospection: 自動補正成功', ['label' => $label]);
             $this->warn("  [自動補正完了] {$label}");
             return $corrected;
         }

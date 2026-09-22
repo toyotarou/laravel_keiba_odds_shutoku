@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Services\WebPushService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -25,9 +26,18 @@ use Illuminate\Support\Facades\DB;
  *   【ブロック 6】1回目 Node.js 実行 → 全ヒットレースを照合
  *   【ブロック 7】2回目 Node.js 実行（1回目でマッチしなかったレースのみ再試行）
  *   【ブロック 8】WebPush 通知送信 & notified_at 更新
+ *   【ブロック 9】払戻金の即時取得（keiba:importRaceResultPayout を開催単位で呼び出す）
  *   ── プライベートメソッド ──
- *   【ブロック 9】matchAndInsert(): レース照合・INSERT・通知キュー登録
- *   【ブロック 10】fetchResults(): Node.js 実行して結果配列を返す
+ *   【ブロック 10】matchAndInsert(): レース照合・INSERT・通知キュー登録
+ *   【ブロック 11】fetchResults(): Node.js 実行して結果配列を返す
+ *
+ * 【払戻金の即時取得について】
+ *   従来は 21:50 の cron（keiba:importRaceResultPayout）でのみ払戻金を取得していたが、
+ *   レース結果が確定した時点（発走+10〜30分）では払戻金も既に確定しているため、
+ *   結果を新規 INSERT したレースについて、その場で払戻金も取得する（【ブロック 9】）。
+ *   ・既に払戻金が登録済みかどうかの判定は keiba:importRaceResultPayout 側
+ *     （--kaisai / --race 指定時の早期リターン）が行うため、ここでは判定しない
+ *   ・21:50 の cron はそのまま残す（取りこぼしの保険）。既存レースはスキップされる
  *
  * 【使い方】
  *   php artisan keiba:importJraRaceOneResult
@@ -166,6 +176,7 @@ class ImportKeibaJraRaceOneResult extends Command
         $inserted     = 0;
         $skipped      = 0;
         $notifyRaces  = [];
+        $payoutRaces  = [];   // 今回 INSERT が発生したレース（払戻金取得の対象候補）
 
         // ─────────────────────────────────────────────────────────────────
         // 【ブロック 6】1回目 Node.js 実行 → 全ヒットレースを照合
@@ -190,7 +201,7 @@ class ImportKeibaJraRaceOneResult extends Command
 
         $unmatchedRaces = [];
         foreach ($hitRaces as $race) {
-            $found = $this->matchAndInsert($race, $results, $existingKeys, $notifiedRaceKeys, $inserted, $skipped, $notifyRaces);
+            $found = $this->matchAndInsert($race, $results, $existingKeys, $notifiedRaceKeys, $inserted, $skipped, $notifyRaces, $payoutRaces);
             if (!$found) {
                 $unmatchedRaces[] = $race;
                 $this->warn("  [1回目] マッチなし: {$race->basho_name} R{$race->race} → 2回目で再試行します");
@@ -214,7 +225,7 @@ class ImportKeibaJraRaceOneResult extends Command
             } else {
                 $this->info("  [2回目] 取得完了 → {$fetchMs}ms / " . count($results2) . " 件");
                 foreach ($unmatchedRaces as $race) {
-                    $found = $this->matchAndInsert($race, $results2, $existingKeys, $notifiedRaceKeys, $inserted, $skipped, $notifyRaces);
+                    $found = $this->matchAndInsert($race, $results2, $existingKeys, $notifiedRaceKeys, $inserted, $skipped, $notifyRaces, $payoutRaces);
                     if (!$found) {
                         $this->warn("  [2回目] マッチなし: {$race->basho_name} R{$race->race} → 次回cron実行時に再試行されます");
                     }
@@ -263,12 +274,45 @@ class ImportKeibaJraRaceOneResult extends Command
             $this->info("  通知送信済み & notified_at 更新: {$race->basho_name} R{$race->race}");
         }
 
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 9】払戻金の即時取得（keiba:importRaceResultPayout を呼び出す）
+        //   結果が確定したタイミング（発走+10〜30分）では払戻金も確定しているため、
+        //   今回 INSERT が発生したレースについてのみ、その場で払戻金を取得する。
+        //   ・登録済みかどうかの判定は呼び先（--kaisai / --race 指定時の早期リターン）に任せる。
+        //     登録済みなら Node.js を起動せずに即終了するため、ここでは検索しない。
+        //   ・失敗しても例外は握りつぶし、21:50 の cron が従来どおり拾う
+        // ─────────────────────────────────────────────────────────────────
+        $this->info('');
+        $this->info('払戻金取得対象 → ' . count($payoutRaces) . ' レース');
+
+        foreach ($payoutRaces as $race) {
+            $kaisai = "{$race->kaisuu}回{$race->basho_name}{$race->day}日";
+            if (!preg_match('/^[0-9]+回.+[0-9]+日$/u', $kaisai)) {
+                $this->warn("  払戻金スキップ（開催名を組み立てられません）: {$kaisai}");
+                continue;
+            }
+
+            $yearmonth = substr($race->date, 0, 7);
+            $this->info("  払戻金取得開始: {$kaisai} {$race->race}R (yearmonth={$yearmonth})");
+            try {
+                Artisan::call('keiba:importRaceResultPayout', [
+                    '--yearmonth' => $yearmonth,
+                    '--kaisai'    => $kaisai,
+                    '--race'      => $race->race,
+                ]);
+                $this->line(Artisan::output());
+                $this->info("  払戻金取得終了: {$kaisai} {$race->race}R");
+            } catch (\Throwable $e) {
+                $this->error("  払戻金取得でエラー: {$kaisai} {$race->race}R → " . $e->getMessage());
+            }
+        }
+
         $this->info('========== keiba:importJraRaceOneResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
     }
 
     /**
-     * 【ブロック 9】matchAndInsert: レース照合・INSERT・通知キュー登録
+     * 【ブロック 10】matchAndInsert: レース照合・INSERT・通知キュー登録
      *
      * JRA結果配列 ($results) の中に $race と一致するエントリを探す。
      * 一致判定: kaisuu / basho_name / day / race が全て trim 一致
@@ -278,6 +322,7 @@ class ImportKeibaJraRaceOneResult extends Command
      * 戻り値: 1件でもヒットすれば true、1件もなければ false（次回リトライ対象）
      *
      * @param array $notifiedRaceKeys 通知済みレースキーのセット（読み取り専用）
+     * @param array $payoutRaces       INSERT が発生したレースを積む配列（【ブロック 9】の払戻金取得対象）
      */
     private function matchAndInsert(
         object $race,
@@ -286,7 +331,8 @@ class ImportKeibaJraRaceOneResult extends Command
         array  $notifiedRaceKeys,
         int    &$inserted,
         int    &$skipped,
-        array  &$notifyRaces
+        array  &$notifyRaces,
+        array  &$payoutRaces
     ): bool {
         $found = false;
 
@@ -325,6 +371,9 @@ class ImportKeibaJraRaceOneResult extends Command
                         $notifyRaces[$raceKey] = $race;
                     }
 
+                    // 結果が確定したレースとして払戻金取得の対象候補に積む（レース単位で重複排除）
+                    $payoutRaces[$raceKey] = $race;
+
                     $this->info("    INSERT: {$v['horse_name']} ({$v['horse_num']}番) → {$v['rank']}着");
                     $inserted++;
                 } else {
@@ -338,7 +387,7 @@ class ImportKeibaJraRaceOneResult extends Command
     }
 
     /**
-     * 【ブロック 10】fetchResults: Node.js 実行して結果配列を返す
+     * 【ブロック 11】fetchResults: Node.js 実行して結果配列を返す
      *
      * keibaOddsGetJraRaceResult.mjs を実行し、JRAサイトの最新レース結果を取得する。
      * timeout 300: 6開催分のページ遷移があるため余裕を持たせる。

@@ -36,10 +36,22 @@ use Illuminate\Support\Facades\DB;
  * 【使い方】
  *   php artisan keiba:importRaceResultPayout --yearmonth=2023-01
  *   php artisan keiba:importRaceResultPayout  # 当月
+ *   php artisan keiba:importRaceResultPayout --kaisai=4回中山5日  # 単一開催モード（当月）
+ *
+ * 【単一開催モード（--kaisai）について】
+ *   ImportKeibaJraRaceOneResult からレース結果確定直後に呼び出すためのモード。
+ *   ・Step 1（--list-only での開催一覧取得）を省略し、渡された開催だけを処理する
+ *   ・開催単位の PRE-SKIP を行わない
+ *     （当日は同じ開催でレースが1つずつ増えるため、開催単位で弾くと2レース目以降が取得できない）
+ *   ・重複防止は【ブロック 9】のレース単位 EXISTS チェックのみで行うので、
+ *     21:50 の cron（--kaisai なし）と併用しても二重登録にはならない
+ *   ・--race を併用すると【ブロック 5-2】で「そのレースの払戻金が既にあるか」を先に検索し、
+ *     登録済みなら Node.js を実行せずに早期リターンする（呼び出し側は判定不要）
+ *   ・Node.js のリトライは1回・timeout 180秒（毎分 cron を長時間塞がないため）
  */
 class ImportKeibaRaceResultPayout extends Command
 {
-    protected $signature   = 'keiba:importRaceResultPayout {--yearmonth= : 対象年月 (例: 2023-01)}';
+    protected $signature   = 'keiba:importRaceResultPayout {--yearmonth= : 対象年月 (例: 2023-01)} {--kaisai= : 対象開催 (例: 4回中山5日)。指定時は開催一覧取得と開催単位スキップを省略し、その開催をレース単位で保存する} {--race= : 対象レース番号。--kaisai と併用すると、そのレースの払戻金が既に登録済みなら Node.js を実行せず早期リターンする}';
     protected $description = '指定年月の全開催・全レースの払戻金を取得してDBに保存する';
 
     public function handle(): void
@@ -55,10 +67,30 @@ class ImportKeibaRaceResultPayout extends Command
         }
 
         // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 1-2】--kaisai オプション解析（単一開催モード）
+        //   ImportKeibaJraRaceOneResult からレース結果確定直後に呼ばれる想定。
+        //   単一開催モードでは以下の挙動になる。
+        //     ・Step 1（--list-only による開催一覧取得）を省略する
+        //     ・開催単位の PRE-SKIP を行わない（当日は開催途中でレースが増えていくため）
+        //     ・重複防止は従来どおり「レース単位の EXISTS チェック」のみで行う
+        //     ・Node.js のリトライは1回・timeout は 180 秒（毎分 cron を塞がないため）
+        //   --kaisai を指定しない場合（21:50 のバッチ）は従来と完全に同じ動作になる。
+        // ─────────────────────────────────────────────────────────────────
+        $kaisaiOpt      = (string) ($this->option('kaisai') ?? '');
+        $isSingleKaisai = ($kaisaiOpt !== '');
+        $nodeTimeout    = $isSingleKaisai ? 180 : 300;
+
+        $raceOptRaw = $this->option('race');
+        $raceOpt    = ($raceOptRaw === null || $raceOptRaw === '') ? null : (int) $raceOptRaw;
+
+        // ─────────────────────────────────────────────────────────────────
         // 【ブロック 2】多重起動防止（年月別ロックファイル）
         //   年月をロックファイル名に含めることで異なる年月の同時実行は許可する。
+        //   単一開催モードでは開催名もファイル名に含めることで、
+        //   21:50 のバッチや他開催の処理とロックが衝突しないようにする。
         // ─────────────────────────────────────────────────────────────────
-        $lockFile = sys_get_temp_dir() . '/keiba_importRaceResultPayout_' . str_replace('-', '', $yearmonth) . '.lock';
+        $lockSuffix = $isSingleKaisai ? '_' . preg_replace('/\s+/u', '', $kaisaiOpt) : '';
+        $lockFile = sys_get_temp_dir() . '/keiba_importRaceResultPayout_' . str_replace('-', '', $yearmonth) . $lockSuffix . '.lock';
         if (file_exists($lockFile)) {
             $pid = (int) file_get_contents($lockFile);
             $isRunning = $pid > 0 && (
@@ -96,6 +128,8 @@ class ImportKeibaRaceResultPayout extends Command
             $this->info('');
             $this->info('========== keiba:importRaceResultPayout 開始 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('対象年月     : ' . $yearmonth);
+            $this->info('対象開催     : ' . ($isSingleKaisai ? $kaisaiOpt . '（単一開催モード）' : '全開催'));
+            $this->info('対象レース   : ' . ($raceOpt !== null ? $raceOpt . 'R（早期リターン判定に使用）' : '指定なし'));
             $this->info('スクリプト   : ' . $script);
             $this->info('ログファイル : ' . $logFile);
             $this->info('');
@@ -104,36 +138,44 @@ class ImportKeibaRaceResultPayout extends Command
             // 【ブロック 4】Step 1: --list-only で開催一覧を取得
             //   ImportKeibaRaceResultHistory と同じ2段階処理パターン。
             // ─────────────────────────────────────────────────────────────
-            $this->info('[Step 1] 開催一覧を取得中...');
+            if ($isSingleKaisai) {
+                // 単一開催モード: 呼び出し元から開催名が渡されているため一覧取得は不要
+                $kaisaiList  = [$kaisaiOpt];
+                $totalKaisai = 1;
+                $this->info('[Step 1] --kaisai 指定のため開催一覧の取得をスキップします → ' . $kaisaiOpt);
+                $this->info('');
+            } else {
+                $this->info('[Step 1] 開催一覧を取得中...');
 
-            $listCommand = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($script)
-                . ' --yearmonth=' . escapeshellarg($yearmonth)
-                . ' --list-only'
-                . ' 2>>' . escapeshellarg($logFile);
+                $listCommand = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($script)
+                    . ' --yearmonth=' . escapeshellarg($yearmonth)
+                    . ' --list-only'
+                    . ' 2>>' . escapeshellarg($logFile);
 
-            $this->info('  実行: ' . $listCommand);
+                $this->info('  実行: ' . $listCommand);
 
-            $listOutput = shell_exec($listCommand);
-            $listJson   = json_decode($listOutput, true);
+                $listOutput = shell_exec($listCommand);
+                $listJson   = json_decode($listOutput, true);
 
-            if (!is_array($listJson) || !array_key_exists('kaisaiList', $listJson)) {
-                $this->error('開催一覧の取得に失敗しました（出力が不正です）。');
-                $this->error('Node.js 出力: ' . $listOutput);
-                $status = '開催一覧の取得失敗（出力不正）';
-                return;
+                if (!is_array($listJson) || !array_key_exists('kaisaiList', $listJson)) {
+                    $this->error('開催一覧の取得に失敗しました（出力が不正です）。');
+                    $this->error('Node.js 出力: ' . $listOutput);
+                    $status = '開催一覧の取得失敗（出力不正）';
+                    return;
+                }
+
+                $kaisaiList  = $listJson['kaisaiList'];
+                $totalKaisai = count($kaisaiList);
+
+                if (empty($kaisaiList)) {
+                    $this->warn('対象開催なし（当月の結果確定済み開催がまだありません）。');
+                    $status = '対象開催なし';
+                    return;
+                }
+
+                $this->info("  → {$totalKaisai} 開催を検出: " . implode(', ', $kaisaiList));
+                $this->info('');
             }
-
-            $kaisaiList  = $listJson['kaisaiList'];
-            $totalKaisai = count($kaisaiList);
-
-            if (empty($kaisaiList)) {
-                $this->warn('対象開催なし（当月の結果確定済み開催がまだありません）。');
-                $status = '対象開催なし';
-                return;
-            }
-
-            $this->info("  → {$totalKaisai} 開催を検出: " . implode(', ', $kaisaiList));
-            $this->info('');
 
             // ─────────────────────────────────────────────────────────────
             // 【ブロック 5】インポート済み開催をDBから先読み（PRE-SKIP 判定用）
@@ -156,6 +198,16 @@ class ImportKeibaRaceResultPayout extends Command
                 ->mapWithKeys(fn($r) => ["{$r->kaisuu}_{$r->basho_code}_{$r->day}" => true])
                 ->toArray();
             $this->info('  インポート済み開催: ' . count($existingKaisaiKeys) . ' 件');
+
+            if ($isSingleKaisai) {
+                // 単一開催モードでは開催単位のスキップを無効化する。
+                // 当日は同じ開催でレースが1つずつ増えていくため、開催単位でスキップすると
+                // 2レース目以降の払戻金が永久に取得できなくなる。
+                // 重複防止は【ブロック 9】のレース単位 EXISTS チェックで担保する。
+                $existingKaisaiKeys      = [];
+                $existingKaisaiShortKeys = [];
+                $this->info('  単一開催モードのため開催単位のスキップ判定は行いません（レース単位で判定します）。');
+            }
             $this->info('');
 
             $bashoMap = [
@@ -163,6 +215,37 @@ class ImportKeibaRaceResultPayout extends Command
                 '東京' => '05', '中山' => '06', '中京' => '07', '京都' => '08',
                 '阪神' => '09', '小倉' => '10',
             ];
+
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 5-2】単一開催モードの早期リターン（Node.js 実行前）
+            //   --kaisai と --race が揃っている場合のみ動作する。
+            //   対象レースの払戻金が既に t_horse_odds_finder_race_result_payout に
+            //   入っていれば、Node.js（Playwright）を一切起動せずにここで終了する。
+            //   ※ 日付は開催名から特定できないため、--yearmonth の範囲内で
+            //      kaisuu / basho_code / day / race の一致を見る（この4点で月内は一意）。
+            // ─────────────────────────────────────────────────────────────
+            if ($isSingleKaisai && $raceOpt !== null) {
+                if (preg_match('/^(\d+)回(.+?)(\d+)日$/u', $kaisaiOpt, $km) && !empty($bashoMap[$km[2]])) {
+                    $alreadyExists = DB::table('t_horse_odds_finder_race_result_payout')
+                        ->whereBetween('date', [$from, $to])
+                        ->where('kaisuu',     (int) $km[1])
+                        ->where('basho_code', $bashoMap[$km[2]])
+                        ->where('day',        (int) $km[3])
+                        ->where('race',       $raceOpt)
+                        ->exists();
+
+                    if ($alreadyExists) {
+                        $this->info("[早期リターン] 払戻金は登録済みのため Node.js を実行しません: {$kaisaiOpt} {$raceOpt}R");
+                        $status = 'スキップ（払戻金登録済み）';
+                        return;
+                    }
+
+                    $this->info("[事前確認] {$kaisaiOpt} {$raceOpt}R の払戻金は未登録 → 取得を続行します");
+                } else {
+                    $this->warn("[事前確認] 開催名を解析できないため早期リターン判定をスキップします: {$kaisaiOpt}");
+                }
+                $this->info('');
+            }
 
             // ─────────────────────────────────────────────────────────────
             // 【ブロック 6】Step 2: 各開催を順番に処理（PRE-SKIP → Node.js → DB保存）
@@ -187,7 +270,7 @@ class ImportKeibaRaceResultPayout extends Command
                     }
                 }
 
-                $command = 'timeout 300 ' . $nodeBin . ' ' . escapeshellarg($script)
+                $command = 'timeout ' . $nodeTimeout . ' ' . $nodeBin . ' ' . escapeshellarg($script)
                     . ' --yearmonth=' . escapeshellarg($yearmonth)
                     . ' --kaisai="' . $kaisai . '"'
                     . ' 2>>' . escapeshellarg($logFile);
@@ -201,7 +284,7 @@ class ImportKeibaRaceResultPayout extends Command
                 $kaisaiStart = microtime(true);
                 $result      = null;
                 $output      = '';
-                $maxRetry    = 3;
+                $maxRetry    = $isSingleKaisai ? 1 : 3;
 
                 for ($retry = 1; $retry <= $maxRetry; $retry++) {
                     $this->info("  [試行 {$retry}/{$maxRetry}] Node.js 実行中...");
@@ -355,6 +438,10 @@ class ImportKeibaRaceResultPayout extends Command
             $news = implode("", $newsValue);
             
             (new WebPushService())->sendPushNotifierDeveloperNews('develop', "ImportKeibaRaceResultPayout::handle\n{$news}");
+
+            // 同一プロセス内から Artisan::call で複数回呼ばれても次回実行がロックに引っかからないよう、
+            // register_shutdown_function を待たずにここでロックファイルを解放する。
+            @unlink($lockFile);
         }
     }
 }

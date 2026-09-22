@@ -239,11 +239,11 @@ class SummaryAiRecoveryRate extends Command
             $this->info("UPSERT: {$upsertCount}件  SKIP: {$skipCount}件");
             $this->info('');
 
-            Log::info('SummaryAiRecoveryRate 完了', [
-                'upsert_count' => $upsertCount,
-                'skip_count'   => $skipCount,
-                'elapsed_sec'  => $elapsed,
-            ]);
+//             Log::info('SummaryAiRecoveryRate 完了', [
+//                 'upsert_count' => $upsertCount,
+//                 'skip_count'   => $skipCount,
+//                 'elapsed_sec'  => $elapsed,
+//             ]);
 
             (new WebPushService())->sendPushNotifierDeveloperNews(
                 'develop',
