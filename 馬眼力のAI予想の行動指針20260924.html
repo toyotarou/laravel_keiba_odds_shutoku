@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力のAI予想の行動指針</title>
+<style>
+  body { margin: 0; padding: 16px; font-family: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif; font-size: 15px; line-height: 1.8; color: #222; background: #fff; }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 4px; padding-bottom: 4px; border-bottom: 1px solid #ccc; }
+  h3 { font-size: 15px; margin: 20px 0 4px; }
+  p { margin: 8px 0; }
+  ol, ul { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  .date { font-size: 13px; color: #666; margin-bottom: 16px; }
+  .done { border: 2px solid #222; padding: 12px; font-weight: bold; font-size: 16px; text-align: center; margin: 16px 0; }
+  .src { font-size: 13px; color: #666; margin: 0 0 8px; }
+  .qa { border-bottom: 1px solid #eee; padding: 10px 0; }
+  .q { margin: 0; font-weight: bold; }
+  .no { margin-right: 4px; }
+  .a { margin: 4px 0 0 1em; font-weight: bold; }
+  .a.ok { color: #1a6b2f; }
+  .a.part { color: #8a5a00; }
+  .d { margin: 4px 0 0 1em; font-size: 14px; color: #444; }
+  .note { font-size: 13px; color: #555; }
+</style>
+</head>
+<body>
+
+<h1>馬眼力のAI予想の行動指針</h1>
+<div class="date">2026年9月24日</div>
+
+<div class="done">依頼されている内容は全て実装されています</div>
+
+<p>よっしーさんからいただいたご指摘（9月13日〜22日の36件のメモ）と、仕様書（2026年9月21日版）をもとに、AI予想の仕組みを最初から最後まで、プログラム本体で1つずつ点検しました。</p>
+<p>このページでは、ご指摘の内容を1問ずつ「〜できているか」の形に書き出し、それぞれの対応状況と中身を書いています。全部で111問あります。</p>
+<ul>
+  <li><b>→ 対応できています</b>：ご指摘・仕様書のとおりに動くようになっています（110問）</li>
+  <li><b>→ 仕様の範囲で対応しています</b>：仕様書の別のルールとの関係で、できる範囲で対応しているもの（1問）。理由と、変える場合の方法を書いています</li>
+</ul>
+<p>「今回の点検で直しました」と書いてあるものは、以前の報告では対応済みとされていたものの、プログラム本体を確認したところ仕様とずれていたため、今回直したものです。</p>
+
+<h2>0. いちばんの目的</h2>
+<p>目的は「当てること」ではなく、<b>長い目で見て回収率を上げること</b>です。人気馬ばかり当てても配当が安いので、「来そうか（信頼度）」と「そのオッズで買う価値があるか（妙味）」の両方で馬を評価します。</p>
+<h3>予想の順番（仕様書の【最終PHP処理順序】どおり）</h3>
+<ol>
+  <li>AIに聞く前に、システムが市場妙味基礎点などを計算する（AIには送らない）</li>
+  <li>1st AI（Claude）に予想させる。答えがおかしければ公開しない</li>
+  <li>1st AIが問題なく答えたときだけ、2nd AI（DeepSeek）に予想させる</li>
+  <li>馬番でまとめ、「両方が選んだ馬」「1st AIだけ」「2nd AIだけ」に分ける</li>
+  <li>学習用のデータを保存する（今は保存だけ）</li>
+  <li>統合おすすめ度（両方が選んだ馬は平均＋5点）を出す</li>
+  <li>能力適性補正・高配当総合点を出す（検証中は記録だけ）</li>
+  <li>最低基準点 → 低配当除外 → 回収率フィルター（ここではまだ上限をかけない）</li>
+  <li>2nd AIだけの馬の採用を判定する</li>
+  <li>おすすめ度順に並べ、人気帯ごとの上限をかける</li>
+  <li>馬券判定を付ける（検証中は記録だけ）</li>
+  <li>出走頭数ごとの上限（4〜7頭）で確定する。頭数合わせはしない</li>
+  <li>厳選穴レースを判定し直す</li>
+</ol>
+
+<h2>1. 2つのAIの役割と、AIに渡すデータ</h2>
+<p class="src">9月13日・17日・18日のご指摘より</p>
+<div class="qa"><p class="q"><span class="no">1.</span>2nd AI（DeepSeek）は、「1st AIが選ばなかった馬を見る係」ではなく、1st AIとは別に出走馬全頭を独立して評価しているか</p><p class="a ok">→ 対応できています</p><p class="d">2nd AIは1st AIの答えを見ずに、同じデータで全頭を評価します。1st AIと同じ馬を選ぶことも、違う馬を選ぶことも自由です。「1st AIと違う馬を選べ」とは指示していません。</p></div>
+<div class="qa"><p class="q"><span class="no">2.</span>2nd AIに「1st AIとの不一致を目的にしない」「根拠のない逆張りは禁止」と伝えているか</p><p class="a ok">→ 対応できています</p><p class="d">2nd AIへの指示に「入力データと逆方向の判断をする場合は、入力内にある反証根拠を明記。根拠のない逆張りは禁止」と入れています。「逆の馬を選ぶのも正しい」という古い表現は残っていません。</p></div>
+<div class="qa"><p class="q"><span class="no">3.</span>過去成績・能力適性のデータを、DeepSeekだけでなくClaudeにも同じ内容で渡しているか</p><p class="a ok">→ 対応できています</p><p class="d">両方のAIに、各馬の直近最大10走の成績と今回のレース条件を同じ内容で渡しています。</p></div>
+<div class="qa"><p class="q"><span class="no">4.</span>過去成績は「最大10走」になっているか（5走ではないか）</p><p class="a ok">→ 対応できています</p><p class="d">最大10走です。</p></div>
+<div class="qa"><p class="q"><span class="no">5.</span>過去成績に、騎手・斤量・馬体重・通過順・上がり・着差・距離・コース・クラスなど、DBにある項目を入れているか</p><p class="a ok">→ 対応できています</p><p class="d">DBにある項目はすべて入れています。DBにない項目は推測して作らず、入れていません。</p></div>
+<div class="qa"><p class="q"><span class="no">6.</span>2nd AIへ過去成績が二重に送られていないか</p><p class="a ok">→ 対応できています</p><p class="d">1st AI用のプロンプトにすでに過去成績が入っている場合は、2nd AI側で追加しません。送信直前にも「過去成績の見出しが1回だけか」を自動で確かめ、ログに残します（下の「確認のしかた」参照）。</p></div>
+<div class="qa"><p class="q"><span class="no">7.</span>能力・適性を評価するための「第3のAI」や、追加のAI呼び出しを作っていないか</p><p class="a ok">→ 対応できています</p><p class="d">AIはClaudeとDeepSeekの2つだけです。能力・適性の採点は、それぞれのAIが1回の分析の中で行います。</p></div>
+<div class="qa"><p class="q"><span class="no">8.</span>1st AIにも能力適性の6項目採点（100点満点）を指示しているか</p><p class="a ok">→ 対応できています</p><p class="d">両AIに同じ6項目（基礎能力25・近走内容20・コース距離適性20・脚質展開15・上がり位置取り10・斤量騎手など10）で採点させ、A〜Dの区分を付けさせています。</p></div>
+<div class="qa"><p class="q"><span class="no">9.</span>選出理由の最初に「能力適性:A（82点）。」の形で書かせているか</p><p class="a ok">→ 対応できています</p><p class="d">両AIとも、選出理由の冒頭にこの形で必ず書くよう指示しています。システムはここから点数を読み取ります。</p></div>
+<div class="qa"><p class="q"><span class="no">10.</span>両AIに渡すのは「同じデータ」だが、システム指示・出力形式・候補上限・厳選穴レース行／レース指標行の有無は、AIごとに分けているか</p><p class="a ok">→ 対応できています</p><p class="d">共通の本文・データは再利用し、1st AI専用の部分（厳選穴レースの判定ルール、1行目・2行目の出力指示、候補0頭時の指示）を2nd AI用から取り除いたうえで、2nd AI専用の指示を足しています。完成した送信文は2つのAIで同じにはなりません。</p></div>
+<div class="qa"><p class="q"><span class="no">11.</span>Claude（1st AI）には、仕様書に書かれた正式なシステム指示だけを使っているか</p><p class="a ok">→ 対応できています</p><p class="d">仕様書の1st AIシステム指示の文をそのまま使っています。古いシステム指示との併用はしていません。</p></div>
+<div class="qa"><p class="q"><span class="no">12.</span>両AIへ「3分前のオッズ・確定オッズ・確定人気・着順・払戻金」などの発走後の情報を渡していないか</p><p class="a ok">→ 対応できています</p><p class="d">渡しているのは計測開始から発走6分前までのデータだけです。AIにも「発走後の情報を使ったり推測したりしない」と指示しています。</p></div>
+<div class="qa"><p class="q"><span class="no">13.</span>過去成績を集めるとき、予想するレースより後の成績が混ざっていないか</p><p class="a ok">→ 対応できています</p><p class="d">今回の点検で、同じ日の後のレースの成績が混ざる可能性がある箇所を見つけて直しました。予想するレースより前の成績だけを使います。</p></div>
+<div class="qa"><p class="q"><span class="no">14.</span>人気順・OPI・流入ランク・推定確定オッズ・断層の判定を、AIが自分で計算し直さないようにしているか</p><p class="a ok">→ 対応できています</p><p class="d">すべてシステムが計算した値を渡し、「再計算・変更しない」と両AIに指示しています。AIが返した人気順やオッズは、システムがDBの値と照らし合わせて確認します。</p></div>
+<div class="qa"><p class="q"><span class="no">15.</span>AIに「最大5頭」「最大7頭」と伝え、頭数を埋めさせていないか（「5頭選出」になっていないか）</p><p class="a ok">→ 対応できています</p><p class="d">「最大◯頭」「最低基準未満の馬を追加して◯頭へ埋めてはいけません」と指示しています。</p></div>
+<div class="qa"><p class="q"><span class="no">16.</span>PHPが計算した人気帯別・合計の上限が7頭より少ない場合、少ない方をAIに伝えているか</p><p class="a ok">→ 対応できています</p><p class="d">1st AIには「合計最大◯頭」として、人気帯別の上限の合計（7頭以下）を伝えています。</p></div>
+<div class="qa"><p class="q"><span class="no">17.</span>出走馬の一覧は馬番順で渡しているか</p><p class="a ok">→ 対応できています</p><p class="d">馬番順で並べて渡しています。</p></div>
+<h2>2. オッズの時系列データ</h2>
+<p class="src">9月22日のご指摘より</p>
+<div class="qa"><p class="q"><span class="no">18.</span>複勝最小オッズを、計測前・21分・18分・15分・12分・9分・6分前の全時点で両AIへ渡しているか</p><p class="a ok">→ 対応できています</p><p class="d">「複勝時系列（最小）」として全時点を渡しています。</p></div>
+<div class="qa"><p class="q"><span class="no">19.</span>推定確定複勝オッズを「最小・最大・誤差」の形で渡しているか</p><p class="a ok">→ 対応できています</p><p class="d">「推定確定複勝最小・推定確定複勝最大・補正誤差」を渡しています。</p></div>
+<div class="qa"><p class="q"><span class="no">20.</span>推定確定複勝オッズが作れなかったとき、6分前のオッズで代わりに埋めたりせず、「データなし」として扱っているか</p><p class="a ok">→ 対応できています</p><p class="d">「－（補正データなし）」と表示し、6分前の値で置き換えません。今回、作れなかったことをログにも残すようにしました（仕様の受入チェック5）。</p></div>
+<div class="qa"><p class="q"><span class="no">21.</span>複勝が4時点未満しかないとき、2時点だけから「続けて下がっている」と推測していないか</p><p class="a ok">→ 対応できています</p><p class="d">4時点未満なら「複勝継続流入」は「不明」にします。</p></div>
+<div class="qa"><p class="q"><span class="no">22.</span>断層の時系列は「6分前の人気順」を基準にして、同じ馬を馬番で追いかけているか（時点ごとに別の馬と比べていないか）</p><p class="a ok">→ 対応できています</p><p class="d">AIに渡す断層時系列は6分前人気順が基準です。学習用の記録も、今回6分前人気順を基準にした記録を追加し、断層の出現・消滅・拡大・縮小の判定もこれで行うようにしました。</p></div>
+<h2>3. おすすめ度（100点）の付け方</h2>
+<p class="src">9月13日・18日・22日のご指摘より</p>
+<div class="qa"><p class="q"><span class="no">23.</span>おすすめ度は「信頼度60点＋妙味40点」の固定配点で、AIが配点を変えられないようになっているか</p><p class="a ok">→ 対応できています</p><p class="d">両AIに同じ配点表（信頼度7項目・妙味4項目）を渡し、項目の追加・削除・配点変更を禁止しています。</p></div>
+<div class="qa"><p class="q"><span class="no">24.</span>2nd AIに「自分の判断で採点」ではなく、「固定配点を厳守し、各項目の指定範囲内で独立して採点」と伝えているか</p><p class="a ok">→ 対応できています</p><p class="d">この表現で伝えています。</p></div>
+<div class="qa"><p class="q"><span class="no">25.</span>能力適性の点数（A=20・B=14・C=7・D=0）を、おすすめ度に足していないか</p><p class="a ok">→ 対応できています</p><p class="d">足していません。能力適性の点数は「高配当総合点」（検証中の数字）の計算にだけ使います。</p></div>
+<div class="qa"><p class="q"><span class="no">26.</span>高配当総合点・市場妙味基礎点を、おすすめ度に足したり平均したりしていないか</p><p class="a ok">→ 対応できています</p><p class="d">別々に計算して記録しています。混ぜていません。</p></div>
+<div class="qa"><p class="q"><span class="no">27.</span>両AIが選んだ馬のおすすめ度は「2つの平均＋5点（上限100点）」になっているか</p><p class="a ok">→ 対応できています</p><p class="d">その計算です。</p></div>
+<div class="qa"><p class="q"><span class="no">28.</span>両AIが選んだ馬の点数を、小数第1位まで保ったまま順位や基準の判定に使っているか</p><p class="a ok">→ 対応できています</p><p class="d">小数第1位のまま使い、アプリに表示するときだけ整数にします。</p></div>
+<div class="qa"><p class="q"><span class="no">29.</span>推定確定複勝最小1.5倍未満の馬は、妙味の小計を原則5点以下にするよう指示しているか</p><p class="a ok">→ 対応できています</p><p class="d">AIに指示しています。</p></div>
+<div class="qa"><p class="q"><span class="no">30.</span>回収率が90%未満の種類が2つ以上ある馬は、AIの採点で64点以下にするよう指示しているか</p><p class="a ok">→ 対応できています</p><p class="d">AIに指示しています。システム側でも除外します（5章）。</p></div>
+<div class="qa"><p class="q"><span class="no">31.</span>回収率はサンプル数とセットで見て、データがない・0レース・「－」は中立として扱うよう指示しているか</p><p class="a ok">→ 対応できています</p><p class="d">両AIに指示しています。</p></div>
+<div class="qa"><p class="q"><span class="no">32.</span>選出理由は「1頭につき改行なしの1行」で、4〜5行の文章になっていないか</p><p class="a ok">→ 対応できています</p><p class="d">「候補1頭につき改行なしの1行」と指示しています。</p></div>
+<div class="qa"><p class="q"><span class="no">33.</span>AIが自分で作った「〜%の確率」などを選出理由に書かせていないか</p><p class="a ok">→ 対応できています</p><p class="d">書かせていません。</p></div>
+<div class="qa"><p class="q"><span class="no">34.</span>推定確定複勝1.5倍未満の馬の妙味小計が5点以下かを、システムで直接確かめているか</p><p class="a part">→ 仕様の範囲で対応しています</p><p class="d">仕様で「AIの出力に内訳・小計を追加しない（アプリの形式を変えない）」と決められているため、AIの小計そのものは受け取れません。そのためシステムは、おすすめ度と能力適性点から「信頼度の上限（57点＋能力適性点）」を使って、妙味小計が5点を超えている証拠がないかを確かめ、記録しています。小計を直接確かめるには出力形式の変更が必要になります。変更をご希望の場合はご指示ください。</p></div>
+<h2>4. AIの回答のチェックと、失敗したときの扱い</h2>
+<p class="src">9月13日・18日・21日のご指摘より</p>
+<div class="qa"><p class="q"><span class="no">35.</span>AIを呼ぶのは1レースにつき1st AI・2nd AIの1回ずつ（合計2回）だけで、自動の再試行はしていないか</p><p class="a ok">→ 対応できています</p><p class="d">Claudeも DeepSeekも1回だけ呼びます。通信エラーでも再試行しません。今回の点検で、2nd AIの保存結果を誤って消して何度も呼び直していた不具合を見つけて直しました。まとめ直しが必要なときも、保存済みの回答を使います。</p></div>
+<div class="qa"><p class="q"><span class="no">36.</span>1st AIが8頭以上を答えたら、システムが勝手に削らずに「形式不正」として予想を公開しないようにしているか</p><p class="a ok">→ 対応できています</p><p class="d">8頭以上なら公開しません（制御済みエラー）。今回、保存済みの結果から返すときにもこの判定が効くように直しました。</p></div>
+<div class="qa"><p class="q"><span class="no">37.</span>2nd AIが6頭以上を答えたら、2nd AIの答えを無効にして1st AIだけで続けているか</p><p class="a ok">→ 対応できています</p><p class="d">その扱いです。</p></div>
+<div class="qa"><p class="q"><span class="no">38.</span>1st AIの上限（7頭）と、まとめた後の表示の上限（4〜7頭）を混ぜていないか</p><p class="a ok">→ 対応できています</p><p class="d">別々です。例えば10頭立てでClaudeが7頭答えても正常として扱い、まとめた後に5頭へ絞ります。</p></div>
+<div class="qa"><p class="q"><span class="no">39.</span>1st AIの答えが空・形が違う・必要な2行がない場合は、予想を公開せず「制御済みエラー」を返しているか</p><p class="a ok">→ 対応できています</p><p class="d">その扱いです。2nd AIだけの候補を通常の予想として出すことはありません。</p></div>
+<div class="qa"><p class="q"><span class="no">40.</span>1st AIの「正常な候補0頭」（厳選穴レース行とレース指標行だけがある）と「回答失敗」を区別しているか</p><p class="a ok">→ 対応できています</p><p class="d">区別しています。</p></div>
+<div class="qa"><p class="q"><span class="no">41.</span>1st AIに「候補が0頭なら1行目と2行目だけを出す（『該当馬なし』などを書かない）」と指示しているか</p><p class="a ok">→ 対応できています</p><p class="d">今回の点検でこの指示が抜けていたので、仕様書の文のとおりに追加しました。</p></div>
+<div class="qa"><p class="q"><span class="no">42.</span>2nd AIの「候補なし|0」を、失敗ではなく正常な0頭として扱っているか</p><p class="a ok">→ 対応できています</p><p class="d">正常な0頭として扱い、この文字列はアプリへ渡しません。</p></div>
+<div class="qa"><p class="q"><span class="no">43.</span>1st AIが失敗しているときや、まだ終わっていないときに、2nd AIを呼んでいないか</p><p class="a ok">→ 対応できています</p><p class="d">今回、2nd AIを呼ぶ前に1st AIの結果を確認するよう直しました。未完了なら「まだ終わっていません」、失敗なら制御済みエラーを返し、DeepSeekは呼びません。アプリも1st AI→2nd AIの順に呼ぶように直しました。</p></div>
+<div class="qa"><p class="q"><span class="no">44.</span>AIの答えの馬番が実在するか、重複していないか、人気順・6分前オッズがDBと合っているか、点数が0〜100の整数かを確かめているか</p><p class="a ok">→ 対応できています</p><p class="d">すべてシステムがDBと照らし合わせて確かめ、合わないものは除くかDBの値で直します。</p></div>
+<div class="qa"><p class="q"><span class="no">45.</span>AIの答えの読み取りで、「馬番: 3」のように空白が入った正しい答えまで捨てていないか</p><p class="a ok">→ 対応できています</p><p class="d">確かめる処理と読み取る処理を同じものにして、食い違わないようにしています。</p></div>
+<div class="qa"><p class="q"><span class="no">46.</span>AIの回答原文と、読み取りに失敗した理由をログに残しているか</p><p class="a ok">→ 対応できています</p><p class="d">残しています。</p></div>
+<div class="qa"><p class="q"><span class="no">47.</span>出力の指定行に「★」「☆」などの記号が混ざっていないか</p><p class="a ok">→ 対応できています</p><p class="d">混ざっていません。送信直前に自動で確かめ、ログに残します。</p></div>
+<h2>5. 候補を絞る順番とルール</h2>
+<p class="src">9月18日・19日・21日・22日のご指摘より</p>
+<div class="qa"><p class="q"><span class="no">48.</span>フィルターの順番は「最低基準点→低配当除外→回収率フィルター→順位確定→人気帯上限」になっているか</p><p class="a ok">→ 対応できています</p><p class="d">今回の点検で、以前は人気帯上限・頭数上限で絞った「後」にフィルターをかけていたことを見つけ、仕様どおり「前」にかけるよう直しました。外れた馬の分は次の馬が繰り上がります。</p></div>
+<div class="qa"><p class="q"><span class="no">49.</span>フィルターは、両AIの答えをまとめて統合おすすめ度（平均＋5点）を出した「後」にかけているか</p><p class="a ok">→ 対応できています</p><p class="d">まとめて点数を出した後、人気帯上限の前にかけています。</p></div>
+<div class="qa"><p class="q"><span class="no">50.</span>最低基準点：70点以上＝本候補、60〜69点で10番人気以内＝補欠、11番人気以下は55点以上＋大穴の条件、それ以外は除外、をシステムで判定しているか</p><p class="a ok">→ 対応できています</p><p class="d">システムで判定しています。</p></div>
+<div class="qa"><p class="q"><span class="no">51.</span>低配当除外は「推定確定複勝最小1.5倍未満」かつ「推定確定単勝3.0倍未満」の両方を満たす馬が対象になっているか</p><p class="a ok">→ 対応できています</p><p class="d">両方を満たす馬だけが対象です。</p></div>
+<div class="qa"><p class="q"><span class="no">52.</span>低配当の例外は「断層最上位グループ」「単勝・複勝の両方が複数時点で継続流入」「サンプル30件以上で回収率110%以上が2種類以上」の3つを全部満たすとき（AND）だけか</p><p class="a ok">→ 対応できています</p><p class="d">3つ全部を満たすときだけです（ORではありません）。</p></div>
+<div class="qa"><p class="q"><span class="no">53.</span>例外を満たさない低配当馬は、69点以下にするだけでなく、システムで候補から外しているか（補欠として残っていないか）</p><p class="a ok">→ 対応できています</p><p class="d">システムで候補から外しています。</p></div>
+<div class="qa"><p class="q"><span class="no">54.</span>回収率ハード除外は、各馬に表示している3つの回収率（過去回収率・OPI帯別・フェーズパターン別）を使い、「サンプル30件以上の有効値が2種類以上あり、そのうち2種類以上が90%未満」の場合だけか</p><p class="a ok">→ 対応できています</p><p class="d">その条件だけです。馬名ごとに独自に計算し直すことはしていません。データがない馬は除外しません。</p></div>
+<div class="qa"><p class="q"><span class="no">55.</span>11番人気以下を選ぶ条件（複勝が続けて下がっている・7番人気以下の中で複勝流入ランク1〜2位・単勝と複勝の両方に流入・下位進入を裏付ける形）を守っているか</p><p class="a ok">→ 対応できています</p><p class="d">AIに守らせたうえで、今回システムでも確かめるようにしました。データがなくて確かめられない条件は「不明」とし、それだけでは外しません（「不明を条件未達と扱わない」というルールのため）。</p></div>
+<div class="qa"><p class="q"><span class="no">56.</span>大穴進入度が1〜2なら11番人気以下は0頭、3なら最大1頭にしているか</p><p class="a ok">→ 対応できています</p><p class="d">今回、一部の断層位置のレースにしか効いていなかったのを見つけ、すべてのレースに効くように直しました。</p></div>
+<div class="qa"><p class="q"><span class="no">57.</span>断層位置別・人気帯別の上限（1〜6番人気／7〜10番人気／11番人気以下）を仕様書の表どおりに使っているか</p><p class="a ok">→ 対応できています</p><p class="d">仕様書の表どおりです。</p></div>
+<div class="qa"><p class="q"><span class="no">58.</span>まとめた後の表示は、8頭以下4頭・9〜13頭5頭・14〜15頭6頭・16頭以上7頭を超えないか（16頭以上が6頭になっていないか）</p><p class="a ok">→ 対応できています</p><p class="d">その上限です。16頭以上は7頭です。</p></div>
+<div class="qa"><p class="q"><span class="no">59.</span>基準に届く馬が少ないとき、頭数合わせをしていないか</p><p class="a ok">→ 対応できています</p><p class="d">していません。基準を満たす馬がいなければ、少ない頭数のまま（0頭もあり）で終わります。アプリでも、0頭のときに除外済みの馬を表示しないよう直しました。</p></div>
+<div class="qa"><p class="q"><span class="no">60.</span>上限で外れた枠を、すでにフィルターで除外した馬で埋めていないか</p><p class="a ok">→ 対応できています</p><p class="d">埋めていません。</p></div>
+<div class="qa"><p class="q"><span class="no">61.</span>能力適性だけを理由に、両AIが選ばなかった馬をシステムが追加していないか</p><p class="a ok">→ 対応できています</p><p class="d">追加していません。</p></div>
+<div class="qa"><p class="q"><span class="no">62.</span>能力適性Dでも、強い市場の根拠がある馬を自動で除外していないか</p><p class="a ok">→ 対応できています</p><p class="d">能力適性だけでは除外しません。</p></div>
+<h2>6. 2nd AIだけが選んだ馬（独自発見）の扱い</h2>
+<p class="src">9月13日・18日のご指摘より</p>
+<div class="qa"><p class="q"><span class="no">63.</span>2nd AIだけが選んだ馬の採用は、AIの文章の言葉ではなく、システムが計算したF1〜F8で判定しているか</p><p class="a ok">→ 対応できています</p><p class="d">F1〜F8をDBとシステムの計算値から判定します。文章の言葉は見ていません。</p></div>
+<div class="qa"><p class="q"><span class="no">64.</span>F1〜F8の8つすべてを判定に使っているか（F1とF5が使われていないことはないか）</p><p class="a ok">→ 対応できています</p><p class="d">今回の点検で、F1（複勝継続流入）とF5（断層変化の根拠）が数えられていなかったのを見つけて直しました。F5も、レース全体の値ではなく馬ごとの市場妙味基礎点Eで判定するよう直しました。</p></div>
+<div class="qa"><p class="q"><span class="no">65.</span>F1〜F8のデータがないとき、「不明」として true の数に入れていないか</p><p class="a ok">→ 対応できています</p><p class="d">入れていません。</p></div>
+<div class="qa"><p class="q"><span class="no">66.</span>採用条件は「おすすめ度70点以上＋F1〜F8のtrueが2個以上」か</p><p class="a ok">→ 対応できています</p><p class="d">その条件です。</p></div>
+<div class="qa"><p class="q"><span class="no">67.</span>タイプAは原則0頭で、「80点以上かつtrueが3個以上」の馬だけ最大1頭か</p><p class="a ok">→ 対応できています</p><p class="d">今回、タイプAでもtrueが2個の馬が入ることがあったのを見つけて直しました。</p></div>
+<div class="qa"><p class="q"><span class="no">68.</span>タイプB・Cは最大1頭、タイプD・Eは最大2頭か</p><p class="a ok">→ 対応できています</p><p class="d">その上限です。</p></div>
+<div class="qa"><p class="q"><span class="no">69.</span>最終的な順位は、1頭ずつ比べて入れ替える方式ではなく、決まった手順（おすすめ度順→同点は一致馬→馬番）で決めているか</p><p class="a ok">→ 対応できています</p><p class="d">今回の点検で、旧版の「5点以内なら比べて入れ替える」方式が残っていたのを見つけ、仕様書の最終版どおりに直しました。おすすめ度順に並べて、人気帯・2nd独自馬・頭数の上限を下から適用します。同じデータなら必ず同じ結果になります。</p></div>
+<h2>7. 表示される理由と厳選穴レース</h2>
+<p class="src">9月13日のご指摘より</p>
+<div class="qa"><p class="q"><span class="no">70.</span>両AIが選んだ馬の選出理由は1st AIの原文を使い、各AIだけが選んだ馬はそのAIの原文を使っているか</p><p class="a ok">→ 対応できています</p><p class="d">その使い方です。システムが2つのAIの文章をつなげたり、まとめたり、作ったりはしません。2nd AIの文章は別の枠で表示します。</p></div>
+<div class="qa"><p class="q"><span class="no">71.</span>厳選穴レースは、最終候補が決まった後にシステムで判定し直しているか</p><p class="a ok">→ 対応できています</p><p class="d">条件B（6番人気以内に断層2つ以上）・C（全馬の複勝3.5倍未満）・D（1番人気単勝2.0倍未満）のどれかが成立すれば0、どれも不成立で最終候補に7〜10番人気がいれば1です。</p></div>
+<div class="qa"><p class="q"><span class="no">72.</span>波乱度・下位進入度・大穴進入度は、1st AIの答えだけを使っているか</p><p class="a ok">→ 対応できています</p><p class="d">1st AIの「レース指標」行だけを使います。2nd AIには出させていません。</p></div>
+<div class="qa"><p class="q"><span class="no">73.</span>1st AIの出力形式の最初の説明にも「レース指標」の行が入っているか</p><p class="a ok">→ 対応できています</p><p class="d">入っています。</p></div>
+<h2>8. 検証中（シャドー）の数字</h2>
+<p class="src">9月13日・14日・17日のご指摘より</p>
+<div class="qa"><p class="q"><span class="no">74.</span>市場妙味基礎点A〜Eは、AIを呼ぶ前にシステムで計算しているか</p><p class="a ok">→ 対応できています</p><p class="d">AIを呼ぶ前に計算しています。検証中はAIへは送りません。</p></div>
+<div class="qa"><p class="q"><span class="no">75.</span>A〜Eの細かい条件（2%超・±2%以内・4時点未満は不明・同値は同順位・OPIは小数第2位で判定・Dは有効値2種類未満で不明・断層縮小は10%以上・接近は2区間連続など）が仕様書どおりか</p><p class="a ok">→ 対応できています</p><p class="d">仕様書の数値どおりです。</p></div>
+<div class="qa"><p class="q"><span class="no">76.</span>データがない項目を0点にせず、有効な項目の満点合計が50点未満なら「不明」にしているか</p><p class="a ok">→ 対応できています</p><p class="d">その扱いです。</p></div>
+<div class="qa"><p class="q"><span class="no">77.</span>高配当総合点は、AIの答えの後に「市場妙味基礎点＋能力適性補正」で計算しているか</p><p class="a ok">→ 対応できています</p><p class="d">その順番です。循環計算はありません。</p></div>
+<div class="qa"><p class="q"><span class="no">78.</span>両AIが選んだ馬の能力適性補正は、両AIの能力適性点を平均してからA〜Dに分けているか</p><p class="a ok">→ 対応できています</p><p class="d">今回、補正点どうしを平均していたのを見つけ、仕様どおり点数を平均してから区分するよう直しました。</p></div>
+<div class="qa"><p class="q"><span class="no">79.</span>高配当総合点59点以下は「高配当候補外」という意味で、通常の候補からは削除していないか</p><p class="a ok">→ 対応できています</p><p class="d">通常の候補からは削除しません。</p></div>
+<div class="qa"><p class="q"><span class="no">80.</span>偽流入警戒は「7条件のうち3条件以上成立＝有効流入、2条件以下＝偽流入警戒」になっているか（逆になっていないか）</p><p class="a ok">→ 対応できています</p><p class="d">その向きです。</p></div>
+<div class="qa"><p class="q"><span class="no">81.</span>偽流入警戒の馬は、高配当候補・馬券購入候補にはしないが、通常の5着以内候補からは消さずに「監視」として残しているか</p><p class="a ok">→ 対応できています</p><p class="d">その扱いです。</p></div>
+<div class="qa"><p class="q"><span class="no">82.</span>市場過小評価フラグは4条件すべてで判定しているか</p><p class="a ok">→ 対応できています</p><p class="d">4条件で判定しています。</p></div>
+<div class="qa"><p class="q"><span class="no">83.</span>2AI不一致馬のA〜D分類は仕様どおりか（B＝過小評価あり・有効流入だが能力適性C・D、など）</p><p class="a ok">→ 対応できています</p><p class="d">今回、B・Cの条件がずれていたのを見つけて直しました。1st独自馬と2nd独自馬に同じ基準を使います。</p></div>
+<div class="qa"><p class="q"><span class="no">84.</span>馬券判定（単勝・複勝）は、6分前ではなく推定確定オッズで判定しているか</p><p class="a ok">→ 対応できています</p><p class="d">推定確定オッズで判定しています。今回、単勝の下落率を読み取れず常に「不明」になっていたのを見つけて直しました。</p></div>
+<div class="qa"><p class="q"><span class="no">85.</span>検証中は、これらの数字を候補の採用・除外・入れ替え・順位・選出理由に使わず、アプリにも出していないか</p><p class="a ok">→ 対応できています</p><p class="d">記録するだけです。アプリへ返す前に、検証中の項目を必ず取り除いています。</p></div>
+<div class="qa"><p class="q"><span class="no">86.</span>検証中でも、今までどおりの候補・順位・選出理由はアプリに表示しているか（アプリへの出力ごと止めていないか）</p><p class="a ok">→ 対応できています</p><p class="d">今までどおり表示します。止めているのは検証中の数字だけです。</p></div>
+<div class="qa"><p class="q"><span class="no">87.</span>本番有効化後に使う「帯基準馬方式（5点比較帯とa〜gのタイブレーク）」を作り、検証中は記録だけにしているか</p><p class="a ok">→ 対応できています</p><p class="d">作ってあり、検証中は記録だけです。</p></div>
+<div class="qa"><p class="q"><span class="no">88.</span>高配当強化は200〜300レースの検証後、人間が明示的に有効化するまで本番に反映しないか</p><p class="a ok">→ 対応できています</p><p class="d">自動で本番に切り替わることはありません。</p></div>
+<h2>9. 断層パターン学習（M1〜M4）</h2>
+<p class="src">9月13日・14日・17日・18日・21日のご指摘より</p>
+<div class="qa"><p class="q"><span class="no">89.</span>断層パターン学習は、外部のAIを追加せず、サーバー内の機械学習で行う仕組みか</p><p class="a ok">→ 対応できています</p><p class="d">サーバー内の計算で行います。AI呼び出しは増えません。</p></div>
+<div class="qa"><p class="q"><span class="no">90.</span>M1＝5着以内がすべて6分前1〜6番人気なら1、M2＝5着以内に7〜10番人気が1頭以上なら1、M3＝5着以内に11番人気以下が1頭以上なら1、M4＝各馬が5着以内なら1、になっているか</p><p class="a ok">→ 対応できています</p><p class="d">その定義です（「1〜3番人気が1〜2着」「8番人気以下が馬券内」ではありません）。</p></div>
+<div class="qa"><p class="q"><span class="no">91.</span>M4の正解は、AIが選んだ馬だけでなく出走全頭について記録しているか</p><p class="a ok">→ 対応できています</p><p class="d">全頭について記録しています。</p></div>
+<div class="qa"><p class="q"><span class="no">92.</span>取消・除外・競走中止（着順が0以下や空欄）を、学習の対象から外しているか</p><p class="a ok">→ 対応できています</p><p class="d">外して、その理由も記録しています。</p></div>
+<div class="qa"><p class="q"><span class="no">93.</span>正解の人気順は、確定人気ではなく6分前の人気順か</p><p class="a ok">→ 対応できています</p><p class="d">6分前の人気順です。今回、6分前人気の並べ方を仕様どおりに直しました。</p></div>
+<div class="qa"><p class="q"><span class="no">94.</span>1,000レース未満は「保存だけ」、1,000〜1,999は予備学習・完全シャドー、2,000以上かつ未使用評価500レース以上で正式評価、になっているか</p><p class="a ok">→ 対応できています</p><p class="d">その区分です。現在は約70レースなので「保存だけ」の段階です。</p></div>
+<div class="qa"><p class="q"><span class="no">95.</span>学習用のデータ（全頭の特徴量・当時の回収率・類似レース統計・model_version・入力ハッシュ）を、1,000レースたまってからではなく今から保存しているか</p><p class="a ok">→ 対応できています</p><p class="d">今から保存しています。今回、保存を止めていたエラー（存在しない列の読み込み）を見つけて直し、仕様書にあるのに入っていなかった項目（流入ランク・直前の勢い・OPI・推定確定オッズと誤差・人気帯ごとの壁の本数・オッズの分布・上位集中度など）も追加しました。</p></div>
+<div class="qa"><p class="q"><span class="no">96.</span>特徴量に、各時点の断層比率・最大／最小／主断層比率・断層の出現／継続／消滅／拡大／縮小・単複の一致／不一致・各時点の人気順と入れ替わり回数・枠番・複勝人気・断層の上下・レース条件が入っているか</p><p class="a ok">→ 対応できています</p><p class="d">入っています。</p></div>
+<div class="qa"><p class="q"><span class="no">97.</span>データがない値を0で埋めず、欠損のまま（欠損の印付き）で保存しているか</p><p class="a ok">→ 対応できています</p><p class="d">その扱いです。</p></div>
+<div class="qa"><p class="q"><span class="no">98.</span>能力・適性のデータを、最大10走の決まった長さの表に変換し、3走・5走・10走の集計、同条件の成績、カテゴリの辞書と「UNKNOWN」、中央値の補完値を保存しているか</p><p class="a ok">→ 対応できています</p><p class="d">その形で保存しています。</p></div>
+<div class="qa"><p class="q"><span class="no">99.</span>不利フラグ（出遅れ・進路妨害など）は、元データがDBにないため欠損として扱い、0（不利なし）にしたり文章から推測したりしていないか</p><p class="a ok">→ 対応できています</p><p class="d">その扱いです。</p></div>
+<div class="qa"><p class="q"><span class="no">100.</span>学習方式は決定木系の勾配ブースティングか（ロジスティック回帰ではないか）</p><p class="a ok">→ 対応できています</p><p class="d">勾配ブースティングです。</p></div>
+<div class="qa"><p class="q"><span class="no">101.</span>学習・検証・最終評価は日付順の70%・15%・15%で分け、同じ開催日やレースを複数の区分に入れていないか</p><p class="a ok">→ 対応できています</p><p class="d">その分け方です。</p></div>
+<div class="qa"><p class="q"><span class="no">102.</span>確率を使う前に校正し、未校正と校正済みを区別しているか</p><p class="a ok">→ 対応できています</p><p class="d">区別しています。</p></div>
+<div class="qa"><p class="q"><span class="no">103.</span>M1〜M3の適合率・再現率・F1・ROC-AUC・PR-AUC・Brier・校正誤差、M4の5着以内率・3着以内率・回収率・平均／中央値配当・最大連敗などを保存する仕組みがあるか</p><p class="a ok">→ 対応できています</p><p class="d">仕組みはあります。実際の数字が出るのは、学習ができるレース数がたまってからです。</p></div>
+<div class="qa"><p class="q"><span class="no">104.</span>M4の「2AI候補の中での比較」と「全頭からの発見比較」を分けて保存しているか</p><p class="a ok">→ 対応できています</p><p class="d">分けて保存しています。</p></div>
+<div class="qa"><p class="q"><span class="no">105.</span>model_version（モデルの種類・ライブラリ・特徴量・パラメータ・学習期間・件数・ハッシュ）を保存し、旧モデルへ戻せるか</p><p class="a ok">→ 対応できています</p><p class="d">保存しています。</p></div>
+<div class="qa"><p class="q"><span class="no">106.</span>学習の値を、検証中はAI・候補・順位・馬券判定・アプリに一切つないでいないか</p><p class="a ok">→ 対応できています</p><p class="d">つないでいません。</p></div>
+<h2>10. 今回の点検（9月24日）で、ほかに見つけて直したもの</h2>
+<p class="src">ご指摘のあった内容の土台になる部分です</p>
+<div class="qa"><p class="q"><span class="no">107.</span>出走取消の馬が「1番人気」として数えられていないか</p><p class="a ok">→ 対応できています</p><p class="d">オッズの無い取消馬が人気順の1位に入ってしまう不具合を、AIへ渡す人気順・断層・フラグ・学習データのすべてで直しました。</p></div>
+<div class="qa"><p class="q"><span class="no">108.</span>アプリで開かれなかったレース（夜間にまとめて予想するレース）にも、注目馬番（オッズの壁・期待数値）が渡っているか</p><p class="a ok">→ 対応できています</p><p class="d">以前は渡っていませんでした。アプリと同じ計算をシステムで行って渡すようにしました。</p></div>
+<div class="qa"><p class="q"><span class="no">109.</span>出走履歴がない馬の能力適性を「D評価（0点）」にしていないか（「データがないものは0点にしない」のルール）</p><p class="a ok">→ 対応できています</p><p class="d">「能力適性:不明」とし、減点・除外の理由にしないよう直しました。</p></div>
+<div class="qa"><p class="q"><span class="no">110.</span>タイプAの判定に、仕様にない条件が入っていないか</p><p class="a ok">→ 対応できています</p><p class="d">「2.5倍以上の強い壁が必要」という仕様にない条件が入っていたので外しました。6番人気以内に壁（2.0倍以上）が2つ以上ならタイプAです。</p></div>
+<div class="qa"><p class="q"><span class="no">111.</span>フィルターで外した理由をログに残しているか（受入チェック15）</p><p class="a ok">→ 対応できています</p><p class="d">最低基準・大穴の条件・低配当・回収率のそれぞれで、外した馬と理由をログに残すようにしました。</p></div>
+
+<h2>11. アップロード後の確認のしかた</h2>
+<p>よっしーさんからご依頼のあった「本番の1レースで動きを確かめる」ための確認項目です。サーバーへのアップロード後、最初のレースで確かめます。</p>
+<ol>
+  <li>ログに「[2nd AI検証] DeepSeek送信直前の$oddsData自己チェック」が出て、judge が OK になっていること（過去成績1回・厳選穴レース行0・レース指標行0・記号混入0）</li>
+  <li>1st AIが「厳選穴レース行・レース指標行・候補行」を、2nd AIが候補行だけ（最大5頭）を返していること</li>
+  <li>統合結果（ai_merge_result）・市場妙味基礎点（market_score_log）・学習用データ（ml_snapshot）・高配当の検証記録（high_payout_shadow_log）の4つに保存されていること</li>
+  <li>アプリに、まとめた後の最大4〜7頭が表示され、検証中の数字が出ていないこと</li>
+  <li>1st AIが失敗したレースで、予想が公開されないこと</li>
+</ol>
+
+<h2>ご注意</h2>
+<p class="note">AI予想は、発走6分前までのオッズの動きと各馬の過去成績をもとにした参考情報です。的中を保証するものではありません。</p>
+
+</body>
+</html>

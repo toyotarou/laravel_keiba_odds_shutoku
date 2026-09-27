@@ -232,7 +232,7 @@ class SummaryOddsPhasePatternRecoveryRate extends Command
             }
 
             // ─── 完了サマリー ─────────────────────────────────────────────
-            $elapsed = now()->diffInSeconds($startedAt);
+            $elapsed = (int) $startedAt->diffInSeconds(now()); // Laravel11(Carbon3)では now()->diffInSeconds(過去) が負数になるため向きを修正
             $news    = "正常終了\nUPSERT: {$upsertCount}件\n経過: {$elapsed}秒";
 
             $this->info('=== 完了 ' . now()->format('Y-m-d H:i:s') . " ({$elapsed}秒) ===");

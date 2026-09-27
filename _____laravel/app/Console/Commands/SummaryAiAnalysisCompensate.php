@@ -33,16 +33,35 @@ use Illuminate\Support\Facades\DB;
  *       6 = 6分前オッズ（1st AI 実行の必要条件）
  *
  * 【gapHorseNums / upsetPickupHorseNums について】
- *   本来 Flutter 側で計算する補足ヒント用パラメータ。
- *   サーバー側で再現する必要はなく、空文字を渡せば該当セクションが
- *   プロンプトからスキップされるだけで動作に支障はない。
+ *   本来 Flutter 側で計算する注目馬番①②（仕様「注目馬番（3種類）」）。
+ *   【20260924】空文字を渡すと AiController 側でアプリと同じ計算をして埋める
+ *   （以前はプロンプトから抜け落ちていた）。
  *
  * 【使い方】
- *   php artisan keiba:ai-analysis-compensate
+ *   php artisan keiba:ai-analysis-compensate                  … 当日を処理
+ *   php artisan keiba:ai-analysis-compensate --date=2026-09-26 … 指定日を処理
+ *   php artisan keiba:ai-analysis-compensate --date=2026-09-26 --remerge
+ *       … 保存済みのAI回答を使い、マージ＋フィルターだけやり直す（AI呼び出し0回）
+ *         フィルターの仕様を変更したあと、過去レースへ新ルールを適用する用途。
+ *         テーブルを削除する必要はない。
+ *
+ * 【--date について（20260926 追加）】
+ *   フィルターの閾値を変更したあと、過去日のAI予想をやり直すために追加した。
+ *   省略時は従来どおり当日（date('Y-m-d')）を対象にする。
+ *   ロックファイルも対象日付ごとに分かれるため、
+ *   別日を指定すれば当日ぶんの実行と同時に走らせても衝突しない。
+ *
+ *   やり直し手順（閾値だけ変えた場合）:
+ *     1) 修正版を配置
+ *     2) DELETE FROM t_horse_odds_finder_ai_analysis2 WHERE date='YYYY-MM-DD';
+ *     3) php artisan keiba:ai-analysis-compensate --date=YYYY-MM-DD
+ *     4) t_horse_odds_finder_ai_merge_result の頭数を確認
  */
 class SummaryAiAnalysisCompensate extends Command
 {
-    protected $signature   = 'keiba:ai-analysis-compensate';
+    protected $signature   = 'keiba:ai-analysis-compensate'
+                           . ' {--date= : 対象日付 YYYY-MM-DD（省略時は当日）}'
+                           . ' {--remerge : 保存済みのAI回答でマージ・フィルターだけやり直す}';
     protected $description = '未実行のAI予想を補完実行する';
 
     public function handle(): void
@@ -51,7 +70,23 @@ class SummaryAiAnalysisCompensate extends Command
         // 【ブロック 1】多重起動防止（日付別ロックファイル）
         //   同日に複数のプロセスが同時実行されるのを防ぐ。
         // ─────────────────────────────────────────────────────────────────
-        $date     = date('Y-m-d');
+        // ── 20260926: --date= で対象日を指定できるようにした ──────────────
+        //   省略時は従来どおり当日。過去日のやり直しに使う。
+        //   不正な日付でDBを引かないよう、書式と実在日をここで弾く。
+        $date = (string) ($this->option('date') ?: date('Y-m-d'));
+        if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $dm)
+            || !checkdate((int) $dm[2], (int) $dm[3], (int) $dm[1])) {
+            $this->error("--date の書式が不正です（YYYY-MM-DD で指定してください）: {$date}");
+            return;
+        }
+
+        // ── 20260926 追加: 再マージモード ─────────────────────────────────
+        //   フィルターの仕様を変えたあと、過去レースへ新ルールを適用するためのモード。
+        //   保存済みの1st/2nd AI回答をそのまま使い、DeepSeekを呼ばずに
+        //   マージ＋フィルターだけやり直して ai_merge_result を上書きする。
+        //   外部AI呼び出しは0回。入力が同じなので結果は決定的。
+        $remerge = (bool) $this->option('remerge');
+
         $lockFile = sys_get_temp_dir() . '/keiba_aiAnalysisCompensate_' . str_replace('-', '', $date) . '.lock';
 
         if (file_exists($lockFile)) {
@@ -84,10 +119,13 @@ class SummaryAiAnalysisCompensate extends Command
             $this->info('');
             $this->info('========== keiba:ai-analysis-compensate 開始 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('対象日付 : ' . $date);
+            if ($remerge) {
+                $this->info('モード   : 再マージ（DeepSeekを呼ばず、保存済み回答でフィルターを再適用）');
+            }
             $this->info('');
 
             // ═════════════════════════════════════════════════════════════
-            // 【ガード A】当日レースが存在しなければ早期リターン
+            // 【ガード A】対象日のレースが存在しなければ早期リターン
             // ═════════════════════════════════════════════════════════════
             $races = DB::table('t_horse_odds_finder_races')
                 ->where('date', $date)
@@ -98,7 +136,7 @@ class SummaryAiAnalysisCompensate extends Command
                 ->get();
 
             if ($races->isEmpty()) {
-                $this->info('[ガードA] 当日のレースが存在しません。');
+                $this->info("[ガードA] {$date} のレースが存在しません。");
                 $status = 'SKIP';
                 return;
             }
@@ -163,8 +201,8 @@ class SummaryAiAnalysisCompensate extends Command
                             'basho'                => $raceRow->basho,
                             'day'                  => $raceRow->day,
                             'race'                 => (string) $raceRow->race,
-                            'gapHorseNums'         => '',   // Flutter側計算値なし → 補足ヒントセクションをスキップ
-                            'upsetPickupHorseNums' => '',   // 同上
+                            'gapHorseNums'         => '',   // 空 → AiController がアプリと同じ計算で①を埋める（20260924）
+                            'upsetPickupHorseNums' => '',   // 空 → 同上で②を埋める
                         ]);
 
                         $response1st = $controller->getHorseOddsFinderAiAnalysis($req);
@@ -181,6 +219,22 @@ class SummaryAiAnalysisCompensate extends Command
                     }
                 }
 
+                // ── 1st AI 未登録なら 2nd AI は呼ばない（20260924 追加） ─────────
+                //   最終確定版：1st AI が失敗したレースは通常予測を公開しない。
+                //   1st AI 結果がないまま DeepSeek を呼んでも公開されず、API 呼び出しが無駄になるためスキップする。
+                $has1stNow = DB::table('t_horse_odds_finder_ai_analysis')
+                    ->where('date',       $raceRow->date)
+                    ->where('kaisuu',     $raceRow->kaisuu)
+                    ->where('basho_code', $raceRow->basho)
+                    ->where('day',        $raceRow->day)
+                    ->where('race',       $raceRow->race)
+                    ->exists();
+                if (!$has1stNow) {
+                    $this->warn("[2nd AI] {$label} : 1st AI 結果がないためスキップ");
+                    $skipped++;
+                    continue;
+                }
+
                 // ── 2nd AI チェック ───────────────────────────────────────
                 $exists2nd = DB::table('t_horse_odds_finder_ai_analysis2')
                     ->where('date',       $raceRow->date)
@@ -190,18 +244,26 @@ class SummaryAiAnalysisCompensate extends Command
                     ->where('race',       $raceRow->race)
                     ->exists();
 
-                if (!$exists2nd) {
-                    $this->info("[2nd AI] {$label} : 実行開始");
+                // 再マージモードでは、2nd AI の結果が既にあっても処理する。
+                // （保存済み回答を使ってマージ・フィルターだけやり直すため）
+                if (!$exists2nd || $remerge) {
+                    $this->info($remerge && $exists2nd
+                        ? "[再マージ] {$label} : 開始"
+                        : "[2nd AI] {$label} : 実行開始");
 
                     try {
-                        $req2nd = new Request();
-                        $req2nd->query->add([
+                        $req2ndParams = [
                             'date'   => $raceRow->date,
                             'kaisuu' => $raceRow->kaisuu,
                             'basho'  => $raceRow->basho,
                             'day'    => $raceRow->day,
                             'race'   => (string) $raceRow->race,
-                        ]);
+                        ];
+                        if ($remerge) {
+                            $req2ndParams['remerge'] = '1';
+                        }
+                        $req2nd = new Request();
+                        $req2nd->query->add($req2ndParams);
 
                         $response2nd = $controller->getHorseOddsFinderSecondAiOpinion($req2nd);
                         $status2nd   = $response2nd->getStatusCode();

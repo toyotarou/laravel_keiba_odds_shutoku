@@ -233,7 +233,7 @@ class SummaryAiRecoveryRate extends Command
             // ─────────────────────────────────────────────────────────────────
             // 【ブロック 4】完了ログ・WebPush 通知
             // ─────────────────────────────────────────────────────────────────
-            $elapsed = now()->diffInSeconds($startedAt);
+            $elapsed = (int) $startedAt->diffInSeconds(now()); // Laravel11(Carbon3)では now()->diffInSeconds(過去) が負数になるため向きを修正
             $this->info('');
             $this->info("=== SummaryAiRecoveryRate 完了 " . now()->format('Y-m-d H:i:s') . " ({$elapsed}秒) ===");
             $this->info("UPSERT: {$upsertCount}件  SKIP: {$skipCount}件");

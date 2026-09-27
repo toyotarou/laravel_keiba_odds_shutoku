@@ -35,8 +35,10 @@ use Illuminate\Support\Facades\DB;
  *   従来は 21:50 の cron（keiba:importRaceResultPayout）でのみ払戻金を取得していたが、
  *   レース結果が確定した時点（発走+10〜30分）では払戻金も既に確定しているため、
  *   結果を新規 INSERT したレースについて、その場で払戻金も取得する（【ブロック 9】）。
- *   ・既に払戻金が登録済みかどうかの判定は keiba:importRaceResultPayout 側
- *     （--kaisai / --race 指定時の早期リターン）が行うため、ここでは判定しない
+ *   ・既に払戻金が登録済みのレースは、呼び出し前にここで判定してスキップする
+ *     （発走+10分で上位馬だけ INSERT → +15分で残りの馬を INSERT、のように
+ *       同じレースで2回 INSERT が発生するため。判定しないと呼び先が空振りして
+ *       「SKIP」の開発者通知が毎レース飛んでしまう）
  *   ・21:50 の cron はそのまま残す（取りこぼしの保険）。既存レースはスキップされる
  *
  * 【使い方】
@@ -278,8 +280,8 @@ class ImportKeibaJraRaceOneResult extends Command
         // 【ブロック 9】払戻金の即時取得（keiba:importRaceResultPayout を呼び出す）
         //   結果が確定したタイミング（発走+10〜30分）では払戻金も確定しているため、
         //   今回 INSERT が発生したレースについてのみ、その場で払戻金を取得する。
-        //   ・登録済みかどうかの判定は呼び先（--kaisai / --race 指定時の早期リターン）に任せる。
-        //     登録済みなら Node.js を起動せずに即終了するため、ここでは検索しない。
+        //   ・払戻金が登録済みのレースは呼び出さずにスキップする。
+        //     （同じレースで結果 INSERT が2回に分かれることがあり、2回目は払戻金が既にあるため）
         //   ・失敗しても例外は握りつぶし、21:50 の cron が従来どおり拾う
         // ─────────────────────────────────────────────────────────────────
         $this->info('');
@@ -289,6 +291,19 @@ class ImportKeibaJraRaceOneResult extends Command
             $kaisai = "{$race->kaisuu}回{$race->basho_name}{$race->day}日";
             if (!preg_match('/^[0-9]+回.+[0-9]+日$/u', $kaisai)) {
                 $this->warn("  払戻金スキップ（開催名を組み立てられません）: {$kaisai}");
+                continue;
+            }
+
+            // 払戻金が登録済みなら呼び出さない（空振りと「SKIP」通知を防ぐ）
+            $payoutExists = DB::table('t_horse_odds_finder_race_result_payout')
+                ->where('date',       $race->date)
+                ->where('kaisuu',     (int) $race->kaisuu)
+                ->where('basho_code', $race->basho)
+                ->where('day',        (int) $race->day)
+                ->where('race',       (int) $race->race)
+                ->exists();
+            if ($payoutExists) {
+                $this->info("  払戻金スキップ（登録済み）: {$kaisai} {$race->race}R");
                 continue;
             }
 

@@ -90,11 +90,21 @@ class RaceController extends Controller
      *   999 = 計測開始前ベースライン
      *     6 = 発走6分前（馬券購入可能な最終タイミング）
      *
+     * 【20260924 追加】任意パラメータ date / kaisuu / basho / day / race
+     *   指定されたものだけで絞り込む（未指定なら従来どおり全件）。
+     *   Flutter が WebSocket でオッズ更新通知を受けた際に、
+     *   該当レースのオッズだけを再取得するために使う（全件再取得による通信量削減）。
+     *
      * @return \Illuminate\Http\JsonResponse  { data: [...] }
      */
-    public function getHorseOddsFinderOdds()
+    public function getHorseOddsFinderOdds(Request $request)
     {
         $result = DB::table('t_horse_odds_finder_odds')
+            ->when($request->filled('date'),   fn($q) => $q->where('date',   $request->input('date')))
+            ->when($request->filled('kaisuu'), fn($q) => $q->where('kaisuu', $request->input('kaisuu')))
+            ->when($request->filled('basho'),  fn($q) => $q->where('basho',  $request->input('basho')))
+            ->when($request->filled('day'),    fn($q) => $q->where('day',    $request->input('day')))
+            ->when($request->filled('race'),   fn($q) => $q->where('race',   (int) $request->input('race')))
             ->orderBy('date')
             ->orderBy('kaisuu')
             ->orderBy('basho')

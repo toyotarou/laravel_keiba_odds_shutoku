@@ -1,0 +1,47 @@
+﻿テーブル名,分類,行数(概算),説明,主な参照元
+t_horse_odds_finder_ai_analysis,AI予想,202,1st AI（Claude）のレース分析結果テキストをレース単位でキャッシュ保存する。,AiController.php / SummaryAiAnalysisCheck.php
+t_horse_odds_finder_ai_analysis2,AI予想,321,2nd AI（セカンドオピニオン）の分析結果テキストをレース単位でキャッシュ保存する。,AiController.php
+t_horse_odds_finder_ai_merge_result,AI予想,1,1st/2nd AI統合後の最終判定。厳選穴レース・波乱度・断層タイプを保持する。,AiController.php
+t_horse_odds_finder_compute_odds_correction,集計マスタ,18,人気順位別に6分前オッズ→確定オッズの補正係数と支持確率を集計したマスタ。,SummaryComputeOddsCorrection.php
+t_horse_odds_finder_forecast_from_last_race,AI予想,59,前走履歴をAIに渡して選出した各レースの候補馬番リスト。毎朝バッチで生成する。,SummaryForecastFromLastRace.php
+t_horse_odds_finder_fuku_popularity_rank_average,集計マスタ,18,人気順位別の過去平均複勝オッズ。複勝OPI（妙味指標）の分母として使う。,SummaryFukuPopularityRankAverage.php
+t_horse_odds_finder_high_payout_shadow_log,AI予想,8,高配当強化指標のシャドー検証ログ。総合点・仮順位・馬券判定を並行保存する。,AiController.php
+t_horse_odds_finder_horse_scores,集計マスタ,4207,出走4回以上の馬の逆順位率スコア。AI候補馬選出時の実力参考値として使う。,SummaryCalculateHorseScore.php
+t_horse_odds_finder_horses,取り込み基礎,941,開催当日の出馬表。枠番・馬番・馬名・騎手・調教師をレース単位で保持する。,ImportKeibaSchedule.php
+t_horse_odds_finder_jockey_scores,集計マスタ,135,騎乗20回以上の騎手の逆順位率スコア。AI候補馬選出時の実力参考値として使う。,SummaryCalculateJockeyScore.php
+t_horse_odds_finder_line_users,通知・ユーザー,2,LINE連携ユーザーIDの保管表。現行コードからの参照がなく実質休止している。,（参照なし）
+t_horse_odds_finder_login_users,通知・ユーザー,3,PWAのログインユーザー。パスワード・メール認証トークン・管理者フラグを持つ。,AuthController.php / AdminController.php
+t_horse_odds_finder_market_score_log,AI予想,933,市場妙味の5指標別得点（A〜E）と能力適性補正・高配当総合点の算出ログ。,AiController.php
+t_horse_odds_finder_ml_snapshot,AI予想,71,断層パターン学習用の特徴量JSONと正解ラベルM1〜M4。結果確定後に更新される。,AiController.php / UpdateMlResultLabels.php
+t_horse_odds_finder_odds,取り込み基礎,8178,JRAから時点別に取得した生オッズ。単勝と複勝の最小・最大を馬番単位で保持する。,ImportKeibaOdds.php / ImportKeibaBaseOdds.php
+t_horse_odds_finder_odds_gap_recovery,集計マスタ,36,計測開始→6分前の変化率帯×人気帯ごとの勝率・単勝回収率を集めたマスタ。,SummaryOddsGapRecoveryRate.php
+t_horse_odds_finder_odds_get_timing,取り込み基礎,648,オッズを「いつ・どの時点・どのソースから」取得したかの記録。取得漏れ検知用。,ImportKeibaOdds.php
+t_horse_odds_finder_opi_recovery,集計マスタ,28,OPI（オッズ妙味指標）帯×人気帯ごとの勝率・単勝回収率を集めたマスタ。,SummaryOpiRecoveryRate.php
+t_horse_odds_finder_phase_pattern_recovery,集計マスタ,36,前半・後半のオッズ変動方向パターン×人気帯ごとの回収率を集めたマスタ。,SummaryOddsPhasePatternRecoveryRate.php
+t_horse_odds_finder_popularity_horse_check,集計マスタ,591,median÷開始時オッズが高い上位馬と実着順1〜3位を突合した的中検証の記録。,SummaryPopularityHorseCheck.php
+t_horse_odds_finder_popularity_rank_average,集計マスタ,18,人気順位別の過去平均単勝オッズ。単勝OPI（妙味指標）の分母として使う。,SummaryPopularityRankAverage.php
+t_horse_odds_finder_popularity_rank_median,集計マスタ,65,レース単位・人気順位1〜18位ごとの単勝オッズ中央値。妙味判定の基準値になる。,SummaryPopularityRankMedian.php
+t_horse_odds_finder_push_send_logs,通知・ユーザー,257,Web Push通知の送信履歴。各バッチの実行結果報告もタイトル別にここへ残る。,WebPushService.php
+t_horse_odds_finder_push_subscriptions,通知・ユーザー,7,Web Pushの購読情報（endpoint・p256dh・auth）をユーザー単位で保持する。,WebPushController.php / WebPushService.php
+t_horse_odds_finder_race_introspection,AI予想,978,AIによるレース予想と結果の振り返り文。馬眼力の脳みそ生成の入力データになる。,SummaryRacesIntrospection.php / SummaryMakeBaganrikiBrain.php
+t_horse_odds_finder_race_result_history,結果・履歴,183247,過去全レースの着順・単複オッズ・人気順の履歴。各種集計の母集団となる中核表。,ImportKeibaRaceResultHistory.php
+t_horse_odds_finder_race_result_payout,結果・履歴,12366,過去レースの払戻金（単複枠連ワイド馬連馬単三連複三連単）とコース・距離。,ImportKeibaRaceResultPayout.php
+t_horse_odds_finder_race_results,結果・履歴,936,当日レースの確定着順。通知済み日時を持ち、結果プッシュ配信の管理に使う。,ImportKeibaJraRaceResult.php
+t_horse_odds_finder_races,取り込み基礎,72,開催当日のレース情報。グレード・コース・距離・発走時刻・頭数・人気比率を持つ。,ImportKeibaSchedule.php / ImportRacesPopularityRatio.php
+t_horse_odds_finder_races_popularity_ratio,集計マスタ,12094,過去レースの人気順オッズ比率マスタ。当日レースとのRMSE類似度算出に使う。,SummaryRacesPopularityRatio.php
+t_horse_odds_finder_schedules,取り込み基礎,6,開催スケジュール。日付・開催回数・競馬場・日目の組み合わせを持つ起点の表。,ImportKeibaSchedule.php
+t_horse_odds_finder_shutsuba_history,結果・履歴,21809,各馬の前走〜4走前の詳細履歴。着順・通過順・上がり3F・馬体重などを保持する。,ImportKeibaShutsubaHistory.php
+t_horse_odds_finder_similar_race_stats,集計マスタ,43,人気順×頭数帯別の3着以内率・5着以内率・平均着順などの統計マスタ。,SummarySimilarRaceStats.php
+t_horse_odds_finder_summary,結果・履歴,14603,馬ごとの24分前〜発走直前までの単勝オッズ時系列と着順。画面表示の中心データ。,SummaryKeibaInfo.php
+websockets_statistics_entries,インフラ,4487,laravel-websocketsパッケージの接続数・メッセージ数統計。自作テーブルではない。,（パッケージ標準）
+x_____failed_jobs,退避（x_____）,0,Laravel標準のジョブ失敗記録表。接頭辞x_____は使用停止を示すリネーム。,（Laravel標準）
+x_____migrations,退避（x_____）,6,Laravel標準のマイグレーション実行履歴。接頭辞x_____は使用停止を示す。,（Laravel標準）
+x_____password_resets,退避（x_____）,0,Laravel標準のパスワード再設定トークン表。現在は使用していない。,（Laravel標準）
+x_____personal_access_tokens,退避（x_____）,0,Laravel Sanctumのアクセストークン表。現在は使用していない。,（Laravel標準）
+x_____t_horse_odds_finder_ai_analysis_check,退避（x_____）,0,AI予想と実着順の的中数を集計する表。コードは参照するが退避済みで停止中。,SummaryAiAnalysisCheck.php（要確認）
+x_____t_horse_odds_finder_ai_recovery,退避（x_____）,0,AI選出馬の単勝・複勝回収率の集計表。コードは参照するが退避済みで停止中。,SummaryAiRecoveryRate.php（要確認）
+x_____t_horse_odds_finder_fcm_tokens,退避（x_____）,0,Firebase Push用トークン表。Web Pushへ移行済みで使用していない。,（参照なし）
+x_____t_horse_odds_finder_netkeiba_odds,退避（x_____）,0,netkeiba由来のオッズ表。JRAからの直接取得へ移行し退避済み。,importKeibaRaceResult.php（要確認）
+x_____t_horse_odds_finder_netkeiba_races,退避（x_____）,0,netkeiba由来のレース一覧表。JRAからの直接取得へ移行し退避済み。,importKeibaRace.php（要確認）
+x_____t_horse_odds_finder_odds_wide,退避（x_____）,0,ワイドオッズの保存表。現在は取得しておらず退避済み。,deleteKeibaTableRecords.php（要確認）
+x_____users,退避（x_____）,0,Laravel標準のusers表。独自のlogin_usersへ移行済みで使用していない。,（Laravel標準）

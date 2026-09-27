@@ -1,0 +1,47 @@
+﻿テーブル名,分類,行数(概算),データ保持範囲(id:1〜最新),説明,使われる計算,洗い替え,洗い替えの判断理由,主な参照元
+t_horse_odds_finder_ai_analysis,AI予想,202,2026-08-29〜09-22（4開催分が蓄積）,1st AI（Claude）のレース分析結果テキストをレース単位でキャッシュ保存する。,Flutter画面への1st AI分析表示。キャッシュヒット時はAPI再実行を回避する。,不可,意図的に蓄積する方針。delete側のコメントアウトもその意思表示。消さないこと。,AiController.php
+t_horse_odds_finder_ai_analysis2,AI予想,321,2026-08-15〜09-22（6開催分が蓄積）,2nd AI（セカンドオピニオン）の分析結果テキストをレース単位でキャッシュ保存する。,Flutter画面への2nd AI分析表示。1st AI応答後に裏で先読み生成される。,不可,意図的に蓄積する方針。delete側に未記載なのは正常。消さないこと。,AiController.php
+t_horse_odds_finder_ai_merge_result,AI予想,1,2026-09-22のみ（1件）,1st/2nd AI統合後の最終判定。厳選穴レース・波乱度・断層タイプを保持する。,統合表示（候補馬・順位・穴レース判定）の復元。キャッシュ応答に同梱される。,不可,AI分析の統合結果でai_analysisと同じく蓄積する方針。消さないこと。,AiController.php
+t_horse_odds_finder_compute_odds_correction,集計マスタ,18,集計期間 2026-09-19〜09-22,人気順位別に6分前オッズ→確定オッズの補正係数と支持確率を集計したマスタ。,AIプロンプトに渡す補正係数。6分前オッズから確定オッズを推定する。,不要,バッチがupsertで18帯を毎回更新。帯定義を変えた時だけTRUNCATE。,SummaryComputeOddsCorrection.php
+t_horse_odds_finder_forecast_from_last_race,AI予想,59,2026-09-19〜09-22（今週分のみ）,前走履歴をAIに渡して選出した各レースの候補馬番リスト。毎朝バッチで生成する。,AI分析時の候補馬の事前絞り込み。プロンプトに前走ベースの馬番を渡す。,実施中,id:1が09-19。delete側でTRUNCATE済みで正常に洗い替えされている。,SummaryForecastFromLastRace.php
+t_horse_odds_finder_fuku_popularity_rank_average,集計マスタ,18,集計期間 2023-01-05〜2026-09-22,人気順位別の過去平均複勝オッズ。複勝OPI（妙味指標）の分母として使う。,複勝OPI＝実複勝オッズ÷人気順位別平均。市場妙味スコアBの算出に使う。,厳禁,差分累積型。新規分だけを加重平均するため消すと3年分が復元できない。,SummaryFukuPopularityRankAverage.php
+t_horse_odds_finder_high_payout_shadow_log,AI予想,8,2026-09-20のみ（8件）,高配当強化指標のシャドー検証ログ。総合点・仮順位・馬券判定を並行保存する。,高配当強化指標の事後検証。現在は表示に影響させずログのみ蓄積している。,不可,検証期間中の蓄積が目的。消すと検証をやり直しになる。,AiController.php
+t_horse_odds_finder_horse_scores,集計マスタ,4207,日付列なし（毎回全件を作り直し）,出走4回以上の馬の逆順位率スコア。AI候補馬選出時の実力参考値として使う。,AI候補馬選出プロンプトの馬の実力値。Flutter側の一覧表示にも使う。,不要,バッチが冒頭でTRUNCATEして全再計算。delete側に足すと二重になる。,SummaryCalculateHorseScore.php
+t_horse_odds_finder_horses,取り込み基礎,941,2026-09-19〜09-22（今週分のみ）,開催当日の出馬表。枠番・馬番・馬名・騎手・調教師をレース単位で保持する。,出馬表表示、AIプロンプトの馬名・騎手情報、サマリー生成の馬名解決。,実施中,id:1が09-19。正常に洗い替えされている。,ImportKeibaSchedule.php
+t_horse_odds_finder_jockey_scores,集計マスタ,135,日付列なし（毎回全件を作り直し）,騎乗20回以上の騎手の逆順位率スコア。AI候補馬選出時の実力参考値として使う。,AI候補馬選出プロンプトの騎手の実力値。Flutter側の一覧表示にも使う。,不要,バッチが冒頭でTRUNCATEして全再計算。delete側に足すと二重になる。,SummaryCalculateJockeyScore.php
+t_horse_odds_finder_line_users,通知・ユーザー,2,日付列なし（id 1〜2）,LINE連携ユーザーIDの保管表。現行コードからの参照がなく実質休止している。,（現在どの計算にも使われていない）,判断保留,参照コードがないため用途不明。消す前に要否の確認が必要。,（参照なし）
+t_horse_odds_finder_login_users,通知・ユーザー,3,日付列なし（id 1〜3）,PWAのログインユーザー。パスワード・メール認証トークン・管理者フラグを持つ。,ログイン認証と管理者判定。,不可,ユーザーデータ。消すと全員ログインできなくなる。,AuthController.php
+t_horse_odds_finder_market_score_log,AI予想,933,2026-09-19〜09-22（表自体が09-18作成）,市場妙味の5指標別得点（A〜E）と能力適性補正・高配当総合点の算出ログ。,全出走馬のスコア内訳を残し、AIが選ばなかった馬の見逃し検証をする素材。,条件付き可,INSERT専用で読み出し先なし。ただし現在は主要列がNULLで素材として不完全。,AiController.php
+t_horse_odds_finder_ml_snapshot,AI予想,71,2026-09-19〜09-22（表自体が09-15作成）,断層パターン学習用の特徴量JSONと正解ラベルM1〜M4。結果確定後に更新される。,断層パターン学習の教師データ。特徴量と結果ラベルの対応を蓄積する。,不可,学習用の蓄積データ。消すと教師データがゼロに戻る。,UpdateMlResultLabels.php
+t_horse_odds_finder_odds,取り込み基礎,8178,2026-09-19〜09-22（今週分のみ）,JRAから時点別に取得した生オッズ。単勝と複勝の最小・最大を馬番単位で保持する。,サマリー生成の入力。人気順位の算出と有意変動のプッシュ通知判定にも使う。,実施中,summaryとrace_result_historyへ転記済み。正常に洗い替えされている。,ImportKeibaOdds.php
+t_horse_odds_finder_odds_gap_recovery,集計マスタ,36,集計期間 2026-06-06〜2026-09-22,計測開始→6分前の変化率帯×人気帯ごとの勝率・単勝回収率を集めたマスタ。,AIプロンプトに渡す回収率根拠。市場妙味スコアDの裏付けに使う。,不要,バッチがupsertで36帯を毎回更新。帯定義を変えた時だけTRUNCATE。,SummaryOddsGapRecoveryRate.php
+t_horse_odds_finder_odds_get_timing,取り込み基礎,648,2026-09-19〜09-22（今週分のみ）,オッズを「いつ・どの時点・どのソースから」取得したかの記録。取得漏れ検知用。,人気比率計算のフォールバック用オッズの特定。取得漏れの検知。,実施中,id:1が09-19。正常に洗い替えされている。,ImportKeibaOdds.php
+t_horse_odds_finder_opi_recovery,集計マスタ,28,集計期間 2026-06-06〜2026-09-22,OPI（オッズ妙味指標）帯×人気帯ごとの勝率・単勝回収率を集めたマスタ。,AIプロンプトに渡す回収率根拠。市場妙味スコアCのOPI妙味判定に使う。,不要,バッチがupsertで28帯を毎回更新。帯定義を変えた時だけTRUNCATE。,SummaryOpiRecoveryRate.php
+t_horse_odds_finder_phase_pattern_recovery,集計マスタ,36,集計期間 2026-06-06〜2026-09-22,前半・後半のオッズ変動方向パターン×人気帯ごとの回収率を集めたマスタ。,AIプロンプトに渡す回収率根拠。市場妙味スコアEの断層変化根拠に使う。,不要,バッチがupsertで36帯を毎回更新。帯定義を変えた時だけTRUNCATE。,SummaryOddsPhasePatternRecoveryRate.php
+t_horse_odds_finder_popularity_horse_check,集計マスタ,591,2026-07-18〜09-22（10開催分が蓄積）,median÷開始時オッズが高い上位馬と実着順1〜3位を突合した的中検証の記録。,妙味上位馬の予想が当たったかの事後検証。精度の振り返りに使う。,不可,検証記録の蓄積が目的。消すと過去の精度が追えなくなる。,SummaryPopularityHorseCheck.php
+t_horse_odds_finder_popularity_rank_average,集計マスタ,18,集計期間 2023-01-05〜2026-09-22,人気順位別の過去平均単勝オッズ。単勝OPI（妙味指標）の分母として使う。,単勝OPI＝実単勝オッズ÷人気順位別平均。市場妙味スコアの基礎値になる。,非推奨,消しても全件再計算で復元されるが、3年分の再集計が走り重い。,SummaryPopularityRankAverage.php
+t_horse_odds_finder_popularity_rank_median,集計マスタ,65,2026-09-19〜09-22（今週分のみ）,レース単位・人気順位1〜18位ごとの単勝オッズ中央値。妙味判定の基準値になる。,妙味上位馬のピックアップ（median÷開始時オッズ）とFlutter側の表示。,実施中,土曜のみTRUNCATE。バッチ側もTRUNCATE済み前提で書かれている。,SummaryPopularityRankMedian.php
+t_horse_odds_finder_push_send_logs,通知・ユーザー,257,2026-09-19 05:50〜（今週分のみ・JST）,Web Push通知の送信履歴。各バッチの実行結果報告もタイトル別にここへ残る。,バッチ実行結果の確認。管理画面での通知履歴表示。,実施中,id:1が09-19 05:50。正常に洗い替えされている。,WebPushService.php
+t_horse_odds_finder_push_subscriptions,通知・ユーザー,7,2026-08-06〜09-19（id 172〜585）,Web Pushの購読情報（endpoint・p256dh・auth）をユーザー単位で保持する。,Web Push配信先の特定。通知送信時に全購読者へ展開する。,不可,ユーザーデータ。消すと全員に通知が届かなくなる。,WebPushController.php
+t_horse_odds_finder_race_introspection,AI予想,978,2026-06-06〜09-22（id欠番122件あり）,AIによるレース予想と結果の振り返り文。馬眼力の脳みそ生成の入力データになる。,馬眼力の脳みそ（AI判断基準テキスト）の生成入力。履歴画面の表示。,不可,AI生成の蓄積資産。finishフラグで処理済みを管理している。,SummaryRacesIntrospection.php
+t_horse_odds_finder_race_result_history,結果・履歴,183247,2023-01-05〜2026-09-22（3年9か月）,過去全レースの着順・単複オッズ・人気順の履歴。各種集計の母集団となる中核表。,ほぼ全ての集計マスタの母集団。着順・人気順・オッズの供給元。,不可,18万行の母集団。消すと全集計が再構築不能になる。,ImportKeibaRaceResultHistory.php
+t_horse_odds_finder_race_result_payout,結果・履歴,12366,2023-01-05〜2026-09-22（3年9か月）,過去レースの払戻金（単複枠連ワイド馬連馬単三連複三連単）とコース・距離。,回収率計算の払戻金供給元。AI回収率集計や履歴表示に使う。,不可,再取得はスクレイピングが重い。回収率計算の根拠が失われる。,ImportKeibaRaceResultPayout.php
+t_horse_odds_finder_race_results,結果・履歴,936,2026-09-19〜09-22（今週分のみ）,当日レースの確定着順。通知済み日時を持ち、結果プッシュ配信の管理に使う。,結果確定のプッシュ通知とsummaryのresult更新。,実施中,id:1が09-19。正常に洗い替えされている。,ImportKeibaJraRaceResult.php
+t_horse_odds_finder_races,取り込み基礎,72,2026-09-19〜09-22（今週分のみ）,開催当日のレース情報。グレード・コース・距離・発走時刻・頭数・人気比率を持つ。,全バッチのレース特定の起点。発走時刻からオッズ取得タイミングを決める。,実施中,id:1が09-19。正常に洗い替えされている。,ImportKeibaSchedule.php
+t_horse_odds_finder_races_popularity_ratio,集計マスタ,12094,2023-01-05〜2026-09-13（過去レースのマスタ）,過去レースの人気順オッズ比率マスタ。当日レースとのRMSE類似度算出に使う。,当日レースとのRMSE類似度計算のマスタ。似たオッズ構成の過去レース探索。,不可,1.2万行の蓄積マスタ。再構築は履歴全件の再集計になり重い。,SummaryRacesPopularityRatio.php
+t_horse_odds_finder_schedules,取り込み基礎,6,2026-09-19〜09-22（今週分のみ）,開催スケジュール。日付・開催回数・競馬場・日目の組み合わせを持つ起点の表。,開催の特定。馬情報・レース情報取得ループの起点になる。,実施中,id:1が09-19。正常に洗い替えされている。,ImportKeibaSchedule.php
+t_horse_odds_finder_shutsuba_history,結果・履歴,21809,2023-04-16〜2026-09-13（過去走の履歴）,各馬の前走〜4走前の詳細履歴。着順・通過順・上がり3F・馬体重などを保持する。,AI候補馬選出プロンプトの前走データ。馬・騎手スコアの算出元。,不可,馬・騎手スコアの算出元。再取得はスクレイピングが重い。,ImportKeibaShutsubaHistory.php
+t_horse_odds_finder_similar_race_stats,集計マスタ,43,最終更新 2026-09-22 23:10（JST）,人気順×頭数帯別の3着以内率・5着以内率・平均着順などの統計マスタ。,AIプロンプトに渡す人気順・頭数帯別の着順期待値。,不要,バッチがupdateOrInsertで毎回更新。区分を変えた時だけTRUNCATE。,SummarySimilarRaceStats.php
+t_horse_odds_finder_summary,結果・履歴,14603,2026-06-06〜09-22（今季分が蓄積）,馬ごとの24分前〜発走直前までの単勝オッズ時系列と着順。画面表示の中心データ。,Flutter画面のオッズ推移グラフ。回収率集計の時系列オッズ供給元。,不可,oddsを毎週消しているため、時系列オッズの唯一の保存先になっている。,SummaryKeibaInfo.php
+websockets_statistics_entries,インフラ,4487,2026-08-19〜09-23（1日約125行で増加中）,laravel-websocketsパッケージの接続数・メッセージ数統計。自作テーブルではない。,（パッケージ内部の統計。アプリの計算には使われない）,追加推奨,誰も読まず1か月で4487行。定期削除の対象に加えてよい。,（パッケージ標準）
+x_____failed_jobs,退避（x_____）,0,0件（退避済み）,Laravel標準のジョブ失敗記録表。接頭辞x_____は使用停止を示すリネーム。,（使用停止）,対象外,使用停止のため洗い替えの対象外。,（Laravel標準）
+x_____migrations,退避（x_____）,6,6件（2026-08-13で停止）,Laravel標準のマイグレーション実行履歴。接頭辞x_____は使用停止を示す。,（使用停止）,対象外,使用停止のため洗い替えの対象外。,（Laravel標準）
+x_____password_resets,退避（x_____）,0,0件（退避済み）,Laravel標準のパスワード再設定トークン表。現在は使用していない。,（使用停止）,対象外,使用停止のため洗い替えの対象外。,（Laravel標準）
+x_____personal_access_tokens,退避（x_____）,0,0件（退避済み）,Laravel Sanctumのアクセストークン表。現在は使用していない。,（使用停止）,対象外,使用停止のため洗い替えの対象外。,（Laravel標準）
+x_____t_horse_odds_finder_ai_analysis_check,退避（x_____）,0,0件（退避済み）,AI予想と実着順の的中数を集計する表。コードは参照するが退避済みで停止中。,（使用停止・コードは旧名参照のまま）,対象外,cronに残っていると毎回Table doesn't existで落ちる。要確認。,SummaryAiAnalysisCheck.php（要確認）
+x_____t_horse_odds_finder_ai_recovery,退避（x_____）,0,0件（退避済み）,AI選出馬の単勝・複勝回収率の集計表。コードは参照するが退避済みで停止中。,（使用停止・コードは旧名参照のまま）,対象外,cronに残っていると毎回Table doesn't existで落ちる。要確認。,SummaryAiRecoveryRate.php（要確認）
+x_____t_horse_odds_finder_fcm_tokens,退避（x_____）,0,0件（退避済み）,Firebase Push用トークン表。Web Pushへ移行済みで使用していない。,（使用停止）,対象外,使用停止のため洗い替えの対象外。,（参照なし）
+x_____t_horse_odds_finder_netkeiba_odds,退避（x_____）,0,0件（退避済み）,netkeiba由来のオッズ表。JRAからの直接取得へ移行し退避済み。,（使用停止・コードは旧名参照のまま）,対象外,delete側では既にコメントアウト済み。,importKeibaRaceResult.php（要確認）
+x_____t_horse_odds_finder_netkeiba_races,退避（x_____）,0,0件（退避済み）,netkeiba由来のレース一覧表。JRAからの直接取得へ移行し退避済み。,（使用停止・コードは旧名参照のまま）,対象外,delete側では既にコメントアウト済み。,importKeibaRace.php（要確認）
+x_____t_horse_odds_finder_odds_wide,退避（x_____）,0,0件（退避済み）,ワイドオッズの保存表。現在は取得しておらず退避済み。,（使用停止）,対象外,delete側では既にコメントアウト済み。,deleteKeibaTableRecords.php（要確認）
+x_____users,退避（x_____）,0,0件（退避済み）,Laravel標準のusers表。独自のlogin_usersへ移行済みで使用していない。,（使用停止）,対象外,使用停止のため洗い替えの対象外。,（Laravel標準）

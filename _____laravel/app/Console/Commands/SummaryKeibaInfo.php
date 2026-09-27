@@ -322,7 +322,8 @@ class SummaryKeibaInfo extends Command
             if (isset($rankedRaceGroups[$raceKey])) {
                 continue;
             }
-            $withOdds = array_filter($keys, fn($k) => $historyRecords[$k]['tan'] !== null);
+            // 「取消」等の非数値は (float) で 0 になり 1番人気扱いになるため、数値のみ採番する
+            $withOdds = array_filter($keys, fn($k) => is_numeric($historyRecords[$k]['tan']));
             usort($withOdds, fn($a, $b) => (float)$historyRecords[$a]['tan'] <=> (float)$historyRecords[$b]['tan']);
             $rank = 1;
             foreach ($withOdds as $k) {

@@ -184,6 +184,7 @@ class SummaryForecastFromLastRace extends Command
                     ->get();
 
                 $horseInfoList     = [];
+                $horsesWithHistory = 0; // 過去走データを1件以上持つ馬の数（新馬戦判定用）
                 $horseInfoTemplate = "馬番:NUM___馬名:NAME___成績:RECORD";
                 $historyTemplate   = "(RACE_NUM)日付:DATE|開催場所:BASHO|レース種別:DIST|馬場状態:CONDITION|頭数:NUM_HORSES|人気:POPULARITY|着順:FINISHING_POSITION|馬体重:HORSE_WEIGHT|コーナー順位:CORNER1-CORNER2-CORNER3-CORNER4|ラスト3ハロン:LAST3F|ジョッキー:JOCKEY";
 
@@ -225,6 +226,10 @@ class SummaryForecastFromLastRace extends Command
                         $historyStrings[] = $historyStr;
                     }
 
+                    if (!empty($historyStrings)) {
+                        $horsesWithHistory++;
+                    }
+
                     $horseInfoStr = strtr($horseInfoTemplate, [
                         'NUM'    => $horse->num,
                         'NAME'   => $horse->name,
@@ -236,6 +241,14 @@ class SummaryForecastFromLastRace extends Command
                     }
 
                     $horseInfoList[] = $horseInfoStr;
+                }
+
+                // 全馬に過去走データがない（新馬戦など）レースは AI が判断できず
+                // 「データがありません」と返答してフォーマット不正になるため、API 送信せずスキップする
+                if ($horsesWithHistory === 0) {
+                    $this->line("  [スキップ] {$race->basho_name} {$race->race}R（全馬に過去走データなし）");
+                    $totalSkipped++;
+                    continue;
                 }
 
                 $pickupCount = $race->num_horses <= 8

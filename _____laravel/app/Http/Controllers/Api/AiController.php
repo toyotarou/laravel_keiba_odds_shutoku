@@ -31,7 +31,73 @@ class AiController extends Controller
         'ability_corr_merged',   // B-10 統合後の能力適性補正点
         'mismatch_category',     // B-10 不一致馬A〜D分類
         'betting_judgment',      // B-10 馬券判定
+        // ── 20260926 追加（よっしー指摘 01.txt）──────────────────────────
+        //   Block 12 / Block 13a を「候補除外」から「購入回避フラグ」へ変更した際に
+        //   各馬へ付与する内部値。馬券購入判定の材料であり、
+        //   仕様 #36・#51「シャドー検証中の馬券判定はFlutterへ影響させない」に従い
+        //   Flutter へは返さない（merge_result にはそのまま保存され、追跡に使える）。
+        //   ※「見送り」「監視」の画面表示を行う場合は、
+        //     馬券判定をシャドーから外す判断とあわせて、ここから除く必要がある。
+        'buy_avoid_recovery',    // B-12 回収率による購入回避フラグ
+        'recovery_detail',       // B-12 3種類の回収率・サンプル数・閾値未満の個数
+        'buy_avoid_low_payout',  // B-13a 低配当による購入回避フラグ
+        'low_payout',            // B-13a 低配当条件に該当したか
+        'low_payout_released',   // B-13a 例外3条件で解除されたか
+        'low_payout_fuku_min',   // B-13a 判定に使った推定確定複勝最小
+        'low_payout_tan_odds',   // B-13a 判定に使った推定確定単勝
     ];
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20260926-B12-RECOVERY-THRESHOLD   ← 戻すときはこの文字列で検索
+     * ═══════════════════════════════════════════════════════════════════════
+     * Block 12（回収率ハード除外）の「低回収率」判定閾値。
+     *
+     * 【暫定変更 2026-09-26】 90.0 → 60.0
+     *
+     * 【変更理由】
+     *   よっしー仕様（受入チェック #35 / 05.txt Issue2）は
+     *   「サンプル30件以上の有効値が2種類以上あり、うち2種類以上が90%未満なら除外」。
+     *   ところが実データでは、回収率テーブルの大半の区分が90%を下回っている。
+     *     ・過去回収率      有効33区分中 24区分が90%未満
+     *     ・OPI帯別回収率   有効28区分中 25区分が90%未満
+     *     ・フェーズ別回収率 有効33区分中 26区分が90%未満
+     *   競馬は控除率が20〜25%あるため回収率の構造的な基準値が75〜80%であり、
+     *   90%は「平均以上でなければ失格」という水準になる。
+     *   結果としてほぼ全馬が2種類以上で該当し、最終候補が0〜1頭になっていた。
+     *   （2026-09-26 中山2R: 1st AIが4頭選出 → Block12が全頭除外して0頭）
+     *
+     * 【暫定値の根拠】人気帯ごとの実データから 60.0 を採用
+     *   有効区分の平均回収率と、各閾値で切られる区分数は次のとおり。
+     *     人気帯      平均     60%未満  70%未満  90%未満
+     *     1〜3人気    86.8%     0        1       18/25
+     *     4〜6人気    65.3%     9       11       24/25
+     *     7〜9人気    68.8%    10       13       17/24
+     *     10人気以上  51.9%    12       13       16/20
+     *
+     *   (1) 1〜3人気では 60 でも 70 でも結果がほぼ変わらない（切られる区分は0〜1）。
+     *   (2) 差が出るのは 4〜9人気＝中穴ゾーンのみ。
+     *   (3) 中穴〜人気薄の平均回収率は51〜69%なので、70 という線は「平均より上」。
+     *       平均より上に線を引くと、その帯の半数以上が自動的に落ちる。
+     *       これは本サービスの方針（低配当を減らし中穴・人気薄を重視する）と逆行する。
+     *   (4) 60 なら 4〜6人気(65.3%)・7〜9人気(68.8%) の平均を下回る線になり、
+     *       帯を丸ごと削ることはなくなる。回収率0%・26%・51%といった
+     *       明らかに不振な区分は引き続き除外される。
+     *
+     *   緩すぎる心配はない。回収率はおすすめ度の妙味項目（0〜12点）で
+     *   すでに減点材料として使われており、本フィルターは二重チェックの保険。
+     *   保険側は控えめでよい。
+     *
+     * 【この値は暫定です】
+     *   よっしーの仕様そのものの数値なので、本来は仕様側で決め直す必要がある。
+     *   確定値が決まったらここだけ直せばよい（参照箇所はすべてこの定数を見る）。
+     *
+     * 【参照箇所】
+     *   ① Block 12 実処理（merge後・候補絞り込みフィルター内）
+     *   ② _applyRecoveryHardFilter()（現在は未使用。将来復活時の食い違い防止）
+     *   ③ _saveMlSnapshot() の params.recovery_low_thresh（学習用メタデータ）
+     */
+    private const B12_RECOVERY_LOW_THRESH = 60.0;
 
     public function __construct(private AnthropicService $anthropic)
     {
@@ -118,6 +184,12 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
 
     if ($cached) {
 
+        // 【20260924】1st AI が失敗（空・形式不正・8頭以上）したレースは公開しない（仕様: 制御済みエラー）
+        $firstPublishError = $this->_firstAiPublishError((string) $cached->analysis_text);
+        if ($firstPublishError !== null) {
+            return response()->json(['error' => '1st AIの回答を公開できません（制御済みエラー: ' . $firstPublishError . '）'], 500);
+        }
+
 // DBの analysis_text には PICKUP: 行が含まれているので、レスポンスでは除去して返す
 
         return response()->json(['data' => [
@@ -154,6 +226,11 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
             ->first();
 
         if ($cached) {
+            // 【20260924】1st AI 失敗レースは公開しない（上のキャッシュ分岐と同じ）
+            $firstPublishError = $this->_firstAiPublishError((string) $cached->analysis_text);
+            if ($firstPublishError !== null) {
+                return response()->json(['error' => '1st AIの回答を公開できません（制御済みエラー: ' . $firstPublishError . '）'], 500);
+            }
             return response()->json(['data' => [
                 'date'          => $date,
                 'kaisuu'        => $kaisuu,
@@ -217,13 +294,26 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
         //   ★ここを 2 以上にしたり、引数を省略（既定値3）したりしてはいけない。
         //   ※以前このコメントには「529時は指数バックオフでリトライ」と書かれていたが、
         //     仕様と食い違うためコメントごと是正した。コードは以前から1回のみ。
-        $aiResponse = $this->anthropic->sendWithRetry(
-            prompt:      $prompt,
-            system:      $firstAiSystemPrompt,
-            maxAttempts: 1,   // 仕様: 自動再試行禁止。2以上にしてはいけない
-            sleepBase:   2,
-            timeout:     30,
-        );
+        // 【20260926】timeout 30秒では応答が間に合わず cURL error 28（接続タイムアウト）で
+        //   未捕捉例外になっていたため 90秒に延長。Cloudflare の応答待ち上限(100秒)と
+        //   ロック保持時間(120秒)より短くしている。再試行はしない（仕様どおり1回のみ）。
+        //   それでも時間切れの場合は例外を捕捉し、制御済みエラーとして返す。
+        try {
+            $aiResponse = $this->anthropic->sendWithRetry(
+                prompt:      $prompt,
+                system:      $firstAiSystemPrompt,
+                maxAttempts: 1,   // 仕様: 自動再試行禁止。2以上にしてはいけない
+                sleepBase:   2,
+                timeout:     90,
+            );
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            \Log::error('[1st AI] Anthropic API タイムアウト/接続失敗（再試行しない）', [
+                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
+                'prompt_length' => mb_strlen($prompt),
+                'message' => $e->getMessage(),
+            ]);
+            return response()->json(['error' => 'AI分析がタイムアウトしました。しばらくしてから再度お試しください'], 504);
+        }
 
         if ($aiResponse->failed()) {
             \Log::error('Anthropic API error', [
@@ -251,6 +341,19 @@ $analysisText = trim($rawText);
             'race_name'     => $raceRow->race_name,
             'analysis_text' => $rawText,
         ]);
+
+        // ─── 【20260924】1st AI の回答判定（仕様: 1st AI 失敗時は予測公開を中止し制御済みエラー）──
+        //   原文は上で保存済み（ログ・再試行防止のため）。空・形式不正・8頭以上なら公開せず、
+        //   2nd AI の先読みも行わない（公開されない予測のために DeepSeek を呼ばない）。
+        $firstPublishError = $this->_firstAiPublishError($rawText);
+        if ($firstPublishError !== null) {
+            \Log::error('[#66] 1st AI 回答失敗 → 公開しない（制御済みエラー）', [
+                'reason' => $firstPublishError,
+                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
+                'raw_text' => mb_substr($rawText, 0, 2000),
+            ]);
+            return response()->json(['error' => '1st AIの回答を公開できません（制御済みエラー: ' . $firstPublishError . '）'], 500);
+        }
 
         // ─── 2nd AI プリフェッチ（レスポンス送信後にバックグラウンドで実行） ──
         // ユーザーが「2nd AI」ボタンを押す前にキャッシュを作っておく。
@@ -316,6 +419,14 @@ $analysisText = trim($rawText);
 
 private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, $targetDay, $targetRace, $gapHorseNums, $upsetPickupHorseNums)
 {
+    // 【20260924 追加】仕様「注目馬番（3種類）」の①②をアプリから受け取れない場合（夜間の補完バッチ・
+    //   2nd AI 用プロンプトの自力生成）は、アプリと同じ計算をPHPで行って埋める。
+    //   以前は空のまま送っていたため、アプリで開かれなかったレースだけ①②の無いプロンプトで予想していた。
+    if (empty($gapHorseNums) && empty($upsetPickupHorseNums)) {
+        [$gapHorseNums, $upsetPickupHorseNums] = $this->_calcHintHorseNums(
+            $targetDate, $targetKaisuu, $targetBasho, $targetDay, $targetRace
+        );
+    }
     // ─── レース存在確認 ───────────────────────────────────────────────
     $race = DB::table('t_horse_odds_finder_races')
         ->where('date',   $targetDate)
@@ -362,6 +473,10 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     // fuku_max[timing] = 複勝最大オッズ
     $oddsByNum = [];
     foreach ($oddsRows as $row) {
+        // 【20260924】「取消」等の非数値オッズは floatval で 0 になり、6分前オッズ 0 の馬が
+        //   1番人気として並び、全馬の人気順が1つずつずれていた。非数値の行は使わない
+        //   （6分前が取消なら、その馬は6分前オッズなしとしてプロンプトから外れる）。
+        if (!is_numeric($row->odds)) continue;
         $num    = $row->num;
         $timing = $row->minutes_before_start;
         if (!isset($oddsByNum[$num])) {
@@ -878,6 +993,11 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             );
         } else {
             $estFukuLine = '  推定確定複勝最小: －（補正データなし）';
+            // 【20260924】仕様 受入チェック5「推定確定複勝オッズが未生成の場合、AIに推測させず入力欠損としてログへ記録する」
+            \Log::info('[入力欠損] 推定確定複勝オッズ未生成', [
+                'date' => $targetDate, 'kaisuu' => $targetKaisuu, 'basho' => $targetBasho,
+                'day'  => $targetDay,  'race'   => $targetRace,   'num'   => $h['num'] ?? null,
+            ]);
         }
 
         // 乖離別回収率の表示
@@ -1147,7 +1267,10 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     $fukuHasGap = count($fukuGapDetails) > 0;
 
     // A: 二重断層・上位完結型
-    if (count($tanGapTop6) >= 2 && count($tanGapStrong) >= 1) {
+    // 【20260924 修正】仕様「6番人気以内に二重断層（2か所以上）」どおりに判定する。
+    //   旧実装は「うち1か所が比率2.5以上」も条件にしており、2.0〜2.49の断層が2か所の場合に
+    //   タイプA（独自発見枠0頭）ではなくタイプCになっていた（厳選穴の条件Bとも食い違っていた）。
+    if (count($tanGapTop6) >= 2) {
         $gapType      = 'A';
         // タイプA: 複数断層の中で最も上位（upper_popが最小）の断層を主断層とする
         $typeAMinPos = !empty($tanGapTop6)
@@ -1436,7 +1559,8 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '5. 上がり性能・位置取り・レース内容：10点',
         '6. 斤量・騎手・馬体重・休養間隔などの補正：10点',
         '評価区分：A（80〜100点）B（70〜79点）C（60〜69点）D（59点以下）',
-        '出走履歴がない馬はD評価（0点）とする。',
+        // 【20260924 修正】仕様【欠損値の扱い】「DBにない項目は不明として中立扱い」「欠損を0点として扱わない」に合わせる
+        '出走履歴がない馬は能力・適性を推測せず「不明」とし、選出理由の冒頭は「能力適性:不明。」と記載する。不明は0点・D評価・減点・除外の理由にしない（中立として扱う）。',
         '採点結果は、選出理由の冒頭に必ず「能力適性:X（XX点）。」の形式で記載してください。この記載がないとPHP側で能力適性点を抽出できません。',
         'ただし能力・適性だけで候補を決めてはいけません。時系列オッズの補強材料として扱い、能力適性Dでも強い市場根拠がある馬を自動除外しないでください。',
         '',
@@ -1598,6 +1722,8 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '1行目: 「厳選穴レース|X」（X=1: 厳選穴レース成立, X=0: 不成立）',
         '2行目: 「レース指標|波乱度: X|下位進入度: X|大穴進入度: X」（各X=1〜5の整数。このまま1行で出力すること）',
         '3行目以降: 「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：能力適性:X（XX点）。〜」を選出頭数分',
+        // 【20260924 追加】仕様【最終指示】の本文（1st AIの候補0頭時の出力）。抜けていたため追加
+        '候補が0頭の場合は、1行目と2行目だけを出力し、候補行、説明文、「該当馬なし」などの文字列を追加しないでください。PHPは候補行0件を正常な結果として扱い、頭数を補充してはいけません。',
         '※画面表示に影響するので、この形を必ず守ってください。',
     ]);
 
@@ -1636,6 +1762,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
 
             $_aRows = DB::table('t_horse_odds_finder_shutsuba_history')
                 ->where('name', $_aName)
+                ->where('date', '<', $targetDate)   // 【20260924】仕様「対象レースより前の最大10走」・未来情報混入の防止
                 ->orderBy('date', 'desc')
                 ->limit(10)   // 仕様: 取得可能なら10走
                 ->get(['date', 'basho', 'race_name', 'dist', 'condition', 'grade',
@@ -1747,6 +1874,17 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
     $day    = $request->query('day');
     $race   = $request->query('race');
 
+    // ── 20260926 追加: 再マージモード（remerge=1）─────────────────────────
+    //   フィルターの仕様を変更したあと、過去レースへ新ルールを適用するためのモード。
+    //   保存済みの 2nd AI 回答（ai_analysis2.analysis_text）をそのまま使い、
+    //   DeepSeek を呼ばずに「マージ＋フィルター」だけをやり直して
+    //   ai_merge_result を上書きする。
+    //     ・外部AI呼び出しは 0 回（費用がかからない）
+    //     ・入力が同じなので結果は決定的（LLMの揺らぎが入らない）
+    //   仕組み自体は既存の $reuseSecondText（保存済み回答の再利用）を流用しており、
+    //   新しい呼び出し経路を作っているわけではない。
+    $b2Remerge = ((string) $request->query('remerge', '')) === '1';
+
     // ─── キャッシュ確認（DBにレコードがあれば無条件で返す） ─────────────
     $cached = DB::table('t_horse_odds_finder_ai_analysis2')
         ->where('date',       $date)
@@ -1756,20 +1894,17 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         ->where('race',       $race)
         ->first();
 
-    // ── キャッシュの健全性チェック（#65・#66 / 09.txt③）──────────────────
-    // 修正前に保存された「空回答」「形式不正」のキャッシュがそのまま返り続けると、
-    // 統合・フィルター・保存処理を一度も通らないままになる。
-    // 返す前に 1st AI の回答判定を通し、失敗と判定されたキャッシュは破棄して再処理する。
-    $cacheJudge = $cached ? $this->_judgeFirstAiResponse((string) $cached->analysis_text) : null;
-    if ($cacheJudge !== null && $cacheJudge['status'] === 'failed') {
-//         \Log::warning('[Cache] 不正なキャッシュを破棄して再処理する', [
-//             'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
-//             'day'  => $day,  'race'   => $race,   'reason' => $cacheJudge['reason'],
-//         ]);
-        DB::table('t_horse_odds_finder_ai_analysis2')
-            ->where('date', $date)->where('kaisuu', $kaisuu)->where('basho_code', $basho)
-            ->where('day', $day)->where('race', $race)
-            ->delete();
+    // ── キャッシュの扱い（20260924 修正）──────────────────────────────────
+    // 【旧実装の不具合】ここで 2nd AI の回答を「1st AI 用の判定」（厳選穴レース行・レース指標行が必須）
+    //   に通していた。2nd AI は仕様上その2行を出力しないため、正常な回答まで「失敗」と判定して削除し、
+    //   開くたびに DeepSeek を呼び直していた（1レース2回までの仕様違反・結果が毎回変わる）。
+    // 【現在の扱い】
+    //   ・統合結果（ai_merge_result）が保存済み、または過去日のレース → 保存内容をそのまま返す
+    //   ・当日のレースで統合結果が未保存 → DeepSeek は呼ばず、保存済みの 2nd AI 回答で統合処理だけやり直す
+    $reuseSecondText = null;
+    // remerge=1 のときは統合結果の有無にかかわらず、保存済み回答での再マージへ進む
+    if ($cached && ($b2Remerge || !$this->_canReturnSecondAiCache($date, $kaisuu, $basho, $day, $race))) {
+        $reuseSecondText = (string) $cached->analysis_text;
         $cached = null;
     }
     if ($cached) {
@@ -1801,20 +1936,12 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
             ->where('race',       $race)
             ->first();
 
-        // ── キャッシュの健全性チェック（#65・#66 / 09.txt③）──────────────────
-        // 修正前に保存された「空回答」「形式不正」のキャッシュがそのまま返り続けると、
-        // 統合・フィルター・保存処理を一度も通らないままになる。
-        // 返す前に 1st AI の回答判定を通し、失敗と判定されたキャッシュは破棄して再処理する。
-        $cacheJudge2 = $cached ? $this->_judgeFirstAiResponse((string) $cached->analysis_text) : null;
-        if ($cacheJudge2 !== null && $cacheJudge2['status'] === 'failed') {
-//             \Log::warning('[Cache] 不正なキャッシュを破棄して再処理する', [
-//                 'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
-//                 'day'  => $day,  'race'   => $race,   'reason' => $cacheJudge2['reason'],
-//             ]);
-            DB::table('t_horse_odds_finder_ai_analysis2')
-                ->where('date', $date)->where('kaisuu', $kaisuu)->where('basho_code', $basho)
-                ->where('day', $day)->where('race', $race)
-                ->delete();
+        // ── キャッシュの扱い（20260924 修正・上のロック前判定と同じ）─────────────
+        // ※20260926: ロック前の判定と同様に remerge=1 を考慮する。
+        //   ここを直し忘れると、1箇所目を通過しても【このロック後の再確認】で
+        //   早期リターンし、再マージが一切行われない。
+        if ($cached && ($b2Remerge || !$this->_canReturnSecondAiCache($date, $kaisuu, $basho, $day, $race))) {
+            $reuseSecondText = (string) $cached->analysis_text;
             $cached = null;
         }
         if ($cached) {
@@ -1840,6 +1967,26 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
 
         if (!$raceRow) {
             return response()->json(['error' => 'レースが見つかりません'], 404);
+        }
+
+        // ─── 【20260924】1st AI の確認を DeepSeek 呼び出しより前に行う ─────────────
+        //   ・1st AI が未実行 → 2nd AI も実行しない（1st と同じ入力データで独立評価するのが仕様。
+        //     以前は 1st と同時に呼ばれると、注目馬番の無い別プロンプトで DeepSeek を呼び、
+        //     1st 未保存のため統合できず、未統合のままキャッシュされていた）
+        //   ・1st AI が失敗（空・形式不正・8頭以上）→ 予測は公開しないので DeepSeek も呼ばない
+        $preFirstRecord = DB::table('t_horse_odds_finder_ai_analysis')
+            ->where('date',       $date)
+            ->where('kaisuu',     $kaisuu)
+            ->where('basho_code', $basho)
+            ->where('day',        $day)
+            ->where('race',       $race)
+            ->first(['analysis_text']);
+        if (!$preFirstRecord) {
+            return response()->json(['error' => '1st AIの分析が完了していません。しばらくしてから再度お試しください'], 409);
+        }
+        $preFirstError = $this->_firstAiPublishError((string) $preFirstRecord->analysis_text);
+        if ($preFirstError !== null) {
+            return response()->json(['error' => '1st AIの回答を公開できません（制御済みエラー: ' . $preFirstError . '）'], 500);
         }
 
         // ─── プロンプトの取得（.data ファイルがあれば再利用、なければ自力生成） ──
@@ -1881,6 +2028,8 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         // ④ 末尾の1st AI専用出力指示
         $oddsData = $b2ndStrip($oddsData, '/^選出馬は必ず「厳選穴レース[^\n]*\n?/mu');
         $oddsData = $b2ndStrip($oddsData, '/^1行目: 「厳選穴レース[^\n]*\n?/mu');
+        // 【20260924】1st AI専用の「候補0頭時は1行目と2行目だけ」指示も除去（2nd AIは「候補なし|0」を使う）
+        $oddsData = $b2ndStrip($oddsData, '/^候補が0頭の場合は、1行目と2行目だけ[^\n]*\n?/mu');
         // ─── 頭数から選出数を再計算（1st AIと同じロジック） ─────────────────
         $horseCount2nd = DB::table('t_horse_odds_finder_horses')
             ->where('date',   $date)
@@ -1944,6 +2093,7 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
 
             $b9Rows = DB::table('t_horse_odds_finder_shutsuba_history')
                 ->where('name', $b9Name)
+                ->where('date', '<', $date)   // 【20260924】仕様「対象レースより前の最大10走」・未来情報混入の防止
                 ->orderBy('date', 'desc')
                 ->limit(10)   // 仕様: 取得可能なら10走
                 ->get(['date', 'basho', 'race_name', 'dist', 'condition', 'grade',
@@ -2076,20 +2226,21 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
 
             $vfOk = ($vfHistoryCount === 1 && $vfAnaLine === 0
                      && $vfIdxLine === 0 && empty($vfMarkLines));
-//             \Log::info('[2nd AI検証] DeepSeek送信直前の$oddsData自己チェック', [
-//                 'race'                   => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
-//                 'length'                 => mb_strlen($oddsData),
-//                 'chk1_過去成績の出現回数'   => $vfHistoryCount,  // 正常 = 1
-//                 'chk2_厳選穴レース行の残り' => $vfAnaLine,       // 正常 = 0
-//                 'chk2_レース指標行の残り'   => $vfIdxLine,       // 正常 = 0
-//                 'chk3_記号混入行'           => $vfMarkLines,     // 正常 = []
-//                 'judge'                  => $vfOk ? 'OK' : 'NG（要確認）',
-//             ]);
+            // 【20260924】よっしー0922-05「デプロイ後に judge=OK のログを確認」のため有効化
+             \Log::info('[2nd AI検証] DeepSeek送信直前の$oddsData自己チェック', [
+                 'race'                   => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+                 'length'                 => mb_strlen($oddsData),
+                 'chk1_過去成績の出現回数'   => $vfHistoryCount,  // 正常 = 1
+                 'chk2_厳選穴レース行の残り' => $vfAnaLine,       // 正常 = 0
+                 'chk2_レース指標行の残り'   => $vfIdxLine,       // 正常 = 0
+                 'chk3_記号混入行'           => $vfMarkLines,     // 正常 = []
+                 'judge'                  => $vfOk ? 'OK' : 'NG（要確認）',
+             ]);
         } catch (\Throwable $vfE) {
             // 検証ログの失敗は予測処理に影響させない
-//             \Log::warning('[2nd AI検証] 自己チェックに失敗（処理は継続）', [
-//                 'error' => $vfE->getMessage(),
-//             ]);
+             \Log::warning('[2nd AI検証] 自己チェックに失敗（処理は継続）', [
+                 'error' => $vfE->getMessage(),
+             ]);
         }
 
         // ── #17 仕様書準拠: 市場妙味基礎点を AI実行前に PHP で算出（AIへ送信しない）────
@@ -2119,7 +2270,9 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         $b13UnderevalFlagMap = [];
         $b13ScoreAMap        = [];
         $b10ScoreE           = 0;
+        $b10ScoreEMap        = []; // 【20260924】F5 用：馬ごとの基礎点E（null=不明）
         [
+            'b10ScoreEMap'        => $b10ScoreEMap,
             'b8InfoMap'           => $b8InfoMap,
             'b10TotalScoreMap'    => $b10TotalScoreMap,
             'b10ScoreDMap'        => $b10ScoreDMap,
@@ -2225,7 +2378,7 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
 6. 斤量・騎手・馬体重・休養間隔などの補正：10点
 
 評価区分：A（80〜100点）B（70〜79点）C（60〜69点）D（59点以下）
-出走履歴がない馬はD評価（0点）とする。
+出走履歴がない馬は能力・適性を推測せず「不明」とし、選出理由の冒頭は「能力適性:不明。」と記載する。不明は0点・D評価・減点・除外の理由にしない（中立として扱う）。
 
 ・回収率はサンプル数とセットで評価すること。サンプル数30件未満は中立として扱うこと
 ・欠損・0レースの回収率データは中立（有利でも不利でもない）として扱うこと
@@ -2243,6 +2396,23 @@ SYSTEM;
         $analysisText     = '';
         $b7SecondAiFailed = false; // B-7: 2nd AI失敗フラグ（失敗時は1st AI単独継続）
         $maxRetries       = 1; // 仕様: 自動再試行禁止。ここを2以上にしてはいけない
+
+        // 【20260924】保存済みの 2nd AI 回答がある場合（当日・統合未保存）は DeepSeek を呼ばずに再利用する
+        //   （1レースの外部AI呼び出しを合計2回に保つため）
+        if ($reuseSecondText !== null) {
+            if ($b2Remerge) {
+                \Log::info('[再マージ] DeepSeekを呼ばず保存済み回答でフィルターを再適用', [
+                    'race' => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+                ]);
+            }
+            $maxRetries   = 0; // 下の呼び出しループを実行しない
+            $analysisText = trim($reuseSecondText);
+            if (preg_match('/^候補なし\|0$/mu', $analysisText)) {
+                $analysisText = '';                       // 正常な0件
+            } elseif ($analysisText !== '' && empty($this->_parseAiHorses($analysisText))) {
+                $b7SecondAiFailed = true;                 // 形式不正として保存されていた回答
+            }
+        }
         for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             $response = Http::timeout(60)->withHeaders([
                 'Authorization' => 'Bearer ' . env('DEEPSEEK_API_KEY'),
@@ -2401,13 +2571,24 @@ SYSTEM;
         // ── Block 9 Session 11 End ─────────────────────────────────────────────────
 
         // ── Block 6: F1〜F8フラグ計算（_mergeAiResults に渡す） ──────────────────
+        // 【20260924 修正】フラグは 2nd AI の馬だけでなく 1st AI の馬にも計算する。
+        //   5点以内の入れ替え判定では「独自発見馬」と「現在の最下位候補（1st独自馬のこともある）」を
+        //   比べるため、相手側のフラグが無いと常に独自発見馬が優れている扱いになっていた。
+        $b6FlagHorses = $secondAiHorses;
+        $b6FlagNums   = array_column($secondAiHorses, 'num');
+        foreach ($firstAiHorses as $b6fh) {
+            if (!in_array($b6fh['num'], $b6FlagNums, true)) {
+                $b6FlagHorses[] = $b6fh;
+                $b6FlagNums[]   = $b6fh['num'];
+            }
+        }
         [
             'horseFlagsMap'   => $horseFlagsMap,
             'oddsHorseBlocks' => $oddsHorseBlocks,
             'b6OddsRows'      => $b6OddsRows,
             'b6TanPopMap'     => $b6TanPopMap,
             'b6FukuPopMap'    => $b6FukuPopMap,
-        ] = $this->_buildFlagsAndOddsMap($secondAiHorses, $oddsData, $date, $kaisuu, $basho, $day, $race);
+        ] = $this->_buildFlagsAndOddsMap($b6FlagHorses, $oddsData, $date, $kaisuu, $basho, $day, $race);
         // ── Block 6 End ───────────────────────────────────────────────────────────
 
         // ── Block 10: 市場妙味基礎点（#17 仕様書準拠: AI実行前に算出済み）────────────
@@ -2416,7 +2597,10 @@ SYSTEM;
         // ── F1/F5 更新（Block 10 算出後、merge前）───────────────────────────────
         foreach (array_keys($horseFlagsMap) as $_hfNum) {
             $horseFlagsMap[$_hfNum]['F1'] = (($b13ScoreAMap[$_hfNum] ?? -1) >= 12);
-            $horseFlagsMap[$_hfNum]['F5'] = ($b10ScoreE >= 6);
+            // 【20260924 修正】F5 は仕様「市場妙味基礎点Eが6点以上」＝馬ごとのE点で判定する。
+            //   旧実装はレース単位の断層タイプ点（A=1/B=3/C=5/D=8/E=15）で判定しており、
+            //   タイプD/Eのレースでは全馬がF5成立、タイプA〜Cでは全馬が不成立になっていた。
+            $horseFlagsMap[$_hfNum]['F5'] = (($b10ScoreEMap[$_hfNum] ?? null) !== null && $b10ScoreEMap[$_hfNum] >= 6);
         }
         // ── Block 10 End ──────────────────────────────────────────────────────────
 
@@ -2439,8 +2623,8 @@ SYSTEM;
 
         // ── Block 13b・13a・12: _mergeAiResults() 後に適用（正規仕様）──────────────
         // 仕様: 統合→統合おすすめ度算出→最低基準点→低配当除外→回収率フィルター→順位確定
-        // 統合スコア（一致馬+5点ボーナス）算出後にフィルターをかけるため
-        // 実装は下記 "POST-MERGE フィルター" セクションへ移動した。
+        // 統合スコア（一致馬+5点ボーナス）算出後・上限適用前にフィルターをかけるため
+        // 実装は下記「候補絞り込みフィルター」（_mergeAiResults 内の Step4b で実行）にある。
 
         // ⑧ 大穴進入度: 4〜5番人気間断層 + 大穴進入度1〜2 → mergeLowerMax=0
         // ⑨ 波乱度は 1st AI のみ参照（merge前に先取り）
@@ -2451,10 +2635,270 @@ SYSTEM;
         )) {
             $_earlyBigGap = (int)$_egm[3];
         }
-        if ($primaryGapUpperPopForMerge !== null && $primaryGapUpperPopForMerge <= 4
-            && $_earlyBigGap !== null && $_earlyBigGap <= 2) {
-            $mergeLowerMax = 0; // ⑧ 大穴進入度1〜2: 4〜5番人気間断層で11番人気以下0頭
+        // 【20260924 修正】仕様「大穴進入度1〜2：11番人気以下は原則0頭。3なら最大1頭、4〜5なら上表の最大値まで」
+        //   旧実装は 1〜5番人気間の断層のときだけ 0頭にしていた。断層位置に関係なく適用する。
+        if ($_earlyBigGap !== null && $_earlyBigGap <= 2) {
+            $mergeLowerMax = 0;
+        } elseif ($_earlyBigGap === 3) {
+            $mergeLowerMax = min($mergeLowerMax, 1);
         }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // 候補絞り込みフィルター（Block13b → #69 → Block13a → Block12）
+        // 【20260924 修正】仕様【最終PHP処理順序】どおり「最低基準→低配当除外→回収率フィルター」を
+        //   人気帯上限・出走頭数上限より【前】に適用する。
+        //   旧実装は上限で候補を絞った【後】にこれらで除外していたため、
+        //   除外された馬の枠が空いたまま繰り上がらず、本来残るはずの馬が表示されなかった。
+        //   ここではフィルター処理を関数として用意し、_mergeAiResults の中（分類・統合おすすめ度の算出直後、
+        //   独自発見枠判定・順位付け・上限適用の前）で呼び出す。判定内容そのものは変更していない。
+        // ══════════════════════════════════════════════════════════════════════════
+        $b69MeritCap = [];
+        // ── よっしー20260926指摘【今回の確認ログ】: 各段階の頭数を記録する ──
+        $b13Stats = [
+            'after_min_score'   => null, // ② 最低基準点の通過数
+            'low_payout_hit'    => 0,    // ③ 低配当条件に該当した数
+            'recovery_avoid'    => 0,    // ④ 回収率で購入回避となった数
+        ];
+        $b13PreCapFilter = function (array $horses) use ($oddsHorseBlocks, $primaryGapUpperPopForMerge, $b13ScoreAMap, &$b69MeritCap, &$b13Stats,
+                                                        $gapTypeForMerge, $b10ScoreEMap, $horseFlagsMap): array {
+
+            // ── Block 13b: 最低基準点（merge後・統合スコアで判定）────────────────────
+            {
+                $horses = array_values(array_filter($horses, function ($h) {
+                    $score = (float)($h['score'] ?? 0);
+                    $pop   = (int)($h['popularity'] ?? 999);
+                    if ($score >= 70.0) return true;
+                    if ($score >= 60.0 && $pop >= 1 && $pop <= 10) return true;
+                    if ($score >= 55.0 && $pop >= 11) return true;
+                     \Log::info('[Block13b] 最低基準点未満除外（merge後）', [
+                         'num'      => $h['num'], 'name' => $h['name'],
+                         'score'    => $score,    'popularity' => $pop,
+                         'category' => $h['category'] ?? '',
+                     ]);
+                    return false;
+                }));
+            }
+            $b13Stats['after_min_score'] = count($horses);   // ② 最低基準点の通過数
+            // ── Block 13b End ─────────────────────────────────────────────────────────
+
+            // ── 【20260924 追加】11番人気以下（大穴）の選出条件をPHPでも確認する ─────────────
+            // 仕様「11番人気以下（大穴）の選出条件」：以下を【全て】満たした馬のみ選出可能。
+            //   （おすすめ度70点以上の本候補でも、11番人気以下なら同じ条件を満たす必要がある）
+            //   ① おすすめ度55点以上                              … 上の最低基準で確認済み
+            //   ② 複勝オッズが複数時点で継続低下（単発急落は不可）  … 市場妙味基礎点A（複勝継続流入）12点以上
+            //   ③ 複勝流入ランクが7人気以下グループ内で1〜2位      … プロンプトの「複勝流入ランク: N位」
+            //   ④ 単勝と複勝の両方で資金流入                      … 単勝が計測開始→6分前で2%超下落 かつ ②
+            //   ⑤ 下位進入を裏付ける構造：断層なし（タイプD）・単複断層の矛盾（タイプE）・
+            //      主断層が5〜6番人気間／6番人気以降・この馬に断層縮小／接近／単複不一致の根拠（基礎点E≥6）。
+            //      タイプB・Cでも「強い継続流入（基礎点A=25点）＋客観的根拠（回収率110%・類似レース・予測補正OPIのいずれか）」
+            //      が揃えば最大1頭まで比較可能。
+            //   仕様【追加禁止事項】「不明値を0点、不振、条件未達と扱うこと」は禁止のため、
+            //   データが無く確認できない条件は「不明」とし、それだけを理由に除外しない。
+            //   確認できて「満たしていない」と分かった条件が1つでもあれば除外する。
+            {
+                $b13dBcSpecial = []; // タイプB・Cの特例で残す馬（最大1頭に絞る）
+                $horses = array_values(array_filter($horses, function ($h) use (
+                    $oddsHorseBlocks, $primaryGapUpperPopForMerge, $b13ScoreAMap,
+                    $gapTypeForMerge, $b10ScoreEMap, $horseFlagsMap, &$b13dBcSpecial
+                ) {
+                    $pop = (int)($h['popularity'] ?? 0);
+                    if ($pop < 11) return true;                       // 10番人気以内は対象外
+
+                    $num    = (int)$h['num'];
+                    $block  = $oddsHorseBlocks[$num] ?? '';
+                    $scoreA = $b13ScoreAMap[$num] ?? null;
+
+                    // 各条件は true（満たす）/ false（満たさない）/ null（データ無しで不明）の3値
+                    $c2 = ($scoreA === null) ? null : ($scoreA >= 12);
+                    $c3 = preg_match('/複勝流入ランク: (\d+)位/u', $block, $m3) ? ((int)$m3[1] <= 2) : null;
+                    $tanChange = $this->_parseTanChangeRate($block);
+                    $tanIn = ($tanChange === null) ? null : ($tanChange < -2.0);
+                    $c4 = ($c2 === false || $tanIn === false) ? false
+                        : (($c2 === null || $tanIn === null) ? null : true);
+
+                    $scoreE = $b10ScoreEMap[$num] ?? null;
+                    if (in_array($gapTypeForMerge, ['D', 'E'], true)
+                        || ($primaryGapUpperPopForMerge !== null && $primaryGapUpperPopForMerge >= 5)
+                        || ($scoreE !== null && $scoreE >= 6)) {
+                        $c5 = true;
+                    } else {
+                        $c5 = ($scoreE === null) ? null : false;
+                    }
+
+                    if ($c2 !== false && $c3 !== false && $c4 !== false && $c5 !== false) return true;
+
+                    // タイプB・Cの特例（強い継続流入＋客観的根拠）: 構造条件だけが不成立の馬
+                    if ($c2 === true && $c3 !== false && $c4 !== false && $c5 === false
+                        && in_array($gapTypeForMerge, ['B', 'C'], true) && $scoreA === 25) {
+                        $fl = $horseFlagsMap[$num] ?? [];
+                        if (!empty($fl['F6']) || !empty($fl['F7']) || !empty($fl['F8'])) {
+                            $b13dBcSpecial[] = $h;
+                            return true;
+                        }
+                    }
+                    \Log::info('[大穴選出条件] 11番人気以下の条件不足で除外', [
+                        'num' => $num, 'name' => $h['name'] ?? '', 'popularity' => $pop, 'score' => $h['score'] ?? null,
+                        'c2_複勝継続低下' => $c2, 'c3_流入ランク1-2位' => $c3, 'c4_単複流入' => $c4, 'c5_構造' => $c5,
+                        'gap_type' => $gapTypeForMerge,
+                    ]);
+                    return false;
+                }));
+                // 特例馬が2頭以上なら、おすすめ度が最も高い1頭（同点は馬番の小さい方）だけ残す
+                if (count($b13dBcSpecial) >= 2) {
+                    usort($b13dBcSpecial, fn($a, $b) =>
+                        $b['score'] !== $a['score'] ? $b['score'] <=> $a['score'] : $a['num'] <=> $b['num']);
+                    $b13dKeep = (int)$b13dBcSpecial[0]['num'];
+                    $b13dDrop = array_map(fn($x) => (int)$x['num'], array_slice($b13dBcSpecial, 1));
+                    $horses = array_values(array_filter($horses,
+                        fn($h) => !in_array((int)$h['num'], $b13dDrop, true) || (int)$h['num'] === $b13dKeep));
+                }
+            }
+            // ── 大穴選出条件 End ──────────────────────────────────────────────────────
+
+            // ── 受入チェック #69: 妙味小計上限のPHP側検証（AI採点は書き換えない）──────
+            // 仕様「推定確定複勝最小 < 1.5 の馬は妙味小計を原則5点以下」を、
+            //   おすすめ度 = 信頼度(最大60) + 妙味小計 という固定内訳から検証する。
+            //   例外解除なしの低配当馬が66点以上なら、妙味小計が5点を超えた証拠になる。
+            // 検出結果はログと features_json（シャドー）へ保存する。
+            $b69MeritCap = $this->_verifyLowPayoutMeritCap(
+                $horses, $oddsHorseBlocks, $primaryGapUpperPopForMerge, $b13ScoreAMap
+            );
+
+            // ── Block 13a: 低配当【購入回避フラグ】（merge後・正規仕様）──────────────
+            // 【20260926 仕様変更（よっしー指摘 01.txt 第4項）】
+            //   以前はここで候補から【除外】していたが、5着以内候補の選出条件ではなく
+            //   「馬券購入の見送り条件」として扱うよう変更された。
+            //     ・推定確定複勝1.5倍未満 かつ 単勝3.0倍未満 の馬は購入価値が低い可能性がある
+            //     ・しかし1〜3番人気など5着以内に来る根拠がある馬は候補行に残す
+            //     ・低配当例外3条件は「候補に残す条件」ではなく
+            //       「馬券購入を例外的に認める条件」として使う
+            //   したがって candidates からは削除せず、フラグだけを立てる。
+            // 判定条件（判定そのものは変更なし）:
+            //   推定確定複勝最小 < 1.5倍 かつ 推定確定単勝（推定確定オッズ）< 3.0倍
+            // 例外解除（次の3条件を【すべて】満たす場合のみ → 除外しない / AND判定）:
+            //   例外①: 断層最上位グループ（人気順 <= 主断層上限人気）
+            //   例外②: 単勝・複勝の両方が複数時点で継続流入
+            //   例外③: サンプル30件以上の回収率110%以上が2種類以上
+            // ※最新確定版仕様: 「例外解除は既存の低配当例外3条件をすべて満たす場合だけ」
+            //   → OR判定は仕様違反。必ずAND（&&）で結合すること。
+            // ※判定そのものは _judgeLowPayoutException() に集約してある。
+            //   #69 の検証と同じ判定を使うため、両者が食い違うことはない。
+            {
+                $horses = array_values(array_map(
+                    function ($h) use ($oddsHorseBlocks, $primaryGapUpperPopForMerge, $b13ScoreAMap, &$b13Stats) {
+                        $b13aBlock = $oddsHorseBlocks[(int)$h['num']] ?? '';
+                        $b13aJ = $this->_judgeLowPayoutException(
+                            $h, $b13aBlock, $primaryGapUpperPopForMerge, $b13ScoreAMap
+                        );
+
+                        // 判定結果を馬ごとに保持する（候補からは削除しない）
+                        $h['low_payout']          = $b13aJ['low_payout'] ? 1 : 0;
+                        $h['low_payout_released'] = $b13aJ['released']   ? 1 : 0;
+                        $h['low_payout_fuku_min'] = $b13aJ['fuku_min'];
+                        $h['low_payout_tan_odds'] = $b13aJ['tan_odds'];
+
+                        // 購入回避フラグ: 低配当に該当し、かつ例外3条件で解除されていない
+                        $h['buy_avoid_low_payout'] =
+                            ($b13aJ['low_payout'] && !$b13aJ['released']) ? 1 : 0;
+
+                        if ($b13aJ['low_payout']) {
+                            $b13Stats['low_payout_hit']++;   // ③ 低配当条件の該当数
+                            \Log::info('[Block13a] 低配当該当（候補には残す）', [
+                                'num'                => $h['num'],           'name'     => $h['name'],
+                                'fuku_min'           => $b13aJ['fuku_min'],  'tan_odds' => $b13aJ['tan_odds'],
+                                'ex1_最上位グループ' => $b13aJ['ex1'],
+                                'ex2_単複継続流入'   => $b13aJ['ex2'],
+                                'ex3_回収率110x2'    => $b13aJ['ex3'],
+                                'released'           => $b13aJ['released'],
+                                '購入判定'           => $b13aJ['released'] ? '購入可' : '見送り',
+                            ]);
+                        }
+                        return $h;
+                    },
+                    $horses
+                ));
+            }
+            // ── Block 13a End ─────────────────────────────────────────────────────────
+
+            // ── Block 12: 回収率【購入回避フラグ】（merge後・統合馬リストに適用）────────
+            // 【20260926 仕様変更（よっしー指摘 01.txt 第1項・第3項）】
+            //   以前はここで候補から【ハード除外】していたが、5着以内候補の選出段階では
+            //   回収率によるハード除外を行わないよう変更された。
+            //     ・回収率はすでに「おすすめ度」の妙味項目12点に反映されている。
+            //       候補除外まで重ねると二重評価になり、AIが選んだ馬がPHPで全消しになる。
+            //     ・60% は「馬券購入回避」の暫定基準として残す。
+            //       有効値（サンプル30件以上）が2種類以上あり、
+            //       そのうち2種類以上が60%未満なら購入回避フラグを立てる。
+            //     ・ただし候補行からは消さない。馬券判定を「見送り」「監視」にする。
+            //   案A/B/C のうち【案C】を採用（減点のみ・ハード除外なし）。
+            //   人気帯別の閾値は現時点では採用しない（全人気帯共通の60%）。
+            // ※よっしー指摘【今回の確認ログ】に従い、馬ごとに3種類の回収率・サンプル数・
+            //   閾値未満の個数を保持し、どの処理で何が起きたか追えるようにする。
+            {
+                foreach ($horses as &$b12mh) {
+                    $b12mNum   = (int)$b12mh['num'];
+                    $b12mBlock = $oddsHorseBlocks[$b12mNum] ?? '';
+                    if ($b12mBlock === '') {
+                        $b12mh['buy_avoid_recovery'] = 0;
+                        $b12mh['recovery_detail']    = ['note' => 'オッズブロックなし'];
+                        continue;
+                    }
+                    $b12mEntries = [];
+                    if (preg_match(
+                        '/過去回収率[（(][^）)]+[）)]: 回収率([\d.]+)%\s+勝率[\d.]+%\s+サンプル(\d+)件/u',
+                        $b12mBlock, $b12me1
+                    )) {
+                        $b12mEntries[] = ['rate' => (float)$b12me1[1], 'samples' => (int)$b12me1[2]];
+                    }
+                    if (preg_match(
+                        '/OPI帯別回収率[（(][^）)]+[）)]: 回収率([\d.]+)%\s+勝率[\d.]+%\s+サンプル(\d+)件/u',
+                        $b12mBlock, $b12me2
+                    )) {
+                        $b12mEntries[] = ['rate' => (float)$b12me2[1], 'samples' => (int)$b12me2[2]];
+                    }
+                    if (preg_match(
+                        '/フェーズパターン別回収率[（(][^）)]+[）)]: 回収率([\d.]+)%\s+勝率[\d.]+%\s+サンプル(\d+)件/u',
+                        $b12mBlock, $b12me3
+                    )) {
+                        $b12mEntries[] = ['rate' => (float)$b12me3[1], 'samples' => (int)$b12me3[2]];
+                    }
+                    $b12mValid = array_values(array_filter($b12mEntries, fn($r) => $r['samples'] >= 30));
+                    // @ANCHOR-20260926-B12-RECOVERY-THRESHOLD（閾値はクラス定数で一元管理）
+                    $b12mLow   = array_values(array_filter(
+                        $b12mValid,
+                        fn($r) => $r['rate'] < self::B12_RECOVERY_LOW_THRESH
+                    ));
+
+                    // 購入回避フラグ（候補からは削除しない）
+                    $b12mAvoid = (count($b12mValid) >= 2 && count($b12mLow) >= 2);
+                    $b12mh['buy_avoid_recovery'] = $b12mAvoid ? 1 : 0;
+                    $b12mh['recovery_detail']    = [
+                        'rates'       => $b12mEntries,                  // 3種類の回収率とサンプル数
+                        'valid_count' => count($b12mValid),             // サンプル30件以上の有効値の数
+                        'low_count'   => count($b12mLow),               // うち閾値未満の数
+                        'threshold'   => self::B12_RECOVERY_LOW_THRESH, // 判定に使った閾値
+                    ];
+
+                    if ($b12mAvoid) {
+                        $b13Stats['recovery_avoid']++;   // ④ 回収率による購入回避数
+                        \Log::info("[Block12] 回収率による購入回避（候補には残す）: 馬番{$b12mNum}", [
+                            'name'        => $b12mh['name'] ?? '',
+                            'rates'       => $b12mEntries,
+                            'valid_count' => count($b12mValid),
+                            'low_count'   => count($b12mLow),
+                            'threshold'   => self::B12_RECOVERY_LOW_THRESH,
+                            '購入判定'    => '見送り',
+                        ]);
+                    }
+                }
+                unset($b12mh);
+            }
+            // ── Block 12 End ──────────────────────────────────────────────────────────
+            return $horses;
+        };
+        // ══════════════════════════════════════════════════════════════════════════
+        // 候補絞り込みフィルター End
+        // ══════════════════════════════════════════════════════════════════════════
 
         $mergedHorses   = $this->_mergeAiResults(
             $firstAiHorses,
@@ -2464,126 +2908,27 @@ SYSTEM;
             $mergeUpperMax,
             $mergeMidMax,
             $mergeLowerMax,
-            $horseFlagsMap      // Block 6: F1〜F8フラグマップ（F1/F5はBlock10後に有効化済み）
+            $horseFlagsMap,     // Block 6: F1〜F8フラグマップ（F1/F5はBlock10後に有効化済み）
+            $b13PreCapFilter    // 【20260924】上限適用前の絞り込みフィルター
         );
 
-        // ══════════════════════════════════════════════════════════════════════════
-        // POST-MERGE フィルター: 統合おすすめ度算出後に Block13b → Block13a → Block12 適用
-        // 仕様: 統合→統合おすすめ度算出→最低基準点→低配当除外→回収率フィルター→順位確定→人気帯上限
-        // ══════════════════════════════════════════════════════════════════════════
+        // ── よっしー20260926指摘【今回の確認ログ】──────────────────────────
+        //   どの処理で候補が減ったのかを1レース1行で追えるようにする。
+        //   ①各AIの候補数 ②最低基準点通過数 ③低配当条件該当数
+        //   ④回収率購入回避フラグ数 ⑤人気帯上限適用後の候補数 ⑥最終候補数
+        //   ※20260926の仕様変更により、③④は「該当しただけ」で候補からは消えない。
+        \Log::info('[候補内訳] レースごとの絞り込み経過', [
+            'race'                    => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+            '①1stAI候補数'           => count($firstAiHorses),
+            '①2ndAI候補数'           => count($secondAiHorses),
+            '②最低基準点の通過数'    => $b13Stats['after_min_score'],
+            '③低配当条件の該当数'    => $b13Stats['low_payout_hit'],
+            '④回収率で購入回避の数'  => $b13Stats['recovery_avoid'],
+            '⑤人気帯上限適用後'      => count($mergedHorses),
+            '⑥最終候補数'            => count($mergedHorses),
+            '注記'                    => '③④は購入判定用のフラグであり候補からは除外していない',
+        ]);
 
-        // ── Block 13b: 最低基準点（merge後・統合スコアで判定）────────────────────
-        {
-            $mergedHorses = array_values(array_filter($mergedHorses, function ($h) {
-                $score = (float)($h['score'] ?? 0);
-                $pop   = (int)($h['popularity'] ?? 999);
-                if ($score >= 70.0) return true;
-                if ($score >= 60.0 && $pop >= 1 && $pop <= 10) return true;
-                if ($score >= 55.0 && $pop >= 11) return true;
-//                 \Log::info('[Block13b] 最低基準点未満除外（merge後）', [
-//                     'num'      => $h['num'], 'name' => $h['name'],
-//                     'score'    => $score,    'popularity' => $pop,
-//                     'category' => $h['category'] ?? '',
-//                 ]);
-                return false;
-            }));
-        }
-        // ── Block 13b End ─────────────────────────────────────────────────────────
-
-        // ── 受入チェック #69: 妙味小計上限のPHP側検証（AI採点は書き換えない）──────
-        // 仕様「推定確定複勝最小 < 1.5 の馬は妙味小計を原則5点以下」を、
-        //   おすすめ度 = 信頼度(最大60) + 妙味小計 という固定内訳から検証する。
-        //   例外解除なしの低配当馬が66点以上なら、妙味小計が5点を超えた証拠になる。
-        // 検出結果はログと features_json（シャドー）へ保存する。
-        $b69MeritCap = $this->_verifyLowPayoutMeritCap(
-            $mergedHorses, $oddsHorseBlocks, $primaryGapUpperPopForMerge, $b13ScoreAMap
-        );
-
-        // ── Block 13a: 低配当除外（merge後・正規仕様）────────────────────────────
-        // 除外条件: 推定確定複勝最小 < 1.5倍 かつ 推定確定単勝（推定確定オッズ）< 3.0倍
-        //           → 両方を満たした馬を原則除外
-        // 例外解除（次の3条件を【すべて】満たす場合のみ → 除外しない / AND判定）:
-        //   例外①: 断層最上位グループ（人気順 <= 主断層上限人気）
-        //   例外②: 単勝・複勝の両方が複数時点で継続流入
-        //   例外③: サンプル30件以上の回収率110%以上が2種類以上
-        // ※最新確定版仕様: 「例外解除は既存の低配当例外3条件をすべて満たす場合だけ」
-        //   → OR判定は仕様違反。必ずAND（&&）で結合すること。
-        // ※判定そのものは _judgeLowPayoutException() に集約してある。
-        //   #69 の検証と同じ判定を使うため、両者が食い違うことはない。
-        {
-            $mergedHorses = array_values(array_filter(
-                $mergedHorses,
-                function ($h) use ($oddsHorseBlocks, $primaryGapUpperPopForMerge, $b13ScoreAMap) {
-                    $b13aBlock = $oddsHorseBlocks[(int)$h['num']] ?? '';
-                    $b13aJ = $this->_judgeLowPayoutException(
-                        $h, $b13aBlock, $primaryGapUpperPopForMerge, $b13ScoreAMap
-                    );
-
-                    // 低配当の対象外（オッズ未取得・複勝1.5以上・単勝3.0以上）は除外しない
-                    if (!$b13aJ['low_payout']) return true;
-
-                    // 3条件すべて成立（AND）した場合のみ除外解除。1つでも不成立なら除外する。
-                    if ($b13aJ['released']) return true;
-
-//                     \Log::info('[Block13a] 低配当除外（merge後）', [
-//                         'num'                => $h['num'],           'name'     => $h['name'],
-//                         'fuku_min'           => $b13aJ['fuku_min'],  'tan_odds' => $b13aJ['tan_odds'],
-//                         'ex1_最上位グループ' => $b13aJ['ex1'],
-//                         'ex2_単複継続流入'   => $b13aJ['ex2'],
-//                         'ex3_回収率110x2'    => $b13aJ['ex3'],
-//                     ]);
-                    return false;
-                }
-            ));
-        }
-        // ── Block 13a End ─────────────────────────────────────────────────────────
-
-        // ── Block 12: 回収率ハード除外（merge後・統合馬リストに適用）────────────────
-        {
-            $b12mExcludeNums = [];
-            foreach ($mergedHorses as $b12mh) {
-                $b12mNum   = (int)$b12mh['num'];
-                $b12mBlock = $oddsHorseBlocks[$b12mNum] ?? '';
-                if ($b12mBlock === '') continue;
-                $b12mEntries = [];
-                if (preg_match(
-                    '/過去回収率[（(][^）)]+[）)]: 回収率([\d.]+)%\s+勝率[\d.]+%\s+サンプル(\d+)件/u',
-                    $b12mBlock, $b12me1
-                )) {
-                    $b12mEntries[] = ['rate' => (float)$b12me1[1], 'samples' => (int)$b12me1[2]];
-                }
-                if (preg_match(
-                    '/OPI帯別回収率[（(][^）)]+[）)]: 回収率([\d.]+)%\s+勝率[\d.]+%\s+サンプル(\d+)件/u',
-                    $b12mBlock, $b12me2
-                )) {
-                    $b12mEntries[] = ['rate' => (float)$b12me2[1], 'samples' => (int)$b12me2[2]];
-                }
-                if (preg_match(
-                    '/フェーズパターン別回収率[（(][^）)]+[）)]: 回収率([\d.]+)%\s+勝率[\d.]+%\s+サンプル(\d+)件/u',
-                    $b12mBlock, $b12me3
-                )) {
-                    $b12mEntries[] = ['rate' => (float)$b12me3[1], 'samples' => (int)$b12me3[2]];
-                }
-                $b12mValid = array_values(array_filter($b12mEntries, fn($r) => $r['samples'] >= 30));
-                $b12mLow   = array_values(array_filter($b12mValid,   fn($r) => $r['rate'] < 90.0));
-                if (count($b12mValid) >= 2 && count($b12mLow) >= 2) {
-                    $b12mExcludeNums[] = $b12mNum;
-//                     \Log::info("[Block12] ハード除外（merge後）: 馬番{$b12mNum}", [
-//                         'valid_rates' => $b12mValid,
-//                     ]);
-                }
-            }
-            if (!empty($b12mExcludeNums)) {
-                $mergedHorses = array_values(array_filter(
-                    $mergedHorses,
-                    fn($mh) => !in_array((int)$mh['num'], $b12mExcludeNums, true)
-                ));
-            }
-        }
-        // ── Block 12 End ──────────────────────────────────────────────────────────
-        // ══════════════════════════════════════════════════════════════════════════
-        // POST-MERGE フィルター End
-        // ══════════════════════════════════════════════════════════════════════════
 
 
         // ── Block 15: 厳選穴レース 再判定（最終候補確定後にPHPが上書き） ────────
@@ -2668,7 +3013,8 @@ SYSTEM;
             $b10ScoreE, $firstAiHorses, $secondAiHorses,
             $oddsData, $oddsHorseBlocks, $b6TanPopMap, $b6FukuPopMap, $b6OddsRows,
             $b13ScoreAMap, $b10ScoreDMap,
-            $date, $kaisuu, $basho, $day, $race, $raceRow
+            $date, $kaisuu, $basho, $day, $race, $raceRow,
+            $b10ScoreEMap   // 【20260924】馬ごとの基礎点E（断層構造の穴進入根拠）
         );
         // ── Block 11 End ──────────────────────────────────────────────────────────
 
@@ -3029,7 +3375,8 @@ SYSTEM;
         int    $pickupUpperMax = 4,   // Block 8: 1〜6番人気上限
         int    $pickupMidMax   = 3,   // Block 8: 7〜10番人気上限
         int    $pickupLowerMax = 2,   // Block 8: 11番人気以下上限
-        array  $horseFlagsMap  = []   // Block 6: F1〜F8フラグマップ（num => [F1..F8]）
+        array  $horseFlagsMap  = [],  // Block 6: F1〜F8フラグマップ（num => [F1..F8]）
+        ?\Closure $preCapFilter = null // 【20260924】最低基準→低配当除外→回収率フィルター（上限適用前に実行）
     ): array {
 
         // ── Step1: 出走頭数別の最終表示上限 ──────────────────────────
@@ -3122,10 +3469,20 @@ SYSTEM;
             }
         }
 
+        // ── Step4b: 【20260924】最低基準→低配当除外→回収率フィルター（仕様: 上限適用より前）──
+        if ($preCapFilter !== null) {
+            $b4Pool = $preCapFilter(array_merge($matched, $firstOnly, $secondOnly));
+            $matched    = array_values(array_filter($b4Pool, fn($h) => $h['category'] === 'matched'));
+            $firstOnly  = array_values(array_filter($b4Pool, fn($h) => $h['category'] === 'first_only'));
+            $secondOnly = array_values(array_filter($b4Pool, fn($h) => $h['category'] === 'second_only'));
+        }
+
         // ── Step5: 2nd AI 独自発見馬の採用条件判定（Block 6: F1〜F8 DB値判定） ──
-        // 条件: スコア ≥ 70（タイプA は ≥ 80）+ F2〜F8フラグ（有効フラグ）のうち 2 個以上 true
-        // F1・F5 は Block 9 実装まで暫定スキップ（false 固定）
-        $b6ActiveFlags = ['F2', 'F3', 'F4', 'F6', 'F7', 'F8'];
+        // 条件: スコア ≥ 70（タイプA は ≥ 80）+ F1〜F8フラグのうち 2 個以上 true（仕様どおり）
+        // 【20260924 修正】F1（基礎点A≥12）・F5（馬ごとの基礎点E≥6）は算出済みのため判定に含める。
+        //   旧実装は F1・F5 を数えておらず、根拠のある独自発見馬が採用されにくくなっていた。
+        //   不明（null）のフラグは true 数に加えない（false と同じく数えないだけで、減点はしない）。
+        $b6ActiveFlags = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'];
 
         $qualifiedSecondOnly = [];
         foreach ($secondOnly as $h) {
@@ -3137,7 +3494,11 @@ SYSTEM;
             foreach ($b6ActiveFlags as $f) {
                 if (!empty($flags[$f])) $trueCount++;
             }
-            if ($trueCount >= 2) {
+            // 【20260924 修正】タイプAは「おすすめ度80点以上、かつF1〜F8のtrueが3個以上の場合のみ最大1頭」。
+            //   旧実装はタイプAでも true 2個の馬を採用候補に残していた（3個以上の馬が1頭いれば枠が開き、
+            //   その枠へ2個の馬が入ることがあった）。
+            $minTrue = $strictScoreForA ? 3 : 2;
+            if ($trueCount >= $minTrue) {
                 $h['evidence_count'] = $trueCount;
                 $qualifiedSecondOnly[] = $h;
             }
@@ -3165,108 +3526,52 @@ SYSTEM;
             }
         }
 
-        // ── Step6: メイン候補をスコア降順でソート ─────────────────────
-        $mainCandidates = array_merge($matched, $firstOnly);
-        // ── Block 13: 同点タイブレーク（スコア降順 → matched馬優先 → 馬番小順） ─
+        // ── Step6〜9: 最終順位の確定と上限適用（仕様【最終順位決定・タイブレーク（正規仕様）】）──────
+        // 【20260924 修正】仕様の最終版は「候補同士を場当たり的なペア比較で入れ替えてはならない」とし、
+        //   次の固定手順を唯一の正規仕様としている（旧版の「5点以内なら4項目で比べて入れ替え」は廃止）。
+        //   ① 全候補（一致馬・1st独自馬・独自発見条件を満たした2nd独自馬）を
+        //      統合おすすめ度の降順 → 同点は一致馬優先 → 馬番の小さい順 で並べる
+        //   ② その順位のまま、断層位置別・人気帯別上限を超える馬を各人気帯の下位から除く
+        //   ③ 2nd独自発見枠（タイプ別上限）を超える2nd独自馬を下位から除く
+        //   ④ 出走頭数別上限（4〜7頭）を全体順位の下位から適用する
+        //   除外後の空枠を、すでにフィルターで除外された馬で補充しない（ここには入ってこない）。
+        //   旧実装は「表示枠いっぱいなら最下位と比べて入れ替え」を人気帯上限より前に行っており、
+        //   入れ替えた馬が人気帯上限で落とされる等、仕様の順番と食い違っていた。
         $tiebreakMain = function ($a, $b) {
             if ($b['score'] !== $a['score']) return $b['score'] <=> $a['score'];
-            $catPriority = ['matched' => 0, 'first_only' => 1, 'second_only' => 2];
-            $aCat = $catPriority[$a['category'] ?? 'second_only'] ?? 2;
-            $bCat = $catPriority[$b['category'] ?? 'second_only'] ?? 2;
+            $catPriority = ['matched' => 0, 'first_only' => 1, 'second_only' => 1];
+            $aCat = $catPriority[$a['category'] ?? 'second_only'] ?? 1;
+            $bCat = $catPriority[$b['category'] ?? 'second_only'] ?? 1;
             if ($aCat !== $bCat) return $aCat <=> $bCat;
             return $a['num'] <=> $b['num'];
         };
-        usort($mainCandidates, $tiebreakMain);
+        $rankedCandidates = array_merge($matched, $firstOnly, $qualifiedSecondOnly);
+        usort($rankedCandidates, $tiebreakMain);
 
-        // 2nd 独自: スコア降順 → 馬番小順
-        usort($qualifiedSecondOnly, fn($a, $b) =>
-            $b['score'] !== $a['score'] ? $b['score'] <=> $a['score'] : $a['num'] <=> $b['num']
-        );
-
-        // ── Step7: 独自発見枠の追加 / 入れ替え ───────────────────────
-        $secondUniqueAdded = 0;
-        foreach ($qualifiedSecondOnly as $candidate) {
-            if ($secondUniqueAdded >= $secondUniqueLimit) break;
-
-            // 現在の候補数が上限未満なら無条件追加
-            if (count($mainCandidates) < $displayLimit) {
-                $mainCandidates[] = $candidate;
-                $secondUniqueAdded++;
-                continue;
-            }
-
-            // 上限に達している場合、最低スコア候補と比較
-            usort($mainCandidates, fn($a, $b) => $b['score'] <=> $a['score']);
-            $weakest      = end($mainCandidates);
-            $weakestScore = $weakest['score'];
-
-            // スコアが上回る場合は入れ替え
-            if ($candidate['score'] > $weakestScore) {
-                array_pop($mainCandidates);
-                $mainCandidates[] = $candidate;
-                $secondUniqueAdded++;
-                continue;
-            }
-
-            // ③ 5点差以内の接戦 → F1〜F8フラグ数値比較（AI文章キーワード判定廃止）
-            if (($weakestScore - $candidate['score']) <= 5) {
-                $cNum   = $candidate['num'];
-                $wNum   = $weakest['num'];
-                $cFlags = $horseFlagsMap[$cNum] ?? [];
-                $wFlags = $horseFlagsMap[$wNum] ?? [];
-                $superior = 0;
-
-                // F8: 回収率≥110%（旧「回収率」テキスト判定の代替）
-                if (($cFlags['F8'] ?? false) && !($wFlags['F8'] ?? false)) {
-                    $superior++;
-                }
-                // F1: score_a≥12 複勝継続低下（旧「複勝継続流入」テキスト判定の代替）
-                if (($cFlags['F1'] ?? false) && !($wFlags['F1'] ?? false)) {
-                    $superior++;
-                }
-                // F5: score_e≥6 断層タイプ（旧「断層上側」テキスト判定の代替）
-                if (($cFlags['F5'] ?? false) && !($wFlags['F5'] ?? false)) {
-                    $superior++;
-                }
-                // Fフラグ総数優位（旧「OPI妙味」テキスト判定の代替）
-                $cFlagCount = count(array_filter($cFlags));
-                $wFlagCount = count(array_filter($wFlags));
-                if ($cFlagCount > $wFlagCount) {
-                    $superior++;
-                }
-
-                if ($superior >= 2) {
-                    array_pop($mainCandidates);
-                    $mainCandidates[] = $candidate;
-                    $secondUniqueAdded++;
-                }
-            }
-        }
-
-        // ── Step8: 最終ソート（タイブレーク適用） ───────────────────────
-        usort($mainCandidates, $tiebreakMain);
-
-        // ── Step9: Block 8 人気帯別選出上限チェック ──────────────────────
-        // 1〜6番人気 / 7〜10番人気 / 11番人気以下 の3区分で上限を適用し
-        // displayLimit 以内に収める（上限を先に適用し余裕があれば displayLimit まで）
         $upperCount = 0;
         $midCount   = 0;
         $lowerCount = 0;
+        $secondUniqueAdded = 0;
         $finalCandidates = [];
-        foreach ($mainCandidates as $h) {
-            if (count($finalCandidates) >= $displayLimit) break;
+        foreach ($rankedCandidates as $h) {
+            if (count($finalCandidates) >= $displayLimit) break;   // ④ 出走頭数別上限
             $pop = (int) ($h['popularity'] ?? 0);
+            // ② 人気帯別上限（1〜6番人気 / 7〜10番人気 / 11番人気以下）
             if ($pop >= 1 && $pop <= 6) {
                 if ($upperCount >= $pickupUpperMax) continue;
-                $upperCount++;
             } elseif ($pop >= 7 && $pop <= 10) {
                 if ($midCount >= $pickupMidMax) continue;
-                $midCount++;
             } else {
-                // 11番人気以下
                 if ($lowerCount >= $pickupLowerMax) continue;
-                $lowerCount++;
             }
+            // ③ 2nd独自発見枠
+            if (($h['category'] ?? '') === 'second_only') {
+                if ($secondUniqueAdded >= $secondUniqueLimit) continue;
+                $secondUniqueAdded++;
+            }
+            if ($pop >= 1 && $pop <= 6)       $upperCount++;
+            elseif ($pop >= 7 && $pop <= 10)  $midCount++;
+            else                              $lowerCount++;
             $finalCandidates[] = $h;
         }
         return $finalCandidates;
@@ -3438,6 +3743,7 @@ SYSTEM;
             }
             $b9h['ability_grade'] = $b9Grade;
             $b9h['ability_score'] = $b9Corr;
+            $b9h['ability_points'] = $b9Pts; // 【20260924】AI原文の能力適性点（0〜100・一致馬の平均計算用）
             // ※ 仕様: ability_scoreは高配当総合点・シャドー比較専用。既存おすすめ度(score)へは加算しない
 //             \Log::debug('[Block9] ability', [
 //                 'num'         => $b9h['num'],
@@ -3496,7 +3802,11 @@ SYSTEM;
 
             // サンプル30件以上のみ有効値
             $b12ValidRates = array_values(array_filter($b12RateEntries, fn($r) => $r['samples'] >= 30));
-            $b12LowRates   = array_values(array_filter($b12ValidRates,  fn($r) => $r['rate']    < 90.0));
+            // @ANCHOR-20260926-B12-RECOVERY-THRESHOLD（実処理側と同じ定数を参照）
+            $b12LowRates   = array_values(array_filter(
+                $b12ValidRates,
+                fn($r) => $r['rate'] < self::B12_RECOVERY_LOW_THRESH
+            ));
 
             if (count($b12ValidRates) >= 2 && count($b12LowRates) >= 2) {
                 $hardExcludeNums[] = $b12Num;
@@ -3548,8 +3858,13 @@ SYSTEM;
             ->where('minutes_before_start', 6)
             ->get(['num', 'odds', 'fuku_min']);
 
-        $b6TanSorted  = $b6OddsRows->sortBy('odds')->values();
-        $b6FukuSorted = $b6OddsRows->sortBy('fuku_min')->values();
+        // 【20260924】「取消」等の非数値オッズ（複勝は空文字）を順位計算から除外する。
+        //   以前は空文字の複勝が複勝1位に並び、全馬の複勝人気が1つずつずれていた。
+        //   また同オッズの並びをプロンプト（6分前オッズ昇順→馬番昇順）と揃えるため馬番順で安定ソートする。
+        $b6TanSorted  = $b6OddsRows->filter(fn($r) => is_numeric($r->odds))
+            ->sortBy('num')->sortBy(fn($r) => (float) $r->odds)->values();
+        $b6FukuSorted = $b6OddsRows->filter(fn($r) => is_numeric($r->fuku_min) && (float) $r->fuku_min > 0)
+            ->sortBy('num')->sortBy(fn($r) => (float) $r->fuku_min)->values();
         $b6TanPopMap  = [];   // num => 単勝人気順位
         $b6FukuPopMap = [];   // num => 複勝人気順位
         foreach ($b6TanSorted  as $rank => $row) { $b6TanPopMap[(int)$row->num]  = $rank + 1; }
@@ -3579,7 +3894,7 @@ SYSTEM;
         // ── 各2nd AI馬のフラグ計算 ────────────────────────────────────────────
         foreach ($secondAiHorses as $b6sh) {
             $b6Num     = $b6sh['num'];
-            $b6Pop     = $b6sh['popularity'];  // 2nd AI が返した単勝人気
+            $b6Pop     = $b6TanPopMap[$b6Num] ?? $b6sh['popularity'];  // 【20260924】DB由来の6分前人気を優先（AI申告値は補助）
             $b6Block   = $oddsHorseBlocks[$b6Num] ?? '';
 
             // F2: 複勝人気 - 単勝人気 ≥ 2（DB由来の6分前人気で判定）
@@ -3647,6 +3962,172 @@ SYSTEM;
         // ── Block 6 End ───────────────────────────────────────────────────────────
 
         return compact('horseFlagsMap', 'oddsHorseBlocks', 'b6OddsRows', 'b6TanPopMap', 'b6FukuPopMap');
+    }
+
+    /**
+     * 【20260924 追加】注目馬番①②をアプリ（Flutter）と同じ方法で算出する。
+     *   ① オッズ間断層：6分前単勝オッズ昇順で、次の馬とのオッズ比が2.0倍を超える位置の上側の馬番
+     *      （Flutter calcOddsGapHorseNums と同一）
+     *   ② 期待数値：過去の類似レースの人気順別中央値オッズ ÷ 今回の同人気順の6分前オッズ が大きい順に
+     *      8頭以下4頭／13頭以下5頭／14頭以上6頭（Flutter calcUpsetPickupHorseNums と同一）
+     *   計測開始前(999)と6分前(6)のオッズが両方そろっていなければ、アプリと同じく空にする。
+     * @return array{0:string,1:string} [①の "1|3|7" 形式, ②の "3|7" 形式]
+     */
+    private function _calcHintHorseNums($date, $kaisuu, $basho, $day, $race): array
+    {
+        try {
+            $rows = DB::table('t_horse_odds_finder_odds')
+                ->where('date', $date)->where('kaisuu', $kaisuu)->where('basho', $basho)
+                ->where('day', $day)->where('race', (int) $race)
+                ->whereIn('minutes_before_start', [Constants::ODDS_DB_FIRST, 6])
+                ->get(['num', 'minutes_before_start', 'odds']);
+            $hasFirst = $rows->contains(fn($r) => (int) $r->minutes_before_start === Constants::ODDS_DB_FIRST);
+            $six      = $rows->filter(fn($r) => (int) $r->minutes_before_start === 6
+                                            && is_numeric($r->odds) && (float) $r->odds > 0)
+                             ->sortBy('num')->sortBy(fn($r) => (float) $r->odds)->values();
+            if (!$hasFirst || $six->isEmpty()) {
+                return ['', ''];
+            }
+
+            // ① オッズ間断層
+            $gap = [];
+            for ($i = 0; $i < $six->count() - 1; $i++) {
+                $a = (float) $six[$i]->odds;
+                $b = (float) $six[$i + 1]->odds;
+                if ($a > 0 && $b / $a > 2.0) $gap[] = (int) $six[$i]->num;
+            }
+
+            // ② 期待数値
+            $upset  = [];
+            $median = DB::table('t_horse_odds_finder_popularity_rank_median')
+                ->where('date', $date)->where('kaisuu', (string) (int) $kaisuu)->where('basho', $basho)
+                ->where('day', (string) (int) $day)->where('race', (int) $race)
+                ->first();
+            if ($median) {
+                $cnt         = $six->count();
+                $pickupCount = $cnt <= 8 ? 4 : ($cnt <= 13 ? 5 : 6);
+                $scored = [];
+                foreach ($six as $idx => $r) {
+                    $rank = $idx + 1;
+                    $col  = 'median_' . str_pad((string) $rank, 2, '0', STR_PAD_LEFT);
+                    $med  = isset($median->$col) && is_numeric($median->$col) ? (float) $median->$col : 0.0;
+                    $scored[] = ['rank' => $rank, 'num' => (int) $r->num,
+                                 'score' => ($med > 0 ? $med / (float) $r->odds : 0.0)];
+                }
+                // スコア降順（同点は人気順のまま＝Dart の安定ソートと同じ）
+                usort($scored, fn($x, $y) => $y['score'] <=> $x['score'] ?: $x['rank'] <=> $y['rank']);
+                $pick = array_slice($scored, 0, $pickupCount);
+                usort($pick, fn($x, $y) => $x['rank'] <=> $y['rank']);   // 表示は人気順
+                $upset = array_map(fn($x) => $x['num'], $pick);
+            }
+            return [implode('|', $gap), implode('|', $upset)];
+        } catch (\Throwable $e) {
+            \Log::warning('[注目馬番] ①②の算出に失敗（空のまま続行）', ['err' => $e->getMessage()]);
+            return ['', ''];
+        }
+    }
+
+    /**
+     * 【20260924 追加】断層パターン学習（Block 11）用：馬ブロックのテキストから数値特徴を取り出す。
+     *   プロンプトへ実際に渡した値そのものを保存するため、テーブルを引き直さずブロックから読む。
+     *   読み取れない項目は null（欠損）。0 で埋めない。
+     */
+    private function _parseHorseBlockFeatures(string $block): array
+    {
+        $f = [
+            'tan_change_rate'     => $this->_parseTanChangeRate($block),
+            'tan_inflow_rank'     => null, 'tan_inflow_group_size'  => null,
+            'fuku_inflow_rank'    => null, 'fuku_inflow_group_size' => null,
+            'inflow_group'        => null,
+            'last3min_fuku_rate'  => null, 'last3min_tan_rate' => null, 'accel_label' => null,
+            'opi'                 => null, 'est_opi' => null, 'fuku_opi' => null,
+            'est_tan_odds'        => null, 'est_tan_std' => null,
+            'est_fuku_min'        => null, 'est_fuku_max' => null, 'est_fuku_err' => null,
+        ];
+        if (preg_match('/単勝流入ランク: (\d+)位\/(\d+)頭中（([^）]+)）/u', $block, $m)) {
+            $f['tan_inflow_rank'] = (int)$m[1]; $f['tan_inflow_group_size'] = (int)$m[2]; $f['inflow_group'] = $m[3];
+        }
+        if (preg_match('/複勝流入ランク: (\d+)位\/(\d+)頭中（([^）]+)）/u', $block, $m)) {
+            $f['fuku_inflow_rank'] = (int)$m[1]; $f['fuku_inflow_group_size'] = (int)$m[2]; $f['inflow_group'] = $m[3];
+        }
+        if (preg_match('/直前流入（9→6分前）: 複勝 ([+\-][\d.]+)%|直前流入（9→6分前）: 複勝 データなし/u', $block, $m) && isset($m[1])) {
+            $f['last3min_fuku_rate'] = (float)$m[1];
+        }
+        if (preg_match('/直前流入（9→6分前）: .*単勝 ([+\-][\d.]+)%/u', $block, $m)) {
+            $f['last3min_tan_rate'] = (float)$m[1];
+        }
+        if (preg_match('/直前流入（9→6分前）: .*判定: (\S+)/u', $block, $m)) {
+            $f['accel_label'] = $m[1];
+        }
+        if (preg_match('/^\s*OPI: ([\d.]+)/mu', $block, $m))        $f['opi']      = (float)$m[1];
+        if (preg_match('/予測補正OPI: ([\d.]+)/u', $block, $m))       $f['est_opi']  = (float)$m[1];
+        if (preg_match('/複勝OPI: ([\d.]+)/u', $block, $m))           $f['fuku_opi'] = (float)$m[1];
+        if (preg_match('/推定確定オッズ: ([\d.]+)倍（±([\d.]+)）/u', $block, $m)) {
+            $f['est_tan_odds'] = (float)$m[1]; $f['est_tan_std'] = (float)$m[2];
+        }
+        if (preg_match('/推定確定複勝最小: ([\d.]+)倍\s+推定確定複勝最大: ([\d.]+)?/u', $block, $m)) {
+            $f['est_fuku_min'] = (float)$m[1];
+            $f['est_fuku_max'] = (isset($m[2]) && $m[2] !== '') ? (float)$m[2] : null;
+        }
+        if (preg_match('/補正誤差: ±([\d.]+)/u', $block, $m))          $f['est_fuku_err'] = (float)$m[1];
+        return $f;
+    }
+
+    /**
+     * 【20260924 追加】馬ブロックの「単勝: …倍（下落 X%）」行から、計測開始→6分前の単勝変化率を読む。
+     *   下落 X% → -X ／ 上昇 +X% → +X ／ 変化なし → 0 ／ 行が無い → null（不明）
+     */
+    private function _parseTanChangeRate(string $block): ?float
+    {
+        if (!preg_match('/^\s*単勝: .*倍（(下落 ([\d.]+)%|上昇 \+([\d.]+)%|変化なし)）/mu', $block, $m)) {
+            return null;
+        }
+        if (($m[2] ?? '') !== '') return -1.0 * (float) $m[2];
+        if (($m[3] ?? '') !== '') return (float) $m[3];
+        return 0.0;
+    }
+
+    /**
+     * 【20260924 追加】2nd AI のキャッシュをそのまま返してよいか。
+     *   統合結果（ai_merge_result）が保存済み、または過去日のレースなら true。
+     *   過去日は再処理しない（再処理すると当日以降に更新された回収率等で計算し直すことになり、
+     *   予測時点のデータではなくなるため）。
+     */
+    private function _canReturnSecondAiCache($date, $kaisuu, $basho, $day, $race): bool
+    {
+        if ((string) $date < date('Y-m-d')) {
+            return true;
+        }
+        try {
+            return DB::table('t_horse_odds_finder_ai_merge_result')
+                ->where('date',       $date)
+                ->where('kaisuu',     (int) $kaisuu)
+                ->where('basho_code', $basho)
+                ->where('day',        (int) $day)
+                ->where('race',       (int) $race)
+                ->exists();
+        } catch (\Throwable $e) {
+            return true;   // 判定できない場合は従来どおりキャッシュを返す（AIを呼び直さない側に倒す）
+        }
+    }
+
+    /**
+     * 【20260924 追加】1st AI の回答を公開してよいかを判定する。
+     *   失敗（空・形式不正・必要な2行が無い）または候補8頭以上（上限7頭超過）なら理由を返す。
+     *   公開してよい場合は null を返す。
+     *   getHorseOddsFinderAiAnalysis（1st AI 表示）と getHorseOddsFinderSecondAiOpinion（統合）で
+     *   同じ基準を使うためのメソッド。
+     */
+    private function _firstAiPublishError(string $firstAiText): ?string
+    {
+        $judge = $this->_judgeFirstAiResponse($firstAiText);
+        if ($judge['status'] === 'failed') {
+            return $judge['reason'];
+        }
+        if ($judge['horse_count'] >= 8) {
+            return '候補' . $judge['horse_count'] . '頭（上限7頭超過）';
+        }
+        return null;
     }
 
     /**
@@ -3872,7 +4353,8 @@ SYSTEM;
 
             if ($vcScore > $vcCap) {
                 $vcViolations[] = $vcRow;
-                \Log::error('[#69] 妙味小計の上限超過を検出（AI採点は書き換えない）', [
+                // 【20260926】記録のみで処理は止めないため error → warning に変更（障害と誤認しないように）
+                \Log::warning('[#69] 妙味小計の上限超過を検出（AI採点は書き換えない）', [
                     'num'        => $vcNum,
                     'name'       => $vcH['name'] ?? '',
                     'score'      => $vcScore,
@@ -4091,12 +4573,30 @@ SYSTEM;
         int    $race,
         object $raceRow
     ): array {
+        // ── 全出走馬リストの確保（Block 9 の変数流用による空振り対策）──────────
+        //   $b9HorseRows は Block 9（2nd AI への過去成績追記）専用の変数で、
+        //   過去成績が 1st AI プロンプト（Block A）に収録済みの場合は collect()（空）になる。
+        //   Block 10 は全出走馬が必要なため、空のまま使うと市場妙味スコアが
+        //   1 行も記録されない。空の場合はここで取得し直す。
+        //   ※ Block 9 側の挙動には一切影響しない（ローカル変数の再代入のみ）。
+        if ($b9HorseRows === null || count($b9HorseRows) === 0) {
+            $b9HorseRows = DB::table('t_horse_odds_finder_horses')
+                ->where('date',   $date)
+                ->where('kaisuu', $raceRow->kaisuu)
+                ->where('basho',  $raceRow->basho)
+                ->where('day',    $raceRow->day)
+                ->where('race',   $raceRow->race)
+                ->orderBy('num')
+                ->get(['num', 'name', 'jockey']);
+        }
+
         $b8InfoMap = []; // B-8: 偽流入警戒判定用中間変数マップ（try外で初期化）
         $b10TotalScoreMap    = []; // B-10: 高配当総合点算出用 市場妙味基礎点マップ（try外で初期化）
         $b10ScoreDMap        = []; // 帯基準馬方式タイブレーク④用 回収率裏付けD点マップ
         $b13UnderevalFlagMap = []; // B-13: 市場過小評価フラグ馬別マップ（try外で初期化）
         $b13ScoreAMap        = []; // B-13: Score_A（複勝継続流入）馬別マップ（馬券判定用）
         $b10ScoreE = 0; // try 失敗時フォールバック
+        $b10ScoreEMap = []; // 【20260924】馬ごとの基礎点E（F5 判定用・null=不明）
         // ── Block 10: 市場妙味基礎点 算出・シャドーログ保存 ─────────────────────────
         // フェーズ1: PHP側で score_a〜e・total_score を算出し market_score_log に INSERT。
         // AIへは送信しない（シャドー期間中）。Flutter 表示にも使わない。
@@ -4431,8 +4931,10 @@ SYSTEM;
                 // ── B-8 判定用: C6（単複両方低下）の判定と $b8InfoMap 保存 ─────────────────
                 // C6: 単勝と複勝の両方が計測開始→6分前で低下
                 $b8C6 = null;
-                if (preg_match('/変化率（計測開始→6分前）: ([+\-][\d.]+)%/u', $b10Block, $b8m6c)) {
-                    $b8TanChangeRate = (float)$b8m6c[1];
+                // 【20260924 修正】旧実装はプロンプトに存在しない「変化率（計測開始→6分前）:」を探しており、
+                //   C6 が常に不明になっていた。実際の「単勝: …倍（下落 X%）」行から読み取る。
+                $b8TanChangeRate = $this->_parseTanChangeRate($b10Block);
+                if ($b8TanChangeRate !== null) {
                     // 複勝も全体で低下しているか（最古値 > 6分前値）
                     $b8FukuFirstAlt = 0.0;
                     $b8FukuLastAlt  = 0.0;
@@ -4485,6 +4987,7 @@ SYSTEM;
                 ];
                 $b10TotalScoreMap[$b10Num] = $b10TotalScore; // B-10: 高配当総合点算出用
                 $b10ScoreDMap[$b10Num]     = $b10ScoreD;     // 帯基準馬方式タイブレーク④用
+                $b10ScoreEMap[$b10Num]     = $b10ScoreEPerHorse; // F5 判定用（null=不明）
 
                 // ── B-13: 市場過小評価フラグ算出（シャドー期間: 算出・ログ保存のみ） ────
                 // 条件1: 市場妙味基礎点56点以上（80点満点の70%）
@@ -4560,7 +5063,7 @@ SYSTEM;
         }
         // ── Block 10 End ──────────────────────────────────────────────────────────
 
-        return compact('b8InfoMap', 'b10TotalScoreMap', 'b10ScoreDMap', 'b13UnderevalFlagMap', 'b13ScoreAMap', 'b10ScoreE');
+        return compact('b8InfoMap', 'b10TotalScoreMap', 'b10ScoreDMap', 'b13UnderevalFlagMap', 'b13ScoreAMap', 'b10ScoreE', 'b10ScoreEMap');
     }
 
     /**
@@ -4737,8 +5240,10 @@ SYSTEM;
 
                 // 単勝下落率（正=下落）: 変化率が負（下落）→ 正に変換して tan_shrink_rate とする
                 $_b13TanShrinkVal = null;
-                if (preg_match('/変化率（計測開始→6分前）: ([+\-][\d.]+)%/u', $_b13Block, $_b13m3)) {
-                    $_b13TanShrinkVal = -1.0 * (float)$_b13m3[1]; // 負=下落 → 正=下落に変換
+                // 【20260924 修正】存在しない行を探していたため常に null だった。実際の単勝行から読み取る。
+                $_b13TanChange = $this->_parseTanChangeRate($_b13Block);
+                if ($_b13TanChange !== null) {
+                    $_b13TanShrinkVal = -1.0 * $_b13TanChange; // 負=下落 → 正=下落に変換
                 }
 
                 $b13OddsMap[$_b13Num] = [
@@ -4757,11 +5262,13 @@ SYSTEM;
             foreach ($firstAiHorses as $bB10fh) {
                 $bB10fGrade = null;
                 $bB10fCorr  = null;
+                $bB10fPts   = null;
                 if (preg_match($bB10AbilityGradeRgx, $bB10fh['reason'], $bB10fm)) {
                     $bB10fGrade = $bB10fm[1];
                     $bB10fCorr  = $bB10AbilityCorrMap[$bB10fGrade] ?? 0;
+                    $bB10fPts   = (int) $bB10fm[2];
                 }
-                $bB10FirstAbMap[(int)$bB10fh['num']] = ['grade' => $bB10fGrade, 'corr' => $bB10fCorr];
+                $bB10FirstAbMap[(int)$bB10fh['num']] = ['grade' => $bB10fGrade, 'corr' => $bB10fCorr, 'points' => $bB10fPts];
             }
 
             // ── 2nd AI馬のability_grade/ability_score（B-9で設定済み）をマップ化 ──
@@ -4770,6 +5277,7 @@ SYSTEM;
                 $bB10SecondAbMap[(int)$bB10sh['num']] = [
                     'grade' => $bB10sh['ability_grade'] ?? null,
                     'corr'  => $bB10sh['ability_score'] ?? null,
+                    'points'=> $bB10sh['ability_points'] ?? null,
                 ];
             }
 
@@ -4789,13 +5297,15 @@ SYSTEM;
                     // 両AI一致馬: 両AIのcorrの平均（四捨五入）→ 補正値
                     $bB10fAb = $bB10FirstAbMap[$bB10Num]  ?? null;
                     $bB10sAb = $bB10SecondAbMap[$bB10Num] ?? null;
-                    if ($bB10fAb !== null && $bB10fAb['corr'] !== null
-                     && $bB10sAb !== null && $bB10sAb['corr'] !== null) {
-                        $bB10AbCorr = (int) round(($bB10fAb['corr'] + $bB10sAb['corr']) / 2);
-                        // グレード: 両AI同一グレードなら記録、異なればnull
-                        if ($bB10fAb['grade'] !== null && $bB10fAb['grade'] === $bB10sAb['grade']) {
-                            $bB10AbGrade = $bB10fAb['grade'];
-                        }
+                    // 【20260924 修正】仕様「両AI一致馬は両AIのability_score平均（小数第1位四捨五入）から補正を決める」
+                    //   旧実装は補正点（20/14/7/0）同士を平均しており、例えば A(95点)とD(50点)は
+                    //   平均72.5点＝B（補正14点）になるべきところ、(20+0)/2＝10点になる等、仕様と食い違っていた。
+                    //   原文の能力適性点を平均してから A〜D に区分する。
+                    if ($bB10fAb !== null && $bB10fAb['points'] !== null
+                     && $bB10sAb !== null && ($bB10sAb['points'] ?? null) !== null) {
+                        $bB10AvgPts  = round(($bB10fAb['points'] + $bB10sAb['points']) / 2, 1);
+                        $bB10AbGrade = $bB10AvgPts >= 80 ? 'A' : ($bB10AvgPts >= 70 ? 'B' : ($bB10AvgPts >= 60 ? 'C' : 'D'));
+                        $bB10AbCorr  = $bB10AbilityCorrMap[$bB10AbGrade];
                     }
                 } elseif ($bB10Cat === 'first_only') {
                     $bB10fAb = $bB10FirstAbMap[$bB10Num] ?? null;
@@ -4830,10 +5340,13 @@ SYSTEM;
                     if ($bB10GradeAB && $bB10UnderevalFlag === true && $bB10ValidInflow
                         && (int)($bB10h['score'] ?? 0) >= 70) {
                         $bB10MismatchCat = 'A';
-                    } elseif ($bB10UnderevalFlag === true && $bB10ValidInflow) {
+                    } elseif ($bB10UnderevalFlag === true && $bB10ValidInflow
+                        && in_array($bB10AbGrade, ['C', 'D'], true)) {
+                        // 【20260924 修正】仕様「B：市場過小評価あり・有効流入だが能力適性C・D」
                         $bB10MismatchCat = 'B';
-                    } elseif ($bB10GradeAB) {
-                        $bB10MismatchCat = 'C'; // 能力適性A/Bだが市場過小評価なし/不明
+                    } elseif ($bB10GradeAB && ($bB10UnderevalFlag !== true || !$bB10ValidInflow)) {
+                        // 仕様「C：能力適性A・Bだが市場過小評価なし／不明、または有効流入なし」
+                        $bB10MismatchCat = 'C';
                     } else {
                         $bB10MismatchCat = 'D';
                     }
@@ -7100,7 +7613,9 @@ SYSTEM;
                 ->limit($avLen)
                 ->get(['date', 'dist', 'condition', 'grade', 'finishing_position',
                        'num_horses', 'popularity', 'jockey', 'burden_weight',
-                       'horse_weight', 'last_3f', 'fin_time_diff', 'odds',
+                       'horse_weight', 'last_3f', 'fin_time_diff',
+                       // 【20260924】'odds' は t_horse_odds_finder_shutsuba_history に存在しない列のため取得しない
+                       //   （Unknown column で例外になり ml_snapshot の保存ごと失敗していた）。下の isset() で欠損(null)扱いになる
                        'corner_1', 'corner_2', 'corner_3', 'corner_4',
                        // 仕様【M4能力・適性元データの固定長変換】2 で列挙されている項目
                        'time', 'gate', 'basho_code'])
@@ -7657,7 +8172,8 @@ SYSTEM;
         string $basho,
         int    $day,
         int    $race,
-        object $raceRow
+        object $raceRow,
+        array  $b10ScoreEMap = []    // 【20260924】馬番→基礎点E（null=不明）
     ): void {
         // ── Block 11: 断層パターン学習 特徴量スナップショット保存 ───────────────────
         // フェーズ1: 1,000レース分の特徴量を蓄積するだけ（予測は行わない）
@@ -7788,7 +8304,7 @@ SYSTEM;
                     $_lN = $_nums[$_i + 1];
                     $_uO = $b11Series[$_uN][$timing][$oddsKey] ?? 0;
                     $_lO = $b11Series[$_lN][$timing][$oddsKey] ?? 0;
-                    if ($_uO <= 0) continue;
+                    if ($_uO <= 0 || $_lO <= 0) continue; // 【20260924】片方が欠損なら比率を作らない（0比率を作らない）
                     $_ratio = round($_lO / $_uO, 2);
                     $_rows[] = [
                         'upper_pop' => $_i + 1,
@@ -7813,12 +8329,25 @@ SYSTEM;
                 );
             }
 
+            // ── 【20260924 追加】6分前人気順を基準軸に固定した断層比率の時系列 ──────────
+            //   仕様【人気順位固定と追跡】「断層時系列は6分前人気順を基準軸とし、各馬を馬番で過去時点へ追跡する。
+            //   過去時点ごとに人気順の馬を入れ替えて別馬同士の断層推移を作ってはいけない」
+            //   上の gap_ratios_by_timing は各時点の人気順で並べ直した比較（参考として残す）。
+            //   学習にはこちらの固定軸版を使う。
+            $b11TanGapFixed6  = [];
+            $b11FukuGapFixed6 = [];
+            foreach ($b11Timings as $_b11t) {
+                $b11TanGapFixed6[$_b11t]  = $b11BuildGapRows($b11TanPopByTiming[6]  ?? [], $_b11t, 'tan');
+                $b11FukuGapFixed6[$_b11t] = $b11BuildGapRows($b11FukuPopByTiming[6] ?? [], $_b11t, 'fuku_min');
+            }
+
             // ── 断層の 出現／継続／消滅／拡大／縮小（隣接時点比較・単勝基準）──
             $b11GapTransitions = [];
             $b11PrevGapSet     = null;
             foreach ($b11Timings as $_b11t) {
                 $_b11cur = [];
-                foreach (($b11TanGapByTiming[$_b11t] ?? []) as $_b11g) {
+                // 【20260924】仕様【人気順位固定と追跡】に合わせ、6分前人気順の固定軸で出現・消滅・拡大・縮小を判定する
+                foreach (($b11TanGapFixed6[$_b11t] ?? []) as $_b11g) {
                     if ($_b11g['is_gap']) $_b11cur[$_b11g['upper_pop']] = $_b11g['ratio'];
                 }
                 if ($b11PrevGapSet !== null) {
@@ -7857,6 +8386,29 @@ SYSTEM;
                     }
                 }
             }
+
+            // ── 【20260924 追加】仕様【予測入力特徴量】のレース特徴のうち未保存だったもの ──
+            //   6番人気以内／以降の断層本数、人気別オッズ分布、上位集中度
+            $b11GapCountTop6  = count(array_filter($b11Gap6, fn($g) => $g['is_gap'] === 1 && (int)$g['upper_pop'] <= 6));
+            $b11GapCountBelow = count(array_filter($b11Gap6, fn($g) => $g['is_gap'] === 1 && (int)$g['upper_pop'] >= 7));
+            $b11TanDist6  = [];   // 6分前 単勝人気順 → 単勝オッズ
+            $b11FukuDist6 = [];   // 6分前 複勝人気順 → 複勝最小オッズ
+            foreach (($b11TanPopByTiming[6] ?? []) as $_b11n => $_b11p) {
+                $b11TanDist6[$_b11p] = $b11Series[$_b11n][6]['tan'] ?? null;
+            }
+            foreach (($b11FukuPopByTiming[6] ?? []) as $_b11n => $_b11p) {
+                $b11FukuDist6[$_b11p] = $b11Series[$_b11n][6]['fuku_min'] ?? null;
+            }
+            ksort($b11TanDist6);
+            ksort($b11FukuDist6);
+            // 上位集中度: 単勝の支持率（1/オッズ）の合計に占める1〜3番人気の割合
+            $b11InvAll = 0.0; $b11InvTop3 = 0.0;
+            foreach ($b11TanDist6 as $_b11p => $_b11o) {
+                if ($_b11o === null || $_b11o <= 0) continue;
+                $b11InvAll += 1 / $_b11o;
+                if ($_b11p <= 3) $b11InvTop3 += 1 / $_b11o;
+            }
+            $b11TopConcentration = $b11InvAll > 0 ? round($b11InvTop3 / $b11InvAll, 4) : null;
 
             // ── 単複断層の一致・不一致（6分前・断層成立位置の比較）──────────
             $b11TanGapPos6  = array_values(array_map(
@@ -8003,7 +8555,22 @@ SYSTEM;
                     $_b11fukuSeries[(string)$_b11t] = $b11Series[$_b11num][$_b11t]['fuku_min'] ?? null;
                     $_b11popSeries[(string)$_b11t]  = $b11TanPopByTiming[$_b11t][$_b11num]     ?? null;
                 }
+                // 【20260924 追加】仕様【予測入力特徴量】の馬別特徴のうち未保存だったもの
+                //   （流入ランク・直前流入・OPI3種・推定確定オッズと誤差・主断層からの距離・基礎点E）
+                //   欠損は null のまま保持し、別に missing_flags へ列挙する（0へ置換しない）
+                $_b11bf = $this->_parseHorseBlockFeatures($_b11block);
+                $_b11bf['score_e_horse'] = $b10ScoreEMap[$_b11num] ?? null;
+                $_b11bf['gap_distance']  = ($primaryGapUpperPopForMerge !== null)
+                    ? (int)$_b11pop - (int)$primaryGapUpperPopForMerge  // 正=断層下側で何順位下か、0以下=上側
+                    : null;
+                $_b11bf['tanpuku_pop_diff'] = isset($b6FukuPopMap[$_b11num])
+                    ? (int)$_b11pop - (int)$b6FukuPopMap[$_b11num]      // 正=複勝人気の方が高い
+                    : null;
+                $_b11bf['missing_flags'] = array_values(array_keys(array_filter(
+                    $_b11bf, fn($v) => $v === null
+                )));
                 $b11AllHorsesFeatures[] = [
+                    'block_features' => $_b11bf,
                     'num'            => $_b11num,
                     'waku'           => $b11WakuMap[$_b11num] ?? null,    // 枠番
                     'pop_6m'         => (int)$_b11pop,
@@ -8087,7 +8654,8 @@ SYSTEM;
                         'low_odds_tan_thresh'  => 3.0,   // Block13a 単勝除外閾値
                         'low_odds_exception'   => 'AND', // 例外3条件の結合方式
                         'recovery_min_sample'  => 30,    // 回収率有効サンプル数
-                        'recovery_low_thresh'  => 90.0,  // Block12 ハード除外閾値
+                        // @ANCHOR-20260926-B12-RECOVERY-THRESHOLD（実処理と同じ値を記録する）
+                        'recovery_low_thresh'  => self::B12_RECOVERY_LOW_THRESH, // Block12 ハード除外閾値
                         'recovery_high_thresh' => 110.0, // Block13a 例外③閾値
                         'score_a_thresh'       => 12,    // 複勝継続流入判定
                         'merge_bonus'          => 5,     // 一致馬ボーナス
@@ -8143,11 +8711,20 @@ SYSTEM;
                 'timings'               => $b11Timings,            // [999,21,18,15,12,9,6]
                 'gap_ratios_by_timing'  => $b11TanGapByTiming,     // 各時点の単勝隣接断層比率
                 'fuku_gap_by_timing'    => $b11FukuGapByTiming,    // 各時点の複勝隣接断層比率
+                'tan_gap_fixed6_by_timing'  => $b11TanGapFixed6,   // 【20260924】6分前人気順固定軸の単勝断層比率
+                'fuku_gap_fixed6_by_timing' => $b11FukuGapFixed6,  // 【20260924】6分前複勝人気順固定軸の複勝断層比率
                 'gap_transitions'       => $b11GapTransitions,     // 出現/継続/消滅/拡大/縮小
                 'gap_max_ratio_6m'      => $b11MaxRatio,           // 最大断層比率
                 'gap_min_ratio_6m'      => $b11MinRatio,           // 最小断層比率
                 'gap_primary_ratio_6m'  => $b11PrimaryRatio,       // 主断層比率
                 'gap_count_6m'          => $b11GapCount6,          // 断層成立数
+                'gap_count_top6_6m'     => $b11GapCountTop6,       // 【20260924】6番人気以内の断層本数
+                'gap_count_below6_6m'   => $b11GapCountBelow,      // 【20260924】6番人気以降の断層本数
+                'tan_odds_dist_6m'      => $b11TanDist6,           // 【20260924】人気順別 単勝オッズ分布
+                'fuku_odds_dist_6m'     => $b11FukuDist6,          // 【20260924】複勝人気順別 複勝最小オッズ分布
+                'top3_concentration_6m' => $b11TopConcentration,   // 【20260924】上位集中度（1〜3番人気の支持率シェア）
+                'inner_outer'           => $raceRow->inner_outer ?? null, // 【20260924】内外
+                'num_horses_race'       => isset($raceRow->num_horses) ? (int)$raceRow->num_horses : null,
                 'tanpuku_gap_match'     => $b11GapMatch,           // 単複断層の一致/不一致
                 // ── M4: 「2AI候補内」と「全頭発見」の分離保存 ──────────────
                 'm4_separated'          => $b11M4Separated,
@@ -8249,6 +8826,7 @@ SYSTEM;
 
         $oddsByNum = [];
         foreach ($oddsRows as $row) {
+            if (!is_numeric($row->odds)) continue;   // 【20260924】「取消」等は人気順計算から除外
             $num    = $row->num;
             $timing = $row->minutes_before_start;
             if (!isset($oddsByNum[$num])) {
@@ -8356,7 +8934,7 @@ SYSTEM;
         $earlyTanHasGap  = count($earlyTanGapAll) > 0;
         $earlyFukuHasGap = count($earlyFukuGapDets) > 0;
 
-        if (count($earlyTanGapTop6) >= 2 && count($earlyTanGapStrong) >= 1) {
+        if (count($earlyTanGapTop6) >= 2) { // 【20260924】仕様どおり二重断層（2か所以上）でタイプA
             $earlyGapType = 'A';
         } elseif ($earlyTanHasGap !== $earlyFukuHasGap) {
             $earlyGapType = 'E';

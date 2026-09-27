@@ -130,7 +130,7 @@ class SummaryOddsGapRecoveryRate extends Command
                             ELSE 30.0
                         END AS gap_min,
                         CASE
-                            WHEN ROUND((odds_6 - odds_start) / odds_start * 100, 1) <= -30 THEN -20.0
+                            WHEN ROUND((odds_6 - odds_start) / odds_start * 100, 1) <= -30 THEN -30.0
                             WHEN ROUND((odds_6 - odds_start) / odds_start * 100, 1) <= -20 THEN -20.0
                             WHEN ROUND((odds_6 - odds_start) / odds_start * 100, 1) <= -10 THEN -10.0
                             WHEN ROUND((odds_6 - odds_start) / odds_start * 100, 1) <= -5  THEN  -5.0
@@ -227,7 +227,7 @@ class SummaryOddsGapRecoveryRate extends Command
             }
 
             // ─── 完了サマリー ─────────────────────────────────────────────
-            $elapsed = now()->diffInSeconds($startedAt);
+            $elapsed = (int) $startedAt->diffInSeconds(now()); // Laravel11(Carbon3)では now()->diffInSeconds(過去) が負数になるため向きを修正
             $news    = "正常終了\nUPSERT: {$upsertCount}件\n経過: {$elapsed}秒";
 
             $this->info('=== 完了 ' . now()->format('Y-m-d H:i:s') . " ({$elapsed}秒) ===");

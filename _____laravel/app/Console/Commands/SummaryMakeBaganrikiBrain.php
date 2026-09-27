@@ -303,14 +303,17 @@ class SummaryMakeBaganrikiBrain extends Command
                     break;
                 }
 
-                $latestBrainText = $this->anthropic->extractText($response);
+                // 空レスポンス時に、前ループまでに統合済みの内容（$latestBrainText）を消さないよう一旦別変数で受ける
+                $responseText = $this->anthropic->extractText($response);
 
-                if ($latestBrainText === '') {
+                if ($responseText === '') {
                     Log::error('SummaryMakeBaganrikiBrain: レスポンス空', ['loop' => $batchIndex]);
                     $this->error("[ループ {$batchIndex}] レスポンスが空でした（所要 {$loopElapsed} 秒）");
                     $totalFailed++;
                     break;
                 }
+
+                $latestBrainText = $responseText;
 
                 $batchIds     = array_slice($introspectionIds, $batchIndex * self::DEVIDE_NUM, self::DEVIDE_NUM);
                 $processedIds = array_merge($processedIds, $batchIds);

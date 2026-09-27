@@ -21,8 +21,8 @@ use Illuminate\Support\Facades\Log;
  *
  * 【処理フロー】
  *   1. 多重起動防止（ロックファイル）
- *   2. t_horse_odds_finder_race_result_history × t_horse_odds_finder_odds (6分前) をJOIN
- *   3. 人気順位別に集計（補正係数・誤差・支持確率）
+ *   2. t_horse_odds_finder_summary の 6分前オッズ・発走直前オッズを取得（20260924変更）
+ *   3. 6分前オッズ順の人気順位別に集計（補正係数・誤差・支持確率）
  *   4. t_horse_odds_finder_compute_odds_correction へ UPSERT
  *   5. 完了通知（WebPush）
  *
@@ -61,50 +61,52 @@ class SummaryComputeOddsCorrection extends Command
 
         try {
             // ─── 集計クエリ ────────────────────────────────────────────────
-            // t_horse_odds_finder_race_result_history（確定オッズ・人気順位）と
-            // t_horse_odds_finder_odds（6分前 minutes_before_start=6）を突き合わせ、
-            // 人気順位別に補正係数を集計する。
+            // 【20260924 変更】集計元を t_horse_odds_finder_odds → t_horse_odds_finder_summary に変更
+            //   旧: t_horse_odds_finder_odds（毎週土曜 5:50 に TRUNCATE）と JOIN していたため、
+            //       サンプルが「直近1週間分（1人気あたり70件前後）」しかなく、週ごとに係数がぶれていた。
+            //   新: t_horse_odds_finder_summary（TRUNCATEされず蓄積される）の
+            //       odds_tan_before_6（6分前）と odds_tan_before_0（発走直前＝確定相当）を使う。
+            //       ※ race_result_history.tan も同じ発走直前オッズ（SummaryKeibaInfo が投入）なので値の定義は同じ。
             //
-            // JOIN条件:
-            //   history.basho_code  = odds.basho   （どちらも場コード "01","04" 等）
-            //   history.date        = odds.date     （型が違うためCAST）
-            //   history.kaisuu      = odds.kaisuu   （同上）
-            //   history.day         = odds.day      （同上）
-            //   history.race        = odds.race
-            //   history.num         = odds.num
-            //   odds.minutes_before_start = 6
+            // 【20260924 変更】人気順位を「確定オッズ順」→「6分前オッズ順」に変更
+            //   AiController は 6分前オッズ昇順の人気順位（$h['popularity']）で本テーブルを引くため、
+            //   集計側も 6分前の人気順位で揃える（確定順位で集計すると、直前に売れなかった馬ほど
+            //   下位人気に移るため、下位人気の補正係数が過大になる）。
+            //
+            //   popularity_rank = レース内の odds_tan_before_6 昇順ランク（RANK()）
+            //   補正係数 = AVG(発走直前オッズ ÷ 6分前オッズ)
             // ─────────────────────────────────────────────────────────────
             $this->info('集計クエリ実行中...');
 
             $rows = DB::select("
+                WITH base AS (
+                    SELECT
+                        s.date,
+                        CAST(s.odds_tan_before_6 AS DECIMAL(10,2)) AS odds_6,
+                        CAST(s.odds_tan_before_0 AS DECIMAL(10,2)) AS odds_final,
+                        RANK() OVER (
+                            PARTITION BY s.date, s.kaisuu, s.basho, s.day, s.race
+                            ORDER BY CAST(s.odds_tan_before_6 AS DECIMAL(10,2)) ASC
+                        ) AS popularity_rank
+                    FROM t_horse_odds_finder_summary s
+                    WHERE s.odds_tan_before_6 REGEXP '^[0-9]+(\\\\.[0-9]+)?$'
+                      AND CAST(s.odds_tan_before_6 AS DECIMAL(10,2)) > 0
+                      AND s.odds_tan_before_0 REGEXP '^[0-9]+(\\\\.[0-9]+)?$'
+                      AND CAST(s.odds_tan_before_0 AS DECIMAL(10,2)) > 0
+                )
                 SELECT
-                    h.popularity_rank,
-                    COUNT(*)                                                                  AS sample_count,
-                    ROUND(AVG(CAST(o.odds AS DECIMAL(10,2))), 2)                             AS avg_odds_6min,
-                    ROUND(AVG(CAST(h.tan  AS DECIMAL(10,2))), 2)                             AS avg_odds_final,
-                    ROUND(AVG(CAST(h.tan  AS DECIMAL(10,2)) / CAST(o.odds AS DECIMAL(10,2))), 4) AS avg_correction_ratio,
-                    ROUND(STD(CAST(h.tan  AS DECIMAL(10,2)) / CAST(o.odds AS DECIMAL(10,2))), 4) AS std_correction_ratio,
-                    ROUND(AVG(1.0 / CAST(h.tan AS DECIMAL(10,2))), 6)                       AS avg_win_probability,
-                    MIN(h.date)                                                               AS start_date,
-                    MAX(h.date)                                                               AS end_date
-                FROM t_horse_odds_finder_race_result_history h
-                JOIN t_horse_odds_finder_odds o
-                    ON  o.date    = CAST(h.date AS CHAR)
-                    AND CAST(o.kaisuu AS UNSIGNED) = h.kaisuu
-                    AND o.basho   = h.basho_code
-                    AND CAST(o.day AS UNSIGNED) = h.day
-                    AND o.race    = h.race
-                    AND o.num     = h.num
-                    AND o.minutes_before_start = 6
-                WHERE h.tan  IS NOT NULL
-                  AND h.tan  != ''
-                  AND CAST(h.tan  AS DECIMAL(10,2)) > 0
-                  AND o.odds IS NOT NULL
-                  AND o.odds != ''
-                  AND CAST(o.odds AS DECIMAL(10,2)) > 0
-                  AND h.popularity_rank IS NOT NULL
-                GROUP BY h.popularity_rank
-                ORDER BY h.popularity_rank
+                    popularity_rank,
+                    COUNT(*)                                 AS sample_count,
+                    ROUND(AVG(odds_6), 2)                    AS avg_odds_6min,
+                    ROUND(AVG(odds_final), 2)                AS avg_odds_final,
+                    ROUND(AVG(odds_final / odds_6), 4)       AS avg_correction_ratio,
+                    ROUND(STD(odds_final / odds_6), 4)       AS std_correction_ratio,
+                    ROUND(AVG(1.0 / odds_final), 6)          AS avg_win_probability,
+                    MIN(date)                                AS start_date,
+                    MAX(date)                                AS end_date
+                FROM base
+                GROUP BY popularity_rank
+                ORDER BY popularity_rank
             ");
 
             if (empty($rows)) {
@@ -162,7 +164,7 @@ class SummaryComputeOddsCorrection extends Command
             }
 
             // ─── 完了サマリー ─────────────────────────────────────────────
-            $elapsed = now()->diffInSeconds($startedAt);
+            $elapsed = (int) $startedAt->diffInSeconds(now()); // Laravel11(Carbon3)では now()->diffInSeconds(過去) が負数になるため向きを修正
             $news    = "正常終了\nUPSERT: {$upsertCount}件\n経過: {$elapsed}秒";
 
             $this->info('=== 完了 ' . now()->format('Y-m-d H:i:s') . " ({$elapsed}秒) ===");

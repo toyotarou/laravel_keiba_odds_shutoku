@@ -3,10 +3,22 @@
  *
  * 【概要】
  *   JRA「過去レース結果」から、指定した年月の全開催・全レースの
- *   「距離」と「馬場」を一括取得する。
+ *   「距離」と「馬場」と「グレード」を一括取得する。
+ *   ※ グレードの取得処理は keibaOddsGetRaceGrade.mjs と同一（同じページ・同じ判定）
  *
  * 【取得する項目（レースごと）】
- *   race（レース番号）, race_name（レース名）, distance（距離 m）, surface（馬場: 芝/ダート）
+ *   race（レース番号）, race_name（レース名）, distance（距離 m）, surface（馬場: 芝/ダート）,
+ *   grade（G1/G2/G3/L/J-G1/J-G2/J-G3、グレードなしは null）
+ *
+ * 【グレード判定】（keibaOddsGetRaceGrade.mjs と同じ）
+ *   レース名セル内の span.grade_icon > img の src ファイル名で判定
+ *     icon_grade_s_g1.png     → G1
+ *     icon_grade_s_g2.png     → G2
+ *     icon_grade_s_g3.png     → G3
+ *     icon_grade_s_listed.png → L
+ *     icon_grade_s_j_g1.png   → J-G1（障害）
+ *     icon_grade_s_j_g2.png   → J-G2（障害）
+ *     icon_grade_s_j_g3.png   → J-G3（障害）
  *
  * 【DOM構造（レース選択ページのテーブル）】
  *   table > tbody > tr（1レースごとの行）
@@ -33,9 +45,9 @@
  *   → 指定年月の全開催一覧（例: 1回中山1日, 1回中京1日 …）が表示される
  *
  * ▼ STEP D ── 各開催をループして開催ボタンをクリック
- *   → レース一覧テーブル（距離・馬場あり）へ遷移
+ *   → レース一覧テーブル（距離・馬場・グレードあり）へ遷移
  *
- * ▼ STEP E ── テーブルをパースして距離・馬場を取得
+ * ▼ STEP E ── テーブルをパースして距離・馬場・グレードを取得
  *   → 全開催分を収集して JSON で出力
  *
  * ════════════════════════════════════════════════════════════════
@@ -234,7 +246,7 @@ async function navigateToKaisaiList(page, year, month) {
         }
 
         // ─────────────────────────────────────────────────────
-        // 【ブロック 10】各開催の距離・馬場取得ループ
+        // 【ブロック 10】各開催の距離・馬場・グレード取得ループ
         //
         //   各開催につき:
         //     (10-1) 開催一覧へ戻り → 開催ボタンクリック
@@ -284,7 +296,27 @@ async function navigateToKaisaiList(page, year, month) {
             //   馬場セル : class="course" の td
             //   レース名 : 動画セルの1つ前の td
             //   レース番号: eqPlayerButtonByAccount('XXXXXXXXXXXX') 末尾2桁
+            //   グレード : レース名セル内の span.grade_icon > img の src ファイル名
+            //              （keibaOddsGetRaceGrade.mjs の extractGrade と同一）
             const { date, races } = await page.evaluate(() => {
+
+                // span.grade_icon > img の src ファイル名でグレードを返す
+                // グレードなしは null
+                // ※ keibaOddsGetRaceGrade.mjs の extractGrade をそのまま移植
+                function extractGrade(cell) {
+                    const img = cell.querySelector('span.grade_icon img');
+                    if (!img) return null;
+                    const file = (img.getAttribute('src') || '').split('/').pop();
+                    if (file.includes('j_g1') || file.includes('j-g1') || file.includes('jg1')) return 'J-G1';
+                    if (file.includes('j_g2') || file.includes('j-g2') || file.includes('jg2')) return 'J-G2';
+                    if (file.includes('j_g3') || file.includes('j-g3') || file.includes('jg3')) return 'J-G3';
+                    if (file.includes('_g1'))    return 'G1';
+                    if (file.includes('_g2'))    return 'G2';
+                    if (file.includes('_g3'))    return 'G3';
+                    if (file.includes('listed')) return 'L';
+                    return null;
+                }
+
                 // 日付を見出しタグから取得
                 let date = null;
                 for (const el of document.querySelectorAll('h1, h2, h3')) {
@@ -311,6 +343,10 @@ async function navigateToKaisaiList(page, year, month) {
                     const race_name = (videoIdx > 0 ? tds[videoIdx - 1] : null)
                         ?.textContent.replace(/\s+/g, ' ').trim() ?? '';
 
+                    // グレード（レース名セル = 動画セルの1つ前）
+                    const nameTd = videoIdx > 0 ? tds[videoIdx - 1] : null;
+                    const grade  = nameTd ? extractGrade(nameTd) : null;
+
                     const distTd    = tds.find(td => td.textContent.includes('メートル'));
                     const distRaw   = distTd?.textContent.replace(/\s+/g, '').trim() ?? '';
                     const distMatch = distRaw.match(/([\d,]+)メートル/);
@@ -319,7 +355,7 @@ async function navigateToKaisaiList(page, year, month) {
                     const course = tr.querySelector('td.course')
                         ?.textContent.replace(/\s+/g, '').trim() ?? '';
 
-                    races.push({ race, race_name, dist, course });
+                    races.push({ race, race_name, dist, course, grade });
                 });
 
                 races.sort((a, b) => a.race - b.race);
@@ -332,7 +368,7 @@ async function navigateToKaisaiList(page, year, month) {
             }
 
             races.forEach(r => {
-                log(`    [${r.race}R] ${r.race_name} / ${r.dist}m / ${r.course}`);
+                log(`    [${r.race}R] ${r.race_name} / ${r.dist}m / ${r.course} / grade=${r.grade}`);
             });
 
             // フラットなレコードに展開して allData に追加
@@ -347,6 +383,7 @@ async function navigateToKaisaiList(page, year, month) {
                     race_name: r.race_name,
                     dist:      r.dist,
                     course:    r.course,
+                    grade:     r.grade,
                 });
             });
         }

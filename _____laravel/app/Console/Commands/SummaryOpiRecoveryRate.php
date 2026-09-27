@@ -12,8 +12,8 @@ use Illuminate\Support\Facades\Log;
  *
  * 【概要】
  *   t_horse_odds_finder_summary の 6分前オッズと
- *   t_horse_odds_finder_compute_odds_correction の人気順位別過去平均6分前オッズから
- *   OPI（= 過去平均 ÷ 今回6分前オッズ）を算出し、
+ *   t_horse_odds_finder_popularity_rank_average の人気順位別過去平均単勝オッズから
+ *   OPI（= 過去平均 ÷ 今回6分前オッズ）を算出し、（20260924: AiController と同じ定義に統一）
  *   OPI帯 × 人気帯 別の単勝回収率を集計して
  *   t_horse_odds_finder_opi_recovery に保存する。
  *
@@ -74,9 +74,9 @@ class SummaryOpiRecoveryRate extends Command
             //
             // ① t_horse_odds_finder_summary から6分前・確定オッズ・着順を取得
             // ② レース内で odds_tan_before_6 の昇順ランクを付けて人気帯を決定
-            // ③ t_horse_odds_finder_compute_odds_correction と JOIN して
-            //    人気順位別の過去平均6分前オッズ（avg_odds_6min）を取得
-            // ④ OPI = avg_odds_6min / odds_6（今回6分前オッズ）
+            // ③ t_horse_odds_finder_popularity_rank_average と JOIN して
+            //    人気順位別の過去平均単勝オッズ（odds_average）を取得
+            // ④ OPI = round(odds_average / odds_6（今回6分前オッズ）, 2)  ※AiController と同じ定義
             // ⑤ OPI帯 × 人気帯 ごとに勝率・回収率を集計
             //
             $this->info('集計クエリ実行中...');
@@ -107,15 +107,20 @@ class SummaryOpiRecoveryRate extends Command
                       AND s.result IS NOT NULL
                 ),
                 with_opi AS (
+                    -- 【20260924 変更】AiController（_getAiAnalysisPrompt）の OPI 定義に合わせる
+                    --   AiController: OPI = round(popularity_rank_average.odds_average ÷ 6分前オッズ, 2)
+                    --   旧実装は compute_odds_correction.avg_odds_6min（直近1週間の6分前平均）を使っており、
+                    --   集計した帯と、プロンプト生成時に当てはめる帯の意味がずれていた。
                     SELECT
                         b.*,
-                        c.avg_odds_6min,
-                        ROUND(c.avg_odds_6min / b.odds_6, 3) AS opi
+                        CAST(a.odds_average AS DECIMAL(10,2)) AS avg_odds_6min,
+                        ROUND(CAST(a.odds_average AS DECIMAL(10,2)) / b.odds_6, 2) AS opi
                     FROM base b
-                    INNER JOIN t_horse_odds_finder_compute_odds_correction c
-                        ON c.popularity_rank = b.popularity_rank
-                    WHERE c.avg_odds_6min IS NOT NULL
-                      AND c.avg_odds_6min > 0
+                    INNER JOIN t_horse_odds_finder_popularity_rank_average a
+                        ON a.popularity_rank = b.popularity_rank
+                    WHERE a.odds_average IS NOT NULL
+                      AND a.odds_average != ''
+                      AND CAST(a.odds_average AS DECIMAL(10,2)) > 0
                 ),
                 with_bands AS (
                     SELECT
@@ -182,7 +187,7 @@ class SummaryOpiRecoveryRate extends Command
             ");
 
             if (empty($rows)) {
-                $this->warn('集計対象データが見つかりませんでした。t_horse_odds_finder_compute_odds_correction にデータがない可能性があります。');
+                $this->warn('集計対象データが見つかりませんでした。t_horse_odds_finder_popularity_rank_average にデータがない可能性があります。');
                 return;
             }
 
@@ -234,7 +239,7 @@ class SummaryOpiRecoveryRate extends Command
             }
 
             // ─── 完了サマリー ─────────────────────────────────────────────
-            $elapsed = now()->diffInSeconds($startedAt);
+            $elapsed = (int) $startedAt->diffInSeconds(now()); // Laravel11(Carbon3)では now()->diffInSeconds(過去) が負数になるため向きを修正
             $news    = "正常終了\nUPSERT: {$upsertCount}件\n経過: {$elapsed}秒";
 
             $this->info('=== 完了 ' . now()->format('Y-m-d H:i:s') . " ({$elapsed}秒) ===");

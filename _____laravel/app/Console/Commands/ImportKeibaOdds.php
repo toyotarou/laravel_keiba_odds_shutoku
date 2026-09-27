@@ -168,6 +168,7 @@ $prevMinutesBefore = ($prevDiff === $timings[0]) ? Constants::ODDS_DB_FIRST : $p
                     ->pluck('odds', 'num')
                     ->all();
 
+                $prevOddsMap = array_filter($prevOddsMap, 'is_numeric'); // 「取消」等は (float) で 0 になり1位扱いになるため除外
                 uasort($prevOddsMap, fn($a, $b) => (float) $a <=> (float) $b); // 数値昇順ソート → 人気順位に相当
                 $rank = 1;
                 foreach ($prevOddsMap as $num => $_) {
@@ -222,7 +223,7 @@ $prevMinutesBefore = ($prevDiff === $timings[0]) ? Constants::ODDS_DB_FIRST : $p
             //   $prevRankMap との差分が $changeRecords になる。
             // ─────────────────────────────────────────────────────────────
             $currRankMap = [];
-            $sortedCurr  = $odds;
+            $sortedCurr  = array_values(array_filter($odds, fn($h) => is_numeric($h['tan'] ?? null))); // 「取消」等は順位計算から除外
             usort($sortedCurr, fn($a, $b) => (float) $a['tan'] <=> (float) $b['tan']);
             $rank = 1;
             foreach ($sortedCurr as $horse) {

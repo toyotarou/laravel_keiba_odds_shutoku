@@ -264,7 +264,8 @@ class AdminController extends Controller
             'G'                                  => '',       // ── セパレータ ──
             'ImportKeibaPayoutGrade'              => '23:00',
             'SummarySimilarRaceStats'             => '23:10',
-            'SummaryAiAnalysisCompensate'         => '23:40',
+            'SummaryAiAnalysisCompensate'         => '23:20',
+            'UpdateMlResultLabels'                => '23:40',
             'SummaryMakeBaganrikiBrain'           => '23:50',
         ];
 
@@ -281,9 +282,10 @@ class AdminController extends Controller
             'SummaryKeibaInfo'                    => '当日の出走馬・オッズ・レース情報を統合して馬ごとのサマリーデータを生成しDBに保存するとともに、発走直前オッズをもとに人気順を算出してレース結果履歴テーブルにも反映するバッチ処理。',
             'ImportKeibaJraRaceResult'            => 'JRA公式サイトから当日の全レース着順をスクレイピングで取得し、サマリーテーブルの結果カラムを更新するとともにレース結果テーブルにも保存するバッチ処理。',
             'ImportKeibaRaceResultHistory'        => '指定年月の全開催・全レースの最終オッズをスクレイピングで取得し、過去実績データとして履歴テーブルに蓄積するバッチ処理。取得済みの開催はNode.js実行前にスキップして処理を効率化している。',
+            'SummaryHistoryFinishingPosition'     => '着順が未取得の過去レース開催をスクレイピングで取得し、1開催分を1クエリで一括更新するバッチ処理。中止・除外馬は専用の値で記録して再処理対象から除外している。',
+            'SummaryRacesIntrospection'           => '過去レースのオッズ推移と実際の着順をAIに送り、有力馬選出の振り返り（ピックアップ・結果・分析）を生成してDBに保存するバッチ。バッチ並列送信・リトライ・フォーマット自動補正付き。回収率向上を目的とした自己学習用。',
             'SummaryHistoryPopularityRank'        => '過去レース履歴の各馬に対して、単勝オッズの低い順に人気順位を計算し採番してDBを更新するバッチ処理。未設定のレースのみを対象に処理して効率化している。',
             'SummaryPopularityRankAverage'        => '過去レース履歴から人気順位ごとの単勝オッズ平均を算出するバッチ処理。元データが削除される運用に対応するため、加重平均の仕組みを使って新着分だけを既存の集計値に増分で反映している。',
-            'SummaryHistoryFinishingPosition'     => '着順が未取得の過去レース開催をスクレイピングで取得し、1開催分を1クエリで一括更新するバッチ処理。中止・除外馬は専用の値で記録して再処理対象から除外している。',
             'SummaryComputeOddsCorrection'        => 'レース直前（6分前）のオッズと確定オッズを突き合わせ、人気順位ごとにオッズがどの方向にどれだけ動く傾向があるかの補正係数を集計してDBに保存するバッチ処理。',
             'SummaryPopularityHorseCheck'         => '類似レースの中央値オッズと実際のオッズの比率から候補馬を選出し、レースの実際の着順と照合してピックアップ精度を検証・記録するバッチ処理。',
             'SummaryOddsPhasePatternRecoveryRate' => 'レース前のオッズ推移を前半・後半に分けて上昇・横ばい・下落の9パターンに分類し、人気帯との組み合わせごとの勝率・単勝回収率を集計してDBに保存するバッチ処理。',
@@ -295,10 +297,10 @@ class AdminController extends Controller
             'ImportKeibaPayoutCourseDist'         => '払戻金テーブルのコース・距離が未設定のレコードをスクレイピングで取得し、course/distが空のレコードのみを対象に一括補完するバッチ。取得済みはWHERE条件で自動スキップし冪等性を確保。',
             'ImportKeibaPayoutInnerOuter'         => '払戻金テーブルの内外コース区分が未設定のレコードをスクレイピングで補完するバッチ。対象は内外の概念がある4競馬場の芝コースのみで、障害レースと直線コースは除外。未設定分のみWHERE条件でスキップし冪等性を確保。',
             'ImportKeibaPayoutGrade'              => '払戻金テーブルのグレード（G1/G2/G3等）が未設定のレコードをスクレイピングで取得し補完するバッチ。通常の条件戦はmjs側で除外されるため、グレードレースのみを対象に絞り込み、未設定分だけWHERE条件で一括更新する。',
-            'SummaryRacesIntrospection'           => '過去レースのオッズ推移と実際の着順をAIに送り、有力馬選出の振り返り（ピックアップ・結果・分析）を生成してDBに保存するバッチ。バッチ並列送信・リトライ・フォーマット自動補正付き。回収率向上を目的とした自己学習用。',
-            'SummaryMakeBaganrikiBrain'           => '過去の振り返り分析テキストを30件ずつAIに送り、「有力馬の選び方の目線（脳みそ）」を段階的に統合・磨き上げてファイルに書き出すバッチ。次回のAI分析プロンプトの羅針盤として読み込まれ、回収率向上に活用される。',
             'SummarySimilarRaceStats'             => '過去レースの人気順×頭数帯（小/中/大）ごとに3着以内率・5着以内率・平均着順をDB側GROUP BYで集計（最大54行）してDBに保存するバッチ。AI分析プロンプトで「過去の類似レース傾向」として参照される。',
             'SummaryAiAnalysisCompensate'         => '当日レースのAI予想未実行分を検知し、オッズ確認後に1st AI・2nd AIを順次補完実行する。空振り時もWebPushで通知する日次補完コマンド。',
+            'UpdateMlResultLabels'                => 'レース結果の着順・人気順から断層パターン学習の正解ラベル（M1:上位完結／M2:下位進入／M3:大穴進入／M4:馬別5着以内）を算出しml_snapshotへ保存するバッチ。5着以内が揃わないレースはexcludedとして学習対象外にする。',
+            'SummaryMakeBaganrikiBrain'           => '過去の振り返り分析テキストを30件ずつAIに送り、「有力馬の選び方の目線（脳みそ）」を段階的に統合・磨き上げてファイルに書き出すバッチ。次回のAI分析プロンプトの羅針盤として読み込まれ、回収率向上に活用される。',
         ];
 
         $SQL = " select * from t_horse_odds_finder_push_send_logs where title = 'develop' and body not like '%時刻修正%' order by body, sent_at; ";

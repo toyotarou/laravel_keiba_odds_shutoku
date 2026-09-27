@@ -151,8 +151,20 @@ class ImportKeibaJraRaceResult extends Command
                         continue;
                     }
 
+                    // date と race_name を先読みマップから取得（N+1解消）
+                    $raceRow = $raceMap["{$row['kaisuu']}-{$bashoCode}-{$row['day']}-{$row['race']}"] ?? null;
+
+                    // 当日のレースに該当しない結果は summary を更新しない
+                    // （summary は年をまたいで蓄積されるため、date 条件なしだと
+                    //   翌年以降の同じ「回・場・日・R・馬番」の行を誤って更新してしまう）
+                    if (!$raceRow) {
+                        $skipped++;
+                        continue;
+                    }
+
                     // result が NULL の行のみ UPDATE する（確定済みを上書きしない）
                     $affected = DB::table('t_horse_odds_finder_summary')
+                        ->where('date',   $raceRow->date)
                         ->where('kaisuu', (string) $row['kaisuu'])
                         ->where('basho',  $bashoCode)
                         ->where('day',    (string) $row['day'])
@@ -170,13 +182,6 @@ class ImportKeibaJraRaceResult extends Command
                     // t_horse_odds_finder_race_results への INSERT（未登録のみ）
                     $resultKey = "{$row['kaisuu']}-{$bashoCode}-{$row['day']}-{$row['race']}-{$row['horse_num']}";
                     if (isset($existingResultKeys[$resultKey])) {
-                        continue;
-                    }
-
-                    // date と race_name を先読みマップから取得（N+1解消）
-                    $raceRow = $raceMap["{$row['kaisuu']}-{$bashoCode}-{$row['day']}-{$row['race']}"] ?? null;
-
-                    if (!$raceRow) {
                         continue;
                     }
 

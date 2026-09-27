@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
  * 【概要】
  *   払戻金テーブル (t_horse_odds_finder_race_result_payout) の
  *   course / dist が未設定のレコードを keibaOddsGetRaceCourseDist.mjs 経由で補完する。
+ *   あわせて grade が未設定のレコードも同じ mjs の結果で補完する。
+ *   （keibaOddsGetRaceCourseDist.mjs が grade も返すため、ImportKeibaPayoutGrade と同じ処理を相乗りさせている）
  *
  * 【処理フロー】
  *   【ブロック 1】引数チェック（YYYY-MM 形式の検証）
@@ -20,9 +22,12 @@ use Illuminate\Support\Facades\DB;
  *   ─── ガード節（mjs を使わなくていいなら早期リターン）───
  *   【ガード A】スクリプト・Node バイナリの存在確認
  *   【ガード B】course IS NULL のレコード件数確認（count のみ・軽量）
+ *   【ガード C】grade 未設定のグレードレースがあるか確認（ImportKeibaPayoutGrade のガードB-pre と同じ）
+ *              ガード B・C の両方で対象なしの場合のみ SKIP
  *   ─── ここまで通過したら mjs 実行が確定 ───────────────
- *   【ブロック 4】Node.js 実行（リトライ最大3回）で course/dist を一括取得
+ *   【ブロック 4】Node.js 実行（リトライ最大3回）で course/dist/grade を一括取得
  *   【ブロック 5】mjs データを軸に UPDATE WHERE course IS NULL（exists 不要）
+ *   【ブロック 5-2】mjs データを軸に UPDATE WHERE grade IS NULL（グレードありのレースのみ）
  *   【ブロック 6】完了サマリー・WebPush 通知（finally で必ず実行）
  *
  * 【クエリ設計】
@@ -85,6 +90,7 @@ class ImportKeibaPayoutCourseDist extends Command
         $nodeBin      = '/home/centos/.nvm/versions/node/v24.15.0/bin/node';
         $totalTarget  = 0;
         $totalUpdated = 0;
+        $gradeUpdated = 0;
         $status       = '不明な理由で終了';
 
         try {
@@ -113,7 +119,7 @@ class ImportKeibaPayoutCourseDist extends Command
             }
 
             // 【ガード B】course IS NULL のレコード件数確認（count のみ・軽量）
-            //   0 件なら mjs を実行する意味がないため即終了。
+            //   0 件でも、ガード C（grade）に対象があれば mjs を実行する。
             //   get() は使わない。カラムデータをメモリに載せる必要がないため。
             $this->info('[ガードB] course が未設定のレコードを確認中...');
 
@@ -123,12 +129,57 @@ class ImportKeibaPayoutCourseDist extends Command
                 ->count();
 
             if ($totalTarget === 0) {
-                $this->info('  → 未設定レコードなし。mjs 実行をスキップします。');
+                $this->info('  → course 未設定レコードなし。');
+            } else {
+                $this->info("  → course 未設定 {$totalTarget} 件。");
+            }
+
+            // 【ガード C】grade 未設定のグレードレースがあるか確認
+            //   ImportKeibaPayoutGrade の【ガード B-pre】と同じ判定。
+            //   t_horse_odds_finder_races に保存されているグレードレースのうち、
+            //   払戻テーブル側で grade IS NULL のものが1件でもあれば対象あり。
+            $this->info('[ガードC] t_horse_odds_finder_races でグレードレースを確認中...');
+
+            $gradeHasTarget = false;
+
+            $gradeRaces = DB::table('t_horse_odds_finder_races')
+                ->where('date', 'like', $yearmonth . '%')
+                ->whereNotNull('grade')
+                ->get(['date', 'kaisuu', 'basho', 'day', 'race']);
+
+            if ($gradeRaces->isEmpty()) {
+                $this->info('  → グレードレースなし。');
+            } else {
+                $this->info("  → グレードレース {$gradeRaces->count()} 件を検出。払戻テーブルと突合中...");
+
+                $gradeHasTarget = DB::table('t_horse_odds_finder_race_result_payout')
+                    ->whereNull('grade')
+                    ->where(function ($query) use ($gradeRaces) {
+                        foreach ($gradeRaces as $r) {
+                            $query->orWhere(function ($q) use ($r) {
+                                $q->where('date',       $r->date)
+                                  ->where('kaisuu',     $r->kaisuu)
+                                  ->where('basho_code', $r->basho)
+                                  ->where('day',        $r->day)
+                                  ->where('race',       $r->race);
+                            });
+                        }
+                    })
+                    ->exists();
+
+                $this->info($gradeHasTarget
+                    ? '  → grade 未登録のグレードレースあり。'
+                    : '  → 全グレードレースが登録済み。');
+            }
+
+            // ガード B・C の両方で対象なしなら mjs を実行する意味がないため即終了
+            if ($totalTarget === 0 && !$gradeHasTarget) {
+                $this->info('  → course / grade とも未設定レコードなし。mjs 実行をスキップします。');
                 $status = 'SKIP';
                 return;
             }
 
-            $this->info("  → {$totalTarget} 件が未設定。mjs を実行します。");
+            $this->info('  → 未設定レコードあり。mjs を実行します。');
             $this->info('');
 
             // ═════════════════════════════════════════════════════════════
@@ -136,7 +187,7 @@ class ImportKeibaPayoutCourseDist extends Command
             // ═════════════════════════════════════════════════════════════
 
             // ─────────────────────────────────────────────────────────────
-            // 【ブロック 4】Node.js 実行（リトライ最大3回）で course/dist を一括取得
+            // 【ブロック 4】Node.js 実行（リトライ最大3回）で course/dist/grade を一括取得
             //   timeout 600: 月全体を1リクエストで取得するため長めに確保する。
             // ─────────────────────────────────────────────────────────────
             $this->info('[Step 1] keibaOddsGetRaceCourseDist.mjs を実行中...');
@@ -206,6 +257,39 @@ class ImportKeibaPayoutCourseDist extends Command
                 }
             }
 
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 5-2】mjs データを軸に UPDATE WHERE grade IS NULL
+            //   ImportKeibaPayoutGrade の【ブロック 5】と同じ更新。
+            //   mjs はグレードなしのレースに grade=null を返すので、
+            //   grade があるレースだけを対象にする（null で上書きしない）。
+            //   whereNull('grade') を含めることで、既に設定済みのレコードは
+            //   自動的にスキップされる（0 件更新 = no-op）。
+            // ─────────────────────────────────────────────────────────────
+            $this->info('[Step 3] grade を更新中...');
+
+            foreach ($mjsJson['data'] as $item) {
+                $grade = $item['grade'] ?? null;
+                if ($grade === null || $grade === '') {
+                    continue;
+                }
+
+                $affected = DB::table('t_horse_odds_finder_race_result_payout')
+                    ->where('date',       $item['date'])
+                    ->where('kaisuu',     $item['kaisuu'])
+                    ->where('basho_code', $item['basho_code'])
+                    ->where('day',        $item['day'])
+                    ->where('race',       $item['race'])
+                    ->whereNull('grade')
+                    ->update([
+                        'grade' => $grade,
+                    ]);
+
+                if ($affected > 0) {
+                    $this->info("  [UPDATE] {$item['date']} {$item['kaisuu']}回{$item['basho_name']}{$item['day']}日 {$item['race']}R → grade={$grade}");
+                    $gradeUpdated += $affected;
+                }
+            }
+
             $status = '正常終了';
 
         } finally {
@@ -219,6 +303,7 @@ class ImportKeibaPayoutCourseDist extends Command
             $this->info("対象年月     : {$yearmonth}");
             $this->info("対象レコード : {$totalTarget} 件");
             $this->info("更新レコード : {$totalUpdated} 件");
+            $this->info("grade 更新   : {$gradeUpdated} 件");
             $this->info("処理時間     : {$totalElapsed} 秒");
             $this->info('');
             $this->info('========== keiba:importPayoutCourseDist 終了 ' . date('Y-m-d H:i:s') . ' ==========');
@@ -229,7 +314,8 @@ class ImportKeibaPayoutCourseDist extends Command
             if($status != 'SKIP'){
                 $newsValue[] = "対象年月:{$yearmonth}、";
                 $newsValue[] = "対象:{$totalTarget}件、";
-                $newsValue[] = "更新:{$totalUpdated}件";
+                $newsValue[] = "更新:{$totalUpdated}件、";
+                $newsValue[] = "grade更新:{$gradeUpdated}件";
             }
             $news = implode("", $newsValue);
             

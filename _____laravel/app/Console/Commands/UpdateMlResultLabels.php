@@ -15,9 +15,10 @@ use App\Services\WebPushService;
  *   レース結果確定後に実行する（レース当日夜〜翌日バッチ想定）。
  *
  * 【断層パターン学習 M1〜M4 定義】
- *   M1: 上位完結 — 5着以内が全て1〜6番人気 → 1 / それ以外 → 0
- *   M2: 下位進入 — 5着以内に7〜10番人気が1頭以上 → 1 / それ以外 → 0
- *   M3: 大穴進入 — 5着以内に11番人気以下が1頭以上 → 1 / それ以外 → 0
+ *   M1: 上位完結 — 5着以内が全て6分前1〜6番人気 → 1 / それ以外 → 0
+ *   M2: 下位進入 — 5着以内に6分前7〜10番人気が1頭以上 → 1 / それ以外 → 0
+ *   M3: 大穴進入 — 5着以内に6分前11番人気以下が1頭以上 → 1 / それ以外 → 0
+ *   ※ 人気順は summary.odds_tan_before_6 から算出（20260924 変更。旧: 発走直前オッズ順）
  *   M4: 馬別5着以内 — 出走全頭の各馬番が5着以内なら1、それ以外0（取消・除外はnull）
  *       結果（全頭）: {"1": 0, "2": null, "3": 1, ...} のJSONオブジェクト
  *       ※全頭記録により「AIが選ばなかった馬の見逃し検証」が可能になる
@@ -148,7 +149,44 @@ class UpdateMlResultLabels extends Command
                     continue;
                 }
 
-                // ── M1: 上位完結（5着以内が全て1〜6番人気） ──────────────────
+                // ── 6分前人気順の算出（20260924 追加） ──────────────────────────
+                //   最終確定版の定義は「6分前1〜6番人気」「6分前7〜10番人気」「6分前11番人気以下」。
+                //   race_result_history.popularity_rank は発走直前オッズ順のため使わず、
+                //   summary の odds_tan_before_6 から、AiController と同じ並び
+                //   （6分前単勝オッズ昇順 → 同値は馬番昇順）で人気順を付ける。
+                //   「取消」等の非数値オッズは人気順を付けない。
+                $odds6Rows = DB::table('t_horse_odds_finder_summary')
+                    ->where('date',   $date)
+                    ->where('kaisuu', (string) $kaisuu)
+                    ->where('basho',  $bashoCode)
+                    ->where('day',    (string) $day)
+                    ->where('race',   $race)
+                    ->get(['num', 'odds_tan_before_6'])
+                    ->filter(fn($r) => is_numeric($r->odds_tan_before_6) && (float) $r->odds_tan_before_6 > 0)
+                    ->sort(fn($a, $b) => [(float) $a->odds_tan_before_6, (int) $a->num] <=> [(float) $b->odds_tan_before_6, (int) $b->num])
+                    ->values();
+                $pop6Map = [];
+                foreach ($odds6Rows as $i => $r) {
+                    $pop6Map[(int) $r->num] = $i + 1;
+                }
+
+                // 5着以内の馬に6分前人気順がない場合は推測せず学習対象外にする
+                $top5 = $top5->map(function ($h) use ($pop6Map) {
+                    $h->popularity_rank = $pop6Map[(int) $h->num] ?? null;
+                    return $h;
+                });
+                if ($top5->contains(fn($h) => $h->popularity_rank === null)) {
+                    DB::table('t_horse_odds_finder_ml_snapshot')
+                        ->where('id', $snap->id)
+                        ->update([
+                            'result_label_status' => 'excluded',
+                        ]);
+                    $this->line("  EXCLUDED [{$date} kaisuu={$kaisuu} {$bashoCode} day={$day} race={$race}] 6分前人気順なし");
+                    $excluded++;
+                    continue;
+                }
+
+                // ── M1: 上位完結（5着以内が全て6分前1〜6番人気） ──────────────────
                 $m1 = 1;
                 foreach ($top5 as $h) {
                     if ((int)$h->popularity_rank > 6) {

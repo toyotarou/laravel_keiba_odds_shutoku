@@ -186,10 +186,15 @@ class ImportKeibaRaceResultPayout extends Command
             [$year, $month] = explode('-', $yearmonth);
             $from = "{$year}-{$month}-01";
             $to   = date('Y-m-t', strtotime($from));
+            // ※ importJraRaceOneResult が日中にレース単位で払戻金を登録するため、
+            //   「1レースでも登録済みなら開催ごとスキップ」だと、日中に取り損ねたレースを
+            //   この夜間バッチで拾えなくなる。全12レース揃っている開催だけをスキップ対象にする。
+            //   （不足している開催は再取得し、登録済みレースは下のレース単位 exists チェックで弾く）
             $existingRows = DB::table('t_horse_odds_finder_race_result_payout')
                 ->whereBetween('date', [$from, $to])
                 ->select('date', 'kaisuu', 'basho_code', 'day')
-                ->distinct()
+                ->groupBy('date', 'kaisuu', 'basho_code', 'day')
+                ->havingRaw('COUNT(*) >= 12')
                 ->get();
             $existingKaisaiKeys      = $existingRows
                 ->mapWithKeys(fn($r) => ["{$r->date}_{$r->kaisuu}_{$r->basho_code}_{$r->day}" => true])

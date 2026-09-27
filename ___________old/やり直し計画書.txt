@@ -1,0 +1,91 @@
+════════════════════════════════════════════
+ やること
+════════════════════════════════════════════
+
+ 1. デプロイ
+
+    AiController.php をサーバへアップロード
+    ※ これを忘れると、消して実行しても結果は１ミリも変わらない
+
+ 2. 消す
+
+    DELETE FROM t_horse_odds_finder_ai_analysis2
+     WHERE date='2026-09-26';
+
+ 3. 実行
+
+    cd /var/www/horse_odds_finder
+    php artisan keiba:ai-analysis-compensate
+
+ 4. 頭数を見る
+
+    SELECT race, JSON_LENGTH(merge_result->'$.merged_horses') AS 頭数
+      FROM t_horse_odds_finder_ai_merge_result
+     WHERE date='2026-09-26' ORDER BY race;
+
+
+ 【これで完全に戻るとは限らない】
+   今回直したのは Block 12（回収率フィルター）だけ。
+   Block 13a（低配当除外：推定確定複勝1.5倍未満 かつ 単勝3.0倍未満）は
+   触っていないので、人気馬はそちらで切られ続ける。
+   頭数は増えるが、4〜7頭に届かないレースは残りうる。
+   足りなければ Block 13a の調整をよっしーに相談する。
+
+
+════════════════════════════════════════════
+ ↓ 以下は必要なときだけ読む
+════════════════════════════════════════════
+
+
+■ いつやってもOK？
+────────────────────────────────
+
+  OK。急がなくていい。
+
+
+■ 先に1回だけ取っておく保険
+────────────────────────────────
+
+  tar czf ~/prompt_backup_20260926.tar.gz \
+    -C /var/www/horse_odds_finder/public prompt prompt_2nd
+
+
+■ ハマりどころ
+────────────────────────────────
+
+  ・コマンドは「当日」しか処理しない
+    過去日は1レースずつ下記を叩く
+      curl -s "https://baganriki.com/api/getHorseOddsFinderSecondAiOpinion\
+?date=2026-09-26&kaisuu=4&basho=06&day=7&race=2"
+
+  ・消してから実行の順番は必須（行が残っているとスキップされる）
+
+  ・basho_code は '06'。6 と書くと1件も一致しない
+
+
+■ プロンプト本文も変えたときだけ
+────────────────────────────────
+
+  手順1で消すテーブルを2つにして、ファイルも消す
+
+    DELETE FROM t_horse_odds_finder_ai_analysis2 WHERE date='2026-09-26';
+    DELETE FROM t_horse_odds_finder_ai_analysis  WHERE date='2026-09-26';
+    rm -f /var/www/horse_odds_finder/public/prompt/prompt_2026-09-26_*.data
+
+  手順2は同じ。
+
+
+■ 消さなくていいテーブル（自動で上書きされる）
+────────────────────────────────
+
+  t_horse_odds_finder_ai_merge_result
+  t_horse_odds_finder_market_score_log
+  t_horse_odds_finder_high_payout_shadow_log
+  t_horse_odds_finder_ml_snapshot
+
+
+■ Flutterは触らない
+────────────────────────────────
+
+  「X頭中X頭が合致」はサーバの統合結果をそのまま出しているだけ。
+  サーバ側が4〜7頭を返せば表示も自動で戻る。Dartの修正は不要。

@@ -74,7 +74,13 @@ class SummaryCalculateHorseScore extends Command
                     ->orderBy('date')
                     ->get();
 
-                $scores = $races->map(fn($r) => 1 - ($r->finishing_position - 1) / ($r->num_horses - 1))->toArray();
+                // 取消・中止など着順なし（NULL/0以下）や頭数不明（NULL/1頭以下）の走は計算から除外する
+                // （除外しないと着順NULLが「1着より上」扱いになりスコアが100超に膨らむ／0除算の恐れ）
+                $validRaces = $races->filter(fn($r) => (int) $r->finishing_position > 0 && (int) $r->num_horses > 1);
+                if ($validRaces->isEmpty()) {
+                    continue;
+                }
+                $scores = $validRaces->map(fn($r) => 1 - ($r->finishing_position - 1) / ($r->num_horses - 1))->toArray();
                 $score  = (int) round(array_sum($scores) / count($scores) * 100);
 
                 DB::table('t_horse_odds_finder_horse_scores')->insert([
