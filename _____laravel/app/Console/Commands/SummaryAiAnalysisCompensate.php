@@ -40,6 +40,11 @@ use Illuminate\Support\Facades\DB;
  * 【使い方】
  *   php artisan keiba:ai-analysis-compensate                  … 当日を処理
  *   php artisan keiba:ai-analysis-compensate --date=2026-09-26 … 指定日を処理
+ *   php artisan keiba:ai-analysis-compensate --quiet-skip
+ *       … 補完対象が無かった回は開始バナー・完了サマリー・WebPush通知を出さない。
+ *         発走6分前オッズが入った直後にAI予想を作っておく「先回り実行」用。
+ *         毎分動かしても、空振りの回はログにも通知にも残らない。
+ *         ※このオプションを付けないと、毎分の実行で1日480通の通知が飛ぶ。
  *   php artisan keiba:ai-analysis-compensate --date=2026-09-26 --remerge
  *       … 保存済みのAI回答を使い、マージ＋フィルターだけやり直す（AI呼び出し0回）
  *         フィルターの仕様を変更したあと、過去レースへ新ルールを適用する用途。
@@ -61,7 +66,8 @@ class SummaryAiAnalysisCompensate extends Command
 {
     protected $signature   = 'keiba:ai-analysis-compensate'
                            . ' {--date= : 対象日付 YYYY-MM-DD（省略時は当日）}'
-                           . ' {--remerge : 保存済みのAI回答でマージ・フィルターだけやり直す}';
+                           . ' {--remerge : 保存済みのAI回答でマージ・フィルターだけやり直す}'
+                           . ' {--quiet-skip : 補完対象が無かった回は通知もログ要約も出さない（毎分の先回り実行用）}';
     protected $description = '未実行のAI予想を補完実行する';
 
     public function handle(): void
@@ -86,6 +92,13 @@ class SummaryAiAnalysisCompensate extends Command
         //   マージ＋フィルターだけやり直して ai_merge_result を上書きする。
         //   外部AI呼び出しは0回。入力が同じなので結果は決定的。
         $remerge = (bool) $this->option('remerge');
+
+        // ── 20260928 追加: 先回り実行（毎分cron）用の静音モード ─────────────
+        //   補完対象が1件も無かった回は、開始バナー・完了サマリー・WebPush通知を
+        //   すべて省く。これを付けずに毎分動かすと、空振りの通知でdeveloper宛の
+        //   WebPushが1日480通になり、ログも同じだけ膨らむ。
+        //   補完を実際に行った回は、従来どおり全部出力する。
+        $quietSkip = (bool) $this->option('quiet-skip');
 
         $lockFile = sys_get_temp_dir() . '/keiba_aiAnalysisCompensate_' . str_replace('-', '', $date) . '.lock';
 
@@ -116,13 +129,15 @@ class SummaryAiAnalysisCompensate extends Command
         $status         = '不明な理由で終了';
 
         try {
-            $this->info('');
-            $this->info('========== keiba:ai-analysis-compensate 開始 ' . date('Y-m-d H:i:s') . ' ==========');
-            $this->info('対象日付 : ' . $date);
-            if ($remerge) {
-                $this->info('モード   : 再マージ（DeepSeekを呼ばず、保存済み回答でフィルターを再適用）');
+            if (!$quietSkip) {
+                $this->info('');
+                $this->info('========== keiba:ai-analysis-compensate 開始 ' . date('Y-m-d H:i:s') . ' ==========');
+                $this->info('対象日付 : ' . $date);
+                if ($remerge) {
+                    $this->info('モード   : 再マージ（DeepSeekを呼ばず、保存済み回答でフィルターを再適用）');
+                }
+                $this->info('');
             }
-            $this->info('');
 
             // ═════════════════════════════════════════════════════════════
             // 【ガード A】対象日のレースが存在しなければ早期リターン
@@ -136,13 +151,18 @@ class SummaryAiAnalysisCompensate extends Command
                 ->get();
 
             if ($races->isEmpty()) {
-                $this->info("[ガードA] {$date} のレースが存在しません。");
+                // 静音モードでは何も出さない（開催のない日に毎分1行ずつ積み上がるのを防ぐ）
+                if (!$quietSkip) {
+                    $this->info("[ガードA] {$date} のレースが存在しません。");
+                }
                 $status = 'SKIP';
                 return;
             }
 
-            $this->info("対象レース数 : {$races->count()} 件");
-            $this->info('');
+            if (!$quietSkip) {
+                $this->info("対象レース数 : {$races->count()} 件");
+                $this->info('');
+            }
 
             // ─────────────────────────────────────────────────────────────
             // 【ブロック 3】全レースループ
@@ -186,7 +206,11 @@ class SummaryAiAnalysisCompensate extends Command
                         ->exists();
 
                     if (!$hasBase || !$has6min) {
-                        $this->info("[スキップ] {$label} : オッズ未取得 (base={$hasBase}, 6min={$has6min})");
+                        // 静音モードでは出さない。発走6分前まではこれが全レース分出るため、
+                        // 毎分実行では1日あたり数千行になってログが読めなくなる。
+                        if (!$quietSkip) {
+                            $this->info("[スキップ] {$label} : オッズ未取得 (base={$hasBase}, 6min={$has6min})");
+                        }
                         $skipped++;
                         continue;
                     }
@@ -284,8 +308,11 @@ class SummaryAiAnalysisCompensate extends Command
             // 【ガード B】補完ゼロ → 空振り（SKIP 扱い）
             // ═════════════════════════════════════════════════════════════
             if ($compensated1st === 0 && $compensated2nd === 0) {
-                $this->info('');
-                $this->info('[ガードB] 補完対象なし（全レースのAI予想は実行済み）。');
+                // 静音モードでは何も出さない（補完対象が無い回が1日の大半を占めるため）
+                if (!$quietSkip) {
+                    $this->info('');
+                    $this->info('[ガードB] 補完対象なし（全レースのAI予想は実行済み）。');
+                }
                 $status = 'SKIP';
                 return;
             }
@@ -298,28 +325,36 @@ class SummaryAiAnalysisCompensate extends Command
             // ─────────────────────────────────────────────────────────────
             $totalElapsed = round(microtime(true) - $now, 1);
 
-            $this->info('');
-            $this->info("終了理由       : {$status}");
-            $this->info("対象日付       : {$date}");
-            $this->info("1st AI 補完    : {$compensated1st} 件");
-            $this->info("2nd AI 補完    : {$compensated2nd} 件");
-            $this->info("オッズ未取得   : {$skipped} 件（スキップ）");
-            $this->info("処理時間       : {$totalElapsed} 秒");
-            $this->info('');
-            $this->info('========== keiba:ai-analysis-compensate 終了 ' . date('Y-m-d H:i:s') . ' ==========');
-            $this->info('');
+            // ── 20260928: 静音モード（--quiet-skip）で空振りだった回は何も出さない ──
+            //   「補完0件」＝ SKIP。毎分の先回り実行では、これが1日の大半を占める。
+            //   ※ finally の中で return すると、try で発生した例外を握り潰してしまう。
+            //     必ず if で囲うこと（return を書いてはいけない）。
+            $quietSilent = ($quietSkip && $compensated1st === 0 && $compensated2nd === 0);
 
-            $newsValue   = [];
-            $newsValue[] = $status;
-            if ($status !== 'SKIP') {
-                $newsValue[] = "対象日:{$date}、";
-                $newsValue[] = "1st AI:{$compensated1st}件、";
-                $newsValue[] = "2nd AI:{$compensated2nd}件、";
-                $newsValue[] = "スキップ:{$skipped}件";
+            if (!$quietSilent) {
+                $this->info('');
+                $this->info("終了理由       : {$status}");
+                $this->info("対象日付       : {$date}");
+                $this->info("1st AI 補完    : {$compensated1st} 件");
+                $this->info("2nd AI 補完    : {$compensated2nd} 件");
+                $this->info("オッズ未取得   : {$skipped} 件（スキップ）");
+                $this->info("処理時間       : {$totalElapsed} 秒");
+                $this->info('');
+                $this->info('========== keiba:ai-analysis-compensate 終了 ' . date('Y-m-d H:i:s') . ' ==========');
+                $this->info('');
+
+                $newsValue   = [];
+                $newsValue[] = $status;
+                if ($status !== 'SKIP') {
+                    $newsValue[] = "対象日:{$date}、";
+                    $newsValue[] = "1st AI:{$compensated1st}件、";
+                    $newsValue[] = "2nd AI:{$compensated2nd}件、";
+                    $newsValue[] = "スキップ:{$skipped}件";
+                }
+                $news = implode('', $newsValue);
+
+                (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryAiAnalysisCompensate::handle\n{$news}");
             }
-            $news = implode('', $newsValue);
-
-            (new WebPushService())->sendPushNotifierDeveloperNews('develop', "SummaryAiAnalysisCompensate::handle\n{$news}");
         }
     }
 }

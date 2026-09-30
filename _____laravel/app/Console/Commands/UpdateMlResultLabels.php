@@ -81,7 +81,9 @@ class UpdateMlResultLabels extends Command
                 }
             }
 
-            $snapshots = $query->orderBy('date')->orderBy('kaisuu')->orderBy('day')->orderBy('race')->get();
+            // features(JSON) が1行300KB超になり、date等での並び替えだと MySQL の sort buffer(256KB) を超えて
+            // "Out of sort memory" になるため、主キー(id)順で取得する（並び替え用メモリを使わない）。20260929 修正
+            $snapshots = $query->orderBy('id')->get();
 
             if ($snapshots->isEmpty()) {
                 $this->info('処理対象のレコードがありません。終了します。');

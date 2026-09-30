@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  * 【処理フロー】
  *   【ブロック 1】多重起動防止（ロックファイル）
  *   【ブロック 2】開始バナー・DEBUGオプション確認
- *   【ブロック 3】曜日チェック（木/金はスキップ）
+ *   【ブロック 3】曜日チェック（20260929 廃止：金杯など平日開催に対応するため毎日処理する）
  *   【ブロック 4】Node.js 実行（keibaOddsGetSchedule.mjs）
  *   【ブロック 5】JSON パース・schedules/races/horses を展開
  *   【ブロック 6】出走済みチェック（start_time='XXX' の全件カウント）
@@ -45,11 +45,11 @@ use Illuminate\Support\Facades\DB;
  *
  * 【使い方】
  *   php artisan keiba:importSchedule
- *   php artisan keiba:importSchedule --debug  # 木・金チェックをスキップ
+ *   php artisan keiba:importSchedule --debug  # 当日分への絞り込みをスキップ（取得した全日付を INSERT する。本番では使わないこと）
  */
 class ImportKeibaSchedule extends Command
 {
-    protected $signature = 'keiba:importSchedule {--debug : 木曜・金曜チェックをスキップして処理する}';
+    protected $signature = 'keiba:importSchedule {--debug : 当日分への絞り込みをスキップして取得した全日付を処理する}';
     protected $description = 'スケジュール・レース・馬情報を取得してDBに保存する';
 
     public function handle()
@@ -99,20 +99,27 @@ class ImportKeibaSchedule extends Command
 
             $isDebug = (bool) $this->option('debug');
             if ($isDebug) {
-                $this->warn('【DEBUGモード】木曜・金曜チェックをスキップします。');
+                $this->warn('【DEBUGモード】当日分への絞り込みをスキップします。');
                 $this->info('');
             }
 
             // ─────────────────────────────────────────────────────────────
             // 【ブロック 3】曜日チェック（木/金はスキップ）
-            //   木曜日（4）・金曜日（5）はレース開催がないためスキップする。
-            //   --debug オプション時はこのチェックを迂回する。
+            //   ── 20260929 廃止 ──────────────────────────────────────────
+            //   金杯（1/5固定）など、曜日に関係なく開催されるレースがあるため
+            //   木曜・金曜も含めて毎日処理する（2029年1/5は金曜、2034年1/5は木曜）。
+            //   開催のない日に動いても安全な理由:
+            //     ・JRAに開催情報が無い／ページ構造が違う → mjs が空の JSON を返す
+            //     ・週末分が表示されていても、【ブロック 7】で土曜以外は当日分だけに
+            //       絞り込むため 0件になり、DELETE も INSERT も行われない
+            //   ※ --debug は【ブロック 7】の絞り込みも飛ばすので、平日に使うと
+            //     週末分が入ってしまう。本番では使わないこと。
             // ─────────────────────────────────────────────────────────────
-            if (!$isDebug && (date('w') === '4' || date('w') === '5')) {
-                $this->warn('本日は木曜日または金曜日のため処理をスキップします。');
-                $status = '木曜・金曜のためスキップ';
-                return 0;
-            }
+            // if (!$isDebug && (date('w') === '4' || date('w') === '5')) {
+            //     $this->warn('本日は木曜日または金曜日のため処理をスキップします。');
+            //     $status = '木曜・金曜のためスキップ';
+            //     return 0;
+            // }
 
             $this->info('曜日チェック OK ── 本日は処理対象の曜日です。');
             $this->info('');
