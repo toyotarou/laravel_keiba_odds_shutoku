@@ -1,0 +1,169 @@
+【プロンプトファイル 処理ルール】
+
+■ 依頼の形（毎回これ）
+  「プロンプトファイル_YYYY-MM-DD の下にファイルを横並びで置きました。
+    YYYY-MM-DD分のプロンプト処理をお願いします。ルールは振り分けルール.txt」
+
+■ やること（この順番）
+  1. このフォルダ（振り分けルール.txt があるフォルダ）にある
+     「プロンプトファイル_YYYY-MM-DD」の中身を確認する（横並びのファイルがあること）。
+  2. 下の「処理スクリプト」を、このフォルダで実行する（実行方法は下の「■ 実行方法」）。
+     → 振り分け（開催日フォルダ ＞ 開催場フォルダへ移動）
+     → links.html の作成（全日付ぶんを作り直す）
+  3. 結果を確認する。
+       ・移動前のファイル数 ＝ 振り分け後のファイル数
+       ・links.html のリンク数 ＝ .data ファイル数
+       ・開催場コードが表にないファイルがあれば、移動せず残して報告
+       ・移動先に同名ファイルがあり中身も同じ重複は、無視してよい（そのまま残す。件数の確認にも報告にも含めない）。中身が違う場合だけ報告する
+  4. 報告は短く：会場ごとの件数、links.html を更新した旨、未対応ファイルの有無。
+
+■ 絶対に守ること
+  ・ファイルは移動のみ。削除しない（git rm なども不可）。
+  ・新しいファイルを作らない。作ってよいのは links.html（毎回上書き）だけ。
+  ・スクリプトはファイルとして保存せず、下記の方法でその場で実行して残さない。
+  ・ZIP、作業用フォルダ、一時ファイルを残さない。
+
+■ 実行方法
+  このファイルの「処理スクリプト」の開始行と終了行の間だけを取り出して実行する。
+  例（このフォルダで）:
+    sed -n '/^#### SCRIPT START/,/^#### SCRIPT END/p' 振り分けルール.txt | python3 -
+  （「#### 」で始まる2行はPythonのコメントなのでそのまま実行できる）
+
+■ 完成形（例：プロンプトファイル_2026-09-27）
+  プロンプトファイル_2026-09-27/
+    2026-09-27/
+      東京/
+        prompt_2026-09-27_4_05_9_1.data
+        prompt_2nd_2026-09-27_4_05_9_1.data
+      阪神/
+        ...
+
+■ ファイル名の読み方
+  prompt_2026-10-03_4_05_1_1.data
+  prompt_2nd_2026-10-03_4_05_1_1.data
+    日付の次が「4」、その次の「05」が開催場コード（日付の2つ次の数字）
+    その次が開催回、最後がレース番号
+  ・prompt_ = 1st、prompt_2nd_ = 2nd。同じ開催場フォルダに入れる。
+  ・日付フォルダは、ファイル名の日付で決める（置いたフォルダの日付と違っても、ファイル名の日付のフォルダに入る）。
+
+■ 開催場コード → フォルダ名
+  const BASHO_MAP = {
+    '札幌': '01', '函館': '02', '福島': '03', '新潟': '04',
+    '東京': '05', '中山': '06', '中京': '07', '京都': '08',
+    '阪神': '09', '小倉': '10',
+  };
+
+■ links.html の仕様
+  ・場所：このフォルダ（振り分けルール.txt と同じ）。ファイル名は links.html。
+  ・スマホレイアウト（1行1レース、ボタン大きめ）。
+  ・日付が新しい順 ＞ 開催場 ＞ レース番号順。
+  ・各レースに「1st」（青）「2nd」（橙）のリンクを並べる。
+  ・リンクは相対パス（フォルダごと移動しても有効）。
+  ・リンク内の日本語は NFC（濁点・半濁点が文字に合体した形）に揃える。
+    （Macのフォルダ名は分解形、サーバー上は合体形のため、揃えないとサーバーで404になる）
+  ・全日付フォルダを走査して毎回作り直す（上書き）。
+
+■ 処理スクリプト
+#### SCRIPT START
+import os, re, html, shutil, unicodedata
+from urllib.parse import quote
+
+root = os.getcwd()
+BASHO = {'01':'札幌','02':'函館','03':'福島','04':'新潟','05':'東京',
+         '06':'中山','07':'中京','08':'京都','09':'阪神','10':'小倉'}
+pat = re.compile(r'^prompt_(2nd_)?(\d{4}-\d{2}-\d{2})_(\d+)_(\d+)_(\d+)_(\d+)\.data$')
+dirpat = re.compile(r'^プロンプトファイル_(\d{4}-\d{2}-\d{2})$')
+nfc = lambda s: unicodedata.normalize('NFC', s)
+
+# --- 1. 振り分け（プロンプトファイル_日付 直下の横並びファイルだけ対象）
+moved, unknown = 0, []
+for d in sorted(os.listdir(root)):
+    m = dirpat.match(nfc(d))
+    full = os.path.join(root, d)
+    if not (m and os.path.isdir(full)):
+        continue
+    date = m.group(1)
+    for f in sorted(os.listdir(full)):
+        src = os.path.join(full, f)
+        if not os.path.isfile(src) or not f.startswith('prompt'):
+            continue
+        fm = pat.match(nfc(f))
+        name = BASHO.get(fm.group(4)) if fm else None
+        if not name:
+            unknown.append(f)
+            continue
+        dest_dir = os.path.join(full, fm.group(2), name)
+        os.makedirs(dest_dir, exist_ok=True)
+        dest = os.path.join(dest_dir, f)
+        if os.path.exists(dest):
+            unknown.append(f + '（移動先に同名あり）')
+            continue
+        shutil.move(src, dest)
+        moved += 1
+print('移動:', moved, '件')
+for u in unknown:
+    print('未対応:', u)
+
+# --- 2. links.html 作成（全日付）
+data = {}
+for dp, dn, fn in os.walk(root):
+    for f in fn:
+        m = pat.match(nfc(f))
+        if not m:
+            continue
+        rel = os.path.relpath(os.path.join(dp, f), root)
+        second, date, _, code, kai, race = m.groups()
+        if nfc(os.path.basename(os.path.dirname(dp))) != date:
+            continue  # 日付/開催場フォルダ内のファイルだけ載せる（未振り分けは除外）
+        venue = nfc(os.path.basename(dp))
+        data.setdefault(date, {}).setdefault((code, venue), {}) \
+            .setdefault((int(kai), int(race)), {})['2nd' if second else '1st'] = rel
+
+def link(rel, label, cls):
+    href = '/'.join(quote(nfc(p)) for p in rel.split(os.sep))
+    return '<a class="btn %s" href="%s">%s</a>' % (cls, href, label)
+
+out = ['''<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>プロンプトファイル リンク一覧</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:12px;font-family:-apple-system,"Hiragino Sans",sans-serif;background:#f2f4f7;color:#222;font-size:16px}
+h1{font-size:18px;margin:4px 0 12px}
+h2{font-size:17px;margin:18px 0 8px;padding:8px 12px;background:#1f3a5f;color:#fff;border-radius:8px}
+h3{font-size:16px;margin:12px 0 6px;padding-left:8px;border-left:5px solid #1f3a5f}
+.row{display:flex;align-items:center;gap:8px;background:#fff;border-radius:10px;padding:8px 10px;margin-bottom:8px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.race{flex:0 0 64px;font-weight:bold;font-size:17px}
+.race small{display:block;font-weight:normal;font-size:11px;color:#777}
+.btn{flex:1;display:block;text-align:center;text-decoration:none;padding:12px 4px;border-radius:8px;font-weight:bold;font-size:15px}
+.b1{background:#e3f0ff;color:#0b5cad}
+.b2{background:#ffeede;color:#b35400}
+.none{flex:1;text-align:center;color:#aaa;padding:12px 4px}
+</style>
+</head>
+<body>
+<h1>プロンプトファイル リンク一覧</h1>
+''']
+total = 0
+for date in sorted(data, reverse=True):
+    out.append('<h2>%s</h2>' % date)
+    for (code, venue) in sorted(data[date]):
+        out.append('<h3>%s</h3>' % html.escape(venue))
+        races = data[date][(code, venue)]
+        for (kai, race) in sorted(races):
+            d = races[(kai, race)]
+            total += len(d)
+            a = link(d['1st'], '1st', 'b1') if '1st' in d else '<span class="none">1st なし</span>'
+            b = link(d['2nd'], '2nd', 'b2') if '2nd' in d else '<span class="none">2nd なし</span>'
+            out.append('<div class="row"><div class="race">%dR<small>(%d)</small></div>%s%s</div>' % (race, kai, a, b))
+out.append('</body>\n</html>\n')
+with open(os.path.join(root, 'links.html'), 'w', encoding='utf-8') as fp:
+    fp.write('\n'.join(out))
+print('links.html: リンク', total, '件')
+for date in sorted(data, reverse=True):
+    for k in sorted(data[date]):
+        print(' ', date, k[1], len(data[date][k]), 'レース')
+#### SCRIPT END

@@ -23,6 +23,13 @@ class AiController extends Controller
      * ★本番有効化が決まるまで、このキー一覧を減らしてはいけない。
      */
     private const SHADOW_ONLY_KEYS = [
+        // ── 20261004 追加 ───────────────────────────────────────────────
+        //   全頭採点（内部用JSON）から取り込んだ信頼度小計。
+        //   仕様「内訳・小計は公開出力へ追加しない」に従い Flutter へは返さない。
+        //   merge_result には保存され、監査・タイブレークの追跡に使える。
+        //   @ANCHOR-20261004-AUDIT-ALLSCORE
+        'conf_1st',
+        'conf_2nd',
         'fake_inflow_warning',   // B-8 偽流入警戒
         'fake_inflow_true_cnt',  // B-8 成立条件数
         'high_payout_score',     // B-10 高配当総合点
@@ -110,7 +117,524 @@ class AiController extends Controller
      *   ② _applyRecoveryHardFilter()（現在は未使用。将来復活時の食い違い防止）
      *   ③ _saveMlSnapshot() の params.recovery_low_thresh（学習用メタデータ）
      */
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * 【20261004 よっしー回答①A】購入回避条件は「現行40%を維持」
+     * ═══════════════════════════════════════════════════════════════════════
+     * 仕様書の「60%」表記は訂正済み。コードに60%は存在しない。
+     *
+     * 【対象の回収率（3種）】
+     *   ① 過去回収率            （乖離帯 × 人気帯）t_horse_odds_finder_odds_gap_recovery
+     *   ② OPI帯別回収率         （OPI帯 × 人気帯）t_horse_odds_finder_opi_recovery
+     *   ③ フェーズパターン別回収率（前後半方向 × 人気帯）
+     *   いずれもプロンプトの各馬ブロックに「回収率X.X%  勝率X.X%  サンプルN件」で載る。
+     *   PHPはその行を読み戻して判定する（AIの再計算は使わない）。
+     *
+     * 【サンプル条件】サンプル30件以上を「有効」とする。
+     *   29件以下・「－（データなし）」・サンプル0件は不明として扱い、
+     *   有効値にも閾値未満にも数えない（0%とは区別する）。
+     *
+     * 【比較条件】有効値の回収率 < 40.0（未満。40.0ちょうどは該当しない）
+     *
+     * 【複数指標の組合せ】有効値が2種類以上あり、かつそのうち2種類以上が
+     *   40%未満のときだけ購入回避フラグ（buy_avoid_recovery = 1）を立てる。
+     *
+     * 【このフラグでやらないこと（回答①A）】
+     *   ・候補から消さない（ハード除外しない）
+     *   ・選出履歴・捕捉率の集計から馬を除かない
+     *   ・固定配点内の回収率評価（妙味②0〜12点）はそのまま維持する
+     *   フラグは馬券判定を「見送り」「監視」にするためだけに使う。
+     *
+     * 【参照箇所】
+     *   ① Block 12 実処理（merge後・候補絞り込みフィルター内）
+     *   ② _applyRecoveryHardFilter()（現在は未使用。将来復活時の食い違い防止）
+     *   ③ _saveMlSnapshot() の params.recovery_low_thresh（学習用メタデータ）
+     *   @ANCHOR-20260926-B12-RECOVERY-THRESHOLD
+     */
     private const B12_RECOVERY_LOW_THRESH = 40.0;
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261004-FEATURE-FLAG   可変配分のフィーチャーフラグ（仕様書11.2）
+     * ═══════════════════════════════════════════════════════════════════════
+     * 仕様書11.2-1「新処理は設定で有効・無効を切り替えられるようにする」
+     * 仕様書11.2 末尾「配分判定や統合に不具合が出た場合は新しい配分スイッチを
+     *   無効にし、保存済みの安定した候補選出へ戻す。」
+     *
+     * 【切り替え方法（2通り。どちらでもよい）】
+     *   ① このファイルの ALLOC_FEATURE_DEFAULT を false にして配置し直す（1行）
+     *   ② .env に KEIBA_ALLOC_20261004=false を書く（.env があればこちらが優先）
+     *   どちらも、サーバ上で php artisan config:clear 等は不要。
+     *
+     * 【false にしたときの動き】
+     *   ・プロンプトへ配分ブロックを埋め込まない（AIへ配分モードを渡さない）
+     *   ・統合は人気帯別の目安＋旧保護枠の入替（2026-09-28 時点の安定動作）に戻る
+     *   ・資格F/R/O・下位開放S1〜S3・配分モードの計算とログは続ける（診断のため）
+     *   ・候補の復活やDB値の書き換えは行わない（仕様書11.2 末尾）
+     */
+    public  const ALLOC_SPEC_VERSION     = 'BG-20261004-v1.1';   // 監査ログに残す仕様の版
+    public  const MERGE_FORMULA_VERSION  = 'merge-20261004-v1';  // 統合式の版（仕様書9.1「統合式の版」）
+
+    /**
+     * @ANCHOR-20261006-ANSWER-HASH  統合に使ったAI回答のハッシュ
+     *
+     * 20261006 ご指摘⑥「BとCが同じAI回答を使った比較になっていることを、
+     * 実行日時・版・回答ハッシュ・該当レースの理由で確認してください」に対応する。
+     * 公開部分だけのハッシュと全文のハッシュを持つ。
+     */
+    private array $lastAnswerHash = [];
+
+    /** @ANCHOR-20261004-AUDIT-MERGE  直近の _mergeAiResults() の監査データ（DB保存用） */
+    private array $lastMergeAudit = [];
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261004-ALLOC-COMPARE  配分の比較実行用の上書き
+     * ═══════════════════════════════════════════════════════════════════════
+     * 仕様書10.1「現行、4＋3、3＋4、可変配分を区別して保存し…比較する」と、
+     * よっしー20261004回答の「まず『旧指示の削除だけ』の前後を比較し、
+     * 新配分の効果とは分けて確認してください」に使う。
+     *
+     * keiba:ai-analysis-compensate --compare / --alloc-mode= から設定する。
+     * null のときは通常動作（プロンプトから読み戻した凍結値を使う）。
+     *
+     * 形式: ['label' => '3+4', 'feature' => true, 'fav' => 3, 'long' => 4]
+     *   feature = false なら可変配分そのものを無効にする（＝現行の動き）
+     *   fav / long が null なら、プロンプトの凍結値をそのまま使う
+     */
+    public static ?array $allocOverride = null;
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261004-DRY-RUN  試算モード（DBとファイルを一切書き換えない）
+     * ═══════════════════════════════════════════════════════════════════════
+     * 「旧指示の削除だけ」の前後比較のために、新しいお願い文でAIを呼び直す必要がある。
+     * しかし保存済みのAI回答とプロンプトファイルを消すと、比較のもとになる
+     * 9月26日・27日のデータが失われる。
+     *
+     * そこで true の間は次をすべて行わない。
+     *   ・保存済み回答のキャッシュ返却（必ずAIを呼び直す）
+     *   ・ai_analysis / ai_analysis2 / ai_merge_result への書き込み
+     *   ・public/prompt / public/prompt_2nd のプロンプトファイルの書き出し
+     *   ・学習用スナップショット・高配当シャドー・市場妙味ログの保存
+     *   ・2nd AI のバックグラウンド先読み
+     * AIの呼び出しだけは実際に行う（応答を比べるため）。
+     *
+     * ※呼び出し側（keiba:ai-analysis-compensate --compare-rerun）は、
+     *   さらにトランザクションを張って必ずロールバックする（二重の歯止め）。
+     */
+    public static bool    $dryRunNoPersist   = false;
+    /**
+     * true の間は保存済み回答のキャッシュを使わず、必ずAIを呼び直す。
+     * $dryRunNoPersist と組み合わせて「新しいお願い文で呼び直すが保存しない」を作る。
+     */
+    public static bool    $dryRunForceFresh  = false;
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261004-AUDIT-FILE  監査ログを専用ファイルにも残す
+     * ═══════════════════════════════════════════════════════════════════════
+     * 【なぜ必要か】
+     *   監査ログ（AUDIT_RACE / AUDIT_HORSE / AUDIT_AI / AUDIT_MERGE / AUDIT_FIX）は
+     *   laravel.log に出している。ところが keiba:deleteKeibaTableRecords が
+     *   毎週土曜5:50に laravel.log を truncate -s 0 で空にする。
+     *   よっしーへの提出物「全頭ログ」が週明けには消えてしまうため、
+     *   消されない別ファイルにも1行1件のJSONで追記する。
+     *
+     * 【書き出し先】storage/logs/audit/audit_YYYY-MM-DD.jsonl
+     *   deleteKeibaTableRecords の削除対象リスト（ホワイトリスト）に
+     *   このパスは入っていないので、土曜の掃除では消えない。
+     *
+     * ※失敗しても予測処理は止めない。laravel.log 側の出力はそのまま残す。
+     */
+    private static function auditFile(string $tag, array $payload): void
+    {
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261005-AUDIT-FILE-VISIBLE  書けなかったことを必ず表に出す
+        // ══════════════════════════════════════════════════════════════════
+        // 【旧実装の問題】@file_put_contents の戻り値を見ておらず、
+        //   catch の中にも「laravel.log 側には出ているので続行する」とだけ書いてあった。
+        //   ところが .env が LOG_LEVEL=error のため \Log::info は捨てられており、
+        //   「laravel.log 側には出ている」という前提が成立していなかった。
+        //   結果、監査ログ（よっしーへの提出物）がどこにも残らないのに、
+        //   何のエラーも出ない状態になっていた。
+        //   ・書き込み失敗は \Log::error で出す（LOG_LEVEL=error でも残る）
+        //   ・ディレクトリとファイルは 0777 / 0666 で作る
+        //     （web は apache、artisan は centos で実行されるため、
+        //       どちらの所有でも追記できるようにしておく）
+        try {
+            $dir = storage_path('logs/audit');
+            if (!is_dir($dir)) { @mkdir($dir, 0777, true); @chmod($dir, 0777); }
+            $now = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+            $line = json_encode([
+                'at'      => $now->format('Y-m-d H:i:s') . ' JST',
+                'tag'     => $tag,
+                'version' => self::ALLOC_SPEC_VERSION,
+                'data'    => $payload,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $path   = $dir . '/audit_' . $now->format('Y-m-d') . '.jsonl';
+            $exists = is_file($path);
+            $wrote  = @file_put_contents($path, $line . "\n", FILE_APPEND);
+            if ($wrote === false) {
+                \Log::error('[AUDIT_FILE] 監査ログを書き出せない（提出物が欠落する）', [
+                    'tag'        => $tag,
+                    'path'       => $path,
+                    'dir_exists' => is_dir($dir),
+                    'dir_writable'  => is_writable($dir),
+                    'file_writable' => $exists ? is_writable($path) : null,
+                    'process_user'  => function_exists('posix_getpwuid') && function_exists('posix_geteuid')
+                        ? (posix_getpwuid(posix_geteuid())['name'] ?? '不明') : '不明',
+                    '対処' => 'storage/logs/audit のディレクトリとファイルに書き込み権限を与える',
+                ]);
+            } elseif (!$exists) {
+                @chmod($path, 0666);
+            }
+        } catch (\Throwable $e) {
+            \Log::error('[AUDIT_FILE] 監査ログの書き出しで例外', [
+                'tag' => $tag, 'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * @ANCHOR-20261004-DRY-RUN  試算モードで生成したプロンプトの写しを残す。
+     *
+     * よっしー20261004のご回答「適用前に、生成済み1st／2ndプロンプト…をご提出ください」
+     * に対応する。既存の public/prompt・public/prompt_2nd は上書きせず、
+     * storage/logs/rerun_prompt/ に別名で置く。
+     * 同じレースを何度試算しても上書きされるだけで、本番データには影響しない。
+     */
+    private static function saveRerunPrompt(
+        string $which, string $text, string $date, $kaisuu, string $basho, $day, $race
+    ): void {
+        // @ANCHOR-20261005-AUDIT-FILE-VISIBLE  上の auditFile と同じ取りこぼしを直す
+        try {
+            $dir = storage_path('logs/rerun_prompt');
+            if (!is_dir($dir)) { @mkdir($dir, 0777, true); @chmod($dir, 0777); }
+            $path  = $dir . "/prompt_{$which}_{$date}_{$kaisuu}_{$basho}_{$day}_{$race}.data";
+            $wrote = @file_put_contents($path, $text);
+            if ($wrote === false) {
+                \Log::error('[DRY_RUN] 提出用プロンプトを書き出せない（提出物が欠落する）', [
+                    'which' => $which, 'path' => $path,
+                    'dir_writable' => is_dir($dir) ? is_writable($dir) : null,
+                    '対処' => 'storage/logs/rerun_prompt に書き込み権限を与える',
+                ]);
+            } else {
+                @chmod($path, 0666);
+            }
+        } catch (\Throwable $e) {
+            \Log::error('[DRY_RUN] 提出用プロンプトの書き出しで例外', [
+                'which' => $which, 'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /** 試算モードで 1st AI の回答を 2nd AI 側へ受け渡す */
+    public static ?string $dryRunFirstText   = null;
+    /** 試算モードで 1st AI 用プロンプトを 2nd AI 側へ受け渡す */
+    public static ?string $dryRunFirstPrompt = null;
+    /** 試算モードで 2nd AI の回答を保持する（同じ回答で配分だけ変えて何度も統合するため） */
+    public static ?string $dryRunSecondText  = null;
+
+    /** 直近の統合の監査データ（比較コマンドが各馬の採点・順位・非選出理由を取り出す） */
+    public function lastMergeAudit(): array
+    {
+        return $this->lastMergeAudit;
+    }
+    public  const ALLOC_FEATURE_DEFAULT  = true;                 // 可変配分を使うか
+
+    /** 照合に使う時点（6分前）。snapshot_id の対象時点として記録にも残す */
+    public const SNAPSHOT_TIMING = 6;
+
+    /**
+     * @ANCHOR-20261004-AUDIT-SNAPSHOT  6分前オッズのスナップショット（正規化した入力）
+     *
+     * 仕様書は「6分前snapshot_id」を求めているが、DBにスナップショットを識別する
+     * 列が無い（申告事項B-3）。そこで6分前の行そのものから決定論的に算出する。
+     *
+     * 【20261004 よっしー回答③Aの条件】
+     *   「馬番の並び順や数値表記によって照合結果が変わらないよう、計算形式を
+     *     統一してください。」
+     *   → 並び順は馬番の昇順に固定（ksort）。
+     *   → 数値は小数2桁の固定表記に正規化する（2.1 と 2.10 を同じ値として扱う）。
+     *   → 取消・除外など数値でない値は '-' に統一する（空文字と 0 を混同しない）。
+     *
+     * ※プロンプト生成時と統合時の両方で呼ぶ。算出式を変えると過去のログと
+     *   比較できなくなるため、変更しないこと。
+     *
+     * @param  iterable $oddsRows  t_horse_odds_finder_odds の行（全時点でよい）
+     * @return array               馬番 => [単勝, 複勝最小, 複勝最大]（正規化済み文字列）
+     */
+    private static function oddsSnapshotSource(iterable $oddsRows): array
+    {
+        $norm = static function ($v): string {
+            if ($v === null || $v === '' || !is_numeric($v)) return '-';
+            return number_format((float) $v, 2, '.', '');
+        };
+        $src = [];
+        foreach ($oddsRows as $row) {
+            if ((int) ($row->minutes_before_start ?? -1) !== self::SNAPSHOT_TIMING) continue;
+            $src[(int) $row->num] = [
+                $norm($row->odds     ?? null),
+                $norm($row->fuku_min ?? null),
+                $norm($row->fuku_max ?? null),
+            ];
+        }
+        ksort($src);
+        return $src;
+    }
+
+    /**
+     * @ANCHOR-20261004-AUDIT-SNAPSHOT  6分前オッズのスナップショットID
+     * 正規化した入力（oddsSnapshotSource）のSHA-256の先頭16桁。
+     */
+    private static function oddsSnapshotId(iterable $oddsRows): string
+    {
+        return substr(hash('sha256', json_encode(self::oddsSnapshotSource($oddsRows))), 0, 16);
+    }
+
+    /**
+     * @ANCHOR-20261004-STALE-RERUN  1レースのsnapshot_idをDBから算出する。
+     *
+     * keiba:ai-analysis-compensate --rerun-stale が、お願い文に書かれた値と
+     * 突き合わせるために使う。算出できない場合（6分前の行が無い等）は null。
+     */
+    public static function snapshotIdForRace(string $date, $kaisuu, string $basho, $day, $race): ?string
+    {
+        try {
+            $rows = DB::table('t_horse_odds_finder_odds')
+                ->where('date',   $date)
+                ->where('kaisuu', $kaisuu)
+                ->where('basho',  $basho)
+                ->where('day',    $day)
+                ->where('race',   $race)
+                ->where('minutes_before_start', self::SNAPSHOT_TIMING)
+                ->get();
+            $src = self::oddsSnapshotSource($rows);
+            if (empty($src)) return null;
+            return substr(hash('sha256', json_encode($src)), 0, 16);
+        } catch (\Throwable $e) {
+            \Log::warning('[AUDIT_SNAPSHOT] snapshot_idの算出に失敗', [
+                'race'    => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+                'message' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * 可変配分（20261004仕様）が有効かどうか。
+     * .env の KEIBA_ALLOC_20261004 があればそれを優先し、無ければ定数を使う。
+     * 不正な値・未設定は定数の値とみなす（配分を勝手に止めないため）。
+     */
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261004-AUDIT-ALLSCORE  全頭採点の内部監査用データ
+     * ═══════════════════════════════════════════════════════════════════════
+     * よっしー20261004回答③A（条件付き）：
+     *   「同じ応答内に内部用JSONを付ける」
+     *   ・固定の開始・終了マーカーで公開候補部分とJSONを分離し、
+     *     公開パーサーには候補部分だけを渡す。
+     *   ・1st・2ndとも全実出走馬の11項目得点、小計、総合点を取得する。
+     *   ・2ndの公開候補が0頭でも、全頭採点JSONは取得する。
+     *   ・JSONは数値と必要な識別情報を中心にし、長文説明の重複を避ける。
+     *
+     * マーカーは絶対に変更しないこと（過去の保存済み回答が読めなくなる）。
+     */
+    /**
+     * 公開候補行の書式（Flutterがそのままパースする行）。
+     * _parseAiHorses() と publicCandidateNums() の両方がこれを使う。
+     * 書式を変えるとアプリの表示が壊れるため、変更しないこと。
+     */
+    public const PUBLIC_ROW_REGEX =
+        '/馬番[：:]\s*(\d+)[、,].*?馬名[：:]\s*([^、,\n]+)[、,].*?人気順[：: ]\s*(\d+)[、,].*?6分前オッズ[：: ]\s*([\d.]+)[、,].*?おすすめ度[：: ]\s*(\d+)[、,].*?選出理由[：:]\s*(.+)/us';
+
+    public const AUDIT_JSON_BEGIN = '<<<BAGANRIKI_ALLSCORE_BEGIN>>>';
+    public const AUDIT_JSON_END   = '<<<BAGANRIKI_ALLSCORE_END>>>';
+
+    /** 信頼度7項目の配点上限（仕様書7.1 固定配点） */
+    public const CONF_ITEM_MAX = [15, 12, 8, 10, 8, 4, 3];   // 合計60
+    /** 妙味4項目の配点上限 */
+    public const MERIT_ITEM_MAX = [15, 12, 8, 5];            // 合計40
+
+    /**
+     * AI回答を「公開部分」と「内部監査用JSON」に分ける。
+     *
+     * マーカーが無い回答（旧形式・AIが出さなかった場合）は
+     * 公開部分だけが返り、json は null になる。
+     *
+     * @return array{public: string, json: ?string}
+     */
+    private static function splitAuditJson(string $text): array
+    {
+        $b = self::AUDIT_JSON_BEGIN;
+        $e = self::AUDIT_JSON_END;
+        $bp = mb_strpos($text, $b);
+        if ($bp === false) {
+            return ['public' => $text, 'json' => null];
+        }
+        $public = mb_substr($text, 0, $bp);
+        $rest   = mb_substr($text, $bp + mb_strlen($b));
+        $ep     = mb_strpos($rest, $e);
+        if ($ep === false) {
+            // 終了マーカーが無い＝途中で切れた。JSONは採用しない（推測で補わない）。
+            return ['public' => $public, 'json' => null];
+        }
+        $json = mb_substr($rest, 0, $ep);
+        // 終了マーカーより後ろに本文が続く場合も公開部分として残す
+        $public .= mb_substr($rest, $ep + mb_strlen($e));
+        return ['public' => trim($public), 'json' => trim($json)];
+    }
+
+    /**
+     * @ANCHOR-20261004-DROP-TRACE  保存済みAI回答から公開候補の馬番を取り出す
+     *
+     * 洗い替えでオッズが消えた過去日について、
+     * 「AIは何頭出したのか」「最終候補は何頭だったのか」を突き合わせるために使う。
+     * 内部監査用JSONは落としてから数えるので、全頭採点の馬番は混ざらない。
+     *
+     * @return array 公開候補行の馬番（重複を除き昇順）
+     */
+    public static function publicCandidateNums(string $text): array
+    {
+        $nums = [];
+        foreach (explode("\n", self::publicPart($text)) as $line) {
+            $line = trim($line);
+            if ($line === '') continue;
+            if (!preg_match(self::PUBLIC_ROW_REGEX, $line, $m)) continue;
+            $nums[(int) $m[1]] = true;
+        }
+        $out = array_keys($nums);
+        sort($out);
+        return $out;
+    }
+
+    /**
+     * AI回答の公開部分だけを返す（内部監査用JSONを落とす）。
+     * Flutterへ返す文字列・候補行のパース・回答判定はすべてこれを通す。
+     */
+    private static function publicPart(string $text): string
+    {
+        return self::splitAuditJson($text)['public'];
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261005-LOCK-FALLBACK  排他ロックが取れないときの扱い
+     * ═══════════════════════════════════════════════════════════════════════
+     * 【見つかった不具合（2026-10-05）】
+     *   Cache::lock()->block() が FileStore を使うため、
+     *   storage/framework/cache/data/<hash>/ にロックファイルを作る。
+     *   このサブディレクトリは Web 実行（apache）が 755 で作るので、
+     *   artisan 実行（centos）からは書き込めず
+     *     "Unable to create lockable file"
+     *   が throw される。呼び出し元の catch (\Throwable) がこれを拾い、
+     *   [RACE_PROCESSING_ERROR]「候補0件の部分結果で続行」へ落ちていた。
+     *   その結果、artisan 経由の処理（補完バッチ・比較コマンド）が
+     *   全レース候補0件になり、しかもHTTP200で正常終了して見えていた。
+     *
+     * 【方針】
+     *   ・ロックが物理的に使えない場合は、ロックなしで処理を続ける。
+     *     ロックは「同時リクエストでAIを二重に呼ばない」ための保険であり、
+     *     これが取れないことを理由に予測そのものを捨ててはいけない。
+     *     artisan 側は呼び出し元コマンドが日付単位のロックファイルを持っている。
+     *   ・LockTimeoutException（先行処理が60秒以上続いている）は従来どおり
+     *     呼び出し元へ投げる。こちらは「待っても取れない＝先行処理が走っている」
+     *     という正常な状態なので、AIを二重に呼ばないために中断する
+     *     （AI呼び出しは1レース2回までという仕様を守る）。
+     *
+     * @return object|null ロックオブジェクト。使えなかった場合は null
+     */
+    private static function acquireRaceLock(string $lockKey): ?object
+    {
+        try {
+            $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 120);
+            $lock->block(60);   // 先行リクエストが完了するまで最大60秒待つ
+            return $lock;
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+            throw $e;           // 先行処理あり。従来どおり呼び出し元で扱う
+        } catch (\Throwable $e) {
+            // ══════════════════════════════════════════════════════════════════
+            // @ANCHOR-20261006-LOCK-FALLBACK-FLOCK  代替の排他を必ず試す
+            // ══════════════════════════════════════════════════════════════════
+            // 【20261006 ご指摘・第7節】
+            //   「ロックが使えなければロックなしで続ける仕様では、同時実行時の
+            //     AI二重呼び出し・保存競合を防げるか確認が必要。LockTimeoutを
+            //     中断することだけでは、ロック機能そのものが使えない場合の
+            //     排他を説明できない」
+            //   → Laravelのキャッシュロックが使えない場合は、OSのファイルロック
+            //     （flock）へ切り替える。/tmp は誰でも書けるので、apache実行と
+            //     centos実行のどちらからでも同じ鍵を取り合える。
+            //     こちらも取れなければ、そのときだけロックなしで続ける。
+            $fbPath = sys_get_temp_dir() . '/keiba_lock_' . md5($lockKey) . '.lock';
+            $fbFp   = @fopen($fbPath, 'c');
+            if ($fbFp !== false) {
+                @chmod($fbPath, 0666);   // 別ユーザーの実行からも取り合えるようにする
+                $fbWaited = 0;
+                while ($fbWaited < 60) {
+                    if (@flock($fbFp, LOCK_EX | LOCK_NB)) {
+                        \Log::error('[LOCK_FALLBACK] キャッシュロックが使えないためファイルロックで排他した', [
+                            'key'   => $lockKey,
+                            'path'  => $fbPath,
+                            '待ち'  => $fbWaited . '秒',
+                            'message' => $e->getMessage(),
+                        ]);
+                        return new class ($fbFp, $fbPath) {
+                            public function __construct(private $fp, private string $path) {}
+                            public function release(): void
+                            {
+                                try { @flock($this->fp, LOCK_UN); @fclose($this->fp); }
+                                catch (\Throwable $e) { /* 解放失敗は無視 */ }
+                            }
+                        };
+                    }
+                    sleep(1);
+                    $fbWaited++;
+                }
+                @fclose($fbFp);
+                // 60秒待っても取れない＝先行処理が走っている。AI二重呼び出しを避けて中断する。
+                \Log::error('[LOCK_FALLBACK] ファイルロックも60秒取得できなかった → 中断する', [
+                    'key' => $lockKey, 'path' => $fbPath,
+                ]);
+                throw new \Illuminate\Contracts\Cache\LockTimeoutException(
+                    'ファイルロックを取得できませんでした: ' . $fbPath
+                );
+            }
+
+            \Log::error('[LOCK_UNAVAILABLE] 排他ロックが一切使えないためロックなしで続行', [
+                'key'     => $lockKey,
+                'message' => $e->getMessage(),
+                'store'   => config('cache.default'),
+                'fallback_path' => $fbPath,
+                'user'    => function_exists('posix_getpwuid') && function_exists('posix_geteuid')
+                    ? (posix_getpwuid(posix_geteuid())['name'] ?? '不明') : '不明',
+                '影響'    => '同時実行時のみAI二重呼び出しの可能性。単独実行なら影響なし',
+                '対処'    => 'storage/framework/cache/data 配下と /tmp の書き込み権限を確認する',
+            ]);
+            return null;
+        }
+    }
+
+    /** @ANCHOR-20261005-LOCK-FALLBACK  null でも安全に解放する */
+    private static function releaseRaceLock(?object $lock): void
+    {
+        if ($lock === null) return;
+        try { $lock->release(); } catch (\Throwable $e) { /* 解放失敗は無視して続行 */ }
+    }
+
+    private static function allocFeatureEnabled(): bool
+    {
+        // @ANCHOR-20261004-ALLOC-COMPARE  比較実行中は上書きを優先する
+        if (self::$allocOverride !== null && array_key_exists('feature', self::$allocOverride)) {
+            return (bool) self::$allocOverride['feature'];
+        }
+        $raw = env('KEIBA_ALLOC_20261004', null);
+        if ($raw === null || $raw === '') {
+            return self::ALLOC_FEATURE_DEFAULT;
+        }
+        $parsed = filter_var($raw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        return ($parsed === null) ? self::ALLOC_FEATURE_DEFAULT : $parsed;
+    }
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
@@ -307,6 +831,9 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
         ->where('race',       $race)
         ->first();
 
+    // @ANCHOR-20261004-DRY-RUN  呼び直しモードでは保存済み回答を返さない
+    if ($cached && self::$dryRunForceFresh) { $cached = null; }
+
     if ($cached) {
 
         // ── 【20260928 レース停止回避追補】1st AI 失敗でも公開を止めない ────────
@@ -337,7 +864,7 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
 // 'analysis_text' => trim(preg_replace('/^PICKUP:.+$/mu', '', $cached->analysis_text)),
 // 'pickup_horse'  => $parsePickupHorses($cached->analysis_text),
 
-'analysis_text' => trim($cached->analysis_text),
+'analysis_text' => trim(self::publicPart((string) $cached->analysis_text)),   // 【20261004】内部監査用JSONは返さない
 
         ]]);
     }
@@ -346,10 +873,10 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
     // 初回キャッシュミス後に複数リクエストが同時に来ると API が二重呼び出しされる。
     // ロックを取得してから再度キャッシュを確認することで 1 回だけ呼び出しを保証する。
     $lockKey = "ai_analysis_{$date}_{$kaisuu}_{$basho}_{$day}_{$race}";
-    $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 120);
+    // @ANCHOR-20261005-LOCK-FALLBACK  ロックが使えなくても処理を捨てない
+    $lock = self::acquireRaceLock($lockKey);
 
     try {
-        $lock->block(60); // 先行リクエストが完了するまで最大60秒待つ
 
         // ─── ロック後に再度キャッシュ確認（先行リクエストが保存済みの場合） ──
         $cached = DB::table('t_horse_odds_finder_ai_analysis')
@@ -359,6 +886,9 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
             ->where('day',        $day)
             ->where('race',       $race)
             ->first();
+
+        // @ANCHOR-20261004-DRY-RUN  呼び直しモードでは保存済み回答を返さない
+        if ($cached && self::$dryRunForceFresh) { $cached = null; }
 
         if ($cached) {
             // 【20260928 レース停止回避追補】上のキャッシュ分岐と同じく公開を止めない
@@ -380,7 +910,7 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
                 // 'analysis_text' => trim(preg_replace('/^PICKUP:.+$/mu', '', $cached->analysis_text)),
                 // 'pickup_horse'  => $parsePickupHorses($cached->analysis_text),
 
-'analysis_text' => trim($cached->analysis_text),
+'analysis_text' => trim(self::publicPart((string) $cached->analysis_text)),   // 【20261004】内部監査用JSONは返さない
 
             ]]);
         }
@@ -417,10 +947,19 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
         }
 
         // ─── プロンプトをファイルに出力（デバッグ・履歴用） ──────────────
-        file_put_contents(
-            public_path("prompt/prompt_{$date}_{$kaisuu}_{$basho}_{$day}_{$race}.data"),
-            $prompt
-        );
+        //   @ANCHOR-20261004-DRY-RUN  試算モードでは既存ファイルを上書きしない。
+        //     ただし、よっしー20261004のご回答にある提出物「生成済み1st・2ndプロンプト」
+        //     のために、別の場所（storage/logs/rerun_prompt/）へ写しを残す。
+        //     既存の public/prompt は一切触らない。
+        if (self::$dryRunNoPersist) {
+            self::$dryRunFirstPrompt = $prompt;   // 2nd AI 側へ受け渡す
+            self::saveRerunPrompt('1st', $prompt, $date, $kaisuu, $basho, $day, $race);
+        } else {
+            file_put_contents(
+                public_path("prompt/prompt_{$date}_{$kaisuu}_{$basho}_{$day}_{$race}.data"),
+                $prompt
+            );
+        }
 
         // ─── 脳みそ（判断基準）の読み込み ────────────────────────────────────
         $brainFile = public_path('baganriki_brain/baganriki_brain.txt');
@@ -434,7 +973,19 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
         $prompt .= "\n\n" . '※画面の表示幅の問題があるので、テーブルは使わないでください。';
 
         // ─── 1st AI 固定システムプロンプト（仕様書 §1より。既存プロンプトと併用せず完全置換） ─
-        $firstAiSystemPrompt = 'あなたは競馬オッズ分析の専門家（1st AI）です。入力された取得開始S〜発走6分前までの全頭データだけを使用し、全頭を評価してから候補を決定してください。DB・PHP算出済みの人気順、OPI、流入ランク、推定確定オッズ、断層構造タイプ、厳選穴レース条件を再計算・変更してはいけません。3分前、確定オッズ・確定人気、実着順、払戻金その他発走後情報、入力に存在しない情報を使用・推測・創作してはいけません。主目的は的中頭数ではなく長期回収率の向上です。最低基準点、低配当除外、回収率フィルター、断層位置別・人気帯別上限を順守し、上限を埋めるための追加をしてはいけません。能力・適性は時系列オッズの補強材料として評価し、能力・適性だけで候補を決めてはいけません。有料公開するため正しい日本語を使用し、ユーザープロンプトで指定されたFlutter互換フォーマット以外の前置き・後書き・見出し・補足を出力してはいけません。';
+        // ══════════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261004-SYSTEM-PROMPT  systemプロンプトを新仕様に合わせる
+        // ══════════════════════════════════════════════════════════════════════
+        // 【20261004 よっしー回答①A・③A・④A】
+        //   userプロンプト側は「点数が低いという理由だけで候補を削らないでください」へ
+        //   直してあったが、system側に旧仕様の文面が残っており逆の指示になっていた。
+        //   【旧文面1】「最低基準点、低配当除外、回収率フィルター、断層位置別・人気帯別上限を
+        //               順守し、上限を埋めるための追加をしてはいけません。」
+        //     → 候補の強制除外と人気帯別上限は廃止済み（回答①A・④A）。
+        //       固定配点内の評価と、低配当の妙味小計制限だけを残す。
+        //   【旧文面2】形式外出力の禁止に【全頭採点（内部用）】の例外が無かった。
+        //     → 回答③A「公開部分に混ぜず、内部用領域に出力する」に合わせて例外を明記。
+        $firstAiSystemPrompt = 'あなたは競馬オッズ分析の専門家（1st AI）です。入力された取得開始S〜発走6分前までの全頭データだけを使用し、全頭を評価してから候補を決定してください。DB・PHP算出済みの人気順、OPI、流入ランク、推定確定オッズ、断層構造タイプ、厳選穴レース条件を再計算・変更してはいけません。3分前、確定オッズ・確定人気、実着順、払戻金その他発走後情報、入力に存在しない情報を使用・推測・創作してはいけません。主目的は的中頭数ではなく長期回収率の向上です。最低基準点、低配当、過去回収率は候補から除外する理由にせず、固定配点の中で評価してください。低配当馬の妙味小計の制限は維持します。断層位置別・人気帯別の頭数上限は廃止されています。選出する頭数は目標かつ上限であり、頭数を埋めるための追加をしてはいけません。能力・適性は時系列オッズの補強材料として評価し、能力・適性だけで候補を決めてはいけません。有料公開するため正しい日本語を使用し、ユーザープロンプトで指定されたFlutter互換フォーマット以外の前置き・後書き・見出し・補足を出力してはいけません。ただし【全頭採点（内部用）】の領域だけは例外です。指定されたマーカーで囲んだ全頭採点のJSONは、公開候補行が0頭の場合でも必ず出力してください。公開候補行の中にJSONを混ぜてはいけません。';
 
         // ─── Claude API 呼び出し（自動再試行なし・1回のみ）───────────────────
         // 【仕様】外部AIの呼び出しは1レースにつき 1st AI + 2nd AI の合計2回まで。
@@ -448,6 +999,11 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
         //   未捕捉例外になっていたため 90秒に延長。Cloudflare の応答待ち上限(100秒)と
         //   ロック保持時間(120秒)より短くしている。再試行はしない（仕様どおり1回のみ）。
         //   それでも時間切れの場合は例外を捕捉し、制御済みエラーとして返す。
+        // @ANCHOR-20261006-AI-ELAPSED  応答時間を毎回記録する
+        //   20261006 ご指摘・第7節「18頭立て、JSON修正要求あり、同時処理時の
+        //   最大時間・途中切れ・公開期限を確認したことにはならない」
+        //   → 単発の計測ではなく、本番の全レースで自動的に蓄積する。
+        $aiElapsedStart = microtime(true);
         try {
             $aiResponse = $this->anthropic->sendWithRetry(
                 prompt:      $prompt,
@@ -488,6 +1044,17 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
             ]]);
         }
 
+        // @ANCHOR-20261006-AI-ELAPSED
+        $aiElapsed1st = round(microtime(true) - $aiElapsedStart, 2);
+        \Log::error('[AI_ELAPSED] 1st AI 応答時間', [
+            'race'       => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+            // 出走頭数はプロンプトの記録行から読む（この位置では変数が無いため）
+            '出走頭数'   => (preg_match('/実出走頭数N:\s*(\d+)/u', $prompt, $aeM) ? (int) $aeM[1] : null),
+            '秒'         => $aiElapsed1st,
+            'モデル'     => 'claude-haiku-4-5',
+            'プロンプト文字数' => mb_strlen($prompt),
+        ]);
+
         $rawText = $this->anthropic->extractText($aiResponse);
 
 // $pickupHorse  = $parsePickupHorses($rawText);
@@ -495,8 +1062,13 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
 
 $analysisText = trim($rawText);
 
+        // @ANCHOR-20261004-DRY-RUN  試算モードは保存せず、2nd AI側へ受け渡す
+        if (self::$dryRunNoPersist) {
+            self::$dryRunFirstText = $rawText;
+        }
+
         // ─── 分析結果をDBに保存（次回以降はキャッシュから返す） ──────────
-        DB::table('t_horse_odds_finder_ai_analysis')->insertOrIgnore([
+        if (!self::$dryRunNoPersist) DB::table('t_horse_odds_finder_ai_analysis')->insertOrIgnore([
             'date'          => $date,
             'kaisuu'        => $kaisuu,
             'basho_code'    => $basho,
@@ -533,6 +1105,8 @@ $analysisText = trim($rawText);
         $prefetchDay    = $day;
         $prefetchRace   = $race;
         $selfController = $this;
+        // @ANCHOR-20261004-DRY-RUN  試算モードでは2nd AIの先読みを行わない
+        if (!self::$dryRunNoPersist)
         app()->terminating(function () use ($selfController, $prefetchDate, $prefetchKaisuu, $prefetchBasho, $prefetchDay, $prefetchRace) {
             // 既にキャッシュがあれば何もしない
             $already = DB::table('t_horse_odds_finder_ai_analysis2')
@@ -565,7 +1139,7 @@ $analysisText = trim($rawText);
             'basho_code'    => $basho,
             'day'           => $day,
             'race'          => $race,
-            'analysis_text' => $analysisText,
+            'analysis_text' => self::publicPart($analysisText),   // 【20261004】内部監査用JSONは返さない
 
 // 'pickup_horse'  => $pickupHorse,
 
@@ -593,7 +1167,7 @@ $analysisText = trim($rawText);
             'analysis_text' => '',
         ]]);
     } finally {
-        $lock->release();
+        self::releaseRaceLock($lock);   // @ANCHOR-20261005-LOCK-FALLBACK
     }
 }
 
@@ -1080,7 +1654,9 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             fn($h) => (int) ($h['num'] ?? 0), $displayHorses
         )));
         $rcmHorseNums = array_values(array_unique(array_map(
-            fn($h) => (int) (is_array($h) ? ($h['num'] ?? 0) : ($h->num ?? 0)), $horses
+            fn($h) => (int) (is_array($h) ? ($h['num'] ?? 0) : ($h->num ?? 0)),
+            // 20261004: $horses は Collection のため配列化する（頭数不一致のレースで array_map が例外になっていた）
+            ($horses instanceof \Illuminate\Support\Collection ? $horses->all() : $horses)
         )));
         sort($rcmOddsNums);
         sort($rcmHorseNums);
@@ -1726,6 +2302,433 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         $gapTypeGuide = '複勝支持・変化率・単複人気差を重視。7〜10番人気も均等に比較。';
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261004-ALLOCATION  資格(F/R/O)・下位開放(S1〜S3)・選出前ゲート
+    // ═══════════════════════════════════════════════════════════════════════════
+    // よっしー20261004仕様書 4.2 / 5.1 / 5.2
+    //   資格あり = 7人気以下 かつ F成立 かつ（R または O 成立）
+    //     F1 複勝最小が21→6分で10%以上短縮、5区間中2区間以上で短縮、9→6分で上昇していない
+    //     F2 複勝最小が9→6分で5%以上短縮、12→9分でも短縮、12→6分で合計短縮
+    //     F  F1またはF2（同じ複勝時系列の根拠なので2種類には数えない）
+    //     R  6分前の単勝人気順位 − 複勝人気順位 が2以上
+    //     O  予測補正OPIが0.85以下
+    //   資格は「穴枠を優先確保する条件」であり、資格外の馬を全頭順位から消す条件ではない。
+    //   条件は成立／不成立／不明の3値で保持する（欠損を不成立として扱わない）。
+    $allocTimings = [21, 18, 15, 12, 9, 6];
+
+    // 短縮率 = 100×(旧−新)÷旧。正=短縮 / 負=上昇 / null=判定不能
+    $allocShrink = static function (array $series, int $from, int $to): ?float {
+        $a = $series[$from] ?? null;
+        $b = $series[$to]   ?? null;
+        if (!is_numeric($a) || !is_numeric($b) || (float)$a <= 0 || (float)$b <= 0) return null;
+        return 100.0 * ((float)$a - (float)$b) / (float)$a;
+    };
+    // 3値のAND / OR（false優先 / true優先、残りに不明があれば不明）
+    $allocAnd3 = static function (array $vals): ?bool {
+        $unknown = false;
+        foreach ($vals as $v) { if ($v === false) return false; if ($v === null) $unknown = true; }
+        return $unknown ? null : true;
+    };
+    $allocOr3 = static function (array $vals): ?bool {
+        $unknown = false;
+        foreach ($vals as $v) { if ($v === true) return true; if ($v === null) $unknown = true; }
+        return $unknown ? null : false;
+    };
+    // 比較結果を3値にする（値がnullなら不明）
+    $allocCmp = static function (?float $v, string $op, float $th): ?bool {
+        if ($v === null) return null;
+        return match ($op) { '>=' => $v >= $th, '>' => $v > $th, '<=' => $v <= $th, default => $v < $th };
+    };
+
+    // ── 複勝人気順位（6分前）───────────────────────────────────────────────
+    //   仕様: 既存PHP順位があれば使用。ない場合のみ複勝最小の昇順・同値時馬番昇順で派生。
+    //   この関数には既存の複勝人気順位が無いため派生を作り、保存とログ化を行う。
+    $allocFukuRank = [];
+    {
+        $afSorted = array_values(array_filter(
+            $promptHorses,
+            fn($h) => isset($h['fuku_min_6']) && is_numeric($h['fuku_min_6']) && $h['fuku_min_6'] > 0
+        ));
+        usort($afSorted, function ($a, $b) {
+            if ((float)$a['fuku_min_6'] !== (float)$b['fuku_min_6']) {
+                return (float)$a['fuku_min_6'] <=> (float)$b['fuku_min_6'];
+            }
+            return ((int)$a['num']) <=> ((int)$b['num']);   // 同値は馬番昇順
+        });
+        foreach ($afSorted as $afI => $afH) {
+            $allocFukuRank[(int)$afH['num']] = $afI + 1;
+        }
+    }
+
+    // ── 資格 F / R / O の判定 ───────────────────────────────────────────────
+    $allocQualified = [];   // 資格ありの馬番（6分前単勝人気の昇順で後段に詰める）
+    $allocEvidence  = [];   // 馬番 => 判定の内訳（監査ログ用）
+    foreach ($promptHorses as $aqH) {
+        $aqNum  = (int) $aqH['num'];
+        $aqPop  = (int) ($aqH['popularity'] ?? 0);
+        $aqFs   = is_array($aqH['fuku_min_series'] ?? null) ? $aqH['fuku_min_series'] : [];
+
+        // F1
+        $aqS216 = $allocShrink($aqFs, 21, 6);
+        $aqS96  = $allocShrink($aqFs, 9, 6);
+        $aqSegDown = 0; $aqSegKnown = 0;
+        foreach ([[21, 18], [18, 15], [15, 12], [12, 9], [9, 6]] as $aqSeg) {
+            $aqV = $allocShrink($aqFs, $aqSeg[0], $aqSeg[1]);
+            if ($aqV !== null) { $aqSegKnown++; if ($aqV > 0) $aqSegDown++; }
+        }
+        // 「5区間中2区間以上で短縮」: 2区間確認できた時点で成立。
+        //   2未満でも未確認区間が残るなら不明（欠損を不成立にしない）。
+        $aqSeg2 = ($aqSegDown >= 2) ? true : (($aqSegKnown === 5) ? false : null);
+        $aqF1 = $allocAnd3([
+            $allocCmp($aqS216, '>=', 10.0),   // 21→6分で10%以上短縮
+            $aqSeg2,                          // 5区間中2区間以上で短縮
+            $allocCmp($aqS96,  '>=', 0.0),    // 9→6分で上昇していない
+        ]);
+
+        // F2
+        $aqF2 = $allocAnd3([
+            $allocCmp($allocShrink($aqFs, 9, 6),  '>=', 5.0),   // 9→6分で5%以上短縮
+            $allocCmp($allocShrink($aqFs, 12, 9), '>',  0.0),   // 12→9分でも短縮
+            $allocCmp($allocShrink($aqFs, 12, 6), '>',  0.0),   // 12→6分で合計短縮
+        ]);
+
+        $aqF = $allocOr3([$aqF1, $aqF2]);
+
+        // R: 単勝人気順位 − 複勝人気順位 >= 2
+        $aqFukuRank = $allocFukuRank[$aqNum] ?? null;
+        $aqR = ($aqPop > 0 && $aqFukuRank !== null) ? (($aqPop - $aqFukuRank) >= 2) : null;
+
+        // O: 予測補正OPI <= 0.85
+        $aqOpi = $aqH['estimated_opi'] ?? null;
+        $aqO = is_numeric($aqOpi) ? ((float) $aqOpi <= 0.85) : null;
+
+        $aqOk = ($aqPop >= 7) && ($aqF === true) && ($aqR === true || $aqO === true);
+        if ($aqOk) $allocQualified[] = $aqNum;
+
+        $allocEvidence[$aqNum] = [
+            '人気'       => $aqPop,
+            '複勝人気'   => $aqFukuRank,
+            'F1'         => $aqF1, 'F2' => $aqF2, 'F' => $aqF,
+            'R'          => $aqR,  'O'  => $aqO,
+            '資格'       => $aqOk,
+            '原値'       => [
+                '21→6短縮率' => $aqS216 === null ? null : round($aqS216, 2),
+                '9→6短縮率'  => $aqS96  === null ? null : round($aqS96, 2),
+                '短縮区間数' => $aqSegDown, '確認区間数' => $aqSegKnown,
+                '予測補正OPI' => $aqOpi,
+            ],
+        ];
+    }
+    sort($allocQualified);
+
+    // ── 配分用主境界（6分前比率2.0以上の最大比率ペア。同値なら小さい人気順位k）──
+    //   既存の主断層（$primaryGapUpperPop）とは別フィールドとして保持する。
+    //   全時点を「6分前単勝人気順の同一馬番ペア」で比較する（時点ごとに別馬へ入れ替えない）。
+    $allocPairs = [];   // k => ペア情報
+    for ($aiI = 0; $aiI < count($promptHorses) - 1; $aiI++) {
+        $aiU = $promptHorses[$aiI];       // 人気 k 位
+        $aiL = $promptHorses[$aiI + 1];   // 人気 k+1 位
+        $aiK = (int) ($aiU['popularity'] ?? ($aiI + 1));
+
+        $aiRatio = static function (array $u, array $l, int $t): ?float {
+            $uv = $u['tan_series'][$t] ?? null;
+            $lv = $l['tan_series'][$t] ?? null;
+            if (!is_numeric($uv) || !is_numeric($lv) || (float)$uv <= 0 || (float)$lv <= 0) return null;
+            return (float)$lv / (float)$uv;
+        };
+        $allocPairs[$aiK] = [
+            'k'         => $aiK,
+            'upper_num' => (int) $aiU['num'],
+            'lower_num' => (int) $aiL['num'],
+            'ratio6'    => $aiRatio($aiU, $aiL, 6),
+            'ratio21'   => $aiRatio($aiU, $aiL, 21),
+        ];
+    }
+
+    $allocBoundary = null;
+    foreach ($allocPairs as $abP) {
+        if ($abP['ratio6'] === null || $abP['ratio6'] < 2.0) continue;
+        if ($allocBoundary === null
+            || $abP['ratio6'] > $allocBoundary['ratio6']
+            || ($abP['ratio6'] === $allocBoundary['ratio6'] && $abP['k'] < $allocBoundary['k'])) {
+            $allocBoundary = $abP;
+        }
+    }
+
+    // 下側（6分前単勝人気 k+1位以降）にいる資格あり穴馬の数
+    $allocLowerQualified = function (int $k) use ($allocQualified, $promptHorses): int {
+        $lqPopByNum = [];
+        foreach ($promptHorses as $lqH) { $lqPopByNum[(int) $lqH['num']] = (int) ($lqH['popularity'] ?? 0); }
+        $lqN = 0;
+        foreach ($allocQualified as $lqNum) {
+            if (($lqPopByNum[$lqNum] ?? 0) >= $k + 1) $lqN++;
+        }
+        return $lqN;
+    };
+
+    // ── S1 / S2 / S3 ───────────────────────────────────────────────────────
+    //   S1: 既存断層タイプD
+    //   S2: 21分に比率2以上のペアが6分で2未満 かつ その下側に資格あり穴馬2頭以上
+    //   S3: 配分用主境界の21分比率2以上、21→6分の縮小率20%以上、下側に資格あり穴馬2頭以上
+    //   タイプE・位置移動・単複断層不一致だけでは成立にしない。
+    $allocS1 = ($gapType === 'D');
+
+    $allocS2 = false; $allocS2Unknown = false; $allocS2Hit = null;
+    foreach ($allocPairs as $asP) {
+        if ($asP['ratio21'] === null || $asP['ratio6'] === null) { $allocS2Unknown = true; continue; }
+        if ($asP['ratio21'] >= 2.0 && $asP['ratio6'] < 2.0 && $allocLowerQualified($asP['k']) >= 2) {
+            $allocS2 = true; $allocS2Hit = $asP; break;
+        }
+    }
+    $allocS2Three = $allocS2 ? true : ($allocS2Unknown ? null : false);
+
+    $allocS3 = false; $allocS3Unknown = false; $allocS3Shrink = null;
+    if ($allocBoundary === null) {
+        $allocS3Unknown = false;   // 6分前に比率2以上のペアが無い＝主境界なし＝不成立
+    } elseif ($allocBoundary['ratio21'] === null) {
+        $allocS3Unknown = true;    // 21分の比率が取れない＝判定不能
+    } else {
+        $allocS3Shrink = 100.0 * ($allocBoundary['ratio21'] - $allocBoundary['ratio6']) / $allocBoundary['ratio21'];
+        $allocS3 = ($allocBoundary['ratio21'] >= 2.0)
+                && ($allocS3Shrink >= 20.0)
+                && ($allocLowerQualified($allocBoundary['k']) >= 2);
+    }
+    $allocS3Three = $allocS3 ? true : ($allocS3Unknown ? null : false);
+
+    $allocLowerOpen = $allocOr3([$allocS1, $allocS2Three, $allocS3Three]);
+
+    // ── 選出前ゲート（仕様書5.1）───────────────────────────────────────────
+    //   既存PHPのB・C・Dが全て不成立で、資格ありの7〜10人気が1頭以上いる場合のみ
+    //   中・強モードを検討する。いずれか成立または不明なら通常。
+    //   ※条件A（最終候補に7〜10人気がいるか）は選出前ゲートに使用しない。
+    $allocPopByNum = [];
+    foreach ($promptHorses as $apH) { $allocPopByNum[(int) $apH['num']] = (int) ($apH['popularity'] ?? 0); }
+    $allocQual7to10 = 0;
+    foreach ($allocQualified as $aqN) {
+        $aqP = $allocPopByNum[$aqN] ?? 0;
+        if ($aqP >= 7 && $aqP <= 10) $allocQual7to10++;
+    }
+    $allocBcdAllFalse = ($condition2Met === false && $condition3Met === false && $condition4Met === false);
+    $allocGate        = ($allocBcdAllFalse && $allocQual7to10 >= 1);
+
+    // ── 配分モード（通常／中／強）＝ @ANCHOR-20261004-ALLOC-MODE ────────────
+    //   仕様書5.3 表6（人気側＋穴側）
+    //     C=4  通常 既存目安 / 中 3＋1 / 強 2＋2
+    //     C=5  通常 既存目安 / 中 3＋2 / 強 2＋3
+    //     C=6  通常 既存目安 / 中 3＋3 / 強 3＋3   ※中と強が同数（よっしーへ確認②として照会中）
+    //     C=7  通常 5＋2     / 中 4＋3 / 強 3＋4
+    //   判定順:
+    //     1) ゲート成立 かつ 下位開放成立 かつ 強の頭数を満たす → 強
+    //     2) 満たせず中の頭数を満たす → 中
+    //        （下位開放が不成立・不明でも、ゲート成立かつ中の頭数を満たせば中）
+    //     3) それ以外 → 通常
+    //   「頭数を満たす」= 人気側と資格あり穴側の双方に必要頭数が存在すること。
+    //   Cが4〜7以外は表6の対象外。既存の全頭順位で処理する（モード判定しない）。
+    //   【20261004 よっしー回答④A】旧人気帯別上限は廃止し、新配分に一本化する。
+    //     仕様書の「通常C=4〜6は既存目安」は曖昧なので、下表の具体値へ置き換えた。
+    //     通常の穴側は仕様書の通常C7（5＋2＝穴側2／7頭）に合わせ、
+    //     同じ比率（約29%）を四捨五入して決めている。
+    //       C=4 → 4×0.29=1.14 → 穴側1 → 3＋1
+    //       C=5 → 5×0.29=1.43 → 穴側1 → 4＋1
+    //       C=6 → 6×0.29=1.71 → 穴側2 → 4＋2
+    //       C=7 → 仕様書どおり 5＋2
+    //     ※C=4は通常と中がどちらも3＋1になる。配分は同じだが判定条件とログは
+    //       区別する（C=6で中と強が3＋3で同じになるのと同じ扱い・回答②A）。
+    //     ※旧上限（$pickupUpperMax / $pickupMidMax / $pickupLowerMax）は
+    //       この表と二重に適用しない。監査ログ用に受け取るだけ。
+    $allocModeTable = [
+        4 => ['通常' => [3, 1], '中' => [3, 1], '強' => [2, 2]],
+        5 => ['通常' => [4, 1], '中' => [3, 2], '強' => [2, 3]],
+        6 => ['通常' => [4, 2], '中' => [3, 3], '強' => [3, 3]],
+        7 => ['通常' => [5, 2], '中' => [4, 3], '強' => [3, 4]],
+    ];
+    // 人気側プール = 6人気以内の実出走馬 / 穴側プール = 資格あり馬（資格の定義上すべて7人気以下）
+    $allocFavPool = 0;
+    foreach ($promptHorses as $afH) {
+        $afP = (int) ($afH['popularity'] ?? 0);
+        if ($afP >= 1 && $afP <= 6) $allocFavPool++;
+    }
+    $allocLongPool = count($allocQualified);
+    $allocC        = (int) $targetSelectionCount;
+
+    $allocMode       = '通常';
+    $allocModeTarget = $allocModeTable[$allocC]['通常'] ?? null;  // null = 既存目安（C=4〜6の通常）
+    $allocModeReason = '';
+    if (!isset($allocModeTable[$allocC])) {
+        $allocModeReason = "C={$allocC} は表6の対象外（4〜7以外）。既存の全頭順位で処理する";
+    } elseif ($allocGate !== true) {
+        $allocModeReason = '選出前ゲート不成立のため通常';
+    } else {
+        $amS   = $allocModeTable[$allocC]['強'];
+        $amM   = $allocModeTable[$allocC]['中'];
+        $amFitS = ($allocFavPool >= $amS[0] && $allocLongPool >= $amS[1]);
+        $amFitM = ($allocFavPool >= $amM[0] && $allocLongPool >= $amM[1]);
+        if ($allocLowerOpen === true && $amFitS) {
+            $allocMode       = '強';
+            $allocModeTarget = $amS;
+            $allocModeReason = "ゲート成立・下位開放成立・強の頭数（{$amS[0]}＋{$amS[1]}）を満たす";
+        } elseif ($amFitM) {
+            $allocMode       = '中';
+            $allocModeTarget = $amM;
+            $allocModeReason = ($allocLowerOpen === true)
+                ? "下位開放は成立だが強の頭数（{$amS[0]}＋{$amS[1]}）に不足（人気側{$allocFavPool}・資格穴側{$allocLongPool}）→ 中へ降格"
+                : '下位開放が' . ($allocLowerOpen === null ? '不明' : '不成立')
+                  . "だが、ゲート成立で中の頭数（{$amM[0]}＋{$amM[1]}）を満たすため中";
+        } else {
+            $allocModeReason = "ゲート成立だが中の頭数（{$amM[0]}＋{$amM[1]}）に不足（人気側{$allocFavPool}・資格穴側{$allocLongPool}）→ 通常へ降格";
+        }
+    }
+    $allocTargetFav  = $allocModeTarget[0] ?? null;
+    $allocTargetLong = $allocModeTarget[1] ?? null;
+
+    // 【20261004 よっしー回答②A】「配分が同じでも中・強の判定条件とログは区別してください」
+    //   同じ頭数になる組み合わせ（C=6の中と強、C=4の通常と中）が分かるよう注記を出す。
+    $allocSameAs = [];
+    if (isset($allocModeTable[$allocC])) {
+        foreach (['通常', '中', '強'] as $asM1) {
+            foreach (['通常', '中', '強'] as $asM2) {
+                if ($asM1 >= $asM2) continue;
+                if (($allocModeTable[$allocC][$asM1] ?? null) === ($allocModeTable[$allocC][$asM2] ?? null)) {
+                    $allocSameAs[] = "{$asM1}と{$asM2}が同じ頭数";
+                }
+            }
+        }
+    }
+    $allocSameNote = empty($allocSameAs)
+        ? 'なし'
+        : implode('・', $allocSameAs) . '（配分は同じだが判定条件とログは区別する）';
+
+    $allocThreeLabel = static fn(?bool $v): string => $v === null ? '不明' : ($v ? '成立' : '不成立');
+    \Log::info('[配分] 資格・下位開放・選出前ゲート（@ANCHOR-20261004-ALLOCATION）', [
+        'race'           => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+        'N'              => $activeRunnerCount,
+        'C'              => $targetSelectionCount,
+        '断層タイプ'     => $gapType,
+        '資格あり馬番'   => $allocQualified,
+        '資格7〜10人気'  => $allocQual7to10,
+        '配分用主境界'   => $allocBoundary === null ? null : [
+            'k' => $allocBoundary['k'],
+            '上側馬番' => $allocBoundary['upper_num'], '下側馬番' => $allocBoundary['lower_num'],
+            '6分前比率' => round($allocBoundary['ratio6'], 3),
+            '21分比率'  => $allocBoundary['ratio21'] === null ? null : round($allocBoundary['ratio21'], 3),
+            '縮小率'    => $allocS3Shrink === null ? null : round($allocS3Shrink, 2),
+        ],
+        'S1(タイプD)'    => $allocThreeLabel($allocS1),
+        'S2(断層消滅)'   => $allocThreeLabel($allocS2Three),
+        'S3(断層縮小)'   => $allocThreeLabel($allocS3Three),
+        '下位開放'       => $allocThreeLabel($allocLowerOpen),
+        'B/C/D'          => [
+            'B' => $allocThreeLabel($condition2Met),
+            'C' => $allocThreeLabel($condition3Met),
+            'D' => $allocThreeLabel($condition4Met),
+        ],
+        '選出前ゲート'   => $allocGate ? '成立（中・強を検討）' : '不成立（通常）',
+        '人気側プール'   => $allocFavPool,
+        '資格穴側プール' => $allocLongPool,
+        '配分モード'     => $allocMode,
+        '目標配分'       => ($allocTargetFav === null)
+            ? '既存目安（表6に数値なし）'
+            : "{$allocTargetFav}＋{$allocTargetLong}",
+        '降格理由'       => $allocModeReason,
+        '同配分の注記'   => $allocSameNote,
+    ]);
+    // ═══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261004-AUDIT-HORSE  監査ログ【馬単位】（仕様書9.1 表10）
+    // ═══════════════════════════════════════════════════════════════════════
+    //   保存内容: DB人気・オッズ、F/R/Oと原値、Sと断層ペア・時点、資格、保護対象か
+    //   ※ここは診断専用。失敗しても予測を止めない。
+    try {
+        $auHorseRows = [];
+        foreach ($promptHorses as $auH) {
+            $auNum = (int) $auH['num'];
+            $auEv  = $allocEvidence[$auNum] ?? [];
+            $auPair = $allocPairs[(int) ($auH['popularity'] ?? 0)] ?? null;   // この馬が上側になるペア
+            $auHorseRows[$auNum] = [
+                '馬名'         => $auH['name'] ?? '',
+                'DB人気'       => (int) ($auH['popularity'] ?? 0),
+                'DB6分前単勝'  => $auH['tan_series'][6] ?? null,
+                'DB6分前複勝最小' => $auH['fuku_min_series'][6] ?? null,
+                '複勝人気'     => $auEv['複勝人気'] ?? null,
+                'F1' => $allocThreeLabel($auEv['F1'] ?? null),
+                'F2' => $allocThreeLabel($auEv['F2'] ?? null),
+                'F'  => $allocThreeLabel($auEv['F']  ?? null),
+                'R'  => $allocThreeLabel($auEv['R']  ?? null),
+                'O'  => $allocThreeLabel($auEv['O']  ?? null),
+                '原値'     => $auEv['原値'] ?? null,
+                '資格'     => !empty($auEv['資格']),
+                '保護対象' => in_array($auNum, array_map('intval', $protectedLongshotNums), true),
+                '下側ペア' => $auPair === null ? null : [
+                    'k'         => $auPair['k'],
+                    '上側馬番'  => $auPair['upper_num'],
+                    '下側馬番'  => $auPair['lower_num'],
+                    '6分前比率' => $auPair['ratio6']  === null ? null : round($auPair['ratio6'], 3),
+                    '21分比率'  => $auPair['ratio21'] === null ? null : round($auPair['ratio21'], 3),
+                ],
+            ];
+        }
+        // 1レース十数頭のため、1行に全頭を入れる（grepしやすさ優先）
+        \Log::info('[AUDIT_HORSE] 馬単位の監査ログ（@ANCHOR-20261004-AUDIT-HORSE）', [
+            'race'   => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+            '版'     => self::ALLOC_SPEC_VERSION,
+            '頭数'   => count($auHorseRows),
+            '時点'   => $allocTimings,
+            'S1'     => $allocThreeLabel($allocS1),
+            'S2'     => $allocThreeLabel($allocS2Three),
+            'S3'     => $allocThreeLabel($allocS3Three),
+            '配分用主境界' => $allocBoundary === null ? null : [
+                'k' => $allocBoundary['k'],
+                '上側馬番' => $allocBoundary['upper_num'],
+                '下側馬番' => $allocBoundary['lower_num'],
+            ],
+            '全頭'   => $auHorseRows,
+        ]);
+        self::auditFile('AUDIT_HORSE', [
+            'race'   => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+            '版'     => self::ALLOC_SPEC_VERSION,
+            '頭数'   => count($auHorseRows),
+            '時点'   => $allocTimings,
+            'S1'     => $allocThreeLabel($allocS1),
+            'S2'     => $allocThreeLabel($allocS2Three),
+            'S3'     => $allocThreeLabel($allocS3Three),
+            '配分用主境界' => $allocBoundary === null ? null : [
+                'k' => $allocBoundary['k'],
+                '上側馬番' => $allocBoundary['upper_num'],
+                '下側馬番' => $allocBoundary['lower_num'],
+            ],
+            '全頭'   => $auHorseRows,
+        ]);
+    } catch (\Throwable $auE) {
+        \Log::warning('[AUDIT_HORSE] 馬単位の監査ログの作成に失敗（処理は継続）', [
+            'message' => $auE->getMessage(),
+        ]);
+    }
+
+    // ── @ANCHOR-20261004-AUDIT-SNAPSHOT  6分前入力のスナップショットID ──────
+    //   仕様書は「6分前snapshot_id」を求めているが、DBにスナップショットを識別する
+    //   列が無い（申告事項）。そこで6分前の入力そのものから決定論的に算出する。
+    //   取消・オッズ更新があれば値が変わるので、同一入力かどうかの判定には使える。
+    //   統合側でも同じ値を再計算して突き合わせられるよう、算出元は
+    //   「DBの6分前の行そのもの」に固定する（整形後の配列に依存させない）。
+    //   算出式を変えると過去のログと比較できなくなるので、変更しないこと。
+    $auSnapshotId = self::oddsSnapshotId($oddsRows);
+    $auInputSrc   = [];
+    foreach ($promptHorses as $auSH) {
+        $auInputSrc[(int) $auSH['num']] = [
+            $auSH['tan_series']      ?? [],
+            $auSH['fuku_min_series'] ?? [],
+            $auSH['fuku_max_series'] ?? [],
+        ];
+    }
+    ksort($auInputSrc);
+    $auInputHash = hash('sha256', json_encode($auInputSrc));
+
+    if (!empty($allocQualified)) {
+        \Log::info('[配分] 資格ありの内訳', [
+            'race' => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+            '内訳' => array_intersect_key($allocEvidence, array_flip($allocQualified)),
+        ]);
+    }
+
     // ─── Block 8: 断層位置別・人気帯別の選出上限 ─────────────────────────────
     // 主断層位置（upper_pop）を決定し、仕様書テーブルに従い上限を設定する
     // 仕様書テーブル:
@@ -1952,7 +2955,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
                 $aiRec600['tan_rate'] !== null ? number_format($aiRec600['tan_rate'], 1) : '－',
                 $aiRec600['fuku_rate'] !== null ? number_format($aiRec600['fuku_rate'], 1) : '－'
             ),
-            '単勝・複勝どちらかの回収率が100%未満の場合、その馬券種については選出基準をより厳しくし、妙味の低い馬を除外してください。',
+            '単勝・複勝どちらかの回収率が100%未満の場合、その馬券種については妙味の採点を厳しくしてください。候補から外す理由にはしません。',
             '',
         ] : []),
         // ── よっしー20260927指摘: 上限ではなく「目標数C頭を必ず満たす」 ──────
@@ -1963,14 +2966,25 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         "{$targetSelectionCount} 頭を超えて出力してはいけません。実出走馬が {$targetSelectionCount} 頭未満の場合は実出走馬全頭が上限です。",
         "頭数は人間が別途算出した確定値です。あなたが独自に計算し直してはいけません。",
         '',
-        "【このレースの人気帯別の優先目安（タイプ{$gapType}）】",
-        '以下は順位づけの優先目安です。最終候補を減らすハード上限ではありません。',
-        "・1〜6番人気 … 目安{$pickupUpperMax}頭",
-        "・7〜10番人気 … 目安{$pickupMidMax}頭",
-        "・11番人気以下 … 目安{$pickupLowerMax}頭",
-        "目標数 {$targetSelectionCount} 頭に近づけるために必要なら、全頭順位に従って枠を補ってください。",
-        '人気帯の目安は最終候補数を減らすハード上限として適用しません。',
-        '',
+        // 【20261004 よっしー回答④A】旧人気帯別上限は廃止し、新配分に一本化する。
+        //   目標配分が決まっているとき（C=4〜7）は、この旧目安を送らない。
+        //   二重に適用しないため。断層タイプA〜Eの分類自体は維持する。
+        //   @ANCHOR-20261004-NO-OLD-POPBAND
+        ...(($allocTargetFav === null) ? [
+            "【このレースの人気帯別の優先目安（タイプ{$gapType}）】",
+            '以下は順位づけの優先目安です。最終候補を減らすハード上限ではありません。',
+            "・1〜6番人気 … 目安{$pickupUpperMax}頭",
+            "・7〜10番人気 … 目安{$pickupMidMax}頭",
+            "・11番人気以下 … 目安{$pickupLowerMax}頭",
+            "目標数 {$targetSelectionCount} 頭に近づけるために必要なら、全頭順位に従って枠を補ってください。",
+            '人気帯の目安は最終候補数を減らすハード上限として適用しません。',
+            '',
+        ] : [
+            "【このレースの断層タイプ】タイプ{$gapType}",
+            '断層タイプは順位づけの材料です。人気帯別の頭数上限は使いません。',
+            '最終候補の内訳は、後述の【配分（PHP算出済み・変更禁止）】に従ってください。',
+            '',
+        ]),
         '【能力・適性評価（100点満点・6項目）】',
         'プロンプト末尾の【各馬の直近成績（過去最大10走）と今走データ】を根拠に、選出した各馬を以下の6項目で採点してください。',
         '1. 基礎能力・クラス実績：25点',
@@ -1985,8 +2999,94 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '採点結果は、選出理由の冒頭に必ず「能力適性:X（XX点）。」の形式で記載してください。この記載がないとPHP側で能力適性点を抽出できません。',
         'ただし能力・適性だけで候補を決めてはいけません。時系列オッズの補強材料として扱い、能力適性Dでも強い市場根拠がある馬を自動除外しないでください。',
         '',
+        // ── @ANCHOR-20261004-ALLOC-PROMPT  配分モードの通知（仕様書 表7 の N / C / MODE）──
+        //   PHPが確定した配分モードと目標配分をAIへ凍結値として渡す。
+        //   仕様書8.2「AIはPHP確定の配分モードを変更しない」。
+        //   フラグを false にすると、この配分ブロックは埋め込まれない（仕様書11.2）。
+        ...(self::allocFeatureEnabled() ? [
+            '【配分（PHP算出済み・変更禁止）】',
+            "実出走頭数N: {$activeRunnerCount}頭 / 目標数C: {$targetSelectionCount}頭 / 配分モード: {$allocMode}",
+            ($allocTargetFav === null
+                ? '目標配分: 既存目安（人気帯の目安に従う）'
+                : "目標配分: 人気側（1〜6番人気）{$allocTargetFav}頭 ＋ 穴側（PHPが資格を確認した7番人気以下）{$allocTargetLong}頭"),
+            '資格あり馬番: ' . (!empty($allocQualified) ? implode('|', $allocQualified) : 'なし'),
+            // @ANCHOR-20261004-QUAL-EVIDENCE  資格馬の根拠を凍結値として渡す
+            //   よっしー20261004回答①A-2「理由文には確認できた入力値と時点だけを使い、
+            //   点数・能力評価・根拠を推測で補わない」に使う。
+            //   統合時にこの行を読み戻し、PHPが定型の選出理由を組む。
+            //   書式: 馬番=pop:人気,s216:21→6短縮率,s96:9→6短縮率,fuku:複勝人気,opi:予測補正OPI
+            //         取得できない値は - を入れる（0 で補わない）。
+            '資格根拠: ' . (function () use ($allocQualified, $allocEvidence): string {
+                if (empty($allocQualified)) return 'なし';
+                $qe = [];
+                foreach ($allocQualified as $qn) {
+                    $ev = $allocEvidence[$qn] ?? [];
+                    $gv = static function ($v, int $dec = 2): string {
+                        return is_numeric($v) ? number_format((float) $v, $dec, '.', '') : '-';
+                    };
+                    $qe[] = $qn . '='
+                          . 'pop:'  . $gv($ev['人気'] ?? null, 0)
+                          . ',s216:' . $gv($ev['原値']['21→6短縮率'] ?? null)
+                          . ',s96:'  . $gv($ev['原値']['9→6短縮率']  ?? null)
+                          . ',fuku:' . $gv($ev['複勝人気'] ?? null, 0)
+                          . ',opi:'  . $gv($ev['原値']['予測補正OPI'] ?? null);
+                }
+                return implode(' ', $qe);
+            })(),
+            // ══════════════════════════════════════════════════════════════════
+            // @ANCHOR-20261006-QUAL-STATE  7番人気以下の資格判定を三値で凍結する
+            // ══════════════════════════════════════════════════════════════════
+            // 【20261006 ご指摘④】
+            //   「0頭回避の例外を適用するなら、補充上限、対象となる有効候補、
+            //     資格不成立と資格不明の扱い、選出理由を定義する」
+            //   資格の判定は成立／不成立／不明の三値だが、これまで統合側へは
+            //   「資格ありの馬番」しか渡しておらず、不成立と不明を区別できなかった。
+            //   この行を統合時に読み戻して区別する。
+            //   書式: 馬番:状態（1=成立 / 0=不成立 / ?=不明）
+            '資格判定: ' . (function () use ($promptHorses, $allocEvidence): string {
+                $qs = [];
+                foreach ($promptHorses as $qh) {
+                    $qn  = (int) $qh['num'];
+                    $qp  = (int) ($qh['popularity'] ?? 0);
+                    if ($qp < 7) continue;                   // 7番人気以下だけが資格の対象
+                    $ev  = $allocEvidence[$qn] ?? null;
+                    if ($ev === null)            { $qs[] = $qn . ':?'; continue; }
+                    if (!empty($ev['資格']))     { $qs[] = $qn . ':1'; continue; }
+                    // F・R・O のいずれかが不明なら「不明」、すべて確認できて満たさないなら「不成立」
+                    $unknown = ($ev['F'] === null)
+                            || (($ev['R'] === null) && ($ev['O'] === null));
+                    $qs[] = $qn . ($unknown ? ':?' : ':0');
+                }
+                return empty($qs) ? 'なし' : implode(' ', $qs);
+            })(),
+            '配分モードと目標配分はPHPが確定した値です。あなたが再判定・変更してはいけません。',
+            '目標配分は最終候補の内訳の目標です。根拠のない馬を数合わせで入れてはいけません。',
+            '',
+        ] : []),
+
+        // @ANCHOR-20261004-AUDIT-SNAPSHOT  入力の同一性を後から確認するための記録行
+        //   仕様書9.2「途中の取消更新 → 両AIを同じ最新版で再実行。旧snapshot_idと混ぜない」。
+        //   統合時にこの行を読み戻し、その時点の入力から算出した値と突き合わせる。
+        "【入力スナップショット（記録用・予想の判断には使いません）】snapshot_id: {$auSnapshotId}",
+        '',
+
         // ── よっしー20260927指摘【人気薄の根拠付き保護枠】保護対象の通知 ──────
-        ...(!empty($protectedLongshotNums) ? [
+        //   【20261004 仕様変更】仕様書6.2「旧保護対象は参考入力とする。無条件の1頭入替、
+        //   別枠追加、11人気以下だけの最大1〜2頭制限は廃止する。資格馬は全て同じ穴側の
+        //   配分内で比較する。」に従い、入替を指示する文面を参考扱いへ差し替えた。
+        //   旧文面は削除せずコメントアウトで残す。
+        //   @ANCHOR-20261004-PROTECTED-REFERENCE-ONLY
+        //   フラグ ON = 参考扱い（20261004仕様） / OFF = 旧文面（20260927の入替指示）
+        ...(empty($protectedLongshotNums) ? [] : (self::allocFeatureEnabled() ? [
+            '【7番人気以下で根拠を確認した馬（PHP算出済み・参考）】',
+            '次の馬番は、PHPが客観的な市場・能力根拠を確認した7番人気以下の馬です。',
+            '対象馬番: ' . implode('|', $protectedLongshotNums),
+            'これは参考情報です。該当馬を別枠で追加したり、他の候補と無条件に入れ替えたりはしません。',
+            '穴側の候補として、他の馬と同じ基準で比較してください。',   // ※2nd AIでは配分ブロックを除去するため「上に示した目標配分」とは書かない
+            'この判定はPHPが算出済みです。あなたが再判定・追加・除外してはいけません。',
+            '',
+        ] : [
+            // 【旧文面】可変配分を無効にしたときだけ使う（2026-09-28時点の安定動作）
             '【人気薄の根拠付き保護対象（PHP算出済み）】',
             '次の馬番は、PHPが客観的な市場・能力根拠を確認した7番人気以下の馬です。',
             '対象馬番: ' . implode('|', $protectedLongshotNums),
@@ -1995,7 +3095,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             '通常の上位候補の最下位1頭と入れ替える形になります。入れ替えは最大1頭です。',
             'この判定はPHPが算出済みです。あなたが再判定・追加・除外してはいけません。',
             '',
-        ] : []),
+        ])),
         '【出力フォーマット（厳守）】',
         'このフォーマットは画面表示アプリがそのままパースします。',
         '前置き・後書き・補足コメントは不要です。フォーマット通りに出力してください。',
@@ -2005,6 +3105,28 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         'レース指標|波乱度: X|下位進入度: X|大穴進入度: X',
         '馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：能力適性:A（82点）。XXXXXXXXXXXXXXXXXXXXXXXXXXXX（候補1頭につき改行なしの1行。冒頭の「能力適性:X（XX点）。」は必須。続けて客観的根拠を4〜5要素入れ、箇条書きにしない）',
         '─────────────────────────────',
+        '',
+
+        // ── @ANCHOR-20261004-AUDIT-ALLSCORE  全頭採点（内部用）の出力指示 ────────
+        //   よっしー20261004回答③A。公開部分とマーカーで分離する。
+        '【全頭採点（内部用）】',
+        '上の候補行を出力し終えたあと、全実出走馬の採点内訳を下のマーカーで囲んで1行のJSONとして出力してください。',
+        'この領域は画面に表示しません。公開候補行の中にJSONを混ぜてはいけません。',
+        '候補に選ばれなかった馬も含め、必ず全実出走馬を入れてください。候補が0頭の場合もこの領域は出力します。',
+        'キーは次の意味です。数値だけを入れ、説明文は書かないでください。',
+        '  n  … 馬番（整数）',
+        '  c  … 信頼度7項目の得点を順番に並べた配列 [0〜15, 0〜12, 0〜8, 0〜10, 0〜8, 0〜4, 0〜3]',
+        '  cs … 信頼度小計（cの合計・0〜60）',
+        '  m  … 妙味4項目の得点を順番に並べた配列 [0〜15, 0〜12, 0〜8, 0〜5]',
+        '  ms … 妙味小計（mの合計・0〜40）',
+        '  t  … 総合点（cs + ms・0〜100。候補行のおすすめ度と必ず一致させる）',
+        '  a  … 能力適性の点数（0〜100）。採点不能なら null とし、推測値を入れない',
+        '小計・合計は必ず内訳の合計と一致させてください。一致しない場合はPHP側で無効として扱います。',
+        '馬番の重複・欠落があってはいけません。',
+        '出力例（この例の数値はあくまで書式の見本です）:',
+        self::AUDIT_JSON_BEGIN,
+        '{"v":1,"horses":[{"n":1,"c":[12,9,5,7,6,3,2],"cs":44,"m":[6,8,4,2],"ms":20,"t":64,"a":78}]}',
+        self::AUDIT_JSON_END,
         '',
         '【厳選穴レースの判定ルール】',
         '選出が終わったあと、以下のルールで「厳選穴レース|1」または「厳選穴レース|0」を出力の先頭1行目に必ず入れてください。',
@@ -2056,7 +3178,7 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '1．推定確定配当水準：0〜15点',
         '　推定確定複勝最小オッズを中心に評価する。1.5倍未満は本項目を原則2点以下、1.5〜2.5倍は3〜7点、2.5〜4.0倍は8〜11点、4.0〜7.0倍は12〜14点、7.0倍以上は継続的な複勝流入がある場合だけ15点まで可能とする。高オッズだけで高得点にしない。',
         '2．3種類の回収率の裏付け：0〜12点',
-        '　過去回収率、OPI帯別回収率、フェーズパターン別回収率をサンプル数とセットで評価する。2種類以上が110%以上なら高評価、2種類以上が100%未満なら減点、2種類以上が90%未満なら0点とし、別途PHP回収率ハード除外も適用する。欠損・0レース・「－」は不明として中立扱いし、0点や不振と解釈しない。',
+        '　過去回収率、OPI帯別回収率、フェーズパターン別回収率をサンプル数とセットで評価する。2種類以上が110%以上なら高評価、2種類以上が100%未満なら減点、2種類以上が90%未満なら0点とする。これは本項目の採点だけに効く減点であり、候補から外す条件ではない。欠損・0レース・「－」は不明として中立扱いし、0点や不振と解釈しない。',
         '3．OPI・予測補正OPIによる市場評価：0〜8点',
         '　予測補正OPIを中心に、単勝OPI・複勝OPIとの整合性を評価する。過小評価ゾーンは加点、過剰人気ゾーンは減点する。ただしOPIだけで採用・除外を決めない。',
         '4．配当と市場流入・断層構造の整合性：0〜5点',
@@ -2066,26 +3188,35 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '',
         '信頼度60点と妙味40点は、後掲の市場妙味基礎点80点・能力適性補正20点・高配当総合点とは別の「既存おすすめ度」です。両者を加算・平均・置換してはいけません。シャドー検証中は高配当強化指標をこの100点採点へ逆流させないでください。',
         '',
-        '低配当例外を除き、信頼度が低い馬を妙味だけで70点以上にしないでください。原則として本候補は信頼度36点以上、補欠は信頼度30点以上を必要とします。ただし11番人気以下は既存の大穴選出条件をすべて満たすことを優先し、この信頼度基準だけで採用してはいけません。',
+        '低配当例外を除き、信頼度が低い馬を妙味だけで70点以上にしないでください。原則として本候補は信頼度36点以上、補欠は信頼度30点以上を目安とします。これは採点の目安であり、候補から外す条件ではありません。',
         '',
-        '全頭について信頼度小計、妙味小計、7項目＋4項目の内訳をAI内部で確定してから合計してください。既存Flutter形式を変えないため、内訳、小計、新しいJSON項目は出力へ追加しません。最終おすすめ度だけを既存候補行へ出力し、必ずこの固定配点から算出してください。',
+        // 【20261004 よっしー回答③A】「JSONを出力しない」→「公開部分に混ぜず、内部用領域に出力する」へ統一
+        //   @ANCHOR-20261004-AUDIT-ALLSCORE
+        '全頭について信頼度小計、妙味小計、7項目＋4項目の内訳を確定してから合計してください。最終おすすめ度だけを既存候補行へ出力し、必ずこの固定配点から算出してください。',
+        '内訳・小計・合計は公開候補行には混ぜず、別に示す【全頭採点（内部用）】の領域にだけ出力してください。既存Flutter形式は変えません。',
+        // 【旧文面】'…既存Flutter形式を変えないため、内訳、小計、新しいJSON項目は出力へ追加しません。…'
         '',
         'おすすめ度（信頼度＋妙味）の降順でソートしてください。',
         '人気順は上記テーブルの「X人気」欄の値をそのまま出力してください。自分で計算しないでください。',
         '',
-        '【低配当除外ルール（PHP側でも同基準で強制適用されます）】',
+        // 【20261004】仕様書 表8：候補削除と69点固定上限は廃止。妙味小計5点以下の制限だけ維持。
+        //   @ANCHOR-20261004-NO-PROMPT-EXCLUDE
+        '【低配当の採点制限（候補からは外しません）】',
         '対象: 推定確定複勝最小が1.5倍未満 かつ 推定確定オッズ（単勝）が3.0倍未満 の両方を満たす馬。',
-        '該当馬は原則として最終選出から除外してください（本候補・補欠・人気薄注目馬のいずれにも残しません）。妙味小計は原則5点以下、おすすめ度は原則69点以下とします。下記の例外3条件をすべて満たす場合だけ解除できます。',
+        '該当馬は妙味小計を原則5点以下としてください。下記の例外3条件をすべて満たす場合だけ解除できます。',
+        'これは採点の制限であり、候補から外す条件ではありません。おすすめ度に上限は設けません。該当馬も通常どおり候補に選べます。',
         '・例外①: 主断層の上側グループ（断層最上位グループ）に属している',
         '・例外②: 単勝・複勝の両方で複数時点にわたる継続流入が確認できる',
         '・例外③: サンプル30件以上かつ回収率110%以上の回収率が2種類以上ある',
         '3条件すべてが成立した場合のみ上限を解除し、解除した事実と根拠を選出理由へ明記してください。1つでも欠ければ解除できません。',
-        'この判定はPHP側（Block 13a）でも機械的に行われ、例外3条件を満たさない低配当馬は統合候補から必ず除外されます。AIの判断より優先されます。',
+        'この判定はPHP側（Block 13a）でも行いますが、候補からは外しません。馬券を買うか見送るかの判断にだけ使います。',
         '',
-        '【回収率フィルター（PHP側でも同基準で強制適用されます）】',
+        // 【20261004】仕様書 表8：90%ハード除外と64点固定上限は廃止。採点での減点のみ維持。
+        //   @ANCHOR-20261004-NO-PROMPT-EXCLUDE
+        '【回収率の扱い（候補からは外しません）】',
         '各馬の3種類の回収率（過去回収率・OPI帯別回収率・フェーズパターン別回収率）は、サンプル30件以上のものだけを有効値として扱ってください。',
         '・欠損・0件・「－」は不明として中立扱いとし、0点や不振と解釈してはいけません',
-        '・有効値が2種類以上あり、そのうち2種類以上が90%未満の馬は、PHP側（Block 12）でハード除外されます。AI採点でもおすすめ度64点以下としてください',
+        '・有効値が2種類以上あり、そのうち2種類以上が ' . self::B12_RECOVERY_LOW_THRESH . '%未満の馬は、PHP側（Block 12）で「馬券は見送り」の印が付きます。候補からは外しません。おすすめ度に上限も設けません。妙味の採点でのみ減点してください',
         '・有効値のうち2種類以上が110%以上の馬は、妙味を高く評価してください',
         '・サンプル30件未満の回収率を単独の根拠にして高得点・低得点にしてはいけません',
         '',
@@ -2122,13 +3253,19 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         '3項目以上を満たさない7〜10番人気の馬は選出を慎重に判断してください。',
         '',
         '■ 11番人気以下（大穴）の選出条件',
-        '11番人気以下は「人気薄注目馬」として別枠で最大1〜2頭まで。以下の条件を全て満たした馬のみ選出可能。',
+        // 【20261004】仕様書 6.2：11人気以下だけの別枠・最大1〜2頭制限・選出禁止はすべて廃止。
+        //   下記の条件は「穴側の候補として評価を高める材料」であり、選べる／選べないの門ではない。
+        //   @ANCHOR-20261004-NO-PROMPT-EXCLUDE
+        '【11番人気以下を評価するときの材料】',
+        '11番人気以下に専用の別枠や頭数制限は設けません。他の馬と同じ基準で順位を付けてください。',
+        '次の条件が揃っている馬は、下位進入の根拠が強いものとして評価を高めてください。',
         '・おすすめ度55点以上であること',
         '・複勝オッズが複数時点で継続低下していること（単発急落は不可）',
         '・複勝流入ランクが7人気以下グループ内で1〜2位であること',
         '・単勝と複勝の両方で資金流入が確認できること',
         '・断層なし・断層縮小・単複断層の矛盾、または5〜6番人気間／6番人気以降の断層など、下位進入を裏付ける構造があること。タイプB・Cでも強い継続流入と客観的根拠が揃えば人気帯上限内で最大1頭まで比較可能',
-        '上記を全て満たさない11番人気以下の馬は選出禁止。「来そうな気がする」だけでは選ばないこと。大穴進入度1〜2では原則0頭、3では最大1頭、4〜5では断層位置別上限までとする。',
+        '上記が揃わない11番人気以下の馬を、選出禁止にはしません。ただし「来そうな気がする」だけで高く評価してはいけません。根拠の数と強さで順位を付けてください。',
+        '大穴進入度による頭数の割り当て（1〜2なら0頭、3なら1頭など）は廃止しました。頭数はPHPが別途決めます。',
         '',
         '【⚠️ 選出理由の記述ルール（厳守）】',
         '・選出理由にAIが独自に算出・推測した確率値（「〜%の確率で」「〜%の可能性」等）を記載することは禁止です',
@@ -2292,6 +3429,31 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
     }
     // ── Block A End ──────────────────────────────────────────────────────────────
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261005-ALLSCORE-TAIL  全頭採点の指示を末尾でもう一度出す
+    // ══════════════════════════════════════════════════════════════════════════
+    // 【見つかった問題（2026-10-05）】
+    //   10/3の24レースを呼び直したところ、1st・2ndとも全頭採点JSONが
+    //   1レースも返らなかった（AUDIT_AI:「全頭採点のJSONが無い」×24）。
+    //   公開候補数は5〜7で正常なので、候補行は指示どおり出せている。
+    //   原因はプロンプトの並び順。【全頭採点（内部用）】の指示は前半にあり、
+    //   そのあとに「このフォーマットを厳守」という出力指示と、
+    //   各馬の過去成績が延々と続く。LLMは最後に読んだ指示を優先するため、
+    //   末尾の「候補行だけ」という形に引っ張られてJSONが落ちていた。
+    //   前半のブロックは動かさず（他の指示との参照関係を壊さないため）、
+    //   末尾に同じことをもう一度、短く書く。
+    $lines[] = '';
+    $lines[] = '────────────────────────────────────────';
+    $lines[] = '【最後に・出力の締めくくり】';
+    $lines[] = '上の候補行をすべて出し終えたあと、改行して、前述の【全頭採点（内部用）】を必ず出力してください。';
+    $lines[] = '書き方は次のとおりです。この2行のマーカーと、その間の1行のJSONだけを置いてください。';
+    $lines[] = self::AUDIT_JSON_BEGIN;
+    $lines[] = '{"v":1,"horses":[ ... 全実出走馬ぶん ... ]}';
+    $lines[] = self::AUDIT_JSON_END;
+    $lines[] = 'この領域は画面に表示しないため、Flutter形式を崩すことにはなりません。';
+    $lines[] = '候補行が0頭の場合も、この領域だけは出力してください。';
+    $lines[] = '候補行の中にJSONを混ぜてはいけません。順番は「候補行 → マーカー付きJSON」です。';
+
     $promptText = implode("\n", $lines);
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2355,6 +3517,70 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
         ]);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261004-AUDIT-RACE  監査ログ【レース単位】（仕様書9.1 表10）
+    // ═══════════════════════════════════════════════════════════════════════
+    //   保存内容: 版、snapshot_id、N/C、入力とプロンプトのSHA-256、B/C/D、
+    //             配分モード、目標と実配分、降格理由、最終表示
+    //   ※実配分・最終表示は統合後に決まるため、統合側の [AUDIT_MERGE] に出す。
+    //   ※ここは診断専用。失敗しても予測を止めない。
+    try {
+        \Log::info('[AUDIT_RACE] レース単位の監査ログ（@ANCHOR-20261004-AUDIT-RACE）', [
+            'race'            => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+            '版'              => self::ALLOC_SPEC_VERSION,
+            '可変配分'        => self::allocFeatureEnabled() ? '有効' : '無効（巻き戻し中）',
+            'snapshot_id'     => $auSnapshotId,
+            'N'               => $activeRunnerCount,
+            'C'               => $targetSelectionCount,
+            '入力SHA256'      => $auInputHash,
+            'プロンプトSHA256' => hash('sha256', $promptText),
+            'プロンプト文字数' => mb_strlen($promptText),
+            'B'               => $allocThreeLabel($condition2Met),
+            'C条件'           => $allocThreeLabel($condition3Met),
+            'D'               => $allocThreeLabel($condition4Met),
+            '断層タイプ'      => $gapType,
+            '下位開放'        => $allocThreeLabel($allocLowerOpen),
+            '選出前ゲート'    => $allocGate ? '成立' : '不成立',
+            '配分モード'      => $allocMode,
+            '目標配分'        => ($allocTargetFav === null)
+                ? '既存目安（表6に数値なし）'
+                : "{$allocTargetFav}＋{$allocTargetLong}",
+            '降格理由'        => $allocModeReason,
+            '同配分の注記'    => $allocSameNote,
+            '資格あり馬番'    => $allocQualified,
+            '保護対象馬番'    => $protectedLongshotNums,
+        ]);
+        self::auditFile('AUDIT_RACE', [
+            'race'            => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+            '版'              => self::ALLOC_SPEC_VERSION,
+            '可変配分'        => self::allocFeatureEnabled() ? '有効' : '無効（巻き戻し中）',
+            'snapshot_id'     => $auSnapshotId,
+            'N'               => $activeRunnerCount,
+            'C'               => $targetSelectionCount,
+            '入力SHA256'      => $auInputHash,
+            'プロンプトSHA256' => hash('sha256', $promptText),
+            'プロンプト文字数' => mb_strlen($promptText),
+            'B'               => $allocThreeLabel($condition2Met),
+            'C条件'           => $allocThreeLabel($condition3Met),
+            'D'               => $allocThreeLabel($condition4Met),
+            '断層タイプ'      => $gapType,
+            '下位開放'        => $allocThreeLabel($allocLowerOpen),
+            '選出前ゲート'    => $allocGate ? '成立' : '不成立',
+            '配分モード'      => $allocMode,
+            '目標配分'        => ($allocTargetFav === null)
+                ? '既存目安（表6に数値なし）'
+                : "{$allocTargetFav}＋{$allocTargetLong}",
+            '降格理由'        => $allocModeReason,
+            '同配分の注記'    => $allocSameNote,
+            '資格あり馬番'    => $allocQualified,
+            '保護対象馬番'    => $protectedLongshotNums,
+        ]);
+    } catch (\Throwable $arE) {
+        \Log::warning('[AUDIT_RACE] レース単位の監査ログの作成に失敗（処理は継続）', [
+            'message' => $arE->getMessage(),
+        ]);
+    }
+
     return $promptText;
 }
 
@@ -2391,6 +3617,7 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
     $b2Remerge = ((string) $request->query('remerge', '')) === '1';
 
     // ─── キャッシュ確認（DBにレコードがあれば無条件で返す） ─────────────
+    //   @ANCHOR-20261004-DRY-RUN  試算モードでは保存済み回答を返さず、必ず呼び直す
     $cached = DB::table('t_horse_odds_finder_ai_analysis2')
         ->where('date',       $date)
         ->where('kaisuu',     $kaisuu)
@@ -2406,10 +3633,35 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
     // 【現在の扱い】
     //   ・統合結果（ai_merge_result）が保存済み、または過去日のレース → 保存内容をそのまま返す
     //   ・当日のレースで統合結果が未保存 → DeepSeek は呼ばず、保存済みの 2nd AI 回答で統合処理だけやり直す
+    if ($cached && self::$dryRunForceFresh) { $cached = null; }
+
     $reuseSecondText = null;
+    // @ANCHOR-20261004-DRY-RUN  試算モードで保持した2nd AI回答があれば、
+    //   DeepSeekを呼び直さずそれを使う（同じ回答で配分だけ変えて統合し直すため）。
+    if (self::$dryRunNoPersist && self::$dryRunSecondText !== null) {
+        $reuseSecondText = self::$dryRunSecondText;
+    }
     // remerge=1 のときは統合結果の有無にかかわらず、保存済み回答での再マージへ進む
+    // ══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261005-DRY-REUSE-PRIORITY  試算モードの使い回しを上書きしない
+    // ══════════════════════════════════════════════════════════════════════
+    // 【見つかった不具合（2026-10-05）】
+    //   --compare-rerun の条件C（呼び直した回答＋可変配分）が、
+    //   呼び直した回答ではなく「保存済みの統合結果」を返していた。
+    //   ・remerge を付けないためキャッシュ分岐で早期リターンしていた
+    //   ・remerge を付けると、今度は保存済み回答が
+    //     self::$dryRunSecondText（呼び直した回答）を上書きしていた
+    //   どちらでもCが成立しないため、配分の効果を比較できていなかった。
+    //   → 試算モードで使い回す回答があるときは、それを最優先する。
     if ($cached && ($b2Remerge || !$this->_canReturnSecondAiCache($date, $kaisuu, $basho, $day, $race))) {
-        $reuseSecondText = (string) $cached->analysis_text;
+        if ($reuseSecondText === null) {   // @ANCHOR-20261005-DRY-REUSE-PRIORITY
+            $reuseSecondText = (string) $cached->analysis_text;
+        }
+        $cached = null;
+    }
+    // @ANCHOR-20261005-DRY-REUSE-PRIORITY
+    //   試算モードで呼び直した回答を持っているなら、保存済みの統合結果は返さない。
+    if ($cached && self::$dryRunNoPersist && $reuseSecondText !== null) {
         $cached = null;
     }
     if ($cached) {
@@ -2421,16 +3673,16 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
             'basho_code'    => $basho,
             'day'           => $day,
             'race'          => $race,
-            'analysis_text' => trim($cached->analysis_text),
+            'analysis_text' => trim(self::publicPart((string) $cached->analysis_text)),   // 【20261004】内部監査用JSONは返さない
         ], $this->_loadSavedMergeResult($date, $kaisuu, $basho, $day, $race))]);
     }
 
     // ─── 排他ロック（同一レースへの並行リクエスト防止） ──────────────
     $lockKey = "ai_analysis2_{$date}_{$kaisuu}_{$basho}_{$day}_{$race}";
-    $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 120);
+    // @ANCHOR-20261005-LOCK-FALLBACK  ロックが使えなくても処理を捨てない
+    $lock = self::acquireRaceLock($lockKey);
 
     try {
-        $lock->block(60);
 
         // ロック後に再度キャッシュ確認（フォーマット検証あり）
         $cached = DB::table('t_horse_odds_finder_ai_analysis2')
@@ -2440,13 +3692,20 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
             ->where('day',        $day)
             ->where('race',       $race)
             ->first();
+        if ($cached && self::$dryRunForceFresh) { $cached = null; }   // @ANCHOR-20261004-DRY-RUN
 
         // ── キャッシュの扱い（20260924 修正・上のロック前判定と同じ）─────────────
         // ※20260926: ロック前の判定と同様に remerge=1 を考慮する。
         //   ここを直し忘れると、1箇所目を通過しても【このロック後の再確認】で
         //   早期リターンし、再マージが一切行われない。
+        // @ANCHOR-20261005-DRY-REUSE-PRIORITY  上のロック前分岐と同じ扱いにする
         if ($cached && ($b2Remerge || !$this->_canReturnSecondAiCache($date, $kaisuu, $basho, $day, $race))) {
-            $reuseSecondText = (string) $cached->analysis_text;
+            if ($reuseSecondText === null) {
+                $reuseSecondText = (string) $cached->analysis_text;
+            }
+            $cached = null;
+        }
+        if ($cached && self::$dryRunNoPersist && $reuseSecondText !== null) {
             $cached = null;
         }
         if ($cached) {
@@ -2457,7 +3716,7 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
                 'basho_code'    => $basho,
                 'day'           => $day,
                 'race'          => $race,
-                'analysis_text' => trim($cached->analysis_text),
+                'analysis_text' => trim(self::publicPart((string) $cached->analysis_text)),   // 【20261004】内部監査用JSONは返さない
             ], $this->_loadSavedMergeResult($date, $kaisuu, $basho, $day, $race))]);
         }
 
@@ -2505,7 +3764,11 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         // 例: /var/www/horse_odds_finder/public/prompt/prompt_2026-08-16_2_07_8_9.data
         $filePath = public_path("prompt/prompt_{$date}_{$kaisuu}_{$basho}_{$day}_{$race}.data");
 
-        if (file_exists($filePath)) {
+        // @ANCHOR-20261004-DRY-RUN  試算モードでは、1st AI側が作った新しいお願い文を使う
+        //   （保存済みの .data ファイルは読まない＝旧プロンプトと混ぜない）
+        if (self::$dryRunForceFresh && self::$dryRunFirstPrompt !== null) {
+            $oddsData = self::$dryRunFirstPrompt;
+        } elseif (file_exists($filePath)) {
             $oddsData = file_get_contents($filePath);
         } else {
             // .data ファイルがない場合はプロンプトを自力生成する
@@ -2558,6 +3821,164 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
             return ['B' => $read('B'), 'C' => $read('C'), 'D' => $read('D')];
         })($oddsData);
 
+        // ── @ANCHOR-20261004-ALLOC-SNAPSHOT  配分モードの読み戻し（必ず整形前）──
+        //   配分モード・目標配分・資格あり馬番は _getAiAnalysisPrompt() が確定して
+        //   プロンプト本文へ埋め込んでいる。統合時に同じ値を使うため、ここで凍結値を
+        //   読み戻す（再計算しない）。
+        //   ※条件B・C・Dと同じ理由で、必ず2nd AI用の整形より前に読むこと。
+        //     整形で【配分（PHP算出済み・変更禁止）】ブロックを除去するため、
+        //     あとから読もうとすると一度も読めない（2026-09-28に同じ事故があった）。
+        $allocSnapshot = (function (string $src): array {
+            $mode = '通常'; $fav = null; $long = null; $qual = []; $n = null; $c = null;
+            if (preg_match('/実出走頭数N:\s*(\d+)頭\s*\/\s*目標数C:\s*(\d+)頭\s*\/\s*配分モード:\s*(通常|中|強)/u', $src, $m)) {
+                $n = (int) $m[1]; $c = (int) $m[2]; $mode = $m[3];
+            }
+            if (preg_match('/目標配分:\s*人気側（1〜6番人気）(\d+)頭\s*＋\s*穴側（PHPが資格を確認した7番人気以下）(\d+)頭/u', $src, $m)) {
+                $fav = (int) $m[1]; $long = (int) $m[2];
+            }
+            if (preg_match('/資格あり馬番:\s*([0-9|]+)/u', $src, $m)) {
+                $qual = array_values(array_unique(array_filter(
+                    array_map('intval', explode('|', $m[1])),
+                    fn($x) => $x > 0
+                )));
+                sort($qual);
+            }
+            return ['mode' => $mode, 'fav' => $fav, 'long' => $long, 'qualified' => $qual, 'N' => $n, 'C' => $c];
+        })($oddsData);
+
+        // @ANCHOR-20261004-FIX-REQUEST  1st AI用プロンプトの原文（整形前）を控える。
+        //   不正回答への修正要求（該当AIにつき1回まで）で投げ直すときに使う。
+        $firstPromptRaw = $oddsData;
+
+        // @ANCHOR-20261004-QUAL-EVIDENCE  資格馬の根拠を読み戻す（必ず整形前）
+        //   よっしー20261004回答①A-2の定型理由文に使う。
+        //   書式: 馬番=pop:人気,s216:21→6短縮率,s96:9→6短縮率,fuku:複勝人気,opi:予測補正OPI
+        $allocEvidenceSnapshot = (function (string $src): array {
+            if (!preg_match('/^資格根拠:\s*(.+)$/mu', $src, $m)) return [];
+            $txt = trim($m[1]);
+            if ($txt === '' || $txt === 'なし') return [];
+            $out = [];
+            foreach (preg_split('/\s+/u', $txt) as $chunk) {
+                if (!preg_match('/^(\d+)=(.+)$/u', $chunk, $cm)) continue;
+                $row = [];
+                foreach (explode(',', $cm[2]) as $kv) {
+                    $p = explode(':', $kv, 2);
+                    if (count($p) !== 2) continue;
+                    $row[$p[0]] = ($p[1] === '-') ? null : (float) $p[1];
+                }
+                $out[(int) $cm[1]] = $row;
+            }
+            return $out;
+        })($oddsData);
+
+        // @ANCHOR-20261006-QUAL-STATE  7番人気以下の資格判定（三値）を読み戻す
+        //   書式: 馬番:状態（1=成立 / 0=不成立 / ?=不明）
+        //   読めない場合は空配列。空＝「資格ありの馬番だけで判断する」従来どおりの動き。
+        $allocQualState = (function (string $src): array {
+            if (!preg_match('/^資格判定:\s*(.+)$/mu', $src, $m)) return [];
+            $txt = trim($m[1]);
+            if ($txt === '' || $txt === 'なし') return [];
+            $out = [];
+            foreach (preg_split('/\s+/u', $txt) as $chunk) {
+                if (!preg_match('/^(\d+):(1|0|\?)$/u', $chunk, $cm)) continue;
+                $out[(int) $cm[1]] = ($cm[2] === '1') ? true : (($cm[2] === '0') ? false : null);
+            }
+            return $out;
+        })($oddsData);
+
+        // @ANCHOR-20261004-AUDIT-SNAPSHOT  プロンプト生成時の snapshot_id を読み戻す
+        //   仕様書9.2「途中の取消更新 → 旧snapshot_idと混ぜない」の照合に使う。
+        $auPromptSnapshotId = null;
+        if (preg_match('/snapshot_id:\s*([0-9a-f]{16})/u', $oddsData, $auSm)) {
+            $auPromptSnapshotId = $auSm[1];
+        }
+        // 統合時点のDBから同じ式で再計算し、プロンプト生成時と一致するか確認する。
+        //   一致しない = 6分前オッズが更新された（取消等）。仕様書9.2は
+        //   「両AIを同じ最新版で再実行。旧snapshot_idと混ぜない」としているため、
+        //   ここでは混在を検知してログに残す（処理は止めない）。
+        $auNowSnapshotId     = null;
+        $auNowSnapshotSource = [];
+        try {
+            $auNowSnapshotRows = DB::table('t_horse_odds_finder_odds')
+                    ->where('date',   $date)
+                    ->where('kaisuu', $raceRow->kaisuu)
+                    ->where('basho',  $raceRow->basho)
+                    ->where('day',    $raceRow->day)
+                    ->where('race',   $raceRow->race)
+                    ->where('minutes_before_start', self::SNAPSHOT_TIMING)
+                    ->get();
+            $auNowSnapshotSource = self::oddsSnapshotSource($auNowSnapshotRows);
+            $auNowSnapshotId     = substr(hash('sha256', json_encode($auNowSnapshotSource)), 0, 16);
+        } catch (\Throwable $auNe) {
+            \Log::warning('[AUDIT_SNAPSHOT] 統合時のsnapshot_id再計算に失敗（処理は継続）', [
+                'message' => $auNe->getMessage(),
+            ]);
+        }
+        $auSnapshotMatch = ($auPromptSnapshotId !== null && $auNowSnapshotId !== null)
+            ? ($auPromptSnapshotId === $auNowSnapshotId)
+            : null;
+        if ($auSnapshotMatch === false) {
+            // 【20261004 よっしー回答③Aの条件】
+            //   「不一致を警告するだけで旧入力と新入力を混ぜて統合することは避けてください。
+            //     取消更新などで入力が変わった場合は、仕様書9.2どおり、両AIを同じ最新版の
+            //     入力で再実行してください。」
+            //   → 通常実行では統合せず「未確定」で返す（混ぜない）。
+            //     再実行は保存済み回答を消してから行う（勝手に消さない）。
+            //   ※--remerge（比較・再マージ）のときは、保存済み回答の診断が目的なので
+            //     統合を続けるが、混在であることを必ず記録に残す。
+            //   @ANCHOR-20261004-SNAPSHOT-NO-MIX
+            \Log::warning('[INPUT_SNAPSHOT_MISMATCH] 6分前オッズがプロンプト生成後に変わっている（旧入力と新入力を混ぜない）', [
+                'race'               => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+                '対象時点'           => self::SNAPSHOT_TIMING . '分前',
+                'プロンプト生成時'   => $auPromptSnapshotId,
+                '統合時'             => $auNowSnapshotId,
+                'モード'             => $b2Remerge ? '再マージ（診断のため続行・混在を記録）' : '通常（統合せず未確定で返す）',
+                '対応'               => '両AIを同じ最新版の入力で再実行する。'
+                                        . 'ai_analysis / ai_analysis2 の該当行と public/prompt/*.data を消してから実行する',
+            ]);
+            if (!$b2Remerge) {
+                $this->_saveUndetermined($date, $kaisuu, $basho, $day, $race,
+                    '6分前オッズがプロンプト生成後に変わった（旧入力と新入力を混ぜない）', [
+                        'プロンプト生成時' => $auPromptSnapshotId,
+                        '統合時'           => $auNowSnapshotId,
+                        '対象時点'         => self::SNAPSHOT_TIMING . '分前',
+                    ]);
+                return response()->json(['data' => [
+                    'date'          => $date,
+                    'kaisuu'        => $kaisuu,
+                    'basho_code'    => $basho,
+                    'day'           => $day,
+                    'race'          => $race,
+                    'analysis_text' => '',
+                    'merged_horses' => [],
+                    'upset_race'    => null,
+                    'status'        => 'undetermined',
+                    'status_reason' => '6分前オッズがプロンプト生成後に変わったため未確定（旧入力と新入力を混ぜない）',
+                ]]);
+            }
+        } else {
+            \Log::info('[AUDIT_SNAPSHOT] snapshot_idの照合', [
+                'race'             => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+                'プロンプト生成時' => $auPromptSnapshotId,
+                '統合時'           => $auNowSnapshotId,
+                '判定'             => $auSnapshotMatch === null ? '不明（どちらかが取得できない）' : '一致',
+            ]);
+        }
+
+        \Log::info('[配分] 整形前のプロンプトから配分モードを読み戻し（@ANCHOR-20261004-ALLOC-SNAPSHOT）', [
+            'race'         => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+            'N'            => $allocSnapshot['N'],
+            'C'            => $allocSnapshot['C'],
+            '配分モード'   => $allocSnapshot['mode'],
+            '目標配分'     => $allocSnapshot['fav'] === null
+                ? '既存目安（表6に数値なし）'
+                : "{$allocSnapshot['fav']}＋{$allocSnapshot['long']}",
+            '資格あり馬番' => $allocSnapshot['qualified'],
+            '読み取り'     => ($allocSnapshot['N'] === null)
+                ? '★失敗（プロンプトに配分ブロックが無い。旧プロンプトの再実行か、埋め込み漏れ）'
+                : 'OK',
+        ]);
+
         \Log::info('[厳選穴レース] 整形前のプロンプトから条件B・C・Dを読み取り', [
             'race'  => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
             '条件B' => $b15CondSnapshot['B'] === null ? '不明' : ($b15CondSnapshot['B'] ? '成立' : '不成立'),
@@ -2582,6 +4003,17 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         // ① 判定ルールブロック
         $oddsData = $b2ndStrip($oddsData, '/【厳選穴レースの判定ルール】.*?(?=\nおすすめ度は)/su');
         // ② 「厳選穴レース|1または0」行
+        // 【20261004】配分ブロックは2nd AIへ送らない。
+        //   仕様書6.1②「2nd単独に3＋4の7頭を要求しない」。
+        //   PHP側は $allocSnapshot（整形前に読み戻した凍結値）を使う。
+        $oddsData = $b2ndStrip($oddsData, '/^【配分（PHP算出済み・変更禁止）】\n?/mu');
+        $oddsData = $b2ndStrip($oddsData, '/^【入力スナップショット（記録用・予想の判断には使いません）】[^\n]*\n?/mu');
+        $oddsData = $b2ndStrip($oddsData, '/^実出走頭数N:[^\n]*\n?/mu');
+        $oddsData = $b2ndStrip($oddsData, '/^目標配分:[^\n]*\n?/mu');
+        $oddsData = $b2ndStrip($oddsData, '/^資格あり馬番:[^\n]*\n?/mu');
+        $oddsData = $b2ndStrip($oddsData, '/^資格根拠:[^\n]*\n?/mu');
+        $oddsData = $b2ndStrip($oddsData, '/^配分モードと目標配分はPHPが確定した値です。[^\n]*\n?/mu');
+        $oddsData = $b2ndStrip($oddsData, '/^目標配分は最終候補の内訳の目標です。[^\n]*\n?/mu');
         $oddsData = $b2ndStrip($oddsData, '/^厳選穴レース\|1または0\n?/mu');
         // ③ 「レース指標|波乱度: X|下位進入度: X|大穴進入度: X」行（2nd AIは候補行だけを返す）
         $oddsData = $b2ndStrip($oddsData, '/^2行目: 「レース指標[^\n]*\n?/mu');
@@ -2888,7 +4320,11 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         //   「候補なし|0」などの形式外マーカーは出力させない。
         //   @ANCHOR-20260928-SECOND-EMPTY-IS-NORMAL
         $oddsData .= "\n\n2nd AIは時系列オッズと能力・適性データを独立して全頭評価し、独自候補を0〜{$pickupCount}頭出力してください。PHPから人気薄保護対象馬番が渡されている場合、その中でデータ根拠の強い馬を候補に含めることを優先してください。出力する場合は「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：能力適性:A（82点）。〜」の形式で1頭につき改行なしの1行とします。能力・適性データがなく採点不能の場合は、理由冒頭を「能力適性:不明（採点不可）。」として数値を推測しません。目標数に合わせて候補を補充せず、該当候補がなければ候補行を出さず空の回答としてください。「候補なし|0」などの形式外マーカーも出力しません。70点未満でも固定おすすめ度の順位上位なら独自候補に含め、区分は内部ログに保存されます。\n"
-                   . "2nd AIは独立候補がない場合、候補行0件の空回答を返します。これは正常な候補なしであり、候補数は最大{$pickupCount}頭です。1st AIの目標数を2nd AIが必ず補う必要はありません。";
+                   . "2nd AIは独立候補がない場合、候補行0件の空回答を返します。これは正常な候補なしであり、候補数は最大{$pickupCount}頭です。1st AIの目標数を2nd AIが必ず補う必要はありません。\n"
+                   // 【20261004 よっしー回答③A】2ndの公開候補が0頭でも全頭採点JSONは取得する。
+                   //   直前の「形式外マーカーも出力しません」と矛盾しないよう、ここで明示する。
+                   //   @ANCHOR-20261004-AUDIT-ALLSCORE
+                   . "ただし【全頭採点（内部用）】の領域は別です。" . self::AUDIT_JSON_BEGIN . " と " . self::AUDIT_JSON_END . " で囲んだ全頭採点のJSONは、公開候補行が0頭の場合でも必ず出力してください。これは形式外マーカーではなく必須の内部領域です。公開候補行の中にJSONを混ぜてはいけません。";
 
         // ── よっしー20260922-04指摘: DeepSeek送信直前の $oddsData を自己検証 ──────
         // 04.txt が「1レース分で確認すべき」とした3点を毎レース自動でログへ記録する。
@@ -2994,18 +4430,37 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
         // ── Block 10 End（AI実行前算出完了・算出済み値はAIへ送信しない）───────────
 
         // ─── 2nd AI 用整形済みプロンプトをファイルに保存 ────────────────────
-        file_put_contents(
-            public_path("prompt_2nd/prompt_2nd_{$date}_{$kaisuu}_{$basho}_{$day}_{$race}.data"),
-            $oddsData
-        );
+        //   @ANCHOR-20261004-DRY-RUN  試算モードでは既存ファイルを上書きせず、
+        //     提出用の写しだけを storage/logs/rerun_prompt/ に残す。
+        if (!self::$dryRunNoPersist) {
+            file_put_contents(
+                public_path("prompt_2nd/prompt_2nd_{$date}_{$kaisuu}_{$basho}_{$day}_{$race}.data"),
+                $oddsData
+            );
+        } else {
+            self::saveRerunPrompt('2nd', $oddsData, $date, $kaisuu, $basho, $day, $race);
+        }
 
+        // ══════════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261004-SYSTEM-PROMPT  2nd AI の systemプロンプトを新仕様に合わせる
+        // ══════════════════════════════════════════════════════════════════════
+        // 【20261004 よっしー回答①A・③A・④A】
+        //   【旧文面1】「出力は以下の形式のみ。これ以外のテキストは一切出力してはいけません。」
+        //              ＋「・上記フォーマット行以外のあらゆるテキスト」
+        //     → 回答③A の【全頭採点（内部用）】と正面から矛盾していた。
+        //       2nd AI が内部用JSONを抑制する恐れがあるため、例外を明記した。
+        //       （userプロンプト末尾にも例外を足しているが、system側が
+        //         「絶対厳守・最優先ルール」と書いているため system 側の修正が必要）
+        //   【旧文面2】「…回収率優先、低配当除外、頭数上限などのルールが書かれています。」
+        //   【旧文面3】「・断層位置別上限・最低基準点・低配当除外のルールを厳守すること」
+        //     → 候補の強制除外と人気帯別上限は廃止済み（回答①A・④A）。
         $systemPrompt = <<<'SYSTEM'
 あなたは競馬オッズ分析の専門家（2nd AI）です。
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【絶対厳守】出力フォーマット ― これが最優先ルールです
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-出力は以下の形式のみ。これ以外のテキストは一切出力してはいけません。
+公開する候補行は以下の形式のみ。これ以外のテキストを公開部分に出力してはいけません。
 
   馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜
 
@@ -3017,7 +4472,7 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
 ・前置き文・後書き文・総評・まとめ・解説文
 ・「買い目」「各馬の評価」「まとめ」などのセクション
 ・箇条書き（・や- で始まる行）
-・上記フォーマット行以外のあらゆるテキスト
+・上記フォーマット行以外のあらゆるテキスト（例外は後述の【全頭採点（内部用）】だけ）
 
 【正しい出力例】
 馬番：3、馬名：サンプルホース、人気順: 2、6分前オッズ: 3.5、おすすめ度: 82、選出理由：能力適性:A（84点）。単勝オッズが10%下落しており買いが継続的に流入。複勝最小1.3倍と安定感も高く、OPI0.85で妙味あり。
@@ -3032,11 +4487,17 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
 画面に選出馬が一切表示されません。有料サービスへの深刻な障害になります。
 分析内容はすべて「選出理由：」の文章の中に凝縮してください。
 
+【唯一の例外 ― 全頭採点（内部用）】
+プロンプトで指示された開始・終了マーカーで囲んだ全頭採点のJSONは、上記フォーマットの
+例外として必ず出力してください。この領域は画面に表示されないため、フォーマット違反には
+なりません。公開候補行の中にJSONを混ぜてはいけません。
+公開する候補が0頭の場合も、この領域は必ず出力してください。
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【あなた（2nd AI）へ ― 最も重要なメッセージ】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-あなたが受け取ったプロンプトには、DB・PHP算出値の変更禁止、未来情報禁止、全頭評価、回収率優先、低配当除外、頭数上限などのルールが書かれています。
+あなたが受け取ったプロンプトには、DB・PHP算出値の変更禁止、未来情報禁止、全頭評価、回収率優先などのルールが書かれています。
 
 これらのルールは 1st AI と 2nd AI の両方に適用される絶対ルールです。
 「DB・PHP算出値の再計算・上書き・補正・推測」はあなたにも禁止です。
@@ -3083,7 +4544,9 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
 
 ・回収率はサンプル数とセットで評価すること。サンプル数30件未満は中立として扱うこと
 ・欠損・0レースの回収率データは中立（有利でも不利でもない）として扱うこと
-・断層位置別上限・最低基準点・低配当除外のルールを厳守すること
+・最低基準点・低配当・過去回収率は、候補から除外する理由にしないこと。固定配点の中で評価する
+・低配当馬の妙味小計の制限は維持すること
+・断層位置別・人気帯別の頭数上限は廃止されている。頭数を埋めるための追加は禁止
 ・PHP・DBが算出・確定した値（人気順、OPI、推定確定オッズ、断層タイプ等）を無視してはいけない
 
 有料公開するシステムなので、正しい日本語で返してください。
@@ -3132,6 +4595,7 @@ SYSTEM;
             }
         }
         for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
+            $aiElapsed2ndStart = microtime(true);   // @ANCHOR-20261006-AI-ELAPSED
             $response = Http::timeout(60)->withHeaders([
                 'Authorization' => 'Bearer ' . env('DEEPSEEK_API_KEY'),
             ])->post('https://api.deepseek.com/v1/chat/completions', [
@@ -3160,8 +4624,20 @@ SYSTEM;
                 break;
             }
 
+            // @ANCHOR-20261006-AI-ELAPSED  2nd AI の応答時間も毎回記録する
+            \Log::error('[AI_ELAPSED] 2nd AI 応答時間', [
+                'race'     => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+                '出走頭数' => $horseCount2nd ?? null,
+                '秒'       => round(microtime(true) - $aiElapsed2ndStart, 2),
+                'モデル'   => 'deepseek-chat',
+                'プロンプト文字数' => mb_strlen($oddsData),
+            ]);
             $result       = $response->json();
             $analysisText = trim($result['choices'][0]['message']['content'] ?? '');
+            // @ANCHOR-20261004-DRY-RUN  試算モードは保存しないため、ここで保持しておく
+            if (self::$dryRunNoPersist) {
+                self::$dryRunSecondText = $analysisText;
+            }
 
             // 【20260928 仕様（よっしー20260928指摘）】
             //   「候補なし|0」は形式外マーカー。出力させない指示に変えたうえで、
@@ -3218,12 +4694,13 @@ SYSTEM;
         }
 
         // ─── 分析結果をDBに保存（常に保存：失敗テキストはログとして残す） ─────
-        DB::table('t_horse_odds_finder_ai_analysis2')->updateOrInsert(
+        // @ANCHOR-20261004-DRY-RUN  試算モードでは保存しない
+        if (!self::$dryRunNoPersist) DB::table('t_horse_odds_finder_ai_analysis2')->updateOrInsert(
             ['date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho, 'day' => $day, 'race' => $race],
             [
                 'basho'         => $raceRow->basho_name,
                 'race_name'     => $raceRow->race_name,
-                'analysis_text' => $analysisText,
+                'analysis_text' => self::publicPart($analysisText),   // 【20261004】内部監査用JSONは返さない
             ]
         );
         // B-7: $b7SecondAiFailed の場合は以降の2nd AI処理をスキップし、1st AI単独で統合処理する
@@ -3237,6 +4714,15 @@ SYSTEM;
             ->where('race',       $race)
             ->first(['analysis_text']);
         $firstAiText = $firstAiRecord->analysis_text ?? '';
+        // @ANCHOR-20261004-DRY-RUN  試算モードは保存していないので受け渡しから取る
+        // @ANCHOR-20261005-DRY-REUSE-PRIORITY
+        //   条件C（呼び直した回答を使い回して配分だけ変える）は $dryRunForceFresh が
+        //   false になるため、ここで保存済みの旧回答を読んでしまっていた。
+        //   旧回答には全頭採点JSONが無いので、Cだけ「採点なし」になっていた。
+        //   試算モードで受け渡された1st回答があるなら、常にそれを使う。
+        if (self::$dryRunNoPersist && self::$dryRunFirstText !== null) {
+            $firstAiText = self::$dryRunFirstText;
+        }
 
         // 断層タイプ・主断層位置は AI実行前（Block 10前処理）で設定済み
         // $gapTypeForMerge・$primaryGapUpperPopForMerge をそのまま利用する
@@ -3266,9 +4752,31 @@ SYSTEM;
                 'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
                 'raw_text'       => mb_substr($firstAiText, 0, 2000),
             ]);
-            return response()->json(
-                ['error' => '1st AIの回答を取得できませんでした（制御済みエラー）'], 500
-            );
+            // 【20261004 よっしー回答③A】
+            //   「なお無効なら有効な他方を使い、両方無効なら未確定表示とし、
+            //     HTTP500にはしないでください。」
+            //   → HTTP 500 を廃止し、未確定（undetermined）として200で返す。
+            //     捏造した予想は出さない（仕様書9.2 表11「両AI無効」）。
+            //   ※アプリ側の未確定カードは未着手（申告事項C-1）。
+            //     現状は候補0件・未確定フラグつきの正常レスポンスになる。
+            //   @ANCHOR-20261004-NO-HTTP500-UNDETERMINED
+            $this->_saveUndetermined($date, $kaisuu, $basho, $day, $race,
+                '1st AIの回答を採用できない（両AI無効）', [
+                    '1st判定'   => $b66First['reason'] ?? '',
+                    '2nd候補数' => count($this->_parseAiHorses($b7SecondAiFailed ? '' : $analysisText)),
+                ]);
+            return response()->json(['data' => [
+                'date'          => $date,
+                'kaisuu'        => $kaisuu,
+                'basho_code'    => $basho,
+                'day'           => $day,
+                'race'          => $race,
+                'analysis_text' => '',
+                'merged_horses' => [],
+                'upset_race'    => null,
+                'status'        => 'undetermined',
+                'status_reason' => '1st AIの回答を取得できませんでした（未確定）',
+            ]]);
         }
         if ($b66First['status'] === 'zero') {
 //             \Log::info('[B-7/#65] 1st AI 候補0頭（正常）', [
@@ -3331,6 +4839,182 @@ SYSTEM;
 
             $this->_dbValidateHorses($firstAiHorses,  '1st', $_b16ValidNums, $b6TanPopMap, $_b16OddsMap);
             $this->_dbValidateHorses($secondAiHorses, '2nd', $_b16ValidNums, $b6TanPopMap, $_b16OddsMap);
+
+            // ══════════════════════════════════════════════════════════════════
+            // @ANCHOR-20261005-AUX-NEVER-BREAKS  全頭採点まわりで予想を落とさない
+            // ══════════════════════════════════════════════════════════════════
+            // 全頭採点の取得・検証と修正要求（AIへの投げ直し）は20261004で追加した
+            // 新しい経路。修正要求は外部APIを叩くため、通信エラーや想定外の応答で
+            // 例外になり得る。ここで落ちると候補を捨ててしまうので個別に囲む。
+            // 採点が取れなければ「採点なし」として進む（統合のタイブレークに
+            // 使わないだけで、候補そのものには影響しない）。
+            $allScore1st = ['ok' => false, 'horses' => [], 'errors' => ['未取得']];
+            $allScore2nd = ['ok' => false, 'horses' => [], 'errors' => ['未取得']];
+            try {
+            // ── @ANCHOR-20261004-AUDIT-ALLSCORE  全頭採点（内部用JSON）の取得と検証 ──
+            //   よっしー20261004回答③A。DB照合のあとに実行する
+            //   （候補行のおすすめ度がDB値で確定した状態で突き合わせるため）。
+            $b16FirstJson  = self::splitAuditJson((string) $firstAiText)['json'];
+            $b16SecondJson = self::splitAuditJson((string) ($b7SecondAiFailed ? '' : $analysisText))['json'];
+            $allScore1st = $this->_parseAllHorseScores($b16FirstJson,  $_b16ValidNums, $firstAiHorses,  '1st');
+            $allScore2nd = $this->_parseAllHorseScores($b16SecondJson, $_b16ValidNums, $secondAiHorses, '2nd');
+
+            // ── @ANCHOR-20261004-FIX-REQUEST  修正要求（該当AIにつき1回まで）────
+            //   よっしー20261004回答③A。通常の2回とは別枠の例外。
+            //   ・AIが回答自体を返していない場合は送らない（直すものが無い）
+            //   ・--remerge（保存済み回答の再マージ）では送らない（AI呼び出し0回を守る）
+            //   ・1回だけ送って再検証し、なお無効なら当該回答を採用しない
+            $b16RaceLabel = "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R";
+            $b16FixCount  = ['1st' => 0, '2nd' => 0];
+            if (!$b2Remerge) {
+                // @ANCHOR-20261006-SCORE-SOURCE-OF-TRUTH
+                //   不一致・欠落も修正要求の対象にする（20261006 ご指摘②）。
+                if ($allScore1st['needs_fix'] && trim((string) self::publicPart((string) $firstAiText)) !== '') {
+                    $b16FixCount['1st'] = 1;
+                    $b16Why1 = array_merge($allScore1st['errors'], $allScore1st['warnings']);
+                    $b16Fixed = $this->_requestScoreFix(
+                        '1st', $firstPromptRaw, (string) $firstAiText,
+                        $b16Why1, $b16RaceLabel
+                    );
+                    if ($b16Fixed !== null) {
+                        $b16Retry = $this->_parseAllHorseScores($b16Fixed, $_b16ValidNums, $firstAiHorses, '1st(修正後)');
+                        // 読める採点になっていれば採用する。
+                        //   なお不一致が残る馬は $b16Retry 側で未検証になっているので、
+                        //   補充順位には使われない（公開候補行はそのまま残る）。
+                        if ($b16Retry['ok']) {
+                            $allScore1st = $b16Retry;
+                            \Log::info('[FIX_REQUEST] 1st の全頭採点を修正後の内容で採用', [
+                                'race' => $b16RaceLabel,
+                                '残った不一致' => $b16Retry['mismatch'],
+                                '全頭採点完了' => $b16Retry['complete'] ? 'はい' : 'いいえ',
+                            ]);
+                        } else {
+                            \Log::warning('[FIX_REQUEST] 1st は修正後も読めない → 当該回答の全頭採点は採用しない', [
+                                'race' => $b16RaceLabel, 'エラー' => $b16Retry['errors'],
+                            ]);
+                        }
+                    }
+                }
+                // @ANCHOR-20261006-SCORE-SOURCE-OF-TRUTH
+                if ($allScore2nd['needs_fix'] && !$b7SecondAiFailed && trim((string) self::publicPart((string) $analysisText)) !== '') {
+                    $b16FixCount['2nd'] = 1;
+                    $b16Why2 = array_merge($allScore2nd['errors'], $allScore2nd['warnings']);
+                    $b16Fixed2 = $this->_requestScoreFix(
+                        '2nd', $oddsData, (string) $analysisText,
+                        $b16Why2, $b16RaceLabel
+                    );
+                    if ($b16Fixed2 !== null) {
+                        $b16Retry2 = $this->_parseAllHorseScores($b16Fixed2, $_b16ValidNums, $secondAiHorses, '2nd(修正後)');
+                        if ($b16Retry2['ok']) {
+                            $allScore2nd = $b16Retry2;
+                            \Log::info('[FIX_REQUEST] 2nd の全頭採点を修正後の内容で採用', [
+                                'race' => $b16RaceLabel,
+                                '残った不一致' => $b16Retry2['mismatch'],
+                                '全頭採点完了' => $b16Retry2['complete'] ? 'はい' : 'いいえ',
+                            ]);
+                        } else {
+                            \Log::warning('[FIX_REQUEST] 2nd は修正後も読めない → 当該回答の全頭採点は採用しない', [
+                                'race' => $b16RaceLabel, 'エラー' => $b16Retry2['errors'],
+                            ]);
+                        }
+                    }
+                }
+            }
+            \Log::info('[AUDIT_AI] AI呼び出し回数の内訳（@ANCHOR-20261004-FIX-REQUEST）', [
+                'race'         => $b16RaceLabel,
+                '通常'         => $b2Remerge ? '0回（--remergeのため保存済み回答を再利用）' : '2回（1st・2nd各1回）',
+                '修正要求1st'  => $b16FixCount['1st'] . '回',
+                '修正要求2nd'  => $b16FixCount['2nd'] . '回',
+                '上限'         => '修正要求は該当AIにつき1回まで（通常の2回とは別枠）',
+            ]);
+            } catch (\Throwable $asE) {
+                // @ANCHOR-20261005-AUX-NEVER-BREAKS
+                \Log::error('[AUDIT_ALLSCORE] 全頭採点の取得・検証で例外（採点なしとして続行）', [
+                    'race'    => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+                    'message' => $asE->getMessage(),
+                    'file'    => $asE->getFile() . ':' . $asE->getLine(),
+                    '影響'    => '統合のタイブレークとPHP候補生成に使えないだけ。候補そのものは通常どおり',
+                ]);
+            }
+
+            // 信頼度小計を統合のタイブレーク（仕様書6.2の最後の段）へ渡す。
+            //   取得できなかった馬は値を付けない（0や推測値で補わない・仕様書6.3）。
+            //   @ANCHOR-20261006-SCORE-SOURCE-OF-TRUTH
+            //   検証済み（公開候補行と総合点が一致）の馬だけを使う。
+            foreach ($firstAiHorses as &$asH1) {
+                $asN1 = (int) $asH1['num'];
+                if ($allScore1st['ok'] && !empty($allScore1st['horses'][$asN1]['verified'])) {
+                    $asH1['conf_1st'] = $allScore1st['horses'][$asN1]['conf_sub'];
+                }
+            }
+            unset($asH1);
+            foreach ($secondAiHorses as &$asH2) {
+                $asN2 = (int) $asH2['num'];
+                if ($allScore2nd['ok'] && !empty($allScore2nd['horses'][$asN2]['verified'])) {
+                    $asH2['conf_2nd'] = $allScore2nd['horses'][$asN2]['conf_sub'];
+                }
+            }
+            unset($asH2);
+
+            // ── 監査ログ【AI単位】（仕様書9.1 表10）────────────────────────────
+            //   全11項目得点・小計・総合・順位・候補か・能力不明の処理を保存する。
+            //   生応答は既に analysis_text（ai_analysis / ai_analysis2）に保存済み。
+            $b16AiAudit = [];
+            foreach ([['1st', $allScore1st, $firstAiHorses], ['2nd', $allScore2nd, $secondAiHorses]] as [$asLbl, $asRes, $asPub]) {
+                $asPubNums = array_map(static fn($x) => (int) $x['num'], $asPub);
+                // 総合点の降順・同点は馬番昇順で全頭順位を付ける
+                $asRows = $asRes['horses'];
+                uksort($asRows, static function ($a, $b) use ($asRows) {
+                    if ($asRows[$a]['total'] !== $asRows[$b]['total']) {
+                        return $asRows[$b]['total'] <=> $asRows[$a]['total'];
+                    }
+                    return $a <=> $b;
+                });
+                $asRank = 0; $asDetail = [];
+                foreach ($asRows as $asNum => $asRow) {
+                    $asRank++;
+                    $asDetail[$asNum] = [
+                        '信頼度7項目' => $asRow['conf_items'],
+                        '信頼度小計' => $asRow['conf_sub'],
+                        '妙味4項目'  => $asRow['merit_items'],
+                        '妙味小計'   => $asRow['merit_sub'],
+                        '総合'       => $asRow['total'],
+                        '全頭順位'   => $asRank,
+                        '候補か'     => in_array($asNum, $asPubNums, true),
+                        '能力適性'   => $asRow['ability'],
+                        '能力不明の処理' => ($asRow['ability'] === null)
+                            ? '不明（採点不可）のまま。0点・D評価・減点・除外の理由にしない'
+                            : '採点あり',
+                    ];
+                }
+                $b16AiAudit[$asLbl] = [
+                    '判定'       => $asRes['ok'] ? 'OK' : 'NG',
+                    // @ANCHOR-20261006-SCORE-SOURCE-OF-TRUTH
+                    '全頭採点完了'   => !empty($asRes['complete']) ? 'はい' : 'いいえ',
+                    '検証済み頭数'   => count(array_filter($asRes['horses'] ?? [], static fn($h) => !empty($h['verified']))),
+                    '未検証'         => $asRes['unverified'] ?? [],
+                    '候補行との不一致数' => $asRes['mismatch'] ?? 0,
+                    '修正要求の対象' => !empty($asRes['needs_fix']) ? 'はい' : 'いいえ',
+                    'エラー'     => $asRes['errors'],
+                    // @ANCHOR-20261005-ALLSCORE-WARN  警告は提出物に必ず載せる
+                    '警告'       => $asRes['warnings'] ?? [],
+                    '欠落'       => $asRes['missing'],
+                    '重複'       => $asRes['duplicated'],
+                    '実在しない馬番' => $asRes['extra'],
+                    '公開候補数' => count($asPubNums),
+                    '全頭'       => $asDetail,
+                ];
+            }
+            \Log::info('[AUDIT_AI] AI単位の監査ログ（@ANCHOR-20261004-AUDIT-ALLSCORE）', [
+                'race' => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+                '版'   => self::ALLOC_SPEC_VERSION,
+                'AI'   => $b16AiAudit,
+            ]);
+            self::auditFile('AUDIT_AI', [
+                'race' => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+                '版'   => self::ALLOC_SPEC_VERSION,
+                'AI'   => $b16AiAudit,
+            ]);
         }
         // ── Block 16 End ──────────────────────────────────────────────────────────
 
@@ -3706,6 +5390,63 @@ SYSTEM;
         // 候補絞り込みフィルター End
         // ══════════════════════════════════════════════════════════════════════════
 
+        // ── @ANCHOR-20261004-PHP-CANDIDATE  生成する候補行に使うDB値 ──────────
+        //   馬名と6分前単勝オッズは必ずDBの値を使う（AIの出力を使わない）。
+        $b14DbNameMap  = [];
+        $b14DbOdds6Map = [];
+        try {
+            foreach (DB::table('t_horse_odds_finder_horses')
+                        ->where('date',   $date)
+                        ->where('kaisuu', $raceRow->kaisuu)
+                        ->where('basho',  $raceRow->basho)
+                        ->where('day',    $raceRow->day)
+                        ->where('race',   $raceRow->race)
+                        ->get(['num', 'name']) as $b14h) {
+                $b14DbNameMap[(int) $b14h->num] = (string) $b14h->name;
+            }
+            foreach ($b6OddsRows as $b14o) {
+                if (is_numeric($b14o->odds)) $b14DbOdds6Map[(int) $b14o->num] = (float) $b14o->odds;
+            }
+        } catch (\Throwable $b14e) {
+            \Log::warning('[PHP_CANDIDATE] 馬名・6分前オッズの取得に失敗（生成は行わない）', [
+                'message' => $b14e->getMessage(),
+            ]);
+        }
+
+        // ── @ANCHOR-20261004-ALLOC-COMPARE  比較実行用の配分上書きを解決する ──
+        $b14AllocMode = $allocSnapshot['mode'];
+        $b14AllocFav  = $allocSnapshot['fav'];
+        $b14AllocLong = $allocSnapshot['long'];
+        if (self::$allocOverride !== null) {
+            $b14Ovr = self::$allocOverride;
+            if (array_key_exists('fav', $b14Ovr) && $b14Ovr['fav'] !== null) {
+                $b14AllocFav  = (int) $b14Ovr['fav'];
+                $b14AllocLong = (int) $b14Ovr['long'];
+                $b14AllocMode = (string) ($b14Ovr['label'] ?? $b14AllocMode);
+            }
+            \Log::info('[配分比較] 配分を上書きして統合する（@ANCHOR-20261004-ALLOC-COMPARE）', [
+                'race'       => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+                '条件名'     => $b14Ovr['label'] ?? '(名称なし)',
+                '可変配分'   => array_key_exists('feature', $b14Ovr)
+                                    ? (($b14Ovr['feature'] ? '有効' : '無効')) : '上書きなし',
+                '目標配分'   => ($b14AllocFav === null) ? '既存目安' : "{$b14AllocFav}＋{$b14AllocLong}",
+                'プロンプト凍結値' => ($allocSnapshot['fav'] === null)
+                                    ? '既存目安' : "{$allocSnapshot['fav']}＋{$allocSnapshot['long']}",
+            ]);
+        }
+
+        // @ANCHOR-20261006-ANSWER-HASH  統合に使った回答をここで確定させて控える
+        $b14HashOf = static function (?string $s): ?string {
+            $s = trim((string) $s);
+            return $s === '' ? null : substr(hash('sha256', $s), 0, 16);
+        };
+        $this->lastAnswerHash = [
+            '1st_public' => $b14HashOf(self::publicPart((string) $firstAiText)),
+            '1st_raw'    => $b14HashOf((string) $firstAiText),
+            '2nd_public' => $b14HashOf(self::publicPart((string) ($b7SecondAiFailed ? '' : $analysisText))),
+            '2nd_raw'    => $b14HashOf((string) ($b7SecondAiFailed ? '' : $analysisText)),
+        ];
+
         $mergedHorses   = $this->_mergeAiResults(
             $firstAiHorses,
             $secondAiHorses,
@@ -3716,7 +5457,24 @@ SYSTEM;
             $mergeLowerMax,
             $horseFlagsMap,     // Block 6: F1〜F8フラグマップ（F1/F5はBlock10後に有効化済み）
             $b13PreCapFilter,   // 【20260924】上限適用前の絞り込みフィルター
-            $protectedLongshotForMerge  // 【20260927】人気薄の根拠付き保護対象の馬番
+            $protectedLongshotForMerge, // 【20260927】人気薄の根拠付き保護対象の馬番（20261004以降は参考入力）
+            // 【20261004】プロンプトから読み戻した配分モード（@ANCHOR-20261004-ALLOC-SNAPSHOT）
+            //   比較実行中（@ANCHOR-20261004-ALLOC-COMPARE）は上書きを使う。
+            $b14AllocMode, $b14AllocFav, $b14AllocLong,
+            $allocSnapshot['qualified'],
+            // 【20261004 回答①A-2】検証済みの全頭採点からPHPが候補行を生成する入力
+            //   検証がOKだったAIの採点だけを渡す（NGの採点は使わない）。
+            //   @ANCHOR-20261004-PHP-CANDIDATE
+            //   @ANCHOR-20261006-SCORE-SOURCE-OF-TRUTH
+            //   補充候補の生成には「検証済みの内部採点」だけを渡す。
+            //   不一致で未検証になった馬は渡さない（公開候補行は別途そのまま残る）。
+            self::verifiedAllScore($allScore1st),
+            self::verifiedAllScore($allScore2nd),
+            $allocEvidenceSnapshot,
+            $b14DbNameMap,
+            $b14DbOdds6Map,
+            // @ANCHOR-20261006-QUAL-STATE  7番人気以下の資格判定（成立/不成立/不明）
+            $allocQualState
         );
 
         // ── よっしー20260926指摘【今回の確認ログ】──────────────────────────
@@ -3812,7 +5570,20 @@ SYSTEM;
             $mergedHorses, $upsetRaceFinal, $gapTypeForMerge,
             $b14WaveLevel, $b14LowerEntry, $b14BigGap,
             $date, $kaisuu, $basho, $day, $race, $raceRow,
-            $b69MeritCap   // #69: 妙味小計上限の検証結果（DBに証跡として残す）
+            $b69MeritCap,  // #69: 妙味小計上限の検証結果（DBに証跡として残す）
+            // 【20261004】snapshot_idの照合結果（@ANCHOR-20261004-AUDIT-SNAPSHOT）
+            //   よっしー回答③Aの条件「レースID・対象時点とセットで管理し、
+            //   ハッシュの元になった入力も保存してください。」
+            [
+                'race_id'            => "{$date}_{$kaisuu}_{$basho}_{$day}_{$race}",
+                'timing'             => self::SNAPSHOT_TIMING,
+                'prompt_snapshot_id' => $auPromptSnapshotId,
+                'merge_snapshot_id'  => $auNowSnapshotId,
+                'match'              => $auSnapshotMatch,
+                'mixed_inputs'       => ($auSnapshotMatch === false),
+                'normalize'          => '馬番昇順・小数2桁固定・非数値は-',
+                'source'             => $auNowSnapshotSource,   // ハッシュの元になった入力そのもの
+            ]
         );
         // ── Block 14 End ──────────────────────────────────────────────────────────
 
@@ -3826,16 +5597,35 @@ SYSTEM;
         );
         // ── Block B-8 End ────────────────────────────────────────────────────────
 
+        // ══════════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261005-AUX-NEVER-BREAKS  補助処理の失敗で予想を落とさない
+        // ══════════════════════════════════════════════════════════════════════
+        // シャドーログと学習用スナップショットは「あとで分析するための記録」であり、
+        // 画面に出す予想とは無関係。ここで例外が出ると下の catch (\Throwable) に
+        // 流れ、せっかく計算した候補を捨てて「候補0件」を返してしまう。
+        // 記録のための処理が予想を殺すのは本末転倒なので、個別に囲む。
+        //   ※2026-10-05: _saveMlSnapshot() の実着順取得の列名を直した
+        //     （finishing_position → result）。これまでSQLエラーで常に失敗して
+        //     いた経路が初めて動くため、ここを囲まずに本番へ出すのは危険。
         // ── Block B-10: シャドー期間中の高配当総合点・仮順位・馬券判定ログ保存 ──────────
-        $this->_saveHighPayoutShadow(
-            $mergedHorses, $b10TotalScoreMap, $b13UnderevalFlagMap,
-            $b13ScoreAMap, $b6OddsRows, $oddsHorseBlocks,
-            $gapTypeForMerge, $firstAiHorses, $secondAiHorses,
-            $horseFlagsMap, $date, $kaisuu, $basho, $day, $race, $raceRow
-        );
+        try {
+            $this->_saveHighPayoutShadow(
+                $mergedHorses, $b10TotalScoreMap, $b13UnderevalFlagMap,
+                $b13ScoreAMap, $b6OddsRows, $oddsHorseBlocks,
+                $gapTypeForMerge, $firstAiHorses, $secondAiHorses,
+                $horseFlagsMap, $date, $kaisuu, $basho, $day, $race, $raceRow
+            );
+        } catch (\Throwable $auxE) {
+            \Log::error('[AUX_FAILED] シャドーログの保存に失敗（予想表示は継続）', [
+                'race'    => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+                'message' => $auxE->getMessage(),
+                'file'    => $auxE->getFile() . ':' . $auxE->getLine(),
+            ]);
+        }
         // ── Block B-10 End ──────────────────────────────────────────────────────────
 
         // ── Block 11: 断層パターン学習 特徴量スナップショット保存 ───────────────────
+        try {
         $this->_saveMlSnapshot(
             $mergedHorses, $gapTypeForMerge, $primaryGapUpperPopForMerge,
             $mergeUpperMax, $mergeMidMax, $mergeLowerMax,
@@ -3848,6 +5638,14 @@ SYSTEM;
             $date, $kaisuu, $basho, $day, $race, $raceRow,
             $b10ScoreEMap   // 【20260924】馬ごとの基礎点E（断層構造の穴進入根拠）
         );
+        } catch (\Throwable $auxE2) {
+            // @ANCHOR-20261005-AUX-NEVER-BREAKS
+            \Log::error('[AUX_FAILED] 学習用スナップショットの保存に失敗（予想表示は継続）', [
+                'race'    => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
+                'message' => $auxE2->getMessage(),
+                'file'    => $auxE2->getFile() . ':' . $auxE2->getLine(),
+            ]);
+        }
         // ── Block 11 End ──────────────────────────────────────────────────────────
 
         // ── Flutter応答の組み立て: シャドー専用の値を応答から除去する ──────────
@@ -3877,7 +5675,7 @@ SYSTEM;
             'basho_code'    => $basho,
             'day'           => $day,
             'race'          => $race,
-            'analysis_text' => $analysisText,
+            'analysis_text' => self::publicPart($analysisText),   // 【20261004】内部監査用JSONは返さない
             'merged_horses' => $flutterHorses,   // ← シャドー値を除いた候補配列
             // 【20260928 受入チェック#84】厳選穴レースは 1 / 0 / 不明 の三値。
             //   既存の upset_race は数値のまま（不明は null）。Flutter は null 安全に読む。
@@ -3898,14 +5696,44 @@ SYSTEM;
         //   想定外の例外を次のレースへ伝播させない。AIは呼び直さない。
         //   候補行0件・厳選穴レース不成立の部分結果を HTTP 200 で返す。
         //   @ANCHOR-20260928-RACE-PROCESSING-ERROR
-        \Log::error('[RACE_PROCESSING_ERROR] 2nd AI統合処理で想定外の例外（候補0件の部分結果で続行）', [
+        // ══════════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261005-FALLBACK-SAVED-MERGE  例外時も保存済みの統合結果で粘る
+        // ══════════════════════════════════════════════════════════════════════
+        // Block 14 が統合結果をDBへ保存したあとに例外が出た場合、
+        // 空の候補を返すと「計算も保存も済んでいるのに画面には何も出ない」
+        // という最悪の形になる。保存済みの結果があればそれを返す。
+        // 無ければ従来どおり候補0件の部分結果を返す（捏造はしない）。
+        // ══════════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261006-FALLBACK-SAME-INPUT  復帰は同じ入力の結果に限る
+        // ══════════════════════════════════════════════════════════════════════
+        // 【20261006 ご指摘・第7節】
+        //   「第26章の救済は、同じレース・対象時点・入力に対応する有効な保存結果に
+        //     限ることを確認してください。第21章の『入力を混ぜない』と両立させる必要がある」
+        //   → 6分前オッズのスナップショットIDが一致したときだけ、保存済み結果へ復帰する。
+        //     一致しない／確認できない場合は復帰せず、従来どおり候補0件で返す。
+        $raceFallback = [];
+        $fbSnapshotOk = (isset($auPromptSnapshotId, $auNowSnapshotId)
+                         && $auPromptSnapshotId !== null
+                         && $auNowSnapshotId !== null
+                         && $auPromptSnapshotId === $auNowSnapshotId);
+        if ($fbSnapshotOk) {
+            $raceFallback = $this->_loadSavedMergeResult($date, $kaisuu, $basho, $day, $race);
+        }
+        \Log::error('[RACE_PROCESSING_ERROR] 2nd AI統合処理で想定外の例外', [
             'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
             'stage'   => '2nd_ai_merge',
             'message' => $raceE->getMessage(),
             'file'    => $raceE->getFile() . ':' . $raceE->getLine(),
             'trace'   => mb_substr($raceE->getTraceAsString(), 0, 2000),
+            '応答'    => empty($raceFallback['merged_horses'])
+                ? '候補0件の部分結果で続行'
+                : '保存済みの統合結果（' . count($raceFallback['merged_horses']) . '頭）で続行',
+            // @ANCHOR-20261006-FALLBACK-SAME-INPUT
+            '保存済み結果への復帰' => $fbSnapshotOk
+                ? '可（6分前オッズのsnapshot_idが一致）'
+                : '不可（snapshot_idが一致しない、または確認できない。入力を混ぜないため復帰しない）',
         ]);
-        return response()->json(['data' => [
+        return response()->json(['data' => array_merge([
             'date'          => $date,
             'kaisuu'        => $kaisuu,
             'basho_code'    => $basho,
@@ -3916,9 +5744,9 @@ SYSTEM;
             'upset_race'        => 0,    // 条件A不成立 → 厳選穴レース|0
             'upset_race_status' => '0',
             'race_metrics'      => null, // 未取得値は「不明」
-        ]]);
+        ], $raceFallback)]);
     } finally {
-        $lock->release();
+        self::releaseRaceLock($lock);   // @ANCHOR-20261005-LOCK-FALLBACK
     }
 }
 
@@ -3932,6 +5760,8 @@ SYSTEM;
     private function _saveEmptyFirstAiAnalysis(
         string $date, $kaisuu, string $basho, $day, $race, $raceRow, string $reason
     ): void {
+        // @ANCHOR-20261004-DRY-RUN  試算モードでは保存しない
+        if (self::$dryRunNoPersist) return;
         try {
             DB::table('t_horse_odds_finder_ai_analysis')->updateOrInsert(
                 ['date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho, 'day' => $day, 'race' => $race],
@@ -4122,8 +5952,378 @@ SYSTEM;
     // 期待フォーマット:
     //   馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：〜
     // ─────────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────
+    // @ANCHOR-20261004-AUDIT-ALLSCORE  全頭採点（内部用JSON）の読み取りと検証
+    //
+    // よっしー20261004回答③Aの条件:
+    //   ・1st・2ndとも全実出走馬の11項目得点、小計、総合点を取得する
+    //   ・馬番の重複・欠落、点数範囲、合計、候補行との一致を検証する
+    //   ・2ndの公開候補が0頭でも全頭採点JSONは取得する
+    //   ・未定義の点数を0や推測値で補わない（仕様書6.3）
+    //
+    // @param ?string $jsonRaw      splitAuditJson() が取り出したJSON文字列
+    // @param array   $validNums    実出走馬の馬番（int配列）
+    // @param array   $publicHorses _parseAiHorses() の出力（候補行との一致検証用）
+    // @param string  $aiLabel      '1st' or '2nd'
+    // @return array{
+    //   ok: bool, horses: array<int, array>, errors: array<string>,
+    //   missing: array<int>, duplicated: array<int>, extra: array<int>
+    // }
+    // ─────────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────
+    // @ANCHOR-20261004-FIX-REQUEST  不正回答への修正要求（該当AIにつき1回まで）
+    //
+    // よっしー20261004回答③A：
+    //   「通常のAI呼び出しは2回とし、仕様書にある不正回答への修正要求は、
+    //     該当AIにつき1回までの例外として区別してください。
+    //     なお無効なら有効な他方を使い、両方無効なら未確定表示とし、
+    //     HTTP500にはしないでください。」
+    //
+    // 仕様書9.2 表11「数値や内訳不一致 → 修正要求は1回。なお無効なら当該回答を
+    // 採用せず、有効な他方のデータを使用」。
+    //
+    // ※通常の2回（1st・2nd各1回）とは別枠。呼んだことを必ずログに残す。
+    // ※全頭採点JSONだけを出し直させる。公開候補行は変更させない
+    //   （候補が入れ替わると、せっかく検証した公開部分が無駄になるため）。
+    //
+    // @return ?string 新しい全頭採点JSON（マーカーを外した中身）。失敗時は null
+    // ─────────────────────────────────────────────────────────────────
+    private function _requestScoreFix(
+        string $aiLabel,
+        string $originalPrompt,
+        string $previousText,
+        array  $errors,
+        string $raceLabel
+    ): ?string {
+        $fxAsk = "直前のあなたの回答に、全頭採点（内部用）の不備がありました。\n"
+               . "次の指摘をすべて直し、" . self::AUDIT_JSON_BEGIN . " と " . self::AUDIT_JSON_END
+               . " で囲んだ全頭採点のJSONだけを、もう一度出力してください。\n"
+               . "・公開候補行は出し直さないでください（前回の候補行をそのまま使います）。\n"
+               . "・小計と合計は必ず内訳の合計と一致させてください。\n"
+               . "・全実出走馬を入れ、馬番の重複・欠落をなくしてください。\n"
+               . "・推測値や0で埋めないでください。採点できない項目がある馬は、その馬を出さずに報告してください。\n\n"
+               . "【指摘】\n・" . implode("\n・", array_slice($errors, 0, 30)) . "\n";
+
+        \Log::warning("[FIX_REQUEST] 全頭採点の修正要求を1回だけ送る（{$aiLabel}）", [
+            'race'       => $raceLabel,
+            'AI'         => $aiLabel,
+            '版'         => self::ALLOC_SPEC_VERSION,
+            '指摘件数'   => count($errors),
+            '指摘'       => array_slice($errors, 0, 30),
+            '位置づけ'   => '通常の2回とは別枠の例外（該当AIにつき1回まで）',
+        ]);
+
+        try {
+            if ($aiLabel === '1st') {
+                $fxRes = $this->anthropic->sendWithRetry(
+                    prompt:      $originalPrompt . "\n\n" . $fxAsk,
+                    system:      'あなたは競馬オッズ分析の専門家（1st AI）です。直前の回答の全頭採点JSONだけを、指摘どおりに直して出力してください。公開候補行は出力しません。',
+                    maxAttempts: 1,   // 修正要求も1回のみ。2以上にしてはいけない
+                    sleepBase:   2,
+                    timeout:     90,
+                );
+                $fxText = $this->anthropic->extractText($fxRes);
+            } else {
+                $fxHttp = Http::timeout(60)->withHeaders([
+                    'Authorization' => 'Bearer ' . env('DEEPSEEK_API_KEY'),
+                ])->post('https://api.deepseek.com/v1/chat/completions', [
+                    'model'    => 'deepseek-chat',
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'あなたは競馬オッズ分析の専門家（2nd AI）です。直前の回答の全頭採点JSONだけを、指摘どおりに直して出力してください。公開候補行は出力しません。'],
+                        ['role' => 'user',   'content' => $originalPrompt . "\n\n" . $fxAsk],
+                    ],
+                ]);
+                if ($fxHttp->failed()) {
+                    \Log::warning("[FIX_REQUEST] 修正要求の通信に失敗（{$aiLabel}・当該回答は採用しない）", [
+                        'race'   => $raceLabel,
+                        'status' => $fxHttp->status(),
+                    ]);
+                    return null;
+                }
+                $fxJson = $fxHttp->json();
+                $fxText = trim($fxJson['choices'][0]['message']['content'] ?? '');
+            }
+        } catch (\Throwable $fxE) {
+            \Log::warning("[FIX_REQUEST] 修正要求で例外（{$aiLabel}・当該回答は採用しない）", [
+                'race'    => $raceLabel,
+                'message' => $fxE->getMessage(),
+            ]);
+            return null;
+        }
+
+        $fxSplit = self::splitAuditJson((string) $fxText);
+        if ($fxSplit['json'] === null) {
+            \Log::warning("[FIX_REQUEST] 修正要求の回答にも全頭採点JSONが無い（{$aiLabel}）", [
+                'race'     => $raceLabel,
+                'raw_head' => mb_substr((string) $fxText, 0, 500),
+            ]);
+            return null;
+        }
+        return $fxSplit['json'];
+    }
+
+    /**
+     * @ANCHOR-20261006-SCORE-SOURCE-OF-TRUTH
+     * 検証済みの全頭採点だけを取り出す。
+     *
+     * 20261006 ご指摘②「修正後も不一致なら、その馬の内部採点は未検証として扱い、
+     * 検証済み採点を必要とする補充順位に使わない」に対応する。
+     * 採点そのものが読めない（ok=false）場合は1頭も使わない。
+     *
+     * @param  array $res _parseAllHorseScores() の戻り値
+     * @return array 馬番 => 採点（検証済みのみ）
+     */
+    private static function verifiedAllScore(array $res): array
+    {
+        if (empty($res['ok'])) return [];
+        return array_filter(
+            $res['horses'] ?? [],
+            static fn($h) => !empty($h['verified'])
+        );
+    }
+
+    private function _parseAllHorseScores(
+        ?string $jsonRaw,
+        array   $validNums,
+        array   $publicHorses,
+        string  $aiLabel
+    ): array {
+        // ══════════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261005-ALLSCORE-WARN  致命的な不備と、警告どまりの不備を分ける
+        // ══════════════════════════════════════════════════════════════════════
+        // 【実測でわかったこと（2026-10-05・10/3の24レースを呼び直し）】
+        //   JSON自体は正しく返る（馬番の重複・欠落なし、内訳と小計も一致）。
+        //   落ちていたのは「候補行のおすすめ度」と「JSONの総合点」の一致だけで、
+        //   78対93、72対66のように大きくずれる。
+        //   同じ採点を長い出力の中で2回書かせているため、LLMには再現できない。
+        //   これだけで全頭採点を丸ごと捨てると、よっしー回答③Aの目的
+        //   「選ばれなかった理由を追えるようにする」が達成できない。
+        //
+        // 【分け方】
+        //   errors   … 採点として使えない（JSONなし・読めない・点数範囲外・
+        //               内訳と小計の不一致・馬番の重複・実在しない馬番）
+        //   warnings … 使えるが食い違いがある（候補行のおすすめ度との不一致、
+        //               公開候補行にあるのにJSONに無い、実出走馬の一部が欠落）
+        //   ok は errors が空なら true。warnings は件数と中身を必ず記録する。
+        //
+        // 【画面と内部値の関係】
+        //   画面に出すおすすめ度は候補行の値のまま（PHPは書き換えない）。
+        //   JSONの総合点は、候補行に載っていない馬の順位づけと監査にだけ使う。
+        //   両者が混ざることはないので、不一致が表示へ影響することはない。
+        // ══════════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261006-SCORE-SOURCE-OF-TRUTH  点数の正本を1つに決める
+        // ══════════════════════════════════════════════════════════════════════
+        // 【20261006 ご指摘②】
+        //   「公開候補、内部採点、補充候補、統合順位で、どの点数を正とするかを統一する」
+        //   「公開候補と内部総合点の不一致は該当AIへの既定の修正要求（最大1回）の対象にする」
+        //   「修正後も不一致なら、その馬の内部採点は未検証として扱い、
+        //     検証済み採点を必要とする補充順位に使わない。公開候補を保持して続行する」
+        //   「JSONの一部欠落は有効な他馬まで捨てる必要はないが、欠落馬を『採点なし』と
+        //     明記し、全頭採点完了と数えない。欠落馬の採点を推測して補充しない」
+        //
+        // 【決めた正本】
+        //   ・画面に出す候補行のおすすめ度 … AIの公開候補行の値が正本。PHPは書き換えない。
+        //   ・内部採点（JSON総合点）       … 公開候補行と一致した馬だけを「検証済み」とする。
+        //   ・補充候補の生成と統合順位      … 検証済みの内部採点だけを使う。
+        //     不一致の馬は内部採点を使わない（公開候補行はそのまま残す）。
+        //   これで「表示に使う点数」と「選出に使う点数」が同じ馬では必ず一致する。
+        //
+        // 【出力の意味】
+        //   ok          … 採点として読める（JSONあり・点数範囲内・小計一致・重複なし）
+        //   needs_fix   … 修正要求の対象（不一致または欠落がある）
+        //   complete    … 実出走馬が全頭そろい、全頭が検証済み（＝全頭採点完了）
+        //   horses[n]['verified'] … その馬の内部採点を補充順位に使ってよいか
+        $out = ['ok' => false, 'horses' => [], 'errors' => [], 'warnings' => [],
+                'missing' => [], 'duplicated' => [], 'extra' => [],
+                'unverified' => [], 'needs_fix' => false, 'complete' => false,
+                'mismatch' => 0];
+
+        if ($jsonRaw === null || trim($jsonRaw) === '') {
+            $out['errors'][] = '全頭採点のJSONが無い（マーカーなし、または途中で切れている）';
+            return $out;
+        }
+
+        $decoded = json_decode($jsonRaw, true);
+        if (!is_array($decoded) || !isset($decoded['horses']) || !is_array($decoded['horses'])) {
+            $out['errors'][] = 'JSONとして読めない、または horses 配列が無い';
+            return $out;
+        }
+
+        $validNums = array_map('intval', $validNums);
+        $seen      = [];
+        foreach ($decoded['horses'] as $row) {
+            if (!is_array($row) || !isset($row['n']) || !is_numeric($row['n'])) {
+                $out['errors'][] = '馬番(n)の無い行がある';
+                continue;
+            }
+            $num = (int) $row['n'];
+            if (isset($seen[$num])) { $out['duplicated'][] = $num; continue; }
+            $seen[$num] = true;
+
+            if (!in_array($num, $validNums, true)) { $out['extra'][] = $num; continue; }
+
+            // 11項目の点数範囲
+            $conf  = (isset($row['c']) && is_array($row['c'])) ? array_values($row['c']) : null;
+            $merit = (isset($row['m']) && is_array($row['m'])) ? array_values($row['m']) : null;
+            if ($conf === null || count($conf) !== count(self::CONF_ITEM_MAX)) {
+                $out['errors'][] = "馬番{$num}: 信頼度7項目(c)が揃っていない";
+                continue;
+            }
+            if ($merit === null || count($merit) !== count(self::MERIT_ITEM_MAX)) {
+                $out['errors'][] = "馬番{$num}: 妙味4項目(m)が揃っていない";
+                continue;
+            }
+            $rangeNg = false;
+            foreach (self::CONF_ITEM_MAX as $i => $max) {
+                if (!is_numeric($conf[$i]) || $conf[$i] < 0 || $conf[$i] > $max) {
+                    $out['errors'][] = "馬番{$num}: 信頼度{$i}項目目が範囲外（0〜{$max}）";
+                    $rangeNg = true;
+                }
+            }
+            foreach (self::MERIT_ITEM_MAX as $i => $max) {
+                if (!is_numeric($merit[$i]) || $merit[$i] < 0 || $merit[$i] > $max) {
+                    $out['errors'][] = "馬番{$num}: 妙味{$i}項目目が範囲外（0〜{$max}）";
+                    $rangeNg = true;
+                }
+            }
+            if ($rangeNg) continue;
+
+            // 小計・合計の一致（0や推測値で補わず、合わなければその馬を無効にする）
+            $confSum  = array_sum(array_map('floatval', $conf));
+            $meritSum = array_sum(array_map('floatval', $merit));
+            $cs = isset($row['cs']) && is_numeric($row['cs']) ? (float) $row['cs'] : null;
+            $ms = isset($row['ms']) && is_numeric($row['ms']) ? (float) $row['ms'] : null;
+            $tt = isset($row['t'])  && is_numeric($row['t'])  ? (float) $row['t']  : null;
+            if ($cs === null || abs($cs - $confSum) > 0.001) {
+                $out['errors'][] = "馬番{$num}: 信頼度小計(cs)が内訳の合計と一致しない（cs="
+                    . var_export($row['cs'] ?? null, true) . " / 内訳合計={$confSum}）";
+                continue;
+            }
+            if ($ms === null || abs($ms - $meritSum) > 0.001) {
+                $out['errors'][] = "馬番{$num}: 妙味小計(ms)が内訳の合計と一致しない（ms="
+                    . var_export($row['ms'] ?? null, true) . " / 内訳合計={$meritSum}）";
+                continue;
+            }
+            if ($tt === null || abs($tt - ($cs + $ms)) > 0.001) {
+                $out['errors'][] = "馬番{$num}: 総合点(t)が小計の合計と一致しない（t="
+                    . var_export($row['t'] ?? null, true) . " / cs+ms=" . ($cs + $ms) . '）';
+                continue;
+            }
+
+            $out['horses'][$num] = [
+                // @ANCHOR-20261006-SCORE-SOURCE-OF-TRUTH
+                //   公開候補行との突き合わせはこのあと行う。既定は未検証。
+                'verified'    => false,
+                'unverified_reason' => '公開候補行との突き合わせ前',
+                'conf_items'  => array_map('floatval', $conf),
+                'conf_sub'    => $cs,
+                'merit_items' => array_map('floatval', $merit),
+                'merit_sub'   => $ms,
+                'total'       => $tt,
+                // 能力適性は採点不能なら null のまま（0で補わない）
+                'ability'     => (isset($row['a']) && is_numeric($row['a'])) ? (float) $row['a'] : null,
+            ];
+        }
+
+        // 欠落（実出走馬にいてJSONに無い馬）
+        $out['missing']    = array_values(array_diff($validNums, array_keys($out['horses'])));
+        $out['duplicated'] = array_values(array_unique($out['duplicated']));
+        $out['extra']      = array_values(array_unique($out['extra']));
+
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261006-SCORE-SOURCE-OF-TRUTH  馬ごとに検証済みかを決める
+        // ══════════════════════════════════════════════════════════════════
+        //   公開候補行に載っている馬 … おすすめ度と総合点が一致すれば検証済み
+        //   公開候補行に無い馬       … 突き合わせる相手がいないので検証済みとする
+        //                              （この馬の点数の正本は内部採点しかない）
+        //   不一致の馬               … 未検証。補充順位には使わない
+        $mismatch   = 0;
+        $publicNums = [];
+        foreach ($publicHorses as $ph) {
+            $pn = (int) ($ph['num'] ?? 0);
+            $publicNums[] = $pn;
+            if (!isset($out['horses'][$pn])) {
+                // 公開候補にあるのにJSONに無い＝採点なし。推測で補わない。
+                $out['warnings'][]   = "馬番{$pn}: 公開候補行にあるがJSONに無い（採点なし）";
+                $out['unverified'][] = ['num' => $pn, '理由' => 'JSONに無い（採点なし）'];
+                continue;
+            }
+            $pScore = (float) ($ph['score'] ?? -1);
+            if (abs($out['horses'][$pn]['total'] - $pScore) <= 0.001) {
+                $out['horses'][$pn]['verified']          = true;
+                $out['horses'][$pn]['unverified_reason'] = null;
+            } else {
+                $mismatch++;
+                $out['horses'][$pn]['verified'] = false;
+                $out['horses'][$pn]['unverified_reason'] = sprintf(
+                    '候補行のおすすめ度(%s)と総合点(%s)が一致しない', $pScore, $out['horses'][$pn]['total']
+                );
+                $out['warnings'][]   = sprintf(
+                    '馬番%d: 候補行のおすすめ度(%s)とJSONの総合点(%s)が一致しない → 内部採点は未検証',
+                    $pn, $pScore, $out['horses'][$pn]['total']
+                );
+                $out['unverified'][] = ['num' => $pn, '理由' => '候補行と総合点が一致しない',
+                                        '候補行' => $pScore, 'JSON' => $out['horses'][$pn]['total']];
+            }
+        }
+        // 公開候補行に無い馬は突き合わせる相手がいない。内部採点を正本として扱う。
+        foreach ($out['horses'] as $hn => $_hv) {
+            if (in_array((int) $hn, $publicNums, true)) continue;
+            $out['horses'][$hn]['verified']          = true;
+            $out['horses'][$hn]['unverified_reason'] = null;
+        }
+        // 実出走馬の欠落は「採点なし」。推測で補わない。
+        foreach ($out['missing'] as $mn) {
+            $out['warnings'][]   = "馬番{$mn}: 実出走馬だがJSONに無い（採点なし）";
+            $out['unverified'][] = ['num' => (int) $mn, '理由' => '実出走馬だがJSONに無い（採点なし）'];
+        }
+
+        $out['mismatch'] = $mismatch;
+
+        // 採点として読めるか（致命的な不備が無いか）
+        $out['ok'] = empty($out['errors'])
+                  && empty($out['duplicated'])
+                  && empty($out['extra'])
+                  && count($out['horses']) > 0;
+
+        // @ANCHOR-20261006-SCORE-SOURCE-OF-TRUTH
+        //   修正要求の対象 … 不一致または欠落があるとき
+        //   全頭採点完了   … 実出走馬が全頭そろい、全頭が検証済みのとき
+        $verifiedCount    = count(array_filter($out['horses'], static fn($h) => !empty($h['verified'])));
+        $out['needs_fix'] = (!$out['ok']) || $mismatch > 0 || !empty($out['missing']);
+        $out['complete']  = $out['ok']
+                         && empty($out['missing'])
+                         && $mismatch === 0
+                         && $verifiedCount === count($validNums);
+
+        \Log::info("[AUDIT_AI] 全頭採点の検証（{$aiLabel}・@ANCHOR-20261004-AUDIT-ALLSCORE）", [
+            'AI'         => $aiLabel,
+            '版'         => self::ALLOC_SPEC_VERSION,
+            '判定'       => $out['ok'] ? 'OK' : 'NG',
+            '取得頭数'   => count($out['horses']),
+            '実出走頭数' => count($validNums),
+            '欠落'       => $out['missing'],
+            '重複'       => $out['duplicated'],
+            '実在しない馬番' => $out['extra'],
+            'エラー'     => $out['errors'],
+            '警告'       => $out['warnings'],
+            '候補行との不一致数' => $mismatch,
+            '未検証'     => $out['unverified'],
+            '全頭採点完了' => $out['complete'] ? 'はい' : 'いいえ',
+            '修正要求の対象' => $out['needs_fix'] ? 'はい' : 'いいえ',
+            '注記'       => '画面のおすすめ度は候補行の値が正本。内部採点は候補行と一致した馬だけを'
+                            . '検証済みとし、補充候補の生成と統合順位には検証済みだけを使う'
+                            . '（@ANCHOR-20261006-SCORE-SOURCE-OF-TRUTH）',
+        ]);
+
+        return $out;
+    }
+
     private function _parseAiHorses(string $aiText): array
     {
+        // 【20261004】内部監査用JSON（@ANCHOR-20261004-AUDIT-ALLSCORE）を必ず落としてから扱う。
+        //   公開パーサー・回答判定に内部データを混ぜない（よっしー回答③Aの条件）。
+        $aiText = self::publicPart($aiText);
         $horses = [];
         $lines  = explode("\n", $aiText);
 
@@ -4131,11 +6331,7 @@ SYSTEM;
             $line = trim($line);
             if (empty($line)) continue;
 
-            if (!preg_match(
-                '/馬番[：:]\s*(\d+)[、,].*?馬名[：:]\s*([^、,\n]+)[、,].*?人気順[：: ]\s*(\d+)[、,].*?6分前オッズ[：: ]\s*([\d.]+)[、,].*?おすすめ度[：: ]\s*(\d+)[、,].*?選出理由[：:]\s*(.+)/us',
-                $line,
-                $m
-            )) {
+            if (!preg_match(self::PUBLIC_ROW_REGEX, $line, $m)) {
                 continue;
             }
 
@@ -4178,6 +6374,7 @@ SYSTEM;
         $seen    = [];
         $removed = [];
         $fixed   = [];
+        $fixedRows = [];   // @ANCHOR-20261004-AUDIT-FIX  表10「補正」用の構造化データ
 
         // ── 【20260928】同一回答内で重複した馬番は「その馬番の全行」を無効化する ──
         //   よっしー20260928指摘：
@@ -4216,6 +6413,8 @@ SYSTEM;
             if ($score < 0 || $score > 100) {
                 $clamped = max(0, min(100, $score));
                 $fixed[] = "馬番{$num} おすすめ度 {$score}→{$clamped}";
+                $fixedRows[] = ['馬番' => $num, '項目' => 'おすすめ度',
+                                'AI出力値' => $score, 'DB確定値' => $clamped, '根拠' => '0〜100にクランプ'];
                 $h['score'] = $clamped;
             }
 
@@ -4225,6 +6424,8 @@ SYSTEM;
                 $aiPop  = (int)($h['popularity'] ?? 0);
                 if ($aiPop !== $dbPop) {
                     $fixed[] = "馬番{$num} 人気順 {$aiPop}→{$dbPop}(DB)";
+                    $fixedRows[] = ['馬番' => $num, '項目' => '人気順',
+                                    'AI出力値' => $aiPop, 'DB確定値' => $dbPop, '根拠' => 'DB値で上書き'];
                     $h['popularity'] = $dbPop;
                 }
             }
@@ -4241,6 +6442,9 @@ SYSTEM;
                         "馬番{$num} 6分前オッズ %.1f→%.1f(DB)%s",
                         $aiOdds, $dbOdds, (abs($aiOdds - $dbOdds) > 0.15) ? '【乖離大】' : ''
                     );
+                    $fixedRows[] = ['馬番' => $num, '項目' => '6分前オッズ',
+                                    'AI出力値' => round($aiOdds, 1), 'DB確定値' => round((float) $dbOdds, 1),
+                                    '根拠' => (abs($aiOdds - $dbOdds) > 0.15) ? 'DB値で上書き（乖離大）' : 'DB値で上書き'];
                 }
                 $h['odds_6'] = $dbOdds; // 常にDB値で上書き
             }
@@ -4260,6 +6464,28 @@ SYSTEM;
             //   そのうえで「差異があったこと」を必ずログに残す。
             //   @ANCHOR-20260928-DB-OVERWRITE
             \Log::info("[B16-{$aiLabel}] DB値で上書き（行は削除しない）", ['差異' => $fixed]);
+
+            // ── @ANCHOR-20261004-AUDIT-FIX  監査ログ【補正単位】（仕様書9.1 表10）──
+            //   保存内容: 馬番、項目、AI出力値、DB確定値、変更時刻、取消更新と再実行履歴
+            //   ※変更時刻はJST（サーバのタイムゾーン設定に依らないよう明示する）。
+            \Log::info('[AUDIT_FIX] 補正単位の監査ログ（@ANCHOR-20261004-AUDIT-FIX）', [
+                'AI'       => $aiLabel,
+                '版'       => self::ALLOC_SPEC_VERSION,
+                '変更時刻' => (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo')))
+                                  ->format('Y-m-d H:i:s') . ' JST',
+                '件数'     => count($fixedRows),
+                '補正'     => $fixedRows,
+                '無効化'   => $removed,
+            ]);
+            self::auditFile('AUDIT_FIX', [
+                'AI'       => $aiLabel,
+                '版'       => self::ALLOC_SPEC_VERSION,
+                '変更時刻' => (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo')))
+                                  ->format('Y-m-d H:i:s') . ' JST',
+                '件数'     => count($fixedRows),
+                '補正'     => $fixedRows,
+                '無効化'   => $removed,
+            ]);
         }
     }
 
@@ -4293,7 +6519,21 @@ SYSTEM;
         int    $pickupLowerMax = 2,   // Block 8: 11番人気以下上限
         array  $horseFlagsMap  = [],  // Block 6: F1〜F8フラグマップ（num => [F1..F8]）
         ?\Closure $preCapFilter = null, // 【20260924】最低基準→低配当除外→回収率フィルター（上限適用前に実行）
-        array  $protectedNums   = []    // 【20260927】人気薄の根拠付き保護対象の馬番（@ANCHOR-20260927-PROTECTED-LONGSHOT）
+        array  $protectedNums   = [],   // 【20260927】人気薄の根拠付き保護対象の馬番（@ANCHOR-20260927-PROTECTED-LONGSHOT）
+        // 【20261004】配分モードと目標配分（_getAiAnalysisPrompt が確定しプロンプトに凍結した値）
+        string $allocMode          = '通常',
+        ?int   $allocTargetFav     = null,  // 人気側（1〜6番人気）の目標頭数。null = 既存目安
+        ?int   $allocTargetLong    = null,  // 資格あり穴側の目標頭数。null = 既存目安
+        array  $allocQualifiedNums = [],    // PHPが資格を確認した7番人気以下の馬番
+        // 【20261004 よっしー回答①A-2】検証済みの全頭採点からPHPが候補行を生成するための入力
+        //   @ANCHOR-20261004-PHP-CANDIDATE
+        array  $allScore1st   = [],  // 馬番 => ['conf_sub','merit_sub','total','ability']（検証OKのみ）
+        array  $allScore2nd   = [],
+        array  $qualEvidence  = [],  // 馬番 => ['pop','s216','s96','fuku','opi']（プロンプト凍結値）
+        array  $dbNameMap     = [],  // 馬番 => 馬名（DB）
+        array  $dbOdds6Map    = [],  // 馬番 => 6分前単勝オッズ（DB）
+        // @ANCHOR-20261006-QUAL-STATE  馬番 => 資格判定（true=成立 / false=不成立 / null=不明）
+        array  $qualState     = []
     ): array {
 
         // ── Step1: 出走頭数別の【目標数C】 ────────────────────────────
@@ -4336,6 +6576,19 @@ SYSTEM;
             $inSecond = isset($secondMap[$num]);
 
             if ($inFirst && $inSecond) {
+                // ══════════════════════════════════════════════════════════════
+                // @ANCHOR-20261006-MATCH-BONUS  一致加点は「公開候補での一致」
+                // ══════════════════════════════════════════════════════════════
+                // 【20261006 ご指摘・第7節】
+                //   「両AIにあれば平均＋5が、公開候補での一致を指すのか、
+                //     両AIの全頭採点があることを指すのかを明確にする必要がある。
+                //     全頭採点は原則両AIにあるため、それだけで一致加点すると
+                //     当初の『両方が選んだ馬』への加点とは意味が変わる」
+                //   → ここで突き合わせている $firstMap / $secondMap は
+                //     _parseAiHorses() の出力、すなわち【公開候補行】だけです。
+                //     全頭採点（内部用JSON）は一切使っていません。
+                //     したがって加点の対象は「両AIが候補として挙げた馬」だけで、
+                //     当初の意味から変わっていません。
                 // 統合おすすめ度 = 平均 + 5（上限100）
                 $avg   = ($firstMap[$num]['score'] + $secondMap[$num]['score']) / 2;
                 $score = round(min(100.0, $avg + 5), 1); // ④ 小数第1位保持（Flutter表示時のみint化）
@@ -4384,8 +6637,17 @@ SYSTEM;
         }
 
         // ── Step4b: 【20260924】最低基準→低配当除外→回収率フィルター（仕様: 上限適用より前）──
+        $auPreFilterNums = array_map(
+            static fn($x) => (int) $x['num'],
+            array_merge($matched, $firstOnly, $secondOnly)
+        );
+        $auDroppedByFilter = [];
         if ($preCapFilter !== null) {
             $b4Pool = $preCapFilter(array_merge($matched, $firstOnly, $secondOnly));
+            $auDroppedByFilter = array_values(array_diff(
+                $auPreFilterNums,
+                array_map(static fn($x) => (int) $x['num'], $b4Pool)
+            ));
             $matched    = array_values(array_filter($b4Pool, fn($h) => $h['category'] === 'matched'));
             $firstOnly  = array_values(array_filter($b4Pool, fn($h) => $h['category'] === 'first_only'));
             $secondOnly = array_values(array_filter($b4Pool, fn($h) => $h['category'] === 'second_only'));
@@ -4468,12 +6730,27 @@ SYSTEM;
         //   除外後の空枠を、すでにフィルターで除外された馬で補充しない（ここには入ってこない）。
         //   旧実装は「表示枠いっぱいなら最下位と比べて入れ替え」を人気帯上限より前に行っており、
         //   入れ替えた馬が人気帯上限で落とされる等、仕様の順番と食い違っていた。
-        $tiebreakMain = function ($a, $b) {
+        // 【20261004】仕様書6.2「統合順位の同点処理は既存定義を優先し、
+        //   最後に有効AIの信頼度平均降順、馬番昇順を用いる。」
+        //   信頼度小計は公開候補行には出力されない（プロンプトで出力を禁じている）ため、
+        //   全頭採点の内部構造化応答（ステップ6）で取得できたときだけ使う。
+        //   取得できない場合は 0 や推測値で補わない（仕様書6.3）。= 従来どおり馬番昇順。
+        $confAvg = static function (array $h): ?float {
+            $vals = [];
+            foreach (['conf_1st', 'conf_2nd'] as $ck) {
+                if (isset($h[$ck]) && is_numeric($h[$ck])) $vals[] = (float) $h[$ck];
+            }
+            return empty($vals) ? null : array_sum($vals) / count($vals);
+        };
+        $tiebreakMain = function ($a, $b) use ($confAvg) {
             if ($b['score'] !== $a['score']) return $b['score'] <=> $a['score'];
             $catPriority = ['matched' => 0, 'first_only' => 1, 'second_only' => 1];
             $aCat = $catPriority[$a['category'] ?? 'second_only'] ?? 1;
             $bCat = $catPriority[$b['category'] ?? 'second_only'] ?? 1;
             if ($aCat !== $bCat) return $aCat <=> $bCat;
+            $aConf = $confAvg($a);
+            $bConf = $confAvg($b);
+            if ($aConf !== null && $bConf !== null && $aConf !== $bConf) return $bConf <=> $aConf;
             return $a['num'] <=> $b['num'];
         };
         // 【20260928】2nd独自馬は条件の成否にかかわらず候補集合へ入れる
@@ -4493,16 +6770,266 @@ SYSTEM;
         $lowerCount = 0;
         $secondUniqueAdded = 0;
         $finalCandidates = [];
+
+        // @ANCHOR-20261004-AUDIT-MERGE  馬番 => 選出・非選出の理由（仕様書9.1 表10「統合」）
+        //   仕様書11.3の受入条件「全頭の脱落理由が追跡できること」に対応する。
+        $auReason = [];
+        // @ANCHOR-20261006-NO-BUYAVOID-IN-SELECTION
+        //   最低基準点で第1パスを後回しにした馬番（どの馬に作用したかを必ず残す）
+        $slotDeferMin = [];
+        // @ANCHOR-20261004-PHP-CANDIDATE  PHPが全頭採点から生成した候補行（監査に載せる）
+        $pgGenerated = [];
+
+        // ══════════════════════════════════════════════════════════════
+        // 【20261004 仕様変更】@ANCHOR-20261004-SLOT-RESERVE
+        //   仕様書6.1⑤「人気側と資格あり穴側から、それぞれ目標頭数を統合順位順に
+        //   確保する。全体上位C頭の再抽出で穴枠を消さない。」
+        //   目標配分が決まっている場合（C=7の通常／中／強、C=4〜6の中・強）は
+        //   人気帯別の目安ではなく、人気側枠・資格あり穴側枠の2本で確保する。
+        //   目標配分が null（C=4〜6の通常、Cが4〜7以外）は既存目安を維持する。
+        // ══════════════════════════════════════════════════════════════
+        $allocQualifiedNums = array_values(array_unique(array_map('intval', $allocQualifiedNums)));
+        //   フラグ OFF（仕様書11.2の巻き戻し）のときは枠確保を使わず、
+        //   人気帯別の目安＋旧保護枠（2026-09-28時点の安定動作）に戻す。
+        $allocFeatureOn = self::allocFeatureEnabled();
+        $allocSlotMode  = ($allocFeatureOn && $allocTargetFav !== null && $allocTargetLong !== null);
+
+        if ($allocSlotMode) {
+            $slotFav = 0; $slotLong = 0;
+            foreach ($rankedCandidates as $h) {
+                $num = (int) $h['num'];
+                if (count($finalCandidates) >= $displayLimit) {
+                    $auReason[$num] = $auReason[$num] ?? '第1パスは目標数Cで打ち切り';
+                    continue;   // ④ 目標数C（以降も理由を記録するため break しない）
+                }
+                // ══════════════════════════════════════════════════════════
+                // @ANCHOR-20261006-NO-BUYAVOID-IN-SELECTION
+                //   購入回避フラグは選出順位に効かせない
+                // ══════════════════════════════════════════════════════════
+                // 【20261006 ご指摘③】
+                //   「第152項（購入回避の印がある馬は最初の枠確保では選ばない）と
+                //     第162項（購入判断だけに使う）が一致していない。
+                //     最初にほかの馬で枠が埋まれば、後回しの馬は戻れない。
+                //     購入回避フラグだけで初回選出を後回しにしているなら、162項に合わせる」
+                //   → buy_avoid_longshot を第1パスの後回し条件から外した。
+                //     このフラグは馬券判定を「見送り」「監視」にするためだけに使う。
+                //   ※最低基準点（below_min_score）は購入判断とは別の論点なので残す。
+                //     どの馬に作用したかは $auReason と下の集計で必ず記録する。
+                if (!empty($h['below_min_score'])) {
+                    $auReason[$num] = '最低基準点未満（第1パスでは選ばない・第2パスで拾う）';
+                    $slotDeferMin[] = $num;
+                    continue;
+                }
+                $pop    = (int) ($h['popularity'] ?? 0);
+                $isFav  = ($pop >= 1 && $pop <= 6);
+                $isLong = in_array($num, $allocQualifiedNums, true);
+                if ($isFav && $slotFav < $allocTargetFav) {
+                    $slotFav++;
+                    $auReason[$num] = "選出（人気側枠 {$slotFav}/{$allocTargetFav}）";
+                } elseif ($isLong && $slotLong < $allocTargetLong) {
+                    $slotLong++;
+                    $auReason[$num] = "選出（資格あり穴側枠 {$slotLong}/{$allocTargetLong}）";
+                } else {
+                    // 枠が埋まっている、または資格のない7番人気以下
+                    //   （根拠の弱い穴馬を数合わせで穴枠に入れない・仕様書6.2）
+                    if ($isFav) {
+                        $auReason[$num] = "人気側枠が満杯（{$allocTargetFav}頭）";
+                    } elseif ($isLong) {
+                        $auReason[$num] = "資格あり穴側枠が満杯（{$allocTargetLong}頭）";
+                    } else {
+                        $auReason[$num] = '資格未達の7番人気以下（穴枠に入れない）';
+                    }
+                    continue;
+                }
+                if (($h['category'] ?? '') === 'second_only') $secondUniqueAdded++;
+                $finalCandidates[] = $h;
+            }
+            // @ANCHOR-20261005-AUX-NEVER-BREAKS
+            //   下のPHP候補生成は20261004で追加した新しい経路で、
+            //   検証済み全頭採点が揃った本番でしか動かない。
+            //   ここで例外が出ても、すでに確保した枠（$finalCandidates）は捨てない。
+            try {
+            // ══════════════════════════════════════════════════════════════
+            // @ANCHOR-20261004-PHP-CANDIDATE
+            //   よっしー20261004回答①A-2：
+            //     「検証済みの全頭採点を使い、PHPで候補行と定型の選出理由を生成してください。
+            //       ・穴側の優先枠は、仕様書の資格条件を満たした馬から統合順位順に選ぶ。
+            //       ・理由文には確認できた入力値と時点だけを使い、点数・能力評価・根拠を
+            //         推測で補わない。
+            //       ・有効な採点や資格馬が不足した場合は、既定の降格・補充ルールに従い、
+            //         それでも不足すれば確認済みの頭数で公開する。
+            //       ・補充した馬番、採点、根拠、選出経路をログに残す。」
+            //   仕様書6.3・受入試験T14に対応する。
+            //   両AIの公開候補行に無い馬でも、検証済みの全頭採点があれば候補行を起こす。
+            //   採点が無い馬は作らない（推測で埋めない）。
+            // ══════════════════════════════════════════════════════════════
+            $phpGenLog = [];
+            if ($slotLong < $allocTargetLong && count($finalCandidates) < $displayLimit) {
+                $pgPicked = array_map(static fn($x) => (int) $x['num'], $finalCandidates);
+
+                // 能力適性の点数から評価区分を出す（A/B/C/D。点数が無ければ不明）
+                $pgGrade = static function (?float $a): string {
+                    if ($a === null) return '不明（採点不可）';
+                    if ($a >= 80) return 'A（' . (int) round($a) . '点）';
+                    if ($a >= 70) return 'B（' . (int) round($a) . '点）';
+                    if ($a >= 60) return 'C（' . (int) round($a) . '点）';
+                    return 'D（' . (int) round($a) . '点）';
+                };
+                // 定型の選出理由。確認できた入力値と時点だけを使い、無い値は書かない。
+                $pgReason = static function (int $num, array $ev, ?float $s1, ?float $s2, string $grade): string {
+                    $parts = [];
+                    $parts[] = '能力適性:' . $grade . '。';
+                    $parts[] = 'PHPが検証済みの全頭採点から生成した候補です。';
+                    if (isset($ev['s216']) && $ev['s216'] !== null) {
+                        $parts[] = sprintf('複勝最小オッズが21分前→6分前で%.2f%%短縮。', $ev['s216']);
+                    }
+                    if (isset($ev['s96']) && $ev['s96'] !== null) {
+                        $parts[] = sprintf('9分前→6分前で%.2f%%短縮。', $ev['s96']);
+                    }
+                    if (isset($ev['pop']) && $ev['pop'] !== null
+                        && isset($ev['fuku']) && $ev['fuku'] !== null) {
+                        $parts[] = sprintf('6分前は単勝%d番人気に対し複勝%d番人気（差%d）。',
+                            (int) $ev['pop'], (int) $ev['fuku'], (int) $ev['pop'] - (int) $ev['fuku']);
+                    }
+                    if (isset($ev['opi']) && $ev['opi'] !== null) {
+                        $parts[] = sprintf('予測補正OPIは%.2f。', $ev['opi']);
+                    }
+                    $sc = [];
+                    if ($s1 !== null) $sc[] = sprintf('1st %.1f点', $s1);
+                    if ($s2 !== null) $sc[] = sprintf('2nd %.1f点', $s2);
+                    if (!empty($sc)) {
+                        $parts[] = '全頭採点の総合点は' . implode('／', $sc) . '（検証済み）。';
+                    }
+                    return implode('', $parts);
+                };
+
+                $pgPool = [];
+                foreach ($allocQualifiedNums as $pgNum) {
+                    if (in_array($pgNum, $pgPicked, true)) continue;
+                    // 公開候補行にある馬は枠確保で扱う（ここで二重に起こさない）
+                    if (isset($firstMap[$pgNum]) || isset($secondMap[$pgNum])) continue;
+
+                    $pgS1 = isset($allScore1st[$pgNum]['total']) ? (float) $allScore1st[$pgNum]['total'] : null;
+                    $pgS2 = isset($allScore2nd[$pgNum]['total']) ? (float) $allScore2nd[$pgNum]['total'] : null;
+                    if ($pgS1 === null && $pgS2 === null) continue;   // 検証済み採点なし → 作らない
+
+                    // 統合式は公開候補と同じ：両AIにあれば平均+5（上限100）、片方だけならその点
+                    $pgScore = ($pgS1 !== null && $pgS2 !== null)
+                        ? round(min(100.0, ($pgS1 + $pgS2) / 2 + 5), 1)
+                        : (float) ($pgS1 ?? $pgS2);
+
+                    $pgAb = $allScore1st[$pgNum]['ability'] ?? $allScore2nd[$pgNum]['ability'] ?? null;
+                    $pgEv = $qualEvidence[$pgNum] ?? [];
+
+                    $pgPool[] = [
+                        'num'        => $pgNum,
+                        'name'       => $dbNameMap[$pgNum] ?? ('馬' . $pgNum),
+                        'score'      => $pgScore,
+                        'score_1st'  => $pgS1,
+                        'score_2nd'  => $pgS2,
+                        'popularity' => isset($pgEv['pop']) && $pgEv['pop'] !== null ? (int) $pgEv['pop'] : null,
+                        'odds_6'     => $dbOdds6Map[$pgNum] ?? null,
+                        'reason'     => $pgReason($pgNum, $pgEv, $pgS1, $pgS2,
+                                            $pgGrade(is_numeric($pgAb) ? (float) $pgAb : null)),
+                        'reason_2nd' => null,
+                        'category'   => 'php_generated',
+                        'conf_1st'   => $allScore1st[$pgNum]['conf_sub'] ?? null,
+                        'conf_2nd'   => $allScore2nd[$pgNum]['conf_sub'] ?? null,
+                    ];
+                }
+
+                // 統合順位順（点数降順・同点は馬番昇順）に穴側の残り枠へ入れる
+                usort($pgPool, static fn($a, $b) => ($b['score'] <=> $a['score']) ?: ($a['num'] <=> $b['num']));
+                foreach ($pgPool as $pgRow) {
+                    if ($slotLong >= $allocTargetLong) break;
+                    if (count($finalCandidates) >= $displayLimit) break;
+                    $slotLong++;
+                    $finalCandidates[] = $pgRow;
+                    $pgGenerated[]     = $pgRow;
+                    $auReason[(int) $pgRow['num']] =
+                        "選出（資格あり穴側枠 {$slotLong}/{$allocTargetLong}・PHPが全頭採点から生成）";
+                    $phpGenLog[] = [
+                        '馬番'   => $pgRow['num'],
+                        '馬名'   => $pgRow['name'],
+                        '人気'   => $pgRow['popularity'],
+                        '統合点' => $pgRow['score'],
+                        '1st総合' => $pgRow['score_1st'],
+                        '2nd総合' => $pgRow['score_2nd'],
+                        '根拠'   => $qualEvidence[(int) $pgRow['num']] ?? [],
+                        '選出経路' => '資格あり → 公開候補行なし → 検証済み全頭採点から候補行を生成 → 穴側枠へ',
+                        '理由文' => $pgRow['reason'],
+                    ];
+                }
+
+                if (!empty($phpGenLog)) {
+                    \Log::info('[PHP_CANDIDATE] 全頭採点から候補行を生成して穴側枠を補充（@ANCHOR-20261004-PHP-CANDIDATE）', [
+                        '配分モード' => $allocMode,
+                        '目標配分'   => "{$allocTargetFav}＋{$allocTargetLong}",
+                        '生成頭数'   => count($phpGenLog),
+                        '内訳'       => $phpGenLog,
+                    ]);
+                }
+                // 生成しても穴側枠が埋まらない場合は、不足していることを必ず残す。
+                //   よっしー回答①A-2「それでも不足すれば確認済みの頭数で公開する」。
+                if ($slotLong < $allocTargetLong) {
+                    \Log::info('[PHP_CANDIDATE] 穴側枠が埋まらないまま確定（推測で作らない）', [
+                        '配分モード'   => $allocMode,
+                        '目標配分'     => "{$allocTargetFav}＋{$allocTargetLong}",
+                        '確保済み穴側' => $slotLong,
+                        '不足'         => $allocTargetLong - $slotLong,
+                        '生成頭数'     => count($phpGenLog),
+                        '資格あり馬番' => $allocQualifiedNums,
+                        '理由'         => '資格馬に検証済みの全頭採点が無い、または全員すでに候補',
+                    ]);
+                }
+            }
+            } catch (\Throwable $pgE) {
+                // @ANCHOR-20261005-AUX-NEVER-BREAKS
+                \Log::error('[PHP_CANDIDATE] 候補行の生成に失敗（確保済みの枠で続行）', [
+                    '配分モード' => $allocMode,
+                    '確保頭数'   => count($finalCandidates),
+                    'message'    => $pgE->getMessage(),
+                    'file'       => $pgE->getFile() . ':' . $pgE->getLine(),
+                ]);
+            }
+
+            \Log::info('[配分] 枠確保の結果（@ANCHOR-20261004-SLOT-RESERVE）', [
+                '配分モード' => $allocMode,
+                '目標配分'   => "{$allocTargetFav}＋{$allocTargetLong}",
+                '実配分'     => "{$slotFav}＋{$slotLong}",
+                '目標数C'    => $displayLimit,
+                '確保頭数'   => count($finalCandidates),
+                '人気側不足' => max(0, $allocTargetFav  - $slotFav),
+                '穴側不足'   => max(0, $allocTargetLong - $slotLong),
+                '資格あり馬番' => $allocQualifiedNums,
+            ]);
+        } else {
+
         foreach ($rankedCandidates as $h) {
-            if (count($finalCandidates) >= $displayLimit) break;   // ④ 目標数C
+            $num = (int) $h['num'];
+            if (count($finalCandidates) >= $displayLimit) {
+                $auReason[$num] = $auReason[$num] ?? '第1パスは目標数Cで打ち切り';
+                continue;   // ④ 目標数C
+            }
             $pop = (int) ($h['popularity'] ?? 0);
             // ② 人気帯別の優先目安（1〜6番人気 / 7〜10番人気 / 11番人気以下）
             if ($pop >= 1 && $pop <= 6) {
-                if ($upperCount >= $pickupUpperMax) continue;
+                if ($upperCount >= $pickupUpperMax) {
+                    $auReason[$num] = "1〜6番人気の目安を超過（{$pickupUpperMax}頭）";
+                    continue;
+                }
             } elseif ($pop >= 7 && $pop <= 10) {
-                if ($midCount >= $pickupMidMax) continue;
-            } else {
-                if ($lowerCount >= $pickupLowerMax) continue;
+                if ($midCount >= $pickupMidMax) {
+                    $auReason[$num] = "7〜10番人気の目安を超過（{$pickupMidMax}頭）";
+                    continue;
+                }
+            }
+            // 【20261004 廃止】11番人気以下だけの最大1〜2頭制限
+            //   仕様書6.2「11人気以下だけの最大1〜2頭制限は廃止する」。
+            //   フラグ OFF のときだけ旧上限を適用する（巻き戻し用）。
+            elseif (!$allocFeatureOn && $lowerCount >= $pickupLowerMax) {
+                $auReason[$num] = "11番人気以下の旧上限を超過（{$pickupLowerMax}頭・可変配分を無効にしているため適用）";
+                continue;
             }
             // ③ 2nd独自発見枠（タイプ別上限）
             //   【20260928 仕様変更】上限を超えても候補を落とさない。
@@ -4511,29 +7038,57 @@ SYSTEM;
             if (($h['category'] ?? '') === 'second_only') {
                 $secondUniqueAdded++;
             }
-            // ⑤ 【20260927】最低基準点未満・大穴条件不成立は第1パスでは選ばない
+            // ⑤ 【20260927】最低基準点未満は第1パスでは選ばない
             //   （除外ではなく後回し。C頭に届かなければ第2パスで拾い上げる）
-            if (!empty($h['below_min_score']) || !empty($h['buy_avoid_longshot'])) {
+            //   @ANCHOR-20261006-NO-BUYAVOID-IN-SELECTION
+            //     購入回避フラグ（buy_avoid_longshot）はここから外した。上の枠確保側と同じ理由。
+            if (!empty($h['below_min_score'])) {
                 if (($h['category'] ?? '') === 'second_only') $secondUniqueAdded--;   // 枠を戻す
+                $auReason[$num] = '最低基準点未満（第1パスでは選ばない・第2パスで拾う）';
+                $slotDeferMin[] = $num;
                 continue;
             }
             if ($pop >= 1 && $pop <= 6)       $upperCount++;
             elseif ($pop >= 7 && $pop <= 10)  $midCount++;
             else                              $lowerCount++;
+            $auReason[$num] = '選出（人気帯別の目安内）';
             $finalCandidates[] = $h;
         }
+
+        }   // ← if ($allocSlotMode) ... else の閉じ
 
         // ── 第2パス: 目標数C頭の確保 ──────────────────────────────────
         //   優先目安に触れて落ちた馬を、統合おすすめ度の順位に従って補充する。
         //   AIが出力していない馬は $rankedCandidates に入っていないため、
         //   ここで新規に馬を発明することはない（仕様の禁止事項を守る）。
         if (count($finalCandidates) < $displayLimit) {
-            $mcPicked = array_map(static fn($x) => (int) $x['num'], $finalCandidates);
+            $mcPicked    = array_map(static fn($x) => (int) $x['num'], $finalCandidates);
+            $mcSkipWeak  = [];   // 数合わせで入れなかった「資格なしの7番人気以下」
             foreach ($rankedCandidates as $h) {
                 if (count($finalCandidates) >= $displayLimit) break;
                 if (in_array((int) $h['num'], $mcPicked, true)) continue;
+                // 【20261004】仕様書6.2「足りない枠は未選出全頭の順位で補い、
+                //   根拠の弱い穴馬を数合わせで強制しない。」
+                //   枠確保モードでは、資格のない7番人気以下は補充に使わない。
+                //   （C=4〜6の通常／対象外は既存目安のままなので従来どおり補充する）
+                if ($allocSlotMode
+                    && (int) ($h['popularity'] ?? 0) >= 7
+                    && !in_array((int) $h['num'], $allocQualifiedNums, true)) {
+                    $mcSkipWeak[] = (int) $h['num'];
+                    $auReason[(int) $h['num']] = '資格未達の7番人気以下（数合わせには使わない）';
+                    continue;
+                }
+                $auReason[(int) $h['num']] = '選出（第2パスで順位順に補充）';
                 $finalCandidates[] = $h;
                 $mcPicked[]        = (int) $h['num'];
+            }
+            if (!empty($mcSkipWeak)) {
+                \Log::info('[配分] 資格なしの7番人気以下は数合わせに使わなかった', [
+                    '配分モード' => $allocMode,
+                    '対象馬番'   => $mcSkipWeak,
+                    '目標数C'    => $displayLimit,
+                    '確定頭数'   => count($finalCandidates),
+                ]);
             }
             usort($finalCandidates, $tiebreakMain);
 
@@ -4553,13 +7108,101 @@ SYSTEM;
             }
         }
 
+        // ══════════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261005-NEVER-EMPTY  候補0頭だけは最後の手段で避ける
+        // ══════════════════════════════════════════════════════════════════════
+        // 枠確保モードでは、資格のない7番人気以下を第1パスでも第2パスでも使わない
+        // （仕様書6.2「根拠の弱い穴馬を数合わせで強制しない」）。
+        // そのため、AIの候補が「資格なしの7番人気以下」だけだったレースでは
+        // 最終候補が0頭になり、画面に何も出なくなる。
+        // AIが候補を出しているのに画面が空になるのは、仕様を守った結果としても
+        // 利用者から見れば障害と同じなので、0頭のときだけ順位順に補充する。
+        //   ・発動するのは「0頭になる場合」だけ。C頭への数合わせには使わない
+        //   ・AIが出していない馬は追加しない（$rankedCandidates の中だけ）
+        //   ・発動したら \Log::error で残す（LOG_LEVEL=error でも消えない）
+        // 【20261006 ご指摘④で定義を明文化】
+        //   ・発動条件　… 最終候補が0頭、かつAIが出した候補（$rankedCandidates）が1頭以上ある
+        //                  有効なAI回答が無い場合（未確定）はここへ来ないので対象外。
+        //                  入力が混在したレースも未確定で返るため対象外。
+        //   ・補充上限　… 目標数C。ただし「0頭を避ける」のが目的なので、
+        //                  資格の状態で優先順をつけ、必要最小限から順に入れる。
+        //   ・優先順　　… ①資格が不明な馬（データ欠損で確認できなかっただけ。
+        //                    仕様書の三値判定で「不明を不成立として扱わない」に合わせる）
+        //                  ②資格が不成立の馬（確認できて満たさなかった）
+        //                  どちらも統合おすすめ度の順位順。
+        //   ・選出理由　… 「例外補充」と明記し、通常の資格あり候補と区別する。
+        //   ・記録　　　… 監査ログに「例外補充」として別立てで残し、集計でも区別する。
+        $neExceptionNums = [];
+        if (empty($finalCandidates) && !empty($rankedCandidates)) {
+            // 資格の状態で2群に分ける（$qualState が読めなければ全て「不明」扱い）
+            $neUnknown = [];   // 資格不明
+            $neFailed  = [];   // 資格不成立
+            foreach ($rankedCandidates as $neH) {
+                $neN = (int) $neH['num'];
+                $neP = (int) ($neH['popularity'] ?? 0);
+                if ($neP >= 1 && $neP <= 6) { $neUnknown[] = $neH; continue; }  // 人気側は資格の対象外
+                $neS = array_key_exists($neN, $qualState) ? $qualState[$neN] : null;
+                if ($neS === false) { $neFailed[] = $neH; } else { $neUnknown[] = $neH; }
+            }
+
+            foreach ([['不明または資格対象外', $neUnknown], ['不成立', $neFailed]] as [$neLabel, $neList]) {
+                foreach ($neList as $neH) {
+                    if (count($finalCandidates) >= $displayLimit) break 2;
+                    $neN = (int) $neH['num'];
+                    $finalCandidates[]  = $neH;
+                    $neExceptionNums[]  = ['num' => $neN, '資格' => $neLabel,
+                                           'おすすめ度' => $neH['score'] ?? null,
+                                           '人気' => (int) ($neH['popularity'] ?? 0)];
+                    $auReason[$neN]     = "例外補充（候補0頭を避けるため・資格{$neLabel}・統合順位順）";
+                }
+            }
+            usort($finalCandidates, $tiebreakMain);
+            \Log::error('[NEVER_EMPTY] 資格条件で候補が0頭になったため例外補充した', [
+                '配分モード'   => $allocMode,
+                '目標配分'     => ($allocTargetFav === null) ? '既存目安' : "{$allocTargetFav}＋{$allocTargetLong}",
+                '目標数C'      => $displayLimit,
+                '補充上限'     => $displayLimit,
+                '例外補充'     => $neExceptionNums,
+                '候補総数'     => count($rankedCandidates),
+                '資格あり馬番' => $allocQualifiedNums,
+                '資格判定の読み戻し' => empty($qualState) ? '読めなかった（全て不明として扱った）' : '読めた',
+                '注記'         => '仕様書6.2の正式な例外（20261006 ご指摘④で定義）。'
+                                  . '通常の資格あり候補とは区別して集計する',
+            ]);
+        }
+
         // ── 人気薄の根拠付き保護枠（最大1頭）───────────────────────────
         //   @ANCHOR-20260927-PROTECTED-LONGSHOT
         //   C≧4 で、最終候補に保護対象が1頭もいないときだけ、
         //   統合おすすめ度が最高の対象馬1頭を採用し、通常順位の最下位と入れ替える。
         //   この保護枠は「固定上位C頭のみ」「2nd独自発見のタイプ別上限」に優先する。
         //   AIが出力していない馬は追加できない（1st・2ndどちらも出していなければ通常候補で続行）。
-        if ($displayLimit >= 4 && !empty($protectedNums)) {
+        // ══════════════════════════════════════════════════════════════
+        // 【20261004 廃止】人気薄の根拠付き保護枠（旧 @ANCHOR-20260927-PROTECTED-LONGSHOT）
+        //   仕様書6.2「旧保護対象は参考入力とする。無条件の1頭入替、別枠追加、
+        //   11人気以下だけの最大1〜2頭制限は廃止する。資格馬は全て同じ穴側の
+        //   配分内で比較する。」
+        //   → 保護対象は資格F/R/Oの入力として使うだけにし、最下位との入替はしない。
+        //     コードは削除せずコメントアウトで残す。
+        //   @ANCHOR-20261004-PROTECTED-REFERENCE-ONLY
+        // ══════════════════════════════════════════════════════════════
+        if (!empty($protectedNums)) {
+            $protectedNums = array_map('intval', $protectedNums);
+            $prInFinal = [];
+            foreach ($finalCandidates as $h) {
+                if (in_array((int) $h['num'], $protectedNums, true)) $prInFinal[] = (int) $h['num'];
+            }
+            \Log::info('[保護枠] 参考入力として記録（入替はしない・@ANCHOR-20261004-PROTECTED-REFERENCE-ONLY）', [
+                '対象馬番'       => $protectedNums,
+                '最終候補に居る' => $prInFinal,
+                '配分モード'     => $allocMode,
+                '資格あり馬番'   => $allocQualifiedNums,
+            ]);
+        }
+        // ── 旧保護枠の入替処理（フラグ OFF のときだけ動く・仕様書11.2の巻き戻し先）──
+        //   フラグ ON では上の @ANCHOR-20261004-PROTECTED-REFERENCE-ONLY が働き、
+        //   ここは条件で素通りする。コードは消さずに残す。
+        if (!$allocFeatureOn && $displayLimit >= 4 && !empty($protectedNums)) {
             $protectedNums  = array_map('intval', $protectedNums);
             $mcHasProtected = false;
             foreach ($finalCandidates as $h) {
@@ -4618,6 +7261,117 @@ SYSTEM;
                     ]);
                 }
             }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261004-AUDIT-MERGE  監査ログ【統合単位】（仕様書9.1 表10）
+        // ═══════════════════════════════════════════════════════════════════════
+        //   保存内容: 統合式の版、統合点と順位、帯内順位、選出と非選出理由、購入見送りフラグ
+        //   ※ここは診断専用。失敗しても予測を止めない。
+        try {
+            $auFinalNums = array_map(static fn($x) => (int) $x['num'], $finalCandidates);
+
+            // 帯内順位（1〜6番人気 / 7〜10番人気 / 11番人気以下）。
+            //   統合順位と同じ並び（おすすめ度降順 → 一致馬優先 → 信頼度平均 → 馬番）で数える。
+            $auBandSeq  = ['上' => 0, '中' => 0, '下' => 0];
+            $auBandRank = [];
+            $auRows     = [];
+            // 【20261004】PHPが全頭採点から生成した候補も監査に載せる（選出経路を追うため）。
+            //   統合点の降順に並べ直してから順位を数える。
+            //   @ANCHOR-20261004-PHP-CANDIDATE
+            $auAllRows = array_merge($rankedCandidates, $pgGenerated);
+            if (!empty($pgGenerated)) {
+                usort($auAllRows, $tiebreakMain);
+            }
+            foreach ($auAllRows as $auIdx => $auH) {
+                $auNum  = (int) $auH['num'];
+                $auPop  = (int) ($auH['popularity'] ?? 0);
+                $auBand = ($auPop >= 1 && $auPop <= 6) ? '上' : (($auPop >= 7 && $auPop <= 10) ? '中' : '下');
+                $auBandSeq[$auBand]++;
+                $auBandRank[$auNum] = $auBandSeq[$auBand];
+                $auSelected = in_array($auNum, $auFinalNums, true);
+                $auRows[$auNum] = [
+                    '人気'     => $auPop,
+                    '統合点'   => $auH['score'] ?? null,
+                    '1st点'    => $auH['score_1st'] ?? null,
+                    '2nd点'    => $auH['score_2nd'] ?? null,
+                    '区分'     => $auH['category'] ?? null,
+                    '統合順位' => $auIdx + 1,
+                    '帯'       => $auBand,
+                    '帯内順位' => $auBandSeq[$auBand],
+                    '選出'     => $auSelected,
+                    '理由'     => $auReason[$auNum] ?? ($auSelected ? '選出' : '非選出（理由の記録漏れ）'),
+                    '購入見送り' => [
+                        '最低基準点未満' => !empty($auH['below_min_score']),
+                        '購入回避'       => !empty($auH['buy_avoid_longshot']),
+                    ],
+                ];
+            }
+            // 事前フィルター（最低基準→低配当除外→回収率）で統合前に落ちた馬
+            foreach ($auDroppedByFilter as $auDn) {
+                $auRows[(int) $auDn] = [
+                    '選出' => false,
+                    '理由' => '事前フィルターで除外（最低基準・低配当・回収率／上限適用より前）',
+                ];
+            }
+
+            $this->lastMergeAudit = [
+                '統合式の版'   => self::MERGE_FORMULA_VERSION,
+                // ══════════════════════════════════════════════════════════════
+                // @ANCHOR-20261006-ANSWER-HASH  どのAI回答で統合したかを残す
+                // ══════════════════════════════════════════════════════════════
+                // 【20261006 ご指摘⑥】
+                //   「BとCが同じAI回答を使った比較になっていることを、
+                //     実行日時・版・回答ハッシュ・該当レースの理由で確認してください」
+                //   公開部分だけのハッシュ（内部JSONの有無で値が変わらないようにする）と、
+                //   全文のハッシュを両方残す。比較ツールはこれを並べて表示する。
+                '回答ハッシュ' => [
+                    '1st_公開部' => $this->lastAnswerHash['1st_public'] ?? null,
+                    '1st_全文'   => $this->lastAnswerHash['1st_raw']    ?? null,
+                    '2nd_公開部' => $this->lastAnswerHash['2nd_public'] ?? null,
+                    '2nd_全文'   => $this->lastAnswerHash['2nd_raw']    ?? null,
+                ],
+                // 【20261004 回答④B】検証済みの全頭採点が使えたかどうか。
+                //   比較の限界（保存回答に全頭採点が無い場合）を明記するために残す。
+                '全頭採点'     => [
+                    '1st' => !empty($allScore1st),
+                    '2nd' => !empty($allScore2nd),
+                    '頭数' => ['1st' => count($allScore1st), '2nd' => count($allScore2nd)],
+                ],
+                '仕様の版'     => self::ALLOC_SPEC_VERSION,
+                '可変配分'     => $allocFeatureOn ? '有効' : '無効（巻き戻し中）',
+                '配分モード'   => $allocMode,
+                '目標配分'     => ($allocTargetFav === null)
+                    ? '既存目安（表6に数値なし）'
+                    : "{$allocTargetFav}＋{$allocTargetLong}",
+                '実配分'       => [
+                    '人気側' => count(array_filter($finalCandidates,
+                        static fn($x) => (int) ($x['popularity'] ?? 0) >= 1 && (int) ($x['popularity'] ?? 0) <= 6)),
+                    '資格あり穴側' => count(array_filter($finalCandidates,
+                        static fn($x) => in_array((int) $x['num'], $allocQualifiedNums, true))),
+                ],
+                '目標数C'      => $displayLimit,
+                // @ANCHOR-20261006-NO-BUYAVOID-IN-SELECTION
+                //   購入回避フラグは選出順位に効かせていないことを、提出物で確認できるようにする。
+                '購入回避の扱い' => '選出順位には使わない（馬券判定の見送り・監視のみ）',
+                '最低基準点で第1パス後回しにした馬番' => array_values(array_unique($slotDeferMin)),
+                // @ANCHOR-20261005-NEVER-EMPTY / 20261006 ご指摘④
+                //   0頭回避の例外で入れた馬は、通常の資格あり候補と必ず区別する。
+                '例外補充（0頭回避）' => $neExceptionNums,
+                '資格判定の三値'   => $qualState,
+                '最終表示'     => $auFinalNums,
+                '資格あり馬番' => $allocQualifiedNums,
+                '保護対象馬番' => array_map('intval', $protectedNums),
+                '全頭'         => $auRows,
+            ];
+
+            \Log::info('[AUDIT_MERGE] 統合単位の監査ログ（@ANCHOR-20261004-AUDIT-MERGE）', $this->lastMergeAudit);
+            self::auditFile('AUDIT_MERGE', $this->lastMergeAudit);
+        } catch (\Throwable $amE) {
+            $this->lastMergeAudit = ['error' => $amE->getMessage()];
+            \Log::warning('[AUDIT_MERGE] 統合単位の監査ログの作成に失敗（処理は継続）', [
+                'message' => $amE->getMessage(),
+            ]);
         }
 
         return $finalCandidates;
@@ -5166,6 +7920,9 @@ SYSTEM;
      */
     private function _firstAiPublishError(string $firstAiText): ?string
     {
+        // 【20261004】内部監査用JSON（@ANCHOR-20261004-AUDIT-ALLSCORE）を必ず落としてから扱う。
+        //   公開パーサー・回答判定に内部データを混ぜない（よっしー回答③Aの条件）。
+        $firstAiText = self::publicPart($firstAiText);
         // 【20260928 レース停止回避追補】戻り値は「公開を止める理由」ではなく
         //   「警告として記録する理由」になった。呼び出し元は 500 を返してはならない。
         //   候補数の超過は _trimAiCandidates() が決定論的に絞るため、ここでは理由にしない。
@@ -5196,6 +7953,9 @@ SYSTEM;
      */
     private function _judgeFirstAiResponse(string $firstAiText): array
     {
+        // 【20261004】内部監査用JSON（@ANCHOR-20261004-AUDIT-ALLSCORE）を必ず落としてから扱う。
+        //   公開パーサー・回答判定に内部データを混ぜない（よっしー回答③Aの条件）。
+        $firstAiText = self::publicPart($firstAiText);
         $faText = trim($firstAiText);
 
         // 完全な空回答 → 失敗
@@ -5349,17 +8109,28 @@ SYSTEM;
      *   【限界】これは片側検定である。
      *   「信頼度50点＋妙味小計15点＝おすすめ度65点」のように、信頼度が低く
      *   妙味小計が大きい違反は、この方法では検出できない。
-     *   AIは仕様により内訳・小計を出力しないため（既存Flutter形式を変えないため）、
-     *   妙味小計そのものはPHPから観測できない。出力形式を変えれば観測できるが、
-     *   プロンプトは確定版として凍結されているため、独断では変更しない。
      *
-     *   【ただし公開結果には影響しない】
-     *   例外3条件を満たさない低配当馬は Block 13a が候補から必ず除外する。
-     *   妙味小計が何点で計算されていても、その馬が予測として公開されることはない。
+     *   【20261004 よっしー回答③A で状況が変わった点】
+     *   全頭採点（内部用JSON）で妙味小計（ms）を受け取るようになったため、
+     *   妙味小計そのものをPHPから観測できる。この検証は補助的な手段として残す。
+     *   @ANCHOR-20261004-AUDIT-ALLSCORE
+     *   【旧記述】「AIは仕様により内訳・小計を出力しないため（既存Flutter形式を
+     *             変えないため）、妙味小計そのものはPHPから観測できない。
+     *             出力形式を変えれば観測できるが、プロンプトは確定版として
+     *             凍結されているため、独断では変更しない。」
+     *
+     *   【20260926・20260927 の仕様変更で公開結果への影響が変わった点】
+     *   低配当馬は候補から除外しない。例外3条件を満たさない場合は
+     *   buy_avoid_low_payout（購入回避フラグ）が立つだけで、候補行には残る。
+     *   したがって妙味小計の過大計算は、順位と購入判定に影響し得る。
+     *   @ANCHOR-20260927-NO-HARD-EXCLUDE
+     *   【旧記述】「【ただし公開結果には影響しない】例外3条件を満たさない低配当馬は
+     *             Block 13a が候補から必ず除外する。妙味小計が何点で計算されて
+     *             いても、その馬が予測として公開されることはない。」
      *
      * 本メソッドは検出とログ保存だけを行い、AIの点数を書き換えない
      * （PHPがAIの採点を上書きしない、という仕様を守るため）。
-     * 該当馬は Block 13a の低配当除外で候補から外れる。
+     * 【旧記述】「該当馬は Block 13a の低配当除外で候補から外れる。」
      *
      * @return array 検証結果（シャドー保存・報告用）
      */
@@ -5528,6 +8299,76 @@ SYSTEM;
     /**
      * Block 14: 統合結果を ai_merge_result テーブルに UPSERT
      */
+    // ─────────────────────────────────────────────────────────────────
+    // @ANCHOR-20261004-UNDETERMINED  未確定レースの記録
+    //
+    // よっしー20261004回答②Aの条件:
+    //   「両AI無効による候補0件は、正常な『候補なし』と区別して記録してください。
+    //     捕捉率などの集計でも未確定件数を別記し、黙って除外しないでください。」
+    //
+    // ・正常な候補なし   … 両AIが答えたが、基準を満たす候補が0頭だったレース
+    // ・未確定（ここ）   … そもそも採用できるAI回答が無かった／入力が混在したレース
+    //
+    // すでに統合結果が保存されているレースは上書きしない（good を undetermined で
+    // 潰さないため）。その場合は記録だけ残す。
+    // ─────────────────────────────────────────────────────────────────
+    private function _saveUndetermined(
+        string $date, $kaisuu, string $basho, $day, $race,
+        string $reason, array $extra = []
+    ): void {
+        // @ANCHOR-20261004-DRY-RUN  試算モードでは保存しない
+        if (self::$dryRunNoPersist) return;
+        $udRace = "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R";
+        try {
+            $udExists = DB::table('t_horse_odds_finder_ai_merge_result')
+                ->where('date',       $date)
+                ->where('kaisuu',     $kaisuu)
+                ->where('basho_code', $basho)
+                ->where('day',        $day)
+                ->where('race',       $race)
+                ->exists();
+
+            if ($udExists) {
+                \Log::warning('[PREDICTION_UNDETERMINED] 未確定だが統合結果が既にあるため上書きしない', [
+                    'race'   => $udRace,
+                    '理由'   => $reason,
+                ] + $extra);
+                return;
+            }
+
+            $udJson = json_encode([
+                'spec_version'  => self::ALLOC_SPEC_VERSION,
+                'status'        => 'undetermined',
+                'status_reason' => $reason,
+                'detail'        => $extra,
+                'merged_horses' => [],
+                'recorded_at'   => (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo')))
+                                       ->format('Y-m-d H:i:s') . ' JST',
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            DB::statement(
+                'INSERT INTO t_horse_odds_finder_ai_merge_result'
+                . ' (date, kaisuu, basho, basho_code, day, race, race_name,'
+                . '  upset_race, wave_level, lower_entry, big_gap_entry, gap_type, merge_result)'
+                . ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                . ' ON DUPLICATE KEY UPDATE merge_result = VALUES(merge_result)',
+                [$date, (int) $kaisuu, '', $basho, (int) $day, (int) $race, '',
+                 null, null, null, null, '', $udJson]
+            );
+
+            \Log::warning('[PREDICTION_UNDETERMINED] 未確定として記録（正常な候補なしとは区別する）', [
+                'race' => $udRace,
+                '理由' => $reason,
+            ] + $extra);
+        } catch (\Throwable $udE) {
+            // 記録に失敗しても予測処理は止めない
+            \Log::warning('[PREDICTION_UNDETERMINED] 未確定の記録に失敗（処理は継続）', [
+                'race'    => $udRace,
+                'message' => $udE->getMessage(),
+            ]);
+        }
+    }
+
     private function _saveAiMergeResult(
         array   $mergedHorses,
         ?int    $upsetRaceFinal,   // 【20260928】null = 厳選穴レース「不明」（受入チェック#84）
@@ -5541,8 +8382,11 @@ SYSTEM;
         int     $day,
         int     $race,
         object  $raceRow,
-        array   $b69MeritCap = []   // #69: 妙味小計上限の検証結果（証跡）
+        array   $b69MeritCap = [],  // #69: 妙味小計上限の検証結果（証跡）
+        array   $b14Snapshot = []   // 【20261004】snapshot_idの照合結果（@ANCHOR-20261004-AUDIT-SNAPSHOT）
     ): void {
+        // @ANCHOR-20261004-DRY-RUN  試算モードでは保存しない
+        if (self::$dryRunNoPersist) return;
         // ── Block 14: 統合結果を ai_merge_result テーブルに UPSERT ──────────────────
         // _mergeAiResults() の出力と厳選穴レース再判定結果を JSON で保存する
         // 実テーブルの merge_result 列（text）に全データを JSON として格納する
@@ -5559,6 +8403,20 @@ SYSTEM;
                 // #69: 妙味小計上限の検証結果。ログだけでなくDBへも残し、
                 //   「毎レース検証したこと」を後から確認できるようにする。
                 'merit_cap_check' => $b69MeritCap,
+                // 【20261004】監査ログ（仕様書9.1 表10）をDBにも残す。
+                //   laravel.log は日次でローテートされるため、レースごとの証跡は
+                //   こちらにも保存して後から突き合わせられるようにする。
+                //   @ANCHOR-20261004-AUDIT-MERGE
+                'spec_version'  => self::ALLOC_SPEC_VERSION,
+                // 【20261004 よっしー回答②A】未確定と「正常な候補なし」を区別して記録する。
+                //   ok             … 候補あり
+                //   no_candidates  … 両AIが答えたが基準を満たす候補が0頭（正常）
+                //   undetermined   … 採用できるAI回答が無い／入力が混在（_saveUndetermined）
+                //   @ANCHOR-20261004-UNDETERMINED
+                'status'        => empty($mergedHorses) ? 'no_candidates' : 'ok',
+                'alloc_feature' => self::allocFeatureEnabled() ? 'enabled' : 'disabled',
+                'snapshot'      => $b14Snapshot,
+                'audit_merge'   => $this->lastMergeAudit,
                 'upset_race'    => $upsetRaceFinal,
                 'gap_type'      => $gapTypeForMerge,
                 'wave_level'    => $b14WaveLevel,
@@ -6275,6 +9133,8 @@ SYSTEM;
         int    $race,
         object $raceRow
     ): void {
+        // @ANCHOR-20261004-DRY-RUN  試算モードでは保存しない
+        if (self::$dryRunNoPersist) return;
         // ── Block B-10: シャドー期間中の高配当総合点・仮順位・馬券判定ログ保存 ──────────
         // 仕様: AI回答後にPHPが高配当総合点（市場妙味基礎点＋能力適性補正、上限100点）を算出し、
         //   仮順位・馬券判定（第1段階）・不一致馬A〜D分類とともにログ保存する。
@@ -7612,13 +10472,18 @@ SYSTEM;
         foreach ($mlPopPairs as $mlNum => $_o) { $mlPopMap[$mlNum] = $mlRank++; }
 
         // ── 実着順を取得 ──────────────────────────────────────────────
+        // @ANCHOR-20261005-RESULT-COLUMNS  着順の列名は result（finishing_position ではない）
+        //   t_horse_odds_finder_race_results        … basho（2桁コード）/ result
+        //   t_horse_odds_finder_race_result_history … basho_code / finishing_position
+        //   【従来からの不具合】ここは finishing_position を読もうとしてSQLエラーになり、
+        //     学習用スナップショットの正解ラベル（m1〜m4）が常に作られていなかった。
         $mlResults = DB::table('t_horse_odds_finder_race_results')
             ->where('date',   $date)
             ->where('kaisuu', $kaisuu)
             ->where('basho',  $basho)
             ->where('day',    $day)
             ->where('race',   $race)
-            ->get(['num', 'finishing_position']);
+            ->get(['num', 'result']);
 
         // 結果未確定・人気順不明ならラベルを作らない（0で埋めない）
         if ($mlResults->count() === 0 || empty($mlPopMap)) {
@@ -7639,7 +10504,7 @@ SYSTEM;
         $mlFinishMap = [];  // 馬番 => 実着順
         foreach ($mlResults as $mlR) {
             $mlN  = (int)$mlR->num;
-            $mlFp = isset($mlR->finishing_position) ? (int)$mlR->finishing_position : null;
+            $mlFp = isset($mlR->result) ? (int)$mlR->result : null;
             if ($mlFp === null || $mlFp <= 0) continue;   // 除外・取消などはスキップ
             $mlFinishMap[$mlN] = $mlFp;
             if ($mlFp <= 5) {
@@ -9239,6 +12104,8 @@ SYSTEM;
         object $raceRow,
         array  $b10ScoreEMap = []    // 【20260924】馬番→基礎点E（null=不明）
     ): void {
+        // @ANCHOR-20261004-DRY-RUN  試算モードでは保存しない
+        if (self::$dryRunNoPersist) return;
         // ── Block 11: 断層パターン学習 特徴量スナップショット保存 ───────────────────
         // フェーズ1: 1,000レース分の特徴量を蓄積するだけ（予測は行わない）
         // result_label はレース結果確定後のバッチ処理で別途書き込む
