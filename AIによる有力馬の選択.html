@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIによる有力馬の選択</title>
+<style>
+  body { margin: 0; padding: 16px; font-family: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif; font-size: 15px; line-height: 1.85; color: #222; background: #fff; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 38px 0 6px; padding: 6px 0 4px; border-bottom: 2px solid #222; }
+  h3 { font-size: 15px; margin: 24px 0 4px; padding-left: 8px; border-left: 5px solid #888; }
+  p { margin: 8px 0; }
+  ol, ul { margin: 8px 0; padding-left: 22px; }
+  li { margin: 5px 0; }
+  .sub { font-size: 13px; color: #666; margin-bottom: 12px; }
+  .box { border: 2px solid #222; padding: 10px 12px; margin: 12px 0; }
+  .easy { background: #f3f8ee; border: 1px solid #9bbf80; border-radius: 6px; padding: 8px 12px; margin: 10px 0; }
+  .easy b.h { color: #2d6a14; }
+  .ex { background: #fff8e5; border: 1px solid #e0b84c; border-radius: 6px; padding: 8px 12px; margin: 10px 0; }
+  .ex b.h { color: #8a5a00; }
+  .warn { background: #fdeeee; border: 1px solid #d99; border-radius: 6px; padding: 8px 12px; margin: 10px 0; }
+  .step { border: 1px solid #bbb; border-radius: 6px; padding: 10px 12px; margin: 10px 0; }
+  .step .t { margin: 0 0 4px; font-weight: bold; }
+  .n { display: inline-block; min-width: 1.6em; height: 1.6em; line-height: 1.6em; text-align: center; border-radius: 50%; background: #222; color: #fff; font-size: 13px; margin-right: 6px; }
+  .arrow { text-align: center; color: #888; margin: 0; line-height: 1.2; }
+  .php { border-left: 6px solid #555; }
+  .ai1 { border-left: 6px solid #1a5fb4; }
+  .ai2 { border-left: 6px solid #c64600; }
+  .mg  { border-left: 6px solid #1a6b2f; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 8px 0; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: center; vertical-align: top; }
+  th { background: #f3f3f3; }
+  td.l, th.l { text-align: left; }
+  .ln { font-size: 12px; color: #666; }
+  .note { font-size: 13px; color: #555; }
+  .toc { border: 1px solid #ccc; border-radius: 6px; padding: 8px 14px; margin: 12px 0; font-size: 14px; }
+  .toc a { color: #1a5fb4; text-decoration: none; }
+  .fig { margin: 12px 0; text-align: center; }
+  .fig svg { width: 100%; max-width: 420px; height: auto; background: #fff; }
+  .fig .cap { font-size: 12px; color: #666; margin-top: 2px; }
+  svg text { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  .chip { display: inline-block; padding: 1px 10px; border-radius: 14px; color: #fff; margin: 2px 2px; font-size: 13px; }
+  .fav { background: #1a5fb4; }
+  .long { background: #c64600; }
+  .empty { background: #fff; color: #888; border: 1px dashed #888; }
+  details { border: 1px solid #ccc; border-radius: 6px; padding: 6px 12px; margin: 8px 0; }
+  summary { font-weight: bold; cursor: pointer; }
+  .ok { color: #1a6b2f; font-weight: bold; }
+  .ng { color: #b00020; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>AIによる有力馬の選択</h1>
+<p class="sub">対象：AiController.php（Api）／ 1st AI ＝ Claude、2nd AI ＝ DeepSeek<br>
+行番号は 2026-10-06 17:04 JST 時点のファイルのもの<br>
+数字の例は、仕組みを説明するための<b>作り話</b>です（実際のレースの数字ではありません）</p>
+
+<div class="box">
+  <b>まず、これだけ</b><br>
+  ① PHPが「計算でわかること」を先に全部計算する<br>
+  ② 1st AI と 2nd AI が、別々に馬を選ぶ<br>
+  ③ PHPが2つを合算して、最終的にC頭（4〜7頭）に絞る
+</div>
+
+<div class="toc">
+  <b>目次</b><br>
+  <a href="#s1">1. 競馬の基本（ここだけ読めばOK）</a><br>
+  <a href="#s2">2. 全体の流れ（図）</a><br>
+  <a href="#s3">3. この資料で使うサンプルレース</a><br>
+  <a href="#s4">4. AIを呼ぶ前のPHPの計算</a><br>
+  <a href="#s5">5. 1st AI の仕事</a><br>
+  <a href="#s6">6. 2nd AI の仕事</a><br>
+  <a href="#s7">7. AI回答のチェック</a><br>
+  <a href="#s8">8. 合算して最終候補を決める</a><br>
+  <a href="#s9">9. 最後の仕上げと保存</a><br>
+  <a href="#s10">10. 理解チェック（クイズ）</a><br>
+  <a href="#s11">11. 用語ミニ辞典</a><br>
+  <a href="#s12">12. 1枚まとめ・行番号</a>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s1">1. 競馬の基本（ここだけ読めばOK）</h2>
+
+<h3>1-1. オッズとは</h3>
+<p><b>「100円で買って当たったら、何倍になって戻るか」</b>の数字です。</p>
+<table>
+  <tr><th>オッズ</th><th>100円買って当たると</th><th>意味</th></tr>
+  <tr><td>2.8倍</td><td>280円</td><td>みんなが「来そう」と思っている（安い）</td></tr>
+  <tr><td>13.0倍</td><td>1,300円</td><td>あまり期待されていない</td></tr>
+  <tr><td>30.0倍</td><td>3,000円</td><td>かなり期待されていない（当たれば大きい）</td></tr>
+</table>
+
+<h3>1-2. 人気とは</h3>
+<p><b>オッズが安い順の順位</b>です。1番人気＝一番オッズが安い＝一番買われている馬。</p>
+<div class="easy"><b class="h">やさしく言うと</b><br>
+  人気 ＝ 「みんなのお金がどれだけ集まっているか」の順位です。
+</div>
+
+<h3>1-3. 単勝と複勝</h3>
+<table>
+  <tr><th>馬券</th><th class="l">当たりの条件</th><th class="l">オッズの見方</th></tr>
+  <tr><td>単勝</td><td class="l">その馬が<b>1着</b></td><td class="l">1つの数字（例：9.0倍）</td></tr>
+  <tr><td>複勝</td><td class="l">その馬が<b>3着以内</b>（出走8頭以上のとき）</td><td class="l"><b>幅</b>で表示（例：1.8〜2.4倍）。この資料の「複勝最小」は幅の小さい方（1.8）</td></tr>
+</table>
+<p>複勝は当たりやすい分、オッズは安くなります。</p>
+
+<h3>1-4. オッズはなぜ動くのか</h3>
+<p>馬券の売上から、運営の取り分（控除。20〜25%）を引いた残りを、<b>当たった人で山分け</b>します。</p>
+<ul>
+  <li>お金が集まる馬 → 当たったとき山分けする人が多い → <b>1人あたりが減る → オッズが下がる</b></li>
+  <li>お金が集まらない馬 → 山分けする人が少ない → オッズが高いまま</li>
+</ul>
+<div class="easy"><b class="h">ここが大事</b><br>
+  「オッズが時間とともに下がり続けている馬」＝「お金が入り続けている馬」です。<br>
+  このシステムは、発走21分前〜6分前のオッズの動きを見て、「何か理由があって買われているのでは？」と考えます。
+</div>
+
+<h3>1-5. 穴馬とは</h3>
+<p>人気がなく、オッズが高い馬（このシステムでは主に<b>7番人気以下</b>）。当たれば配当が大きいので、狙う価値があります。ただし、ただ人気がないだけの馬は、来ません。だから「買われている根拠」を探します。</p>
+
+<h3>1-6. このシステムが答えを出す問題</h3>
+<div class="box">
+  レースごとに、<b>「5着以内に来そうな馬」をC頭</b>ピックアップして、アプリに表示する。<br>
+  （Cは出走頭数で決まる。4〜7頭）
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s2">2. 全体の流れ（図）</h2>
+
+<div class="fig">
+<svg viewBox="0 0 340 392" role="img" aria-label="全体の流れ図">
+  <defs>
+    <marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#555"/></marker>
+  </defs>
+  <rect x="20" y="8" width="300" height="52" rx="8" fill="#eeeeee" stroke="#555" stroke-width="1.5"/>
+  <text x="170" y="29" text-anchor="middle" font-size="14" font-weight="bold">① PHPの事前計算</text>
+  <text x="170" y="48" text-anchor="middle" font-size="11" fill="#444">C・断層・資格・配分モード など</text>
+
+  <line x1="170" y1="60" x2="170" y2="72" stroke="#555" stroke-width="1.5"/>
+  <line x1="90" y1="72" x2="250" y2="72" stroke="#555" stroke-width="1.5"/>
+  <line x1="90" y1="72" x2="90" y2="88" stroke="#555" stroke-width="1.5" marker-end="url(#ah)"/>
+  <line x1="250" y1="72" x2="250" y2="88" stroke="#555" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <rect x="20" y="90" width="140" height="62" rx="8" fill="#e6effa" stroke="#1a5fb4" stroke-width="1.5"/>
+  <text x="90" y="112" text-anchor="middle" font-size="13" font-weight="bold">② 1st AI</text>
+  <text x="90" y="128" text-anchor="middle" font-size="11">Claude</text>
+  <text x="90" y="144" text-anchor="middle" font-size="11" fill="#1a5fb4">最大C頭</text>
+
+  <rect x="180" y="90" width="140" height="62" rx="8" fill="#fbece3" stroke="#c64600" stroke-width="1.5"/>
+  <text x="250" y="112" text-anchor="middle" font-size="13" font-weight="bold">③ 2nd AI</text>
+  <text x="250" y="128" text-anchor="middle" font-size="11">DeepSeek</text>
+  <text x="250" y="144" text-anchor="middle" font-size="11" fill="#c64600">最大5頭</text>
+
+  <line x1="90" y1="152" x2="90" y2="168" stroke="#555" stroke-width="1.5"/>
+  <line x1="250" y1="152" x2="250" y2="168" stroke="#555" stroke-width="1.5"/>
+  <line x1="90" y1="168" x2="250" y2="168" stroke="#555" stroke-width="1.5"/>
+  <line x1="170" y1="168" x2="170" y2="184" stroke="#555" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <rect x="20" y="186" width="300" height="52" rx="8" fill="#eeeeee" stroke="#555" stroke-width="1.5"/>
+  <text x="170" y="207" text-anchor="middle" font-size="14" font-weight="bold">④ PHPがチェック・整理</text>
+  <text x="170" y="226" text-anchor="middle" font-size="11" fill="#444">DBの値で上書き／おかしい行を無効化／上限超えを絞る</text>
+
+  <line x1="170" y1="238" x2="170" y2="256" stroke="#555" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <rect x="20" y="258" width="300" height="66" rx="8" fill="#e5f3e8" stroke="#1a6b2f" stroke-width="1.5"/>
+  <text x="170" y="280" text-anchor="middle" font-size="14" font-weight="bold">⑤ PHPが合算</text>
+  <text x="170" y="299" text-anchor="middle" font-size="11" fill="#444">統合おすすめ度 → 順位 → 枠に入れる</text>
+  <text x="170" y="315" text-anchor="middle" font-size="11" fill="#444">足りなければ補充</text>
+
+  <line x1="170" y1="324" x2="170" y2="342" stroke="#555" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <rect x="20" y="344" width="300" height="40" rx="8" fill="#eeeeee" stroke="#555" stroke-width="1.5"/>
+  <text x="170" y="369" text-anchor="middle" font-size="14" font-weight="bold">⑥ 最終候補を保存・アプリに表示</text>
+</svg>
+<div class="cap">灰色＝PHP（計算）／青・橙＝AI（判断）／緑＝合算</div>
+</div>
+
+<div class="easy"><b class="h">考え方のコツ</b><br>
+  「計算で決まること」はPHP、「データを見て判断すること」はAI。<br>
+  AIが勝手に計算し直すことは禁止されていて、PHPが出した数字をそのまま使わせています。<br>
+  2つのAIは<b>お互いの答えを見ずに</b>、別々に選びます。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s3">3. この資料で使うサンプルレース</h2>
+<p>以降の説明は、この<b>12頭立てのサンプルレース</b>を使います（作り話）。表は、発走6分前の時点の数字です。</p>
+<table>
+  <tr><th>人気</th><th>馬番</th><th>単勝<br>オッズ</th><th>複勝最小<br>オッズ</th><th>複勝<br>人気</th></tr>
+  <tr><td>1</td><td>1</td><td>2.8</td><td>1.4</td><td>1</td></tr>
+  <tr><td>2</td><td>2</td><td>3.5</td><td>1.6</td><td>2</td></tr>
+  <tr><td>3</td><td>4</td><td>4.1</td><td>1.7</td><td>3</td></tr>
+  <tr><td>4</td><td>3</td><td>9.0</td><td>2.3</td><td>4</td></tr>
+  <tr><td>5</td><td>7</td><td>11.5</td><td>2.6</td><td>5</td></tr>
+  <tr><td>6</td><td>9</td><td>13.0</td><td>3.6</td><td>7</td></tr>
+  <tr><td>7</td><td>5</td><td>30.0</td><td>5.0</td><td>8</td></tr>
+  <tr><td>8</td><td><b>11</b></td><td>34.0</td><td>3.4</td><td><b>6</b></td></tr>
+  <tr><td>9</td><td>6</td><td>38.0</td><td>6.5</td><td>9</td></tr>
+  <tr><td>10</td><td>12</td><td>55.0</td><td>8.0</td><td>10</td></tr>
+  <tr><td>11</td><td>8</td><td>80.0</td><td>11.0</td><td>11</td></tr>
+  <tr><td>12</td><td>10</td><td>120.0</td><td>15.0</td><td>12</td></tr>
+</table>
+<p class="note">複勝人気は、複勝最小オッズの安い順です。<b>馬11</b>は「単勝は8番人気なのに、複勝は6番人気」という馬です。この馬が、あとで主役になります。</p>
+
+<!-- ============================================================ -->
+<h2 id="s4">4. AIを呼ぶ前のPHPの計算</h2>
+<p>ここの結果は、AIに渡すプロンプトに「PHP算出済み・変更禁止」として書き込まれます。合算でも同じ値を使います。</p>
+
+<h3>4-1. 目標数C（何頭選ぶか）</h3>
+<table>
+  <tr><th>出走頭数N（取消除く）</th><th>C</th></tr>
+  <tr><td>8頭以下</td><td>N と 4 の小さい方</td></tr>
+  <tr><td>9〜13頭</td><td>5</td></tr>
+  <tr><td>14〜15頭</td><td>6</td></tr>
+  <tr><td>16頭以上</td><td>7</td></tr>
+</table>
+<div class="ex"><b class="h">サンプルレース</b><br>
+  12頭立て → <b>C＝5</b>（5頭を選ぶ）<br>
+  他の例：18頭立て → 7 ／ 7頭立て → 4 ／ 3頭立て → 3
+</div>
+<p class="ln">targetSelectionCount 649行</p>
+
+<h3>4-2. 断層タイプ（A〜E）</h3>
+<p><b>断層</b>とは、「ここから先は急に人気が薄い」という境目です。</p>
+<p><b>計算のしかた：</b>単勝オッズを人気順に並べ、<b>隣どうしの倍率</b>（下の人気のオッズ ÷ 上の人気のオッズ）を出す。<b>2.0以上なら断層</b>。</p>
+
+<div class="fig">
+<svg viewBox="0 0 340 228" role="img" aria-label="単勝オッズの棒グラフと断層">
+  <line x1="12" y1="190" x2="330" y2="190" stroke="#888" stroke-width="1"/>
+  <rect x="20"  y="175.4" width="30" height="14.6"  fill="#9db8d9"/>
+  <rect x="64"  y="171.8" width="30" height="18.2"  fill="#9db8d9"/>
+  <rect x="108" y="168.7" width="30" height="21.3"  fill="#9db8d9"/>
+  <rect x="152" y="143.2" width="30" height="46.8"  fill="#6f93c4"/>
+  <rect x="196" y="130.2" width="30" height="59.8"  fill="#6f93c4"/>
+  <rect x="240" y="122.4" width="30" height="67.6"  fill="#6f93c4"/>
+  <rect x="284" y="34"    width="30" height="156"   fill="#3d6aa8"/>
+  <g font-size="11" text-anchor="middle" fill="#222">
+    <text x="35"  y="171">2.8</text>
+    <text x="79"  y="167">3.5</text>
+    <text x="123" y="164">4.1</text>
+    <text x="167" y="139">9.0</text>
+    <text x="211" y="126">11.5</text>
+    <text x="255" y="118">13.0</text>
+    <text x="299" y="30">30.0</text>
+    <text x="35"  y="206">1人気</text>
+    <text x="79"  y="206">2人気</text>
+    <text x="123" y="206">3人気</text>
+    <text x="167" y="206">4人気</text>
+    <text x="211" y="206">5人気</text>
+    <text x="255" y="206">6人気</text>
+    <text x="299" y="206">7人気</text>
+    <text x="35"  y="221" fill="#666">馬1</text>
+    <text x="79"  y="221" fill="#666">馬2</text>
+    <text x="123" y="221" fill="#666">馬4</text>
+    <text x="167" y="221" fill="#666">馬3</text>
+    <text x="211" y="221" fill="#666">馬7</text>
+    <text x="255" y="221" fill="#666">馬9</text>
+    <text x="299" y="221" fill="#666">馬5</text>
+  </g>
+  <line x1="145" y1="22" x2="145" y2="190" stroke="#b00020" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <line x1="277" y1="22" x2="277" y2="190" stroke="#b00020" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="145" y="14" text-anchor="middle" font-size="12" font-weight="bold" fill="#b00020">断層 ×2.20</text>
+  <text x="270" y="14" text-anchor="middle" font-size="12" font-weight="bold" fill="#b00020">断層 ×2.31</text>
+</svg>
+<div class="cap">サンプルレースの単勝オッズ（1〜7番人気）。赤い点線が断層</div>
+</div>
+
+<div class="ex"><b class="h">サンプルレースの計算</b><br>
+  3人気→4人気：9.0 ÷ 4.1 ＝ <b>2.20</b>（2.0以上 → 断層）<br>
+  6人気→7人気：30.0 ÷ 13.0 ＝ <b>2.31</b>（2.0以上 → 断層）<br>
+  それ以外の隣どうしは 1.1〜1.5 倍程度で断層なし。<br>
+  → 「6番人気以内」の断層が<b>2か所</b> → <b>タイプA</b>
+</div>
+
+<table>
+  <tr><th>タイプ</th><th class="l">条件（上から順に判定）</th></tr>
+  <tr><td>A</td><td class="l">6番人気以内に断層が<b>2か所以上</b>（二重断層・上位完結型）</td></tr>
+  <tr><td>E</td><td class="l">単勝と複勝で、断層の有無が食い違う（判定困難型）</td></tr>
+  <tr><td>B</td><td class="l">6番人気以内に断層が<b>ちょうど1か所</b>（上位断層型）</td></tr>
+  <tr><td>C</td><td class="l">断層はあるが、6番人気より下にある（中間断層型）</td></tr>
+  <tr><td>D</td><td class="l">断層が1つもない（混戦型）</td></tr>
+</table>
+<div class="easy"><b class="h">やさしく言うと</b><br>
+  A＝上位に境目が2つ／B＝上位に1つ／C＝中位以下に1つ／D＝なし／E＝単勝と複勝で言うことが違う。<br>
+  タイプは、AIへのヒントと、下位開放（4-5）の判定に使います。
+</div>
+<p class="ln">2237〜2300行</p>
+
+<h3>4-3. 厳選穴レースの条件B・C・D</h3>
+<p>「穴馬が来そうなレースか」を見る入口の判定です。<b>B・C・Dのどれか1つでも成立すると「穴レースではない（0）」</b>で確定します。</p>
+<table>
+  <tr><th>条件</th><th class="l">成立する場合</th><th class="l">サンプルレース</th></tr>
+  <tr><td>B</td><td class="l">6番人気以内の隣どうしで、倍率2.0以上が<b>2か所以上</b></td><td class="l">断層が2か所 → <span class="ok">成立</span></td></tr>
+  <tr><td>C</td><td class="l">全馬の6分前の複勝最小オッズの最大値が<b>3.5倍未満</b>（どの馬も複勝が安い＝ガチガチ）</td><td class="l">最大が15.0倍 → <span class="ng">不成立</span></td></tr>
+  <tr><td>D</td><td class="l">1番人気の6分前単勝オッズが<b>2.0倍未満</b>（1強）</td><td class="l">2.8倍 → <span class="ng">不成立</span></td></tr>
+</table>
+<ul>
+  <li>確認できる分だけで成立・不成立が決まれば確定。決まらなければ<b>「不明」</b>（データ不足を不成立にしない）。</li>
+  <li>この判定は、最終候補が決まってから、PHPがもう一度やり直します（9章）。</li>
+</ul>
+<p class="ln">条件B 2142〜2175行／条件C 2177行〜／条件D 2200〜2220行</p>
+
+<h3>4-4. 穴馬の「資格」F・R・O</h3>
+<p>7番人気以下の馬が、「穴枠に入る資格があるか」を、複勝オッズの動きから計算します。</p>
+<table>
+  <tr><th>記号</th><th class="l">意味</th><th class="l">成立の条件</th></tr>
+  <tr><td>F</td><td class="l">複勝オッズが下がってきている（買われている）</td><td class="l">F1 または F2</td></tr>
+  <tr><td>F1</td><td class="l">長い目で見て継続して下がっている</td><td class="l">次の3つを<b>すべて</b>満たす<br>・21分前→6分前で<b>10%以上</b>短縮<br>・5つの区間（21→18、18→15、15→12、12→9、9→6）のうち<b>2区間以上</b>で短縮<br>・9分前→6分前で上昇していない</td></tr>
+  <tr><td>F2</td><td class="l">直近で下がっている</td><td class="l">次の3つを<b>すべて</b>満たす<br>・9→6分で<b>5%以上</b>短縮<br>・12→9分でも短縮<br>・12→6分で合計も短縮</td></tr>
+  <tr><td>R</td><td class="l">複勝のほうが人気</td><td class="l">単勝人気 − 複勝人気 ＝ <b>2以上</b></td></tr>
+  <tr><td>O</td><td class="l">補正OPIが低い</td><td class="l">予測補正OPI ＝ <b>0.85以下</b></td></tr>
+</table>
+<p><b>資格あり ＝ 7番人気以下 かつ F成立 かつ（R または O が成立）</b></p>
+<p class="note">OPIは、オッズから出す指標です。小さいほど「過小評価されている側」として扱われます（計算式の詳細はこの資料では扱いません）。</p>
+
+<p><b>短縮率の計算：</b> 100 × （古い値 − 新しい値）÷ 古い値</p>
+<div class="fig">
+<svg viewBox="0 0 340 214" role="img" aria-label="複勝最小オッズの推移">
+  <line x1="36" y1="30"  x2="324" y2="30"  stroke="#ddd"/>
+  <line x1="36" y1="86"  x2="324" y2="86"  stroke="#ddd"/>
+  <line x1="36" y1="142" x2="324" y2="142" stroke="#ddd"/>
+  <g font-size="10" fill="#666" text-anchor="end">
+    <text x="32" y="33">4.2</text>
+    <text x="32" y="89">3.8</text>
+    <text x="32" y="145">3.4</text>
+  </g>
+  <polyline points="40,86 94,72 148,100 202,58 256,44 310,58" fill="none" stroke="#888" stroke-width="2" stroke-dasharray="5 4"/>
+  <polyline points="40,58 94,72 148,86 202,114 256,128 310,142" fill="none" stroke="#1a5fb4" stroke-width="2.5"/>
+  <g fill="#888">
+    <circle cx="40" cy="86" r="3"/><circle cx="94" cy="72" r="3"/><circle cx="148" cy="100" r="3"/>
+    <circle cx="202" cy="58" r="3"/><circle cx="256" cy="44" r="3"/><circle cx="310" cy="58" r="3"/>
+  </g>
+  <g fill="#1a5fb4">
+    <circle cx="40" cy="58" r="3.5"/><circle cx="94" cy="72" r="3.5"/><circle cx="148" cy="86" r="3.5"/>
+    <circle cx="202" cy="114" r="3.5"/><circle cx="256" cy="128" r="3.5"/><circle cx="310" cy="142" r="3.5"/>
+  </g>
+  <g font-size="11" text-anchor="middle" fill="#222">
+    <text x="40" y="180">21分前</text><text x="94" y="180">18分前</text><text x="148" y="180">15分前</text>
+    <text x="202" y="180">12分前</text><text x="256" y="180">9分前</text><text x="310" y="180">6分前</text>
+  </g>
+  <g font-size="11" fill="#1a5fb4" font-weight="bold">
+    <text x="40" y="50">4.0</text>
+    <text x="298" y="162">3.4</text>
+  </g>
+  <text x="168" y="124" font-size="11" fill="#1a5fb4" font-weight="bold">15%短縮</text>
+  <line x1="36" y1="196" x2="58" y2="196" stroke="#1a5fb4" stroke-width="2.5"/>
+  <text x="62" y="200" font-size="11">馬11（下がり続ける）</text>
+  <line x1="190" y1="196" x2="212" y2="196" stroke="#888" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="216" y="200" font-size="11">別の馬（下がらない）</text>
+</svg>
+<div class="cap">複勝最小オッズの動き（縦軸は倍率。下へ行くほど「買われている」）</div>
+</div>
+
+<div class="ex"><b class="h">サンプルレース：馬11（8番人気）の計算</b><br>
+  複勝最小：21分前 4.0 → 18分前 3.9 → 15分前 3.8 → 12分前 3.6 → 9分前 3.5 → 6分前 3.4<br><br>
+  ・21→6分：100×(4.0−3.4)÷4.0 ＝ <b>15%</b> → 10%以上 ○<br>
+  ・5つの区間：すべて短縮 → 2区間以上 ○<br>
+  ・9→6分：100×(3.5−3.4)÷3.5 ＝ 2.9%（上昇していない）○<br>
+  → <b>F1成立 → F成立</b><br><br>
+  ・単勝8人気 − 複勝6位 ＝ 2 → 2以上 → <b>R成立</b><br><br>
+  → 7番人気以下 かつ F成立 かつ R成立 ＝ <b>資格あり</b><br><br>
+  比べて、図の灰色の馬（3.8 → … → 4.0）は、21→6分で 100×(3.8−4.0)÷3.8 ＝ <b>−5.3%</b>（逆に上がっている）→ F1不成立 → <b>資格なし</b>。<br>
+  サンプルレースで資格ありなのは<b>馬11だけ</b>です（他の7番人気以下は、Fが不成立とします）。
+</div>
+<div class="easy"><b class="h">やさしく言うと</b><br>
+  「人気薄なのに、複勝のお金が時間とともに入り続けていて、しかも複勝では上位人気（または補正OPIが低い）」という馬だけが、穴枠に入れます。<br>
+  根拠のない人気薄を、数合わせで入れないための仕組みです。
+</div>
+<ul>
+  <li>複勝人気は、6分前の複勝最小オッズの安い順（同じなら馬番が小さい方が上）。</li>
+  <li>計算に必要な数字が欠けていれば、F・R・Oは「不明」。不明は、資格なしとは区別して記録されます。</li>
+</ul>
+<p class="ln">2330〜2410行</p>
+
+<h3>4-5. 下位開放（S1・S2・S3）</h3>
+<p>「穴馬を多めに選んでよいレースか」を見る3つのスイッチです。<b>どれか1つでも成立すれば「下位開放」成立</b>。</p>
+<table>
+  <tr><th>記号</th><th class="l">成立の条件</th></tr>
+  <tr><td>S1</td><td class="l">断層タイプが D（断層なし）</td></tr>
+  <tr><td>S2</td><td class="l">21分前に倍率2.0以上だった隣どうしが、6分前には2.0未満になっている（断層が消えた）かつ、その下側に資格あり穴馬が<b>2頭以上</b></td></tr>
+  <tr><td>S3</td><td class="l">配分用の主境界で、21分前の倍率が2.0以上、21→6分で倍率が<b>20%以上縮小</b>、その下側に資格あり穴馬が<b>2頭以上</b></td></tr>
+</table>
+<p><b>配分用の主境界</b>：6分前に倍率2.0以上の隣どうしのうち、倍率がいちばん大きい場所（同じなら人気が上の方）。</p>
+<div class="ex"><b class="h">S3の計算例</b><br>
+  主境界：5人気と6人気の間。21分前の倍率 3.0、6分前の倍率 2.2<br>
+  縮小率 ＝ 100 × (3.0 − 2.2) ÷ 3.0 ＝ <b>26.7%</b>（20%以上 ○）<br>
+  6人気より下に資格あり穴馬が2頭いれば → <b>S3 成立</b>
+</div>
+<div class="easy"><b class="h">やさしく言うと</b><br>
+  「穴馬との差が縮まってきていて、しかも根拠のある穴馬が複数いる」ときに、穴枠を広げる許可が出ます。
+</div>
+<p class="ln">2448〜2500行</p>
+
+<h3>4-6. 選出前ゲートと配分モード（通常／中／強）</h3>
+<p><b>選出前ゲート</b>：条件B・C・Dが<b>すべて不成立</b> かつ 資格ありの7〜10番人気が<b>1頭以上</b> → 成立。</p>
+<p>ゲートが成立したときだけ、中・強を検討します。成立しなければ必ず「通常」です。</p>
+<ol>
+  <li>ゲート成立 ＋ 下位開放が成立 ＋ 「強」の頭数が足りる → <b>強</b></li>
+  <li>強に届かないが、ゲート成立 ＋ 「中」の頭数が足りる → <b>中</b>（下位開放が不成立・不明でも中になる）</li>
+  <li>それ以外 → <b>通常</b></li>
+</ol>
+<p>「頭数が足りる」＝ 人気側（1〜6番人気）の頭数と、資格あり穴馬の頭数が、どちらも枠の数以上いること。</p>
+
+<table>
+  <tr><th>C</th><th>通常</th><th>中</th><th>強</th></tr>
+  <tr><td>4</td><td>3＋1</td><td>3＋1</td><td>2＋2</td></tr>
+  <tr><td>5</td><td>4＋1</td><td>3＋2</td><td>2＋3</td></tr>
+  <tr><td>6</td><td>4＋2</td><td>3＋3</td><td>3＋3</td></tr>
+  <tr><td>7</td><td>5＋2</td><td>4＋3</td><td>3＋4</td></tr>
+</table>
+<p class="note">「人気側の頭数＋穴側の頭数」。C＝4は通常と中が同じ、C＝6は中と強が同じ数です（判定の条件とログは区別して残ります）。<br>
+Cが3以下のレースは、この表の対象外です（4-8参照）。</p>
+
+<p><b>枠のイメージ（C＝7の場合）</b></p>
+<p>
+  通常：<span class="chip fav">人気側</span><span class="chip fav">人気側</span><span class="chip fav">人気側</span><span class="chip fav">人気側</span><span class="chip fav">人気側</span><span class="chip long">穴側</span><span class="chip long">穴側</span><br>
+  中　：<span class="chip fav">人気側</span><span class="chip fav">人気側</span><span class="chip fav">人気側</span><span class="chip fav">人気側</span><span class="chip long">穴側</span><span class="chip long">穴側</span><span class="chip long">穴側</span><br>
+  強　：<span class="chip fav">人気側</span><span class="chip fav">人気側</span><span class="chip fav">人気側</span><span class="chip long">穴側</span><span class="chip long">穴側</span><span class="chip long">穴側</span><span class="chip long">穴側</span>
+</p>
+<p class="note">青＝人気側（1〜6番人気）／橙＝穴側（資格あり7番人気以下）</p>
+
+<div class="ex"><b class="h">サンプルレース（C＝5）</b><br>
+  ゲート：条件Bが<b>成立</b>しているので、<b>ゲート不成立</b>。<br>
+  → 下位開放（S1〜S3）を見るまでもなく、<b>通常</b>。C＝5の通常は <b>4＋1</b>。<br>
+  <span class="chip fav">人気側</span><span class="chip fav">人気側</span><span class="chip fav">人気側</span><span class="chip fav">人気側</span><span class="chip long">穴側</span>
+</div>
+<div class="ex"><b class="h">別の例：18頭立て（C＝7）で「中」になる場合</b><br>
+  条件B・C・Dがすべて不成立。資格あり：8人気・9人気・13人気の3頭（7〜10番人気は2頭）→ ゲート成立。<br>
+  下位開放：S3が成立。<br>
+  「強」は 3＋4。人気側は6頭いる ○、資格あり穴馬は3頭で4頭に足りない ×。→ 強は無理。<br>
+  「中」は 4＋3。人気側6頭 ○、穴側3頭 ○ → <b>中（4＋3）</b>に決定（強から降格した理由もログに残る）。
+</div>
+<div class="easy"><b class="h">やさしく言うと</b><br>
+  普段は「人気側5頭＋穴側2頭」。穴馬に根拠が揃っているレースだけ、穴側を3頭、4頭と増やします。
+</div>
+<p class="ln">2500〜2600行（配分表は2539行）</p>
+
+<h3>4-7. 購入判断用の印（候補からは消えない）</h3>
+<p>次の印は、<b>「馬券を買うか見送るか」</b>の判断に使います。候補から消えることはなく、選出順位にも影響しません（最低基準点だけは例外で、第1パスで後回しになります＝8章）。</p>
+
+<table>
+  <tr><th>印</th><th class="l">付く条件</th><th class="l">解除</th></tr>
+  <tr><td>低配当</td><td class="l">推定確定の複勝最小が<b>1.5倍未満</b> かつ 推定確定の単勝が<b>3.0倍未満</b></td><td class="l">次の3つを<b>すべて</b>満たせば解除<br>①断層の最上位グループにいる<br>②単勝・複勝の両方で複数時点にわたり継続して買われている<br>③サンプル30件以上で回収率110%以上のものが2種類以上</td></tr>
+  <tr><td>回収率が悪い</td><td class="l">3種類の回収率（過去／OPI帯別／フェーズ別）のうち、サンプル30件以上の有効値が2種類以上あり、そのうち2種類以上が<b>40%未満</b></td><td class="l">なし</td></tr>
+  <tr><td>大穴条件不成立（11番人気以下）</td><td class="l">①複勝が複数時点で継続低下 ②複勝流入ランクが穴グループ内で1〜2位 ③単勝・複勝の両方で資金流入 ④下位進入を裏付ける構造あり、のうち、<b>確認できて満たさない</b>ものが1つでもある</td><td class="l">データ不明は不成立にしない</td></tr>
+  <tr><td>最低基準点未満</td><td class="l">統合おすすめ度が、1〜10番人気は<b>60点</b>未満、11番人気以下は<b>55点</b>未満（70点以上なら人気に関係なくOK）</td><td class="l">なし（第2パスで拾える）</td></tr>
+</table>
+<p class="note">「推定確定オッズ」は、「最終的にこのくらいに落ち着きそう」とPHPが予測したオッズです。</p>
+<div class="ex"><b class="h">例</b><br>
+  3番人気の馬、推定確定の複勝最小 1.3倍・単勝 2.4倍 → 低配当の印。<br>
+  ただし断層の最上位グループにいて、単複とも継続して買われ、回収率110%以上が2種類あるなら、印は外れる。
+</div>
+<div class="easy"><b class="h">やさしく言うと</b><br>
+  「当たっても儲からない馬」「過去の成績が悪い馬」には「買い目から外す印」が付くだけで、候補（表示）には残ります。<br>
+  「選ぶこと」と「買うこと」は別の判断、という考え方です。
+</div>
+<p class="ln">最低基準点 5106行／低配当 5257行／回収率 5313行（閾値は B12_RECOVERY_LOW_THRESH＝40.0、154行）／大穴条件 5136〜5200行</p>
+
+<h3>4-8. Cが3以下のときの選び方</h3>
+<p>C＝1〜3のレース（出走3頭以下）は、配分表を使いません。断層の位置から決めた「人気帯ごとの目安頭数」で選びます。</p>
+<table>
+  <tr><th>主断層の位置</th><th>1〜6人気</th><th>7〜10人気</th><th>11人気以下</th></tr>
+  <tr><td>1〜2番人気の間</td><td>3</td><td>2</td><td>1</td></tr>
+  <tr><td>2〜5番人気の間</td><td>4</td><td>2</td><td>1</td></tr>
+  <tr><td>5〜6番人気の間</td><td>3</td><td>3</td><td>2</td></tr>
+  <tr><td>6番人気より後</td><td>2</td><td>3</td><td>2</td></tr>
+  <tr><td>断層なし・タイプD・E</td><td>3</td><td>3</td><td>2</td></tr>
+</table>
+<p class="note">これは「目安」で、ハード上限ではありません。合計は最大7頭です。</p>
+<p class="ln">2750〜2775行</p>
+
+<!-- ============================================================ -->
+<h2 id="s5">5. 1st AI（Claude）の仕事</h2>
+
+<div class="step ai1">
+  <p class="t">やること</p>
+  <ol>
+    <li>PHPが作ったプロンプト（全頭のオッズ時系列・過去成績・回収率・断層・配分など）を読む</li>
+    <li>全実出走馬を、<b>固定100点</b>で採点する</li>
+    <li>点数の高い順に、<b>最大C頭</b>を「候補行」として出力する</li>
+    <li>候補に選ばなかった馬も含めて、<b>全頭の採点内訳</b>をJSONで出力する（画面には出ない内部用）</li>
+    <li>レース指標（波乱度・下位進入度・大穴進入度）を出力する（1st AIの分だけ使う）</li>
+  </ol>
+  <p class="ln">プロンプト 2955〜3300行／呼び出し 1004行（1回のみ・再試行なし・90秒）</p>
+</div>
+
+<h3>5-1. 採点の中身（100点＝信頼度60点＋妙味40点）</h3>
+<div class="fig">
+<svg viewBox="0 0 340 92" role="img" aria-label="100点の内訳">
+  <rect x="10"  y="14" width="195" height="34" fill="#6f93c4"/>
+  <rect x="205" y="14" width="125" height="34" fill="#e0a070"/>
+  <text x="107" y="36" text-anchor="middle" font-size="13" fill="#fff" font-weight="bold">信頼度 60点</text>
+  <text x="267" y="36" text-anchor="middle" font-size="13" fill="#fff" font-weight="bold">妙味 40点</text>
+  <text x="107" y="66" text-anchor="middle" font-size="11" fill="#222">5着以内に来そうか</text>
+  <text x="267" y="66" text-anchor="middle" font-size="11" fill="#222">買う価値があるか</text>
+  <text x="170" y="86" text-anchor="middle" font-size="11" fill="#666">合計100点（これが「おすすめ度」）</text>
+</svg>
+</div>
+
+<p><b>信頼度（60点）</b>：その馬が5着以内に来そうか</p>
+<table>
+  <tr><th>項目</th><th class="l">見るもの</th><th>配点</th></tr>
+  <tr><td>1</td><td class="l">複勝支持・安定性（複勝オッズの水準、幅、安定性）</td><td>0〜15</td></tr>
+  <tr><td>2</td><td class="l">単勝・複勝の継続した資金流入（特に複勝）</td><td>0〜12</td></tr>
+  <tr><td>3</td><td class="l">単複の人気差・支持差</td><td>0〜8</td></tr>
+  <tr><td>4</td><td class="l">断層の位置・時間変化・単複の一致</td><td>0〜10</td></tr>
+  <tr><td>5</td><td class="l">類似レースの統計（3着以内率・5着以内率など）</td><td>0〜8</td></tr>
+  <tr><td>6</td><td class="l">予測補正の維持・直前の傾向</td><td>0〜4</td></tr>
+  <tr><td>7</td><td class="l">能力・今回条件への適性（A＝3、B＝2、C＝1、D＝0が原則）</td><td>0〜3</td></tr>
+</table>
+<p><b>妙味（40点）</b>：推定確定オッズで買う価値があるか</p>
+<table>
+  <tr><th>項目</th><th class="l">見るもの</th><th>配点</th></tr>
+  <tr><td>1</td><td class="l">推定確定の配当水準（複勝最小が高いほど高得点）</td><td>0〜15</td></tr>
+  <tr><td>2</td><td class="l">3種類の回収率の裏付け</td><td>0〜12</td></tr>
+  <tr><td>3</td><td class="l">OPI・予測補正OPIによる市場評価</td><td>0〜8</td></tr>
+  <tr><td>4</td><td class="l">配当と、資金流入・断層構造の整合性</td><td>0〜5</td></tr>
+</table>
+<div class="ex"><b class="h">採点の例（書式見本の数字）</b><br>
+  信頼度：12＋9＋5＋7＋6＋3＋2 ＝ <b>44</b>（60点満点）<br>
+  妙味　：6＋8＋4＋2 ＝ <b>20</b>（40点満点）<br>
+  総合　：44＋20 ＝ <b>64点</b>（これが候補行の「おすすめ度」になる）
+</div>
+
+<h3>5-2. 採点のルール</h3>
+<ul>
+  <li><b>配点は変えてはいけない</b>（項目の追加・削除・点数の移動は禁止）</li>
+  <li>低配当の馬は、妙味の小計を原則<b>5点以下</b>にする（例外3つを全部満たす場合だけ解除）</li>
+  <li>目安：本候補は信頼度36点以上、補欠は信頼度30点以上（目安であって、外す条件ではない）</li>
+  <li>点数の目安：70点以上＝本候補、60〜69点＝補欠相当、55点以上の11番人気以下＝人気薄注目馬</li>
+  <li>「70点未満だから」「低配当だから」「回収率が悪いから」「人気帯が違うから」を理由に<b>候補から外してはいけない</b></li>
+  <li>データが欠けているものは「不明」。0点や減点の理由にしない</li>
+  <li>選ぶ頭数は「目標かつ上限」。頭数を埋めるために無理に足さない（足りなければその頭数でよい）</li>
+</ul>
+
+<div class="ex"><b class="h">サンプルレース：1st AI の答え（C＝5なので最大5頭）</b><br>
+  <table>
+    <tr><th>馬番</th><th>人気</th><th>おすすめ度</th></tr>
+    <tr><td>1</td><td>1</td><td>78</td></tr>
+    <tr><td>4</td><td>3</td><td>70</td></tr>
+    <tr><td>7</td><td>5</td><td>69</td></tr>
+    <tr><td>2</td><td>2</td><td>66</td></tr>
+    <tr><td>12</td><td>10</td><td>62</td></tr>
+  </table>
+</div>
+<div class="easy"><b class="h">やさしく言うと</b><br>
+  1st AIは「全頭に100点満点で点をつけて、上位を出す」だけです。<br>
+  どの人気の馬を何頭にするか、といった配分の調整は、このあとPHPがやります。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s6">6. 2nd AI（DeepSeek）の仕事</h2>
+
+<div class="step ai2">
+  <ul>
+    <li>1st AIと<b>同じ入力データ</b>で、独立して評価する（1st AIの答えは見せない）</li>
+    <li>採点のしかたも同じ（固定100点）</li>
+    <li>出す頭数は、出走頭数に関係なく<b>最大5頭</b></li>
+    <li>全頭の採点内訳JSONも同じように出す</li>
+    <li>1st AIの結果がまだDBに無いときは、実行しない（「1st AIの分析が完了していません」で止まる）</li>
+    <li>1st AIが失敗していても、2nd AIは実行する。2nd AIの有効な候補だけでレースを成立させる</li>
+  </ul>
+  <p class="ln">上限5頭：4151行／DeepSeek呼び出し：4601行／実行前チェック：3736〜3760行</p>
+</div>
+
+<h3>6-1. 1st AIと違う点</h3>
+<p>2nd AIには、1st AI用のプロンプトから次を<b>取り除いて</b>送ります。</p>
+<ul>
+  <li>厳選穴レースの判定ルール（波乱度などのレース指標も出さない）</li>
+  <li>配分ブロック（「人気側＋穴側」の目標配分）。2nd AI単独に7頭を求めないため</li>
+  <li>実出走頭数・目標配分・資格あり馬番などの行</li>
+  <li>「全頭を固定100点で評価し上位C頭を出力」の行</li>
+</ul>
+<div class="easy"><b class="h">やさしく言うと</b><br>
+  2nd AIは「配分の指示」を知らないまま、純粋にデータを見て上位5頭以内を選びます。<br>
+  配分の調整はあくまでPHPの仕事、という分担です。
+</div>
+<p class="ln">取り除く処理：3990〜4040行</p>
+
+<h3>6-2. 能力適性の評価</h3>
+<p>2nd AIの回答には、選出理由の頭に「能力適性:A（85点）」のような評価が入ります。PHPがここを読み取ります。</p>
+<table>
+  <tr><th>評価</th><th>能力適性の点数</th></tr>
+  <tr><td>A</td><td>80点以上</td></tr>
+  <tr><td>B</td><td>70〜79点</td></tr>
+  <tr><td>C</td><td>60〜69点</td></tr>
+  <tr><td>D</td><td>60点未満</td></tr>
+</table>
+<p class="note">能力が採点できなかった馬は「不明」のまま。0点・D評価・除外の理由にはしません。<br>
+この能力適性は、統合おすすめ度には足し込みません（高配当の検証用の記録）。</p>
+<p class="ln">_applyAbilityGrade 7529行</p>
+
+<div class="ex"><b class="h">サンプルレース：2nd AI の答え（最大5頭）</b><br>
+  <table>
+    <tr><th>馬番</th><th>人気</th><th>おすすめ度</th></tr>
+    <tr><td>1</td><td>1</td><td>74</td></tr>
+    <tr><td>11</td><td>8</td><td>71</td></tr>
+    <tr><td>4</td><td>3</td><td>66</td></tr>
+    <tr><td>9</td><td>6</td><td>64</td></tr>
+  </table>
+  <p class="note">2nd AIは4頭しか出さなかった（最大5頭までなので問題なし）。</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s7">7. AI回答のチェック</h2>
+<p>2つの回答が揃ったら、合算の前にPHPが次のチェックをします。<b>どこかが悪くても、レース全体は止めません。</b></p>
+
+<div class="step php">
+  <p class="t"><span class="n">1</span>DBの値と照合</p>
+  <ul>
+    <li>人気順・6分前オッズがDBと違えば、<b>DBの値で上書き</b>（行は消さない）</li>
+    <li>違いがあったことは、必ずログ [AUDIT_FIX] に残す</li>
+    <li>実在しない馬番・重複した馬番の行は<b>無効</b>にして、理由つきでログに残す</li>
+  </ul>
+</div>
+<div class="step php">
+  <p class="t"><span class="n">2</span>全頭採点JSONの検証</p>
+  <ul>
+    <li>信頼度の小計＝7項目の合計、妙味の小計＝4項目の合計、総合＝信頼度＋妙味、になっているか</li>
+    <li>総合点が、候補行のおすすめ度と一致しているか</li>
+    <li>馬番に抜け・重複がないか</li>
+    <li>合わないときは、そのAIに<b>修正を1回だけ</b>頼む（通常の呼び出し2回とは別枠。ログに残る）</li>
+    <li>修正しても合わなければ、そのAIの内部採点は使わない（公開の候補行はそのまま使う）</li>
+  </ul>
+</div>
+<div class="step php">
+  <p class="t"><span class="n">3</span>上限を超えた分を絞る</p>
+  <ul>
+    <li>1st AIは最大C頭、2nd AIは最大5頭</li>
+    <li>超えたら、おすすめ度の高い順で残す（同点は馬番が小さい順）</li>
+    <li>落とした行は、馬番・理由をログに残す</li>
+  </ul>
+  <p class="ln">Block16（検証）：4828〜5019行／_requestScoreFix 5991行／_trimAiCandidates 680行（呼び出し 5036行）</p>
+</div>
+<div class="warn"><b>両方のAIが失敗したら？</b><br>
+  候補0頭の結果で続行します（エラーにせず、レース情報だけ返す）。入力が途中で変わっていた場合は、混ぜずに「未確定」で返します。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s8">8. 合算して最終候補を決める</h2>
+<p>ここが「合算後の選出」の本体です（_mergeAiResults、6512行〜）。</p>
+
+<h3>8-1. 馬を3つに分けて、点を合算する</h3>
+<table>
+  <tr><th>区分</th><th class="l">意味</th><th class="l">統合おすすめ度</th></tr>
+  <tr><td>一致馬</td><td class="l">両AIが候補に挙げた</td><td class="l"><b>平均＋5点</b>（上限100）</td></tr>
+  <tr><td>1st独自</td><td class="l">1st AIだけが挙げた</td><td class="l">1stの点そのまま</td></tr>
+  <tr><td>2nd独自</td><td class="l">2nd AIだけが挙げた</td><td class="l">2ndの点そのまま</td></tr>
+</table>
+<p class="note">「一致」は、両AIの<b>公開の候補行</b>に入っていること。全頭採点に載っているだけでは加点しません。</p>
+
+<div class="ex"><b class="h">サンプルレースの合算</b><br>
+  <table>
+    <tr><th>馬番</th><th>人気</th><th>1st</th><th>2nd</th><th>区分</th><th>統合点</th></tr>
+    <tr><td>1</td><td>1</td><td>78</td><td>74</td><td>一致</td><td>(78+74)÷2＋5＝<b>81</b></td></tr>
+    <tr><td>4</td><td>3</td><td>70</td><td>66</td><td>一致</td><td>(70+66)÷2＋5＝<b>73</b></td></tr>
+    <tr><td>11</td><td>8</td><td>－</td><td>71</td><td>2nd独自</td><td><b>71</b></td></tr>
+    <tr><td>7</td><td>5</td><td>69</td><td>－</td><td>1st独自</td><td><b>69</b></td></tr>
+    <tr><td>2</td><td>2</td><td>66</td><td>－</td><td>1st独自</td><td><b>66</b></td></tr>
+    <tr><td>9</td><td>6</td><td>－</td><td>64</td><td>2nd独自</td><td><b>64</b></td></tr>
+    <tr><td>12</td><td>10</td><td>62</td><td>－</td><td>1st独自</td><td><b>62</b></td></tr>
+  </table>
+</div>
+
+<h3>8-2. 点数順に並べる（統合順位）</h3>
+<p>全員を統合おすすめ度の高い順に並べます。同点のときは次の順で決めます。</p>
+<ol>
+  <li>一致馬が先</li>
+  <li>両AIの信頼度小計の平均が高い方（内部採点が取れているときだけ）</li>
+  <li>馬番が小さい方</li>
+</ol>
+<p class="ln">6745〜6758行</p>
+
+<div class="fig">
+<svg viewBox="0 0 340 266" role="img" aria-label="統合おすすめ度の順位">
+  <text x="4" y="14" font-size="11" fill="#666">統合おすすめ度（点）　右端は最終の結果</text>
+  <g font-size="12" fill="#222">
+    <text x="4" y="39">馬1  1人気</text>
+    <text x="4" y="69">馬4  3人気</text>
+    <text x="4" y="99">馬11 8人気</text>
+    <text x="4" y="129">馬7  5人気</text>
+    <text x="4" y="159">馬2  2人気</text>
+    <text x="4" y="189">馬9  6人気</text>
+    <text x="4" y="219">馬12 10人気</text>
+  </g>
+  <rect x="84" y="24"  width="186.3" height="22" fill="#1a6b2f"/>
+  <rect x="84" y="54"  width="167.9" height="22" fill="#1a6b2f"/>
+  <rect x="84" y="84"  width="163.3" height="22" fill="#c64600"/>
+  <rect x="84" y="114" width="158.7" height="22" fill="#1a5fb4"/>
+  <rect x="84" y="144" width="151.8" height="22" fill="#1a5fb4"/>
+  <rect x="84" y="174" width="147.2" height="22" fill="#c64600" opacity="0.45"/>
+  <rect x="84" y="204" width="142.6" height="22" fill="#1a5fb4" opacity="0.45"/>
+  <g font-size="12" fill="#222" font-weight="bold">
+    <text x="274" y="40">81</text>
+    <text x="256" y="70">73</text>
+    <text x="252" y="100">71</text>
+    <text x="247" y="130">69</text>
+    <text x="240" y="160">66</text>
+    <text x="236" y="190">64</text>
+    <text x="231" y="220">62</text>
+  </g>
+  <g font-size="17" font-weight="bold" text-anchor="middle">
+    <text x="322" y="41" fill="#1a6b2f">○</text>
+    <text x="322" y="71" fill="#1a6b2f">○</text>
+    <text x="322" y="101" fill="#1a6b2f">○</text>
+    <text x="322" y="131" fill="#1a6b2f">○</text>
+    <text x="322" y="161" fill="#1a6b2f">○</text>
+    <text x="322" y="191" fill="#999">×</text>
+    <text x="322" y="221" fill="#999">×</text>
+  </g>
+  <rect x="10"  y="244" width="12" height="12" fill="#1a6b2f"/><text x="26"  y="255" font-size="11">一致馬</text>
+  <rect x="86"  y="244" width="12" height="12" fill="#1a5fb4"/><text x="102" y="255" font-size="11">1st独自</text>
+  <rect x="170" y="244" width="12" height="12" fill="#c64600"/><text x="186" y="255" font-size="11">2nd独自</text>
+  <text x="250" y="255" font-size="11" fill="#666">薄い色＝落選</text>
+</svg>
+<div class="cap">サンプルレースの統合順位。上位5頭が選ばれたように見えますが、実際は次の「枠」で決まります</div>
+</div>
+
+<h3>8-3. 枠に入れて、最終C頭を決める</h3>
+
+<div class="step mg">
+  <p class="t"><span class="n">1</span>印を付ける（消さない）</p>
+  <p>最低基準点・低配当・回収率・大穴条件の印を付けます（4-7）。この段階で消える馬はいません。</p>
+  <p class="ln">フィルター本体：5103行〜（_mergeAiResults の中から呼ぶ）</p>
+</div>
+<p class="arrow">▼</p>
+
+<div class="step mg">
+  <p class="t"><span class="n">2</span>第1パス：枠を決めて上から確保</p>
+  <p>統合順位の上から順に見ていき、<b>人気側の枠</b>と<b>穴側の枠</b>に入れていきます。</p>
+  <ul>
+    <li>1〜6番人気 → 人気側の枠に空きがあれば選ぶ</li>
+    <li>資格ありの7番人気以下 → 穴側の枠に空きがあれば選ぶ</li>
+    <li>枠が満杯 → 見送り</li>
+    <li><b>資格のない7番人気以下</b> → 穴枠に入れない（根拠の弱い穴馬を数合わせで入れない）</li>
+    <li>最低基準点未満 → 第1パスでは後回し</li>
+    <li>C頭に達したら打ち切り</li>
+  </ul>
+  <p class="ln">6797行〜</p>
+</div>
+<p class="arrow">▼</p>
+
+<div class="step mg">
+  <p class="t"><span class="n">3</span>穴枠が空いたら、PHPが候補を作ることがある</p>
+  <ul>
+    <li>資格があるのに、どちらのAIの候補行にもいない馬がいる場合</li>
+    <li>その馬に<b>検証済みの全頭採点</b>があれば、その点数で候補行をPHPが作って穴枠に入れる</li>
+    <li>理由文は、確認できた数字（短縮率・複勝人気・OPIなど）だけで作る。推測では書かない</li>
+    <li>採点が無い馬は作らない</li>
+  </ul>
+  <p class="ln">6906行〜</p>
+</div>
+<p class="arrow">▼</p>
+
+<div class="step mg">
+  <p class="t"><span class="n">4</span>第2パス：足りなければ補充</p>
+  <ul>
+    <li>C頭に届かなければ、残りを統合順位の順に補充する（後回しにした最低基準点未満の馬もここで拾う）</li>
+    <li>ただし、資格のない7番人気以下は、数合わせには使わない</li>
+    <li>それでも足りなければ、足りない頭数のまま表示する（レースは止めない）</li>
+  </ul>
+  <p class="ln">7060〜7110行</p>
+</div>
+<p class="arrow">▼</p>
+
+<div class="step mg">
+  <p class="t"><span class="n">5</span>最終手段：0頭だけは避ける</p>
+  <ul>
+    <li>最終候補が0頭になり、AIの候補自体はある場合だけ発動</li>
+    <li>資格が「不明」の馬 → 資格が「不成立」の馬、の順に、統合順位の順で入れる（最大C頭）</li>
+    <li>「例外補充」と明記して、通常の候補と区別して記録する</li>
+  </ul>
+  <p class="ln">7112行〜</p>
+</div>
+
+<h3>8-4. サンプルレースで枠を埋めてみる</h3>
+<p>C＝5、配分は通常（<span class="chip fav">人気側 4枠</span><span class="chip long">穴側 1枠</span>）。統合順位の上から順に見ます。</p>
+<table>
+  <tr><th>順位</th><th>馬</th><th>人気</th><th class="l">判定</th><th>枠の状態</th></tr>
+  <tr><td>1</td><td>馬1</td><td>1</td><td class="l">1〜6番人気 → 人気側に空き</td><td><span class="chip fav">1</span><span class="chip empty">2</span><span class="chip empty">3</span><span class="chip empty">4</span><span class="chip empty">穴</span></td></tr>
+  <tr><td>2</td><td>馬4</td><td>3</td><td class="l">人気側に空き</td><td><span class="chip fav">1</span><span class="chip fav">2</span><span class="chip empty">3</span><span class="chip empty">4</span><span class="chip empty">穴</span></td></tr>
+  <tr><td>3</td><td>馬11</td><td>8</td><td class="l">7番人気以下だが<b>資格あり</b> → 穴枠に空き</td><td><span class="chip fav">1</span><span class="chip fav">2</span><span class="chip empty">3</span><span class="chip empty">4</span><span class="chip long">穴</span></td></tr>
+  <tr><td>4</td><td>馬7</td><td>5</td><td class="l">人気側に空き</td><td><span class="chip fav">1</span><span class="chip fav">2</span><span class="chip fav">3</span><span class="chip empty">4</span><span class="chip long">穴</span></td></tr>
+  <tr><td>5</td><td>馬2</td><td>2</td><td class="l">人気側に空き（これで4枠が埋まる）</td><td><span class="chip fav">1</span><span class="chip fav">2</span><span class="chip fav">3</span><span class="chip fav">4</span><span class="chip long">穴</span></td></tr>
+  <tr><td>6</td><td>馬9</td><td>6</td><td class="l">すでに5頭（＝C）なので打ち切り。人気側の枠も満杯</td><td>－</td></tr>
+  <tr><td>7</td><td>馬12</td><td>10</td><td class="l">打ち切り。資格もない7番人気以下</td><td>－</td></tr>
+</table>
+<div class="box">
+  <b>最終：馬1、馬4、馬11、馬7、馬2</b>（5頭）<br>
+  馬11は<b>2nd AIだけ</b>が選んだ馬ですが、資格ありだったので穴枠に入りました。<br>
+  もし資格がなければ、点が71でも穴枠には入れず、馬9（64点）より先に落ちていました。
+</div>
+<div class="ex"><b class="h">最低基準点で後回しになる例</b><br>
+  8番人気の馬が統合点58点（1〜10番人気の基準は60点）→ 第1パスでは選ばない。<br>
+  第1パスでC頭に届かなかったときだけ、第2パスで順位順に拾われる。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s9">9. 最後の仕上げと保存</h2>
+
+<div class="step php">
+  <p class="t"><span class="n">1</span>厳選穴レースの最終判定</p>
+  <p>最終候補が決まってから、PHPがもう一度判定します。</p>
+  <table>
+    <tr><th class="l">状況</th><th>結果</th></tr>
+    <tr><td class="l">条件B・C・Dのどれかが成立</td><td>0（穴レースではない）</td></tr>
+    <tr><td class="l">B・C・Dがすべて不成立、かつ 最終候補に7〜10番人気がいる</td><td>1（厳選穴レース）</td></tr>
+    <tr><td class="l">B・C・Dがすべて不成立、かつ 最終候補に7〜10番人気がいない</td><td>0</td></tr>
+    <tr><td class="l">成立なし・不明が残る、かつ 7〜10番人気がいる</td><td>不明</td></tr>
+    <tr><td class="l">成立なし・不明が残る、かつ 7〜10番人気がいない</td><td>0</td></tr>
+  </table>
+  <p class="note">サンプルレースは条件Bが成立しているので、馬11（8番人気）が最終候補にいても、<b>0（穴レースではない）</b>になります。</p>
+  <p class="ln">5501行〜</p>
+</div>
+<div class="step php">
+  <p class="t"><span class="n">2</span>保存・アプリへ返す</p>
+  <ul>
+    <li>最終候補（merged_horses）、厳選穴レース、レース指標をDBに保存（ai_merge_result）</li>
+    <li>アプリ（Flutter）へ返す</li>
+  </ul>
+</div>
+<div class="step php">
+  <p class="t"><span class="n">3</span>ログに記録</p>
+  <ul>
+    <li>[候補内訳]：各段階で何頭だったか（1st・2nd・最低基準点通過・低配当・回収率・C・最終）</li>
+    <li>[配分]：配分モード、目標配分、実際の配分、資格あり馬番</li>
+    <li>[AUDIT_MERGE]：全頭について「統合点・順位・選ばれたか・理由・購入見送りの印」</li>
+    <li>[AUDIT_HORSE]：馬ごとのF・R・Oや原値</li>
+  </ul>
+  <p class="ln">[AUDIT_MERGE] 7368行／[AUDIT_HORSE] 2670行</p>
+</div>
+<div class="easy"><b class="h">調べ方</b><br>
+  「この馬はなぜ選ばれなかったのか」は、[AUDIT_MERGE] のログで馬番を探すと、「人気側枠が満杯（4頭）」「資格未達の7番人気以下（穴枠に入れない）」のように理由が1頭ずつ書かれています。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s10">10. 理解チェック（クイズ）</h2>
+<p>タップすると答えが出ます。サンプルレースの数字で考えてください。</p>
+
+<details>
+  <summary>Q1. 単勝オッズが 9.0倍の馬に100円賭けて1着なら、いくら戻る？</summary>
+  <p>900円（100円 × 9.0）。</p>
+</details>
+<details>
+  <summary>Q2. 「複勝オッズが21分前4.0倍 → 6分前3.4倍」は、どういう意味？</summary>
+  <p>その馬にお金が入り続けて、オッズが下がったという意味です。短縮率は 100×(4.0−3.4)÷4.0 ＝ 15%。</p>
+</details>
+<details>
+  <summary>Q3. 3人気（4.1倍）と4人気（9.0倍）の間は断層？</summary>
+  <p>断層です。9.0 ÷ 4.1 ＝ 2.20 で、2.0以上だからです。</p>
+</details>
+<details>
+  <summary>Q4. 12頭立てだと、何頭選ぶ？</summary>
+  <p>C＝5頭です（9〜13頭立ては5頭）。</p>
+</details>
+<details>
+  <summary>Q5. 両AIが選んだ馬（78点と74点）の統合点は？</summary>
+  <p>(78＋74)÷2＋5 ＝ 81点です。</p>
+</details>
+<details>
+  <summary>Q6. 2nd AIだけが選んだ71点の8番人気（馬11）が、最終候補に入れたのはなぜ？</summary>
+  <p>「資格あり」だったからです。複勝が15%短縮して下がり続け（F成立）、単勝8番人気に対して複勝6位（差2でR成立）だったため、穴側の枠に入れました。</p>
+</details>
+<details>
+  <summary>Q7. 馬9（6番人気・64点）が落ちたのはなぜ？</summary>
+  <p>人気側の4枠が、馬1・馬4・馬7・馬2で先に埋まったからです（C＝5にも達していました）。</p>
+</details>
+<details>
+  <summary>Q8. 低配当の印が付いた馬は、候補から消える？</summary>
+  <p>消えません。印は「馬券を買うか見送るか」の判断に使うだけです。選出順位にも影響しません。</p>
+</details>
+<details>
+  <summary>Q9. 資格のない10番人気の馬（馬12・62点）は、候補が足りないときの数合わせに入る？</summary>
+  <p>入りません。根拠の弱い穴馬は、数合わせには使いません。足りなければ足りない頭数のまま表示します（ただし0頭になるときだけ例外補充）。</p>
+</details>
+<details>
+  <summary>Q10. 条件B（6番人気以内に断層が2か所以上）が成立すると、どうなる？</summary>
+  <p>厳選穴レースは0（穴レースではない）で確定します。選出前ゲートも不成立になるので、配分は通常です。</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="s11">11. 用語ミニ辞典</h2>
+<table>
+  <tr><th>言葉</th><th class="l">意味</th></tr>
+  <tr><td>6分前</td><td class="l">発走6分前のオッズ。この時点までのデータだけで予想する（確定オッズや結果は使わない）</td></tr>
+  <tr><td>単勝／複勝</td><td class="l">1着を当てる馬券／3着以内を当てる馬券</td></tr>
+  <tr><td>オッズ</td><td class="l">100円で当たったら何倍戻るか</td></tr>
+  <tr><td>人気</td><td class="l">オッズが安い順の順位</td></tr>
+  <tr><td>複勝最小</td><td class="l">複勝オッズの幅の小さい方</td></tr>
+  <tr><td>穴馬</td><td class="l">人気がなく、オッズが高い馬（主に7番人気以下）</td></tr>
+  <tr><td>断層</td><td class="l">隣り合う人気の単勝オッズの倍率が2.0以上の場所</td></tr>
+  <tr><td>OPI</td><td class="l">オッズから出す指標。小さいほど過小評価側として扱われる</td></tr>
+  <tr><td>推定確定オッズ</td><td class="l">最終的にこのくらいに落ち着きそう、とPHPが予測したオッズ</td></tr>
+  <tr><td>三値（成立／不成立／不明）</td><td class="l">データが足りないときは「不成立」にせず「不明」にする決まり</td></tr>
+  <tr><td>C（目標数）</td><td class="l">最終的に表示する頭数（4〜7）</td></tr>
+  <tr><td>統合おすすめ度</td><td class="l">2つのAIの点数を合算した最終の点数</td></tr>
+  <tr><td>一致馬</td><td class="l">両AIが公開の候補行に挙げた馬</td></tr>
+  <tr><td>人気側／穴側</td><td class="l">人気側＝1〜6番人気／穴側＝資格ありの7番人気以下</td></tr>
+  <tr><td>資格（F・R・O）</td><td class="l">穴枠に入れる条件。複勝の動き（F）と、複勝人気（R）または補正OPI（O）</td></tr>
+  <tr><td>配分モード</td><td class="l">通常／中／強。人気側と穴側の枠の数の組み合わせ</td></tr>
+  <tr><td>フラグ（印）</td><td class="l">購入判断のための注意の印。付いても候補からは消えない</td></tr>
+  <tr><td>第1パス／第2パス</td><td class="l">枠に入れていく1回目／足りないときの補充の2回目</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s12">12. 1枚まとめ・行番号</h2>
+
+<div class="box">
+  <b>流れ</b><br>
+  1. PHPが計算する（C、断層、資格、配分）<br>
+  2. 1st AIが最大C頭、2nd AIが最大5頭を選ぶ（別々に）<br>
+  3. PHPがチェックする（DBで上書き、おかしい行は無効、上限超えは絞る）<br>
+  4. PHPが合算する（一致馬は平均＋5点）<br>
+  5. 点数順に並べて、人気側の枠と穴側の枠に入れる<br>
+  6. 足りなければ補充する（資格のない穴馬は使わない）<br>
+  7. 厳選穴レースを最終判定して、保存する<br><br>
+  <b>覚える4つ</b><br>
+  ・穴枠に入れるのは「資格あり」の馬だけ<br>
+  ・「印」は購入判断用。選出からは消えない<br>
+  ・AIは別々に選ぶ。配分はPHPが決める<br>
+  ・足りなければ、足りないまま表示する
+</div>
+
+<table>
+  <tr><th class="l">内容</th><th>行</th></tr>
+  <tr><td class="l">目標数C（targetSelectionCount）</td><td>649</td></tr>
+  <tr><td class="l">上限超えの絞り込み（_trimAiCandidates）</td><td>680</td></tr>
+  <tr><td class="l">1st AIの入口（getHorseOddsFinderAiAnalysis）</td><td>801</td></tr>
+  <tr><td class="l">1st AIのAPI呼び出し</td><td>1004</td></tr>
+  <tr><td class="l">プロンプト作成（_getAiAnalysisPrompt）</td><td>1179</td></tr>
+  <tr><td class="l">条件B・C・D</td><td>2142〜2220</td></tr>
+  <tr><td class="l">断層タイプ判定</td><td>2237〜2300</td></tr>
+  <tr><td class="l">資格F・R・Oの計算</td><td>2330〜2410</td></tr>
+  <tr><td class="l">下位開放S1〜S3、選出前ゲート</td><td>2448〜2515</td></tr>
+  <tr><td class="l">配分表・配分モード</td><td>2539〜</td></tr>
+  <tr><td class="l">人気帯の目安（C≦3）</td><td>2750〜2775</td></tr>
+  <tr><td class="l">採点の指示（信頼度・妙味）</td><td>3110〜3200</td></tr>
+  <tr><td class="l">2nd AIの入口（getHorseOddsFinderSecondAiOpinion）</td><td>3600</td></tr>
+  <tr><td class="l">2nd AIの上限5頭</td><td>4151</td></tr>
+  <tr><td class="l">DeepSeek呼び出し</td><td>4601</td></tr>
+  <tr><td class="l">回答のチェック（Block16）</td><td>4828〜5019</td></tr>
+  <tr><td class="l">印のフィルター（最低基準点・低配当・回収率・大穴）</td><td>5103〜</td></tr>
+  <tr><td class="l">合算の呼び出し</td><td>5450</td></tr>
+  <tr><td class="l">厳選穴レースの最終判定（Block15）</td><td>5501</td></tr>
+  <tr><td class="l">合算本体（_mergeAiResults）</td><td>6512</td></tr>
+  <tr><td class="l">枠の確保（第1パス）</td><td>6797</td></tr>
+  <tr><td class="l">第2パス（補充）</td><td>7060</td></tr>
+  <tr><td class="l">0頭回避</td><td>7112</td></tr>
+  <tr><td class="l">[AUDIT_MERGE]</td><td>7368</td></tr>
+</table>
+
+</body>
+</html>
