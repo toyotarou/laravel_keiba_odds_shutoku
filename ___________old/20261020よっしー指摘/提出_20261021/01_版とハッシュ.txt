@@ -1,0 +1,62 @@
+馬眼力 r12.2  版とハッシュ
+作成 2026年10月20日（JST）／実装担当
+
+══ 版 ══
+  implementation_version   baganriki-v041-r12-2-20261020
+  prompt_version           baganriki-v041-r12-2-20261020
+  schema_version           baganriki-v041-r12-2
+  snapshot_hash_version    exact-common-payload-sha256-r8
+  time_contract.version    baganriki-post-slot-grace-v1
+  診断の版                 r122-diagnose-v1
+  指紋の方式ID             per-row-length-prefixed-sha256-ordered-by-pk-v1
+  投票締切の出どころ       JRA_INTERNET_1MIN_BEFORE_POST
+
+══ 今回のコード（提出_20261021/code/）══
+  AiController.php
+    行数     25390
+    MD5      3b99c9cf6112c16c8cb0e2960e3d59f0
+    SHA-256  e2d21e2699ec7354f622fd8467cd710b02f3a4adfd7211f91d2865d2821fd95d
+  SummaryAiAnalysisCompensate.php
+    行数     16466
+    MD5      81124c3db75328cb9a5d9a89ff99ecb3
+    SHA-256  b33040bfa845715271036a7ffef6985803ad9fcc346e1d931434b676c04ee8ab
+
+══ 差分の比較元（10月20日005で確認いただいた版）══
+  この2本のSHA-256は、005の「識別と技術参照」に書かれていた値と一致します。
+  AiController.php
+    SHA-256  0f5fd227d6676b6578359ea68788fa61907f83000a5a9e18d4adb570abd6f6a8
+  SummaryAiAnalysisCompensate.php
+    SHA-256  901baab3377864935443f8422005d936b9888d8ae6e126ef4c5ae23a36117ced
+
+  差分（diff -u 比較元 → 今回）
+    diff/AiController.diff                  4519 行  256748 バイト
+    diff/SummaryAiAnalysisCompensate.diff   2819 行  180733 バイト
+
+  ※ 005で「0バイトで比較できない」とご指摘いただいた件について。
+     前回は差分の生成に失敗していました。今回は中身のある差分を付けています。
+
+══ 今回変更していないファイル ══
+  app/Console/Commands/ImportKeibaOdds.php
+    SHA-256  58381752b7dea46687a46247e605a0e16103d6c6c42b182858bbcedb1635fd22
+    10月20日提出版から1バイトも変わっていません。サーバにあるものが最新です。
+
+  両AI本文3本・Schema3本・設定1本
+    配布された正本と全バイト一致のまま使っています。こちらから書き換えていません。
+
+══ サーバの実環境 ══
+  ホスト   さくらインターネット VPS（CentOS）
+  アプリ   /var/www/horse_odds_finder
+  DB       MySQL 8.4.9  スキーマ horse_odds_finder
+  PHP      8.3.6
+  置換先   app/Http/Controllers/Api/AiController.php
+           app/Console/Commands/SummaryAiAnalysisCompensate.php
+  退避先   ~/baganriki_20261018/before_v49_<時刻>/（切戻し用。置換前を毎回退避）
+
+══ いまの .env ══
+  BAGANRIKI_R122_PROMPT             shadow   （入力を組んで凍結・記録するが、AIへは旧本文を送る）
+  BAGANRIKI_R122_QUEUE              0        （off）
+  BAGANRIKI_R122_AUDIT              1
+  BAGANRIKI_SALES_CLOSE_DERIVE      1
+  BAGANRIKI_SALES_CLOSE_OFFSET_SEC  60
+  BAGANRIKI_PAST_RUNS_MAX           5
+  BAGANRIKI_MARKET_PRIOR            （未設定＝既定1・載せる）

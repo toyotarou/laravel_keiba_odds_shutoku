@@ -1,0 +1,79 @@
+{
+    "generated_at": "2026-10-21T06:25:10+09:00",
+    "method": "per-row-length-prefixed-sha256-ordered-by-pk-v1",
+    "note": "列は N（NULL）か V<バイト数>:<値>。行の先頭に主キー id。主キー順に逐次SHA-256。主キーの並びも別にSHA-256。",
+    "tables": {
+        "t_horse_odds_finder_odds": {
+            "rows": 8283,
+            "id_min": 1,
+            "id_max": 8300,
+            "rows_sha256": "417519301a5a618c473fb7c9eff88d3ee72179884f5b8430143102db423167b2",
+            "keys_sha256": "21c341918060b2d8184954f5936520593d6d31fe9db24e2509045e08bd6aa219",
+            "columns": [
+                "id",
+                "date",
+                "kaisuu",
+                "basho",
+                "day",
+                "race",
+                "num",
+                "minutes_before_start",
+                "odds",
+                "fuku_min",
+                "fuku_max"
+            ]
+        },
+        "t_horse_odds_finder_horses": {
+            "rows": 922,
+            "id_min": 1,
+            "id_max": 939,
+            "rows_sha256": "614c98ec0cdcc0738d36a57efd11dee12f8385d0d0030f7600dfa21ad11863a3",
+            "keys_sha256": "9ad6fd64d772bccf5f7b47172b3ccab0d68f4e8bc17576c4a2a637f78fafe68d",
+            "columns": [
+                "id",
+                "date",
+                "kaisuu",
+                "basho",
+                "day",
+                "race",
+                "waku",
+                "num",
+                "name"
+            ]
+        },
+        "t_horse_odds_finder_races": {
+            "rows": 72,
+            "id_min": 1,
+            "id_max": 73,
+            "rows_sha256": "440a7d424fbe70b74592482a3caf0827edc90deca6372b1c7396396197c7faa9",
+            "keys_sha256": "dacfd4e3c9c5185676cad12c589d96dbe9a7a7964aa32dfb4f6dc50da86eb18e",
+            "columns": [
+                "id",
+                "date",
+                "kaisuu",
+                "basho",
+                "day",
+                "race",
+                "start_time",
+                "num_horses"
+            ]
+        },
+        "t_horse_odds_finder_race_results": {
+            "rows": 916,
+            "id_min": 1,
+            "id_max": 916,
+            "rows_sha256": "41164b3b5752df074c571480eac3a8a5a09a8e89a84ed8ed022f2fbbd8f8af64",
+            "keys_sha256": "5891d4ca476d4b6939ec4c130f5df37093ea116cddc3b155e6f58b9575502f26",
+            "columns": [
+                "id",
+                "date",
+                "kaisuu",
+                "basho",
+                "day",
+                "race",
+                "num",
+                "result"
+            ]
+        }
+    }
+}

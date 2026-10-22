@@ -1,0 +1,39 @@
+# ══════════════════════════════════════════════════════════════════════
+# @ANCHOR-20261021-R122-WORKER  r12.2 の常駐worker（systemd）
+# ══════════════════════════════════════════════════════════════════════
+# なるの推奨は supervisord ですが、このサーバには supervisord が
+# 入っていません（/etc/supervisord.d がなく、サービスも動いていません）。
+# CentOS なので systemd は確実に在ります。
+# テンプレート（@）で、待ち行列ごとに枠を立てます。
+#
+#   systemctl enable --now 'r122-worker@r122-ai-1st:1'
+#   systemctl enable --now 'r122-worker@r122-ai-1st:2'
+#   systemctl enable --now 'r122-worker@r122-ai-2nd:1'
+#   systemctl enable --now 'r122-worker@r122-ai-2nd:2'
+#   systemctl enable --now 'r122-worker@r122-agg:1'
+#   systemctl enable --now 'r122-worker@r122-freeze:1'
+#
+#   止めるとき  systemctl disable --now 'r122-worker@*'
+#
+# 中身は /usr/local/bin/r122-worker.sh に出しています。
+# systemd の ExecStart で $ と % を書くと解釈が変わるためです。
+# ══════════════════════════════════════════════════════════════════════
+[Unit]
+Description=baganriki r12.2 queue worker (%i)
+After=network.target mariadb.service mysqld.service
+
+[Service]
+Type=simple
+User=apache
+Group=apache
+WorkingDirectory=/var/www/horse_odds_finder
+ExecStart=/usr/local/bin/r122-worker.sh %i
+Restart=always
+RestartSec=3
+# --max-time=3600 で自分から降りるので、毎時立て直しになります
+SuccessExitStatus=0
+StandardOutput=append:/var/www/horse_odds_finder/storage/logs/r122_worker.log
+StandardError=append:/var/www/horse_odds_finder/storage/logs/r122_worker.log
+
+[Install]
+WantedBy=multi-user.target

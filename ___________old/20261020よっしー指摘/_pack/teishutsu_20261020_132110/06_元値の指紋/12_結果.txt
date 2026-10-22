@@ -1,0 +1,32 @@
+### 新方式（切り捨ての起きない方法。今回からの基準）
+t	rows_n	id_min	id_max	xor_fp	sum_fp
+odds	8283	1	8300	75efeaeeb425b2e3	4730711642396520526112
+horses	922	1	939	6badc58a67e2416	518677473936188688073
+races	72	1	73	21d67d13dad220b2	43705731933393529753
+race_results	916	1	916	1b86e011cd8715ad	529028738762307976954
+
+### 従来方式（group_concat_max_len を 1GB に広げたとき）
+group_concat_max_len
+1073741824
+t	rows_n	fp	concat_len
+odds	8283	b165d10297c17c0ac502367b988b0d25	321153
+horses	922	aaeb08f043b83c31ea73f0954b63aba5	43237
+races	72	4950c0051a3033431e1bdafaee1522bc	2306
+race_results	916	3de5791046add335e2721869fd0b1f24	22804
+
+### 従来方式（group_concat_max_len が既定のまま＝10/20提出時と同じ条件）
+group_concat_max_len
+1024
+group_concat_max_len
+1024
+t	rows_n	fp	concat_len
+odds	8283	bcba698ed03855c2853df74839b542f8	1024
+horses	922	16f97810a2bdb18838166a005b50add5	1024
+races	72	8e8e8ee3b9ff9df5e9b3740a9e68d028	1024
+race_results	916	8bb127a8b6bb6d46e48d08f5a56c1be6	1024
+
+### 10/20提出時の基準値（従来方式・既定のまま）
+odds         8283  bcba698ed03855c2853df74839b542f8
+horses        922  16f97810a2bdb18838166a005b50add5
+races          72  8e8e8ee3b9ff9df5e9b3740a9e68d028
+race_results  916  8bb127a8b6bb6d46e48d08f5a56c1be6

@@ -1,0 +1,194 @@
+馬眼力 r12.1 導入手順（エンジニア向け）
+
+前提と今回確認した現行コード
+対象：AiController(20261017-054624).zip内のAiController.php。
+現行コード全体を置き換えるのではなく、新しいキュー処理と読取APIへr12.1を接続する。
+PHP＋Pythonの構成。全ワーカーは同じ1台のホストに置き、同じ永続SQLiteを参照する。
+既存DBテーブルは書き換えない。元値・元プロンプト・元応答は保持する。
+
+1. 現行のどこを通さないか
+getHorseOddsFinderAiAnalysis内、_getAiAnalysisPrompt呼出し以降の旧経路をr12.1では使用しない。
+・1331行付近の旧firstAiSystemPromptには「人気帯別頭数上限は廃止」「能力適性だけで候補を決めない」等がある。r8の指示と併用しない。
+・public/baganriki_brain/baganriki_brain.txtの追記はCOLLECT_ONLYへ混入させない。
+・2ndの旧oddsData再構成、1st待ち、旧publicCandidateNums、_trimAiCandidates、_mergeAiResultsへr12.1結果を戻さない。
+・旧analysis_textの正規表現はr8のJSONを扱えない。新API DTOを使う。
+行番号は提供ファイルの確認位置。改版されたコードでは関数名と上記処理で照合すること。
+
+2. 配置とインストール
+アプリ専用の永続ディレクトリ（例：/opt/baganriki/r12_1）へZIP内ファイルを配置する。
+python3 -m venv /opt/baganriki/r12_1/.venv
+/opt/baganriki/r12_1/.venv/bin/python -m pip install -r /opt/baganriki/r12_1/requirements-test.lock.txt
+/opt/baganriki/r12_1/.venv/bin/python /opt/baganriki/r12_1/verify.py
+DBの例：/var/lib/baganriki/r12_1.sqlite。Webユーザーとキューユーザーの必要な権限を同一グループ等で揃える。SQLite本体だけでなく親ディレクトリとWAL/SHMを作成可能にする。
+新APIに既存の認証・認可を適用する。内部cliを公開HTTPへ直接出さない。
+
+PHPロード例
+require_once '/opt/baganriki/r12_1/php/BaganrikiR12Bridge.php';
+require_once '/opt/baganriki/r12_1/php/RoleWorker.php';
+require_once '/opt/baganriki/r12_1/php/PublicView.php';
+$bridge = new \Baganriki\BaganrikiR12Bridge('/opt/baganriki/r12_1/.venv/bin/python', '/opt/baganriki/r12_1', '/var/lib/baganriki/r12_1.sqlite');
+PHP側でPythonへ渡すパスをユーザー入力から組み立てない。
+
+3. DB exportを1レース単位で作る
+既存t_horse_odds_finder_oddsのnum、minutes_before_start、odds、fuku_min、fuku_maxに対応。
+実際のDB列/ログからobserved_at、available_atを対応づける。提供Controllerだけでは取得時刻の意味を確定できないため、列を勝手にcreated_at等と決めていない。
+exportの必須トップキー：race_id、cutoff_at、time_contract、runners、odds_rows、coverage。
+runners各行：horse_no（整数）、win_rank（整数・凍結1..N）、band（A/B/D）。
+odds_rows各行：num（整数）、minutes_before_start（整数）、odds/fuku_min/fuku_max（元の十進数文字列またはnull）、observed_at、available_at（タイムゾーン付きISO日時）。
+time_contractはdemo_seed.jsonの形に従い、anchor_kind、anchor_at、cutoff_atの実運用基準と整合させる。
+coverageキー：past_runs、OPI、estimated_odds、recovery_statistics、similar_statistics、legacy_qualifications、gap_history。
+各値は {"status":"INCLUDED","source_refs":[...]} または {"status":"UNAVAILABLE","reason":"実際の不足理由"}。
+利用できる既存データをUNAVAILABLEと偽って省略しない。
+追加情報の格納：extra_sources（registry要素の配列）、extra_field_catalog、extra_indices。
+追加数値もDB由来の十進数文字列として渡す。adapter.pyが明示カタログに基づき変換する。
+生のレース結果・払戻を現在の入力に混ぜない。過去成績や統計はcutoffまでに利用できたものに限定する。
+
+$prepared = $bridge->prepareExport($exportJson);
+返却値：input_json['1st'/'2nd']、prompts['1st'/'2nd']、common_json、snapshot_hash。
+input_jsonをPHPでdecode→encodeしてから送らない。文字列のまま保管・送信する。
+$bridge->install($prepared['input_json']['1st'], $generation);
+ここで凍結入力を保存。generationは正の整数。凍結後の再時刻付けや自動置換は拒否される。
+
+4. AI呼出しは独立した2つのキュージョブにする
+HTTPリクエスト内で18頭の両AI＋訂正まで待たない。先に受付を返し、画面はread APIを参照する。
+installを先に完了し、php/RoleWorker.phpへroleごとのsystem、input_json、reply_deadline、既存AIクライアントのcallback、generationを渡す。
+callbackの引数は(system, user, timeoutSeconds)。戻り値は['text'=>原応答文字列,'complete'=>真偽値]。
+1stは既存AnthropicService、2ndは現在のDeepSeek呼出しに接続するが、メッセージ本文は渡されたsystem/userのみ。
+自動再試行は1回のAPI呼出しにつき0回。RoleWorkerが必要な訂正を最大1回行う。
+finish_reasonが長さ打切り、未完了、通信失敗ならcomplete=trueにしない。実APIの終了条件をクライアントで確認する。
+APIのモデル・max_tokens・タイムアウトは現在利用するモデルの設定と実出力で決める。既存コードの8192等を根拠なく流用しない。
+RoleWorkerは1stの回答を2ndへ渡さない。API前に呼出枠を予約し、各応答を訂正開始前に同じ永続DBへ原文で記録する。戻り値の保存を親ジョブへ委ねない。
+complete=falseも原文と別フラグで保存する。SDK内の自動リトライは無効。未完了でも正常JSONに見える応答を候補として採用しない。
+run($system,$inputJson,$replyDeadline,$provider,$generation)は再実行しても同じ役割の予約済み枠を再発行しない。
+php/LaravelIntegration.example.phpに接続関数あり。既存サービス全体・認証情報が未提供のため、サービス登録やキュー名は自プロジェクトに合わせる。
+
+5. 統合・公開
+親ジョブは保存済み原応答をpublishSavedで統合する。応答配列を手作業で組み立てて渡さない。
+$state = $bridge->read($raceId);
+$live = $state['live_state'];
+$intent = [
+  'race_id'=>$raceId, 'generation'=>$live['generation'],
+  'state_revision'=>$live['state_revision'],
+  'publication_revision'=>$live['publication_revision'],
+  'response_revision'=>$state['worker_state']['response_revision'], 'job_id'=>$uniqueJobId
+];
+このintentをジョブの永続ペイロードへ一度保存してから投入する。再実行時に版番号を読み直さない。
+$result = $bridge->publishSaved($intent['race_id'],$intent['generation'],$intent['state_revision'],
+    $intent['publication_revision'],$intent['response_revision'],$intent['job_id']);
+php/LaravelIntegration.example.phpのprepareBaganrikiPublication / commitBaganrikiPublicationが対応する。
+3つのrevisionを整合した読取トランザクションで固定する。検証中は書込みロックを解放し、保存直前の短い取引で同じrevisionか再確認する。古い版なら失敗し、保存済みの良い応答は残る。
+最新状態で再統合する場合は新しいintentと新しいjob_idを作る。同じjob_idを新しい内容へ使い回さない。
+同じintentの再実行は、他AIの新応答や取消が届いた後でも、以前保存した同じpublication_idを返す。
+その返却値は履歴であり、画面表示は最新readとPublicViewの取消オーバーレイから作る。
+片側結果を先に公開できる。他方が届いたら、新しいintentで期限内に再統合する。
+統合ジョブは応答/失敗保存後に投入し、回復用にreply_deadline到達時にも投入する。両側を無期限に待たない。
+旧publish(...responses)は再生・互換検証用。ジャーナルのあるレースでは拒否する。
+
+6. 取消・締切前倒し・表示
+$bridge->updateLive($raceId,$expectedStateRevision,$allCancelledHorseNumbers,$earlierCloseOrNull);
+取消は累積集合で渡す。すでに記録した取消の解除や締切延長は拒否される。
+公開期限前なら、更新済みstate_revisionで統合ジョブを再実行できる。
+期限後は取消オーバーレイだけ更新し、候補の追加・入替はしない。
+$stored=$bridge->read($raceId);
+$dto=\Baganriki\PublicView::build($stored,$horseNamesByNo);
+新APIはこのDTOを返す。Flutterは馬名、馬番、帯、事実説明、取消、縮退・不足フラグを表示する。
+publication_idは正式予想の識別子。live_state_revisionは最新取消状態。両者の版を同一視しない。
+原AI explanationを直接表示しない。おすすめ度100点や勝率にmerge順位点を流用しない。
+購入推奨はこの版ではfalse。購入契約完成後に別実装を接続する。
+
+7. 導入判定
+同梱のverify.pyとPHP試験を、対象サーバーの実Python/PHPで実行する。
+php php/test_bridge.php は再生試験。
+python php/make_test_fixture.py の直後に php php/test_worker.php で、模擬AI→訂正→保存→重複実行→取消→読取を試験できる。環境変数BAGANRIKI_PYTHONにvenvの絶対パスを指定する。
+実DB exportの値・時刻・全項目対応を照合し、実AI最大18頭＋訂正の終了状態・出力量・所要時間を確認する。
+PHP版・サービスAPI・キュー・SQLite権限・画面の接続はruntime_contract.template.jsonへ記録する。
+新APIへ本番トラフィックを切り替える前に、保存済み実レースの同一snapshotで照合する。
+
+8. 今回の実装で意図的に無効なもの
+COLLECT_ONLY以外の学習段階、未検証のX6集計、購入推奨。禁止入力はエラーで止める。
+X6の正しい過去データがない間はUNKNOWNとし、他信号からmodeが一意なら候補を出す。
+旧X6相当の別定義統計を有効な同一定義だと見なさない。
+既存の購入フラグ・学習文をr12.1へ無条件で足さない。
+
+9. r7から引き継いだ接続条件
+・r12.1のprompt_versionはbaganriki-v041-r12-1-quota-20261017。marker、schema_version、hash方式はr8を維持する。旧版の本文・設定・応答を混ぜない。
+・既存DBへr12.1を直接向けない。/var/lib/baganriki/r12_1.sqlite等の別DBを用い、既存履歴を保存したまま新規レースから切り替える。進行中のsnapshotを再生成しない。
+・direct prepareのseedにもcoverageを必須で渡す。prepareExportだけの項目ではない。read.input_auditで7区分の利用可否・不足理由を確認できる。
+・SALES_CLOSE_TIMEはanchor_atと凍結sales_close_atを同じ時刻にする。POST_TIMEはanchor_atを正本の発走時刻と照合する。凍結後の前倒しはupdateLiveへ渡す。
+・親ジョブはread.live_state.effective_publish_deadlineを最終の公開上限として扱う。前倒しにより元のpublish_deadlineより早まる場合がある。
+・inspectのrepair_scopeは評価行、順位帯、公開表示、最上位項目を区別する。文字列のrequestをRoleWorkerがそのまま訂正AIへ渡す。
+・APIはPUBLIC_CANDIDATE_VALIDATION_FAILEDとPARTIAL_AI_VALIDATIONを表示し、正常候補を旧フィルターで削らない。
+・PHP試験には、対象外の帯順位保持・公開フラグ訂正・coverage読取も含む。実サーバーのPython/PHPで同梱試験を実行してから接続する。
+
+10. r8の追加検証
+・summary_horsesは集計・レビューの訂正範囲。既存の評価行修正と混同しない。RoleWorkerは生成された訂正文をそのまま渡す。
+・深いJSONや不正Unicodeは当該応答を拒否し、正常な他AI/初回を継続利用する。全体500へ変換しない。
+・6分前単勝オッズと凍結順位の逆転は、正本の入力対応を調査する。自動で人気やオッズを上書きしない。
+・php/make_test_fixture.pyを生成してからphp/test_fault_isolation.phpも実行する。異常な片側と正常な他AIの公開・保存を確認する。
+・r9は途中保存・再起動復旧を実装済み。導入サーバーでもtest_journal.py、php/test_durability.phpを実行し、永続DBパスとキュー再実行時の共有を確認する。
+
+11. r9の永続化と復旧
+ai_attemptsの主キーはrace_id/generation/ai_role/attempt_no。各roleは初回0と訂正1の最大2枠。
+予約をcommitしてからAIを呼ぶ。応答をcommitしてから訂正を判定する。訂正中に停止しても保存済み初回から公開可能。
+2ワーカーが同時起動しても、同じ枠の送信許可は1つ。期限切れのRESERVEDを自動解除・再送しない。
+API呼出し中や応答保存前の停止は、プロバイダ側で実行済みか確定できない。この場合は当該枠を結果不明として残し、別AIまたは保存済み初回を使う。無条件の再送で回数制約を破らない。
+DB保存の応答確認だけ失った場合は、同じtoken/原文/受領時刻/completeによるcomplete再送が冪等。ただしRoleWorker自体はAPI呼出しを再送しない。
+read.worker_state.slotsのRESERVEDとoutcome_unknownで期限経過後の結果不明を検出できる。tokenや原文はreadへ出さない。
+response_revisionは予約または終端状態への変更で増える。4枠すべて受領なら8。単なるAI回答数とは異なる。
+complete/fail/claim/worker_stateは認証された内部経路専用。tokenを画面や外部ログへ公開しない。
+入力JSONと応答1本は各4MiB、内部の外側通信JSONは64MiB。Unicode/制御文字のエスケープで外側が膨らんでも原文を切らない。
+応答時刻はRoleWorkerがAPI戻り直後に記録する。プロバイダが本文に書いた時刻を使わない。reply_deadlineはマイクロ秒を保持して照合する。
+短縮済みlive_closeも呼出枠の期限へ反映する。呼出し開始後に締切が前倒しされた場合、返答が来ても公開時の最新締切検査が優先される。
+SQLiteは同期モードFULL/WAL、同一ホストの永続ローカルDBを全キューで共有する。コンテナごとの一時DBや別々のコピーでは重複防止にならない。
+DBのバックアップはSQLiteのオンラインバックアップ等、WALを含む整合した方法を使う。稼働中DB本体だけの単純コピーで復旧しない。
+旧DBの履歴を消さず、r12.1専用DBに新規レースから切り替える。進行中のレースは既存版で完了させる。
+
+PHP試験（導入先の実PHPでも実行）
+python php/make_test_fixture.py
+php php/test_worker.php
+php php/test_durability.php
+php php/test_fault_isolation.php
+fixtureの期限を過ぎた場合はmake_test_fixture.pyを再実行する。これは合成試験だけの時刻更新であり本番snapshotを更新しない。
+
+12. r10の追加接続条件
+・重い入力/応答検証中は書込みロックを持たない。別AIの応答保存、取消、締切前倒しを妨げない。
+・検証中にresponse_revision/state_revision/publication_revisionが変わると公開はstaleで拒否される。旧結果を強制保存せず、新しいintentとjob_idを投入する。
+・同一intentが同時に完了しても保存は1回。同じ公開IDを返す。
+・claimは自roleの予約/受領状態を保存直前に再確認する。途中変更でSTATE_CHANGEDを返す場合は追加AIを呼ばず、保存済み応答を返す。キュー復旧で再確認できる。
+・診断中に期限を超えたら予約しない。最新状態が全頭取消なら初回/訂正とも予約しない。
+・reply_deadline等の時刻引数はサーバーの時刻。空文字/false/0で「締切変更なし」を表さない。未変更はnull。同一時刻のタイムゾーン表記違いは版を増やさない。
+・prepare生成後も役割別入力を4MiB以内か確認する。超過は入力作成時に明示的なエラーとし、利用できる元データを黙って削らない。導入側で項目構成を見直す。
+・破損したroleの応答一覧、3本以上の応答一覧はそのroleだけを不採用にする。正常なもう片側は公開可能。3本目の採用や自動追加呼出しは行わない。
+・PublicViewはr12.1版をBridge/Storeと一緒に切り替える。read.live_stateへ現在active_count、publication_target_count、publication_quotaを追加した。
+・DTOのactive_count、actual_quota、available_candidate_countは現在の取消を反映する。prediction_*は正式公開時の値。
+・DTOのpublication_target_count/publication_quotaは正式公開時の目標/配分を保持する。最新頭数の目安はlive_target_count/live_quotaで別表示する。16→15頭で目標7→6になる等の場合にも、期限後の候補削除・補充で履歴を改変しない。
+・未公開は期限内PENDING、期限超過UNAVAILABLE、全頭取消CANCELLED。公開済みはPUBLISHED（全頭取消時CANCELLED）。status_flagsの不足/取消/状態変更を画面へ反映する。
+・PublicView::buildの第3引数nowはテスト用。HTTP本番は省略しサーバーの現在時刻を使う。
+・追加確認：php php/test_public_view.php。期限ちょうど/超過、取消、現頭数、残り候補数、正式予想の不変性を確認できる。
+
+13. r11の境界検証
+・BridgeクラスはBaganrikiR12Bridge。RoleWorker/PublicView/Timestamp.phpも同じ版を配置する。AI向けmarker、schema_version、hash方式はr8のまま。prompt_versionはbaganriki-v041-r12-1-quota-20261017。
+・日時はYYYY-MM-DDTHH:MM:SS[.1～6桁](Zまたは±HH:MM)。小文字t/zも同値。秒以下7桁以上、秒省略、空白区切り、週日付は拒否する。元の時刻を勝手に丸めて締切内へ入れない。
+・数値128桁、調整後指数−308～308はネイティブDTOにも適用する。ゼロの指数も範囲内にする。prepare/install成功後に読めない入力を残さない。
+・nonselect_reason/public_candidateの型不正は表示訂正として扱う。他馬や正常な穴根拠を再評価させない。
+・CONTEXTは派生値でも単独のSIGNALにならない。正常な個別SIGNALが別にあれば候補資格を維持する。
+・追加試験：python test_r11_regressions.py、python php/make_test_fixture.py、php php/test_time_boundary.php。
+・全Python検証：python verify.py。PHPはtest_bridge/test_worker/test_durability/test_fault_isolation/test_public_view/test_time_boundary/test_exact_jsonの7本を実行する。fixture期限を過ぎたら合成fixtureだけを再生成する。
+
+14. r12.1の数値表示・保存更新契約
+・BaganrikiR12Bridge.phpはExactJson.phpを自動ロードする。RoleWorker、PublicView、Timestamp、ExactJsonも同梱版で配置する。
+・Bridgeが返すPHP配列では、小数/指数表記の数値は原トークンの文字列、大きな整数は文字列で保持する。馬番・頭数・revision等の通常整数は整数のまま。数値の桁や値を丸めずにHTTP JSONへ渡せる。
+・画面用facts/counterfactsにvalue_type（number/string/boolean/null）を追加。value_type=numberのvalueは整数または十進数文字列として表示する。floatキャストやJavaScript Numberで一律に再変換しない。計算が必要なら任意精度の十進数処理を使う。
+・prepare返却のinputsはPHPでの確認用。AI送信/再保存/数値再計算は必ずinput_json/common_jsonの原文を使う。callRawは原JSONを返すため、PHPで構造化する場合はExactJson::decodeを使う。
+・ライブ締切は安全余裕を引いた実効期限が扱える範囲か保存前に検査する。取消更新は馬番配列のみ。object/null/文字列を空配列扱いしない。同じ馬番の重複は従来どおり正規化する。
+・公開の検証中/commit直前の時計逆行は取引を戻す。訂正予約時に過去の予約/受領時刻より時計が戻っていればCLOCK_ROLLBACKで予約しない。原因を確認し、正常時刻へ復旧後に保存済み状態から再開する。
+・既存履歴や正常なAI応答は残る。不正入力の値を勝手に丸めたり書き換えて再送しない。
+・追加試験：python test_r12_regressions.py、python php/make_test_fixture.py、php php/test_exact_json.php。PHPは従来6本＋数値試験の計7本。
+・runtime_contract.template.jsonのrelease表記をr12.1へ整合。本番検証のfalseはローカル合格だけでtrueに変えない。
+
+15. r12.1の配分改訂
+C7 MIXEDの基本配分をA/B/D=3/3/1へ更新。1stは3/3/1、2ndは1/3/1。C7 VOLATILEとC6の配分は維持する。
+config.json、reference.py、prompt_1st/2nd.txt、input/output_schema.json、store.pyを含む一式を同時に配置する。PHPの互換クラス名BaganrikiR12Bridgeは維持する。
+新規レースからr12.1専用経路・DBへ切り替える。旧r12の凍結snapshotと原応答は旧版で完了させ、新版へ付け替えない。
+python test_quota_revision.pyを含むverify.pyを実行し、C7混戦3/3/1・2nd1/3/1・穴枠不足時のA補充禁止・取消後C6配分を確認する。
+本番受入欄は実環境で確認するまでfalseを維持する。

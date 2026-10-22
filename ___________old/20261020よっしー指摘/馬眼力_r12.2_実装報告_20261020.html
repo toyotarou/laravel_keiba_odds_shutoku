@@ -1,0 +1,97 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>馬眼力 r12.2 実装報告</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:0 16px 56px;font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+ line-height:1.8;color:#1b1b1b;font-size:16px;max-width:560px;margin:0 auto;background:#fff;
+ -webkit-text-size-adjust:100%}
+h1{font-size:21px;line-height:1.5;margin:22px 0 4px;padding-bottom:10px;border-bottom:3px solid #1b1b1b}
+h2{font-size:17px;margin:34px -16px 12px;padding:9px 16px;background:#1b1b1b;color:#fff}
+h3{font-size:15.5px;margin:22px 0 8px;padding-left:9px;border-left:5px solid #888}
+p{margin:10px 0}
+.meta{font-size:12.5px;color:#555;margin:6px 0 18px}
+.box{border:2px solid #1b1b1b;border-radius:8px;padding:13px;margin:16px 0}
+.ok{border-color:#1a6b1a;background:#f3fbf3}
+.warn{border-color:#8a5a00;background:#fffdf3}
+.stop{border-color:#b00;background:#fff5f5}
+.big{font-size:18px;font-weight:bold;line-height:1.6}
+.k{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #e3e3e3;align-items:baseline}
+.k:last-child{border-bottom:none}
+.k b{flex:0 0 38%;font-weight:600;font-size:14px;color:#333}
+.k span{flex:1;font-size:14.5px}
+.card{border:1px solid #ccc;border-radius:8px;padding:11px 13px;margin:11px 0;background:#fafafa}
+.card h4{margin:0 0 6px;font-size:15px}
+.card p{margin:5px 0;font-size:14.5px}
+.pass{color:#1a6b1a;font-weight:bold}
+.miss{color:#b00;font-weight:bold}
+code{background:#eee;padding:1px 5px;border-radius:4px;font-size:13px;
+ word-break:break-all;font-family:ui-monospace,Menlo,monospace}
+ul,ol{padding-left:1.25em;margin:9px 0}
+li{margin:7px 0;font-size:15px}
+.small{font-size:13px;color:#555}
+.ask{border:2px solid #8a5a00;border-radius:8px;padding:13px;margin:14px 0;background:#fffdf3}
+.ask h4{margin:0 0 8px;font-size:16px}
+.opt{border:1px solid #c9a86a;border-radius:6px;padding:9px 11px;margin:8px 0;background:#fff}
+.opt b{display:block;margin-bottom:3px}
+.num{display:inline-block;min-width:1.7em;font-weight:bold}
+hr{border:none;border-top:1px solid #ddd;margin:26px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0}
+th,td{border:1px solid #ccc;padding:5px 7px;text-align:left}
+th{background:#efefef;font-weight:600}
+</style>
+</head><body>
+<h1>馬眼力 r12.2<br>実装のご報告</h1>
+<div class="meta">2026年10月20日（JST）／ 実装担当より<br>対象：変更計画書 文書版1.2・基本設計書1.0・詳細設計書1.0・<code>server_contract_r12.2</code>・<code>r122_contract.json</code>・プロンプト3本・Schema3本・validation一式<br>版 <code>baganriki-v041-r12-2-20261020</code></div>
+<div class="box ok"><div class="big">ご指定の①②③は、そのまま実装しました。</div><p>そのうえで、同梱いただいた期待値ファイルと機械的に突き合わせ、<b>全件一致</b>しました。</p><div class="k"><b>mode判定</b><span><span class="pass">729件 / 不一致 0</span></span></div><div class="k"><b>取得境界</b><span><span class="pass">4件 / 不一致 0</span></span></div><div class="k"><b>付録Aの配分</b><span><span class="pass">33件 / 不一致 0</span></span></div><div class="k"><b>本体の受入試験</b><span><span class="pass">426件 / 不合格 0</span></span></div></div>
+<div class="box warn"><p><b>ただし、まだ公開できません。</b></p><p>判定・配分・時刻・検証の<b>規則</b>と、保存する<b>器</b>までは出来ています。ここから先に、こちらでは決められないことが<b>2つ</b>残っています。第6章にまとめました。</p></div>
+<h2>1. ご指定の3点</h2>
+<div class="card"><h4>① X6 ─ B案</h4><p>過去類似成績によるX6は使いません。N≧7で <code>null</code>、N＜7で <code>false</code>。</p><p class="small">汎用統計や任意のフラグで代用していません。将来の有効化は、類似の定義・母数50件の数え方・検証・切替条件が決まってからにします。</p></div>
+<div class="card"><h4>② 取得期限 ─ +30秒 / +120秒</h4><p>6分前は予定時刻＋30秒、21・18・15・12・9分前は＋120秒。基準は発走時刻（<code>POST_TIME</code>）。情報上限は発走5分30秒前。</p><p class="small">期限ちょうどは可、1マイクロ秒でも後なら不採用。旧「<code>available_at ≦ cutoff_at</code>」「観測はスロット予定以前」の検査は置き換えました。</p></div>
+<div class="card"><h4>③ 暫定配分 ─ MIXED / VOLATILE</h4><p>不明がX6だけのとき、S0＝1はMIXED、S0＝3はVOLATILE。正式modeは <code>UNKNOWN</code> のまま、<code>mode_status=PROVISIONAL</code>、星は出しません。</p><p class="small">X6以外の不明が混ざったときは例外を広げず、<code>UNRESOLVED</code>（<code>allocation_mode=null</code>・選出しない）にしています。</p></div>
+<p class="small">あわせて、実装はLaravel＋Flutterのみ。追加の実行言語・Pythonブリッジ・SQLiteは本番の前提にしていません。学習は <code>COLLECT_ONLY</code>・<code>model_version=null</code>、購入推奨は <code>false</code>（<code>PENDING_VALIDATION</code>）で、公開候補を削る理由にはしていません。</p>
+<h2>2. 突き合わせの結果</h2>
+<div class="card"><h4>mode_cases.json ─ 729件</h4><p>X1〜X5・Zの三値を全部並べた組合せ（X6=null固定）。<code>mode</code>／<code>mode_status</code>／<code>allocation_mode</code>／<code>mode_policy_id</code>／<code>selection_enabled</code>／<code>S</code>／<code>S_min</code>／<code>S_max</code>／<code>display_rating</code> の9項目を比較。</p><p class="pass">不一致 0件</p></div>
+<div class="card"><h4>acquisition_boundary_cases.json ─ 4件</h4><p>6分前＋30秒ちょうど／その1マイクロ秒後、9分前＋120秒ちょうど／その1マイクロ秒後。</p><p class="pass">不一致 0件</p></div>
+<div class="card"><h4>変更計画書 付録A ─ 33レース</h4><p>NとS0から、比較側1st・採用1st・採用2nd の A/B/D を再計算。構造上いない帯の枠移動（D→B→A）も含めて照合しました。</p><p class="pass">不一致 0件</p></div>
+<div class="card"><h4>本体の受入試験 ─ 426件</h4><p>従来の330件に、r12.2用の96件（T01〜T05・D01〜D04・Q03・順位点・統合の+5・訂正の採否・表示状態など）を足しました。</p><p class="pass">不合格 0件</p></div>
+<p class="small">突き合わせに使ったコードは、本番ファイルから機械的に抜き出したものです。別実装を作って合格させたものではありません。</p>
+<h2>3. 10/17・18 の72レース</h2>
+<table><tr><th>区分</th><th>件数</th></tr><tr><td>確定（CONFIRMED）</td><td>39 レース（54.2%）</td></tr><tr><td>暫定選出（PROVISIONAL）</td><td>33 レース（45.8%）</td></tr><tr><td>UNRESOLVED</td><td>0 レース</td></tr><tr><td>計算不能</td><td>0 レース</td></tr></table>
+<p>S0＝1が21レース（暫定MIXED）、S0＝3が12レース（暫定VOLATILE）。ご指定の「確定39／暫定33」と一致しました。信号・Sの範囲・元の正式modeも変わっていません。</p>
+<div class="card"><h4>取消の扱い</h4><p>「取消」の印がある馬は<b>3頭</b>でした。</p><p>凍結前が2頭（10/17 東京6日目5R 馬番5／10/18 新潟2日目5R 馬番3）。どちらも全時点が取消なので、頭数から外しています。</p><p><b>凍結後が1頭</b>（10/18 京都7日目9R 馬番7）。6分前39.8・3分前47.6まで実オッズがあり、発走時にだけ取消でした。契約どおり<b>残して</b>います。N=8のまま、凍結順位・帯・信号・modeは作り直していません。着順が7頭（馬番7だけ無い）であることも確認しました。</p></div>
+<div class="box warn"><p><b>この72レースは、新しい取得契約の合格ではありません。</b></p><p class="small">既存DBに要求・受信・利用可能の時刻が無いためです（第6章）。契約7.2の <code>REPLAY_ONLY</code> として、数式と配分の回帰にだけ使っています。</p></div>
+<h2>4. 作ったもの</h2>
+<h3>判定と検証（8クラス）</h3>
+<div class="card"><h4><code>BaganrikiSignals</code></h4><p>三値論理、隣接ペアのW/P、X1〜X6・Z、S・S_min・S_max、mode・mode_status・allocation_mode・mode_policy_id・星</p></div>
+<div class="card"><h4><code>BaganrikiAllocation</code></h4><p>目標頭数C、3帯quota、構造調整（D→B→A・<code>reason=BAND_CAPACITY</code>）、2ndの配分（C&gt;5は A=5−B−D）</p></div>
+<div class="card"><h4><code>BaganrikiTime</code></h4><p>スロット予定と期限、<code>cutoff_at</code>・<code>input_freeze_at</code>、公開期限・応答期限と前倒し、RFC3339の厳密読込（小数秒0〜6桁・マイクロ秒比較）</p></div>
+<div class="card"><h4><code>BaganrikiAcquisition</code></h4><p>採用バッチの選定（<code>available_at</code>→受信→<code>batch_id</code>バイト順）、6分前の全頭同一バッチ条件、<code>collection_audit</code> の組立</p></div>
+<div class="card"><h4><code>BaganrikiSnapshot</code></h4><p>4つの頭数の分離、出馬表必須、凍結順位の非減少検査、十進数の厳密比較、共通JSONとSHA-256</p></div>
+<div class="card"><h4><code>BaganrikiRanking</code></h4><p>SCORE/EVIDENCEの判定、<code>rank_score</code>、統合と+5、評価後の不足の埋め方、取消後の公開quota</p></div>
+<div class="card"><h4><code>BaganrikiResponse</code></h4><p>BEGIN/END抽出、応答全体の照合、馬ごとの隔離、訂正の採否</p></div>
+<div class="card"><h4><code>BaganrikiPublicView</code></h4><p>表示状態、暫定の文言、読取DTO</p></div>
+<p class="small">すべて <code>AiController.php</code> の中に置いています。新しいファイルは増やしていません。18,000行を超えて読みづらくなっていたので、この機会に役割ごとに切り出しました。切り出しの前後で出力が1バイトも変わらないことを確認済みです。</p>
+<h3>保存（新規テーブル9本）</h3>
+<p>詳細設計書9章のとおりに作成しました。<b>既存テーブルには一切触れていません</b>（件数も変わっていないことを確認済み）。</p>
+<table><tr><th>テーブル</th><th>役目</th></tr><tr><td><code>race_runs</code></td><td>レース単位の処理記録</td></tr><tr><td><code>acquisition_batches</code></td><td>取得監査（実時刻）</td></tr><tr><td><code>snapshots</code></td><td>凍結入力・hash・時刻契約</td></tr><tr><td><code>live_states</code></td><td>取消・3つのrevision</td></tr><tr><td><code>ai_attempts</code></td><td>呼出枠（初回0・訂正1）</td></tr><tr><td><code>validation_results</code></td><td>検証結果・局所回復</td></tr><tr><td><code>publication_intents</code></td><td>公開intent</td></tr><tr><td><code>publications</code></td><td>公開履歴（追記型）</td></tr><tr><td><code>audit_events</code></td><td>監査イベント</td></tr></table>
+<p class="small">原入力・原応答は <code>LONGTEXT</code> で原文のまま保持し、MySQLのJSON変換後だけを正本にしません。日時列はマイクロ秒まで保持します。内部tokenは公開APIへ出しません。</p>
+<h3>読取API</h3>
+<p><code>GET /api/baganriki/r12-2/races/{race_id}</code> を追加しました。正式公開（<code>publication</code>）と現在のライブ状態（<code>live_state</code>）を分けて返します。読み取りだけで、AI送信も再選出も起こしません。原AI応答・予約token・内部認証情報は返しません。</p>
+<h2>5. 守ったこと（抜粋）</h2>
+<ul><li>旧「mode=UNKNOWNなら必ず停止」を置き換えました。UNKNOWNで選出できるのは、ご指定のPROVISIONALの2条件だけです。</li><li>旧「UNKNOWNなら配分はMIXEDを流用」を<b>やめました</b>。UNRESOLVEDでは <code>allocation_mode=null</code>・<code>selection_enabled=false</code> で配分を作りません。</li><li>C7混戦の配分を 4/2/1 から <b>3/3/1</b> へ直しました。C7混戦・波乱の2ndは 1/3/1 です。</li><li>3分前・発走時は<b>取消の監視と事後監査だけ</b>に読み、数値は信号へ入れていません。</li><li>オッズは十進数文字列を1万倍の整数で保持し、PHP float を一度も通していません。丸めた比率で判定していません。</li><li>欠損は FALSE に倒さず UNKNOWN として伝播させています。</li><li>評価後の不足は D は B だけ、B は D だけ。<b>B・D の不足を A で埋めていません。</b></li><li>取消で人気を詰め直していません。期限後は <code>live_state</code> だけ更新し、正式publicationを上書きしません。</li><li>応答の <code>mode</code>・<code>mode_status</code>・<code>allocation_mode</code>・<code>mode_policy_id</code> が入力と違えば応答ごと不採用にします。AIが暫定を確定へ書き換えることはできません。</li><li>訂正は各role最大1回。正常な根拠を消す訂正、complete を partial へ悪化させる訂正は採用せず、初回を保持します。</li></ul>
+<h2>6. ご確認をお願いしたいこと</h2>
+<div class="box stop"><p><b>この2つが埋まらないと、新しい開催では動きません。</b>どちらもこちらでは決められません。</p></div>
+<div class="ask"><h4>お願い① 投票締切（sales_close_at）の正本</h4><p>公開期限は「投票締切−60秒」ですが、<b>投票締切の値がDBのどこにもありません</b>。<code>races</code> にあるのは発走時刻だけで、全45テーブルを確認しましたが該当する列はありませんでした。</p><p>契約11.2が「正本が特定できないレースは公開しない」なので、ここが決まるまで公開できません。発走時刻から一定秒数を引いて作ることは禁止されていると理解しています。</p><div class="opt"><b>A：取得元と列を教えていただく</b>いただければ取り込みます。いちばん早いです。</div><div class="opt"><b>B：新しく取得する経路をこちらで作る</b>どこから取るかの指定が要ります。作業が1〜2日増えます。</div><div class="opt"><b>C：当面は非公開の検証だけにする</b>公開はしません。取得・凍結・AI・統合までは動かせます。</div></div>
+<div class="ask"><h4>お願い② 取得時刻の記録を足す件のご承認</h4><p>新しい取得契約は、要求開始・受信完了・利用可能・<code>batch_id</code>・原ペイロードで判定します。<b>既存DBにはどれもありません。</b>（<code>get_datetime</code> は保存完了時刻なので、流用していません）</p><p>保存先のテーブルは作りました。あとは<b>オッズ取得の処理に記録を足す</b>だけです。既存の取得処理に手を入れることになるので、先にお伝えします。</p><div class="opt"><b>A：足してよい</b>既存の列と値は変えず、新しいテーブルへ書くだけにします。24日の検証にはこれが必要です。</div><div class="opt"><b>B：既存の取得処理は触らない</b>新しい開催での取得は契約どおりに判定できません。保存済みデータの再生だけになります。</div></div>
+<h2>7. まだ出来ていないこと</h2>
+<p>規則と器は出来ましたが、つなぐ部分が残っています。正直に書きます。</p>
+<ul><li><b>取得監査の記録</b>（お願い②）</li><li><b>凍結処理の本番接続</b>。判定・配分・hashは動きますが、snapshotを実際に保存する処理は未接続です。</li><li><b>Queueと永続予約</b>。予約してから1回だけ送る、再起動で枠を再発行しない、の実装が残っています。</li><li><b>実AIクライアントの接続と18頭の実測</b>。初回・訂正の受領時間とサイズを測る必要があります。</li><li><b>Flutter</b>。読取APIは生えましたが、画面はこれからです。</li><li><b>33レースの候補の中身の比較</b>。配分（指定枠）は付録Aと一致しましたが、馬番・順序・根拠IDの比較には保存済みの全頭評価が要ります。無い場合は推測で埋めず、別枠の再生評価として作り、費用・実行日時・モデル設定・原応答を記録します。</li></ul>
+<div class="box warn"><p><b>10月24日・25日の見通し。</b></p><p>規則の部分は合っています。残っているのは解釈ではなく作業量と、第6章の2件です。木曜・金曜はこちらの作業時間がほとんど取れません。</p><p><b>こちらから「間に合う」「間に合わない」とは申しません。</b>どこまで終わっていて何が残っているかをお伝えしますので、範囲を削るか、日程をずらすか、非公開の検証だけにするかをご判断いただければと思います。</p></div>
+<h2>8. 版とハッシュ</h2>
+<table><tr><th>ファイル</th><th>行数</th><th>md5</th></tr><tr><td><code>AiController.php</code></td><td>19,491</td><td><code>a7d6b015384d90dd5426f9099a88ceb1</code></td></tr><tr><td><code>SummaryAiAnalysisCompensate.php</code></td><td>12,059</td><td><code>5cce3c2d4645559f6c5d5289f5c6a7da</code></td></tr><tr><td><code>routes/api.php</code></td><td>193</td><td><code>d6d7437ba60063fd256b64bc8b35aa09</code></td></tr></table>
+<p class="small">本番サーバへ反映済み。構文検査OK。受入試験426件すべて合格。既存テーブルの件数（オッズ8,283／レース72／出馬表922／着順916）に変化がないことを確認しています。<code>BAGANRIKI_V04_ENABLED</code> は既定の無効のままで、現行の本番選出・表示・DBは変わっていません。</p>
+<hr>
+<div class="box"><p><b>この合格が意味すること・意味しないこと。</b></p><p class="small"><b>意味すること：</b>mode判定・暫定規則・配分・取得境界・凍結集合・順位・応答検証・表示の<b>解釈が一致している</b>こと。保存先のテーブルが用意できたこと。</p><p class="small"><b>意味しないこと：</b>実DB・Queue・実AI・Flutterの受入、新しい開催で実際に取得時刻が間に合うこと、本番稼働、予測精度の向上。これは契約14章に書かれているとおりです。</p></div>
+<p class="small">不整合や解釈の取り違えがありましたら、該当箇所をお知らせください。直します。</p>
+</body></html>

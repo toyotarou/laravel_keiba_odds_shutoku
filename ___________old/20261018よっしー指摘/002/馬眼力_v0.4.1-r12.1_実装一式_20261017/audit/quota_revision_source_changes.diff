@@ -1,0 +1,558 @@
+--- r12/reference.py
++++ r12.1/reference.py
+@@ -36,7 +36,7 @@
+  4: {'FIRM':(3,1,0),'MIXED':(2,2,0),'VOLATILE':(2,1,1)},
+  5: {'FIRM':(4,1,0),'MIXED':(3,2,0),'VOLATILE':(2,2,1)},
+  6: {'FIRM':(4,2,0),'MIXED':(3,2,1),'VOLATILE':(3,2,1)},
+- 7: {'FIRM':(5,2,0),'MIXED':(4,2,1),'VOLATILE':(3,3,1)},
++ 7: {'FIRM':(5,2,0),'MIXED':(3,3,1),'VOLATILE':(3,3,1)},
+ }
+ STRUCTURAL = {'D':('B','A'),'B':('D','A'),'A':('B','D')}
+ ELIGIBLE_FILL = {'D':('B',),'B':('D',),'A':('B','D')}
+--- r12/store.py
++++ r12.1/store.py
+@@ -119,7 +119,7 @@
+             result['effective_publish_deadline']=r.publication_deadline(inp['time_contract']['publish_deadline'],st['live_close'],margin).isoformat()
+             rev=publication_revision+1
+             result.update(generation=generation,state_revision=state_revision,publication_revision=rev,
+-                implementation_version='baganriki-v041-r12-exact-transport-20261017')
++                implementation_version='baganriki-v041-r12-1-quota-20261017')
+             if response_revision is not None:result['response_revision']=response_revision
+             cur=self.db.execute('INSERT INTO publications(race_id,snapshot_hash,generation,state_revision,publication_revision,job_id,request_hash,result_json,responses_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                 (race_id,st['snapshot_hash'],generation,state_revision,rev,job_id,request_hash,'{}',r.json_dumps(responses),now))
+--- r12/config.json
++++ r12.1/config.json
+@@ -1,5 +1,5 @@
+ {
+-  "prompt_version": "baganriki-v041-r8-local-recovery-20261017",
++  "prompt_version": "baganriki-v041-r12-1-quota-20261017",
+   "schema_version": "baganriki-v041-r8-1",
+   "base_quota": {
+     "4": {
+@@ -60,8 +60,8 @@
+         0
+       ],
+       "MIXED": [
+-        4,
+-        2,
++        3,
++        3,
+         1
+       ],
+       "VOLATILE": [
+--- r12/common_prompt.txt
++++ r12.1/common_prompt.txt
+@@ -13,6 +13,11 @@
+ 8. Nは凍結snapshotの頭数。6分前以降の取消はPHPの別状態更新で処理する。AIは現在の出走頭数を推測してNや人気を詰め直さず、入力のN頭を評価する。取消後の最終公開候補はPHPが除外・再配分する。
+ 9. mode=UNKNOWNならselection_enabled=false、quota/role_quota=null、role_cap=0。全頭の評価・順位は返せるがpublic_candidates=[]、公開フラグfalse、shortfalls=[]、非選出理由SELECTION_DISABLEDとする。UNKNOWNをFIRMに変えない。基礎入力不正DATA_INVALIDはPHP側で止め、このAIへ送らない。
+ 10. 校正済み確率がない場合、H/V点・OPI・過去回収率を勝率や数学的期待値と呼ばない。EVを創作しない。
++
++【7頭・混戦の配分契約（r12.1）】
++構造調整前のC=7・MIXED基本配分はA/B/D=3/3/1。1～6番人気3頭、7～10番人気3頭、11番人気以下1頭とする。C=7・VOLATILEも3/3/1、C=6・MIXED/VOLATILEは3/2/1。
++構造調整のないC=7・MIXED/VOLATILEでは、1stのrole_quotaは3/3/1、2ndは最大5頭の中で1/3/1。2ndも穴側4頭を比較・選出する。両AIとも全N頭を評価する。
++構造上の実在頭数不足による調整はPHPが確定し、AIはINPUT_JSONのquota/role_quotaに従う。評価後の穴側不足は人気側へ移さず、不足と根拠を記録する。
+ 
+ 【入力の読み方】
+ source_registryが数値・事実の正本。各source_refに、値、レース、対象馬またはペア、項目、単位、観測時刻、利用可能時刻、派生関係が付いている。
+@@ -78,7 +83,7 @@
+ {JSON}
+ <<<BAGANRIKI_V041_R8_END>>>
+ schema_version="baganriki-v041-r8-1"。
+-prompt_version="baganriki-v041-r8-local-recovery-20261017"。
++prompt_version="baganriki-v041-r12-1-quota-20261017"。
+ 追加キー、Markdown、旧候補行、旧11項目JSON、重複キー、NaN/Infinity、数値文字列、末尾カンマ、単独のサロゲート文字は禁止。JSONの入れ子は最大64階層、整数・小数は最大128桁。
+ トップレベル必須キー：schema_version,prompt_version,ai_role,race_id,snapshot_hash,selection_enabled,mode,target_count,role_cap,quota,role_quota,learning_stage,horses,band_ranks,evidence_band_ranks,public_candidates,shortfalls,validation_issues。
+ horsesの必須キー：horse_no,band,tier,eligibility,family_review,evidence,counterevidence,scores,score_evidence,score_status,total_score,observed_sum,observed_cap,rank_basis,rank_reason,evidence_rank_evidence_ids,evidence_rank_reason,public_candidate,nonselect_reason,explanation。
+--- r12/prompt_1st.txt
++++ r12.1/prompt_1st.txt
+@@ -15,6 +15,11 @@
+ 8. Nは凍結snapshotの頭数。6分前以降の取消はPHPの別状態更新で処理する。AIは現在の出走頭数を推測してNや人気を詰め直さず、入力のN頭を評価する。取消後の最終公開候補はPHPが除外・再配分する。
+ 9. mode=UNKNOWNならselection_enabled=false、quota/role_quota=null、role_cap=0。全頭の評価・順位は返せるがpublic_candidates=[]、公開フラグfalse、shortfalls=[]、非選出理由SELECTION_DISABLEDとする。UNKNOWNをFIRMに変えない。基礎入力不正DATA_INVALIDはPHP側で止め、このAIへ送らない。
+ 10. 校正済み確率がない場合、H/V点・OPI・過去回収率を勝率や数学的期待値と呼ばない。EVを創作しない。
++
++【7頭・混戦の配分契約（r12.1）】
++構造調整前のC=7・MIXED基本配分はA/B/D=3/3/1。1～6番人気3頭、7～10番人気3頭、11番人気以下1頭とする。C=7・VOLATILEも3/3/1、C=6・MIXED/VOLATILEは3/2/1。
++構造調整のないC=7・MIXED/VOLATILEでは、1stのrole_quotaは3/3/1、2ndは最大5頭の中で1/3/1。2ndも穴側4頭を比較・選出する。両AIとも全N頭を評価する。
++構造上の実在頭数不足による調整はPHPが確定し、AIはINPUT_JSONのquota/role_quotaに従う。評価後の穴側不足は人気側へ移さず、不足と根拠を記録する。
+ 
+ 【入力の読み方】
+ source_registryが数値・事実の正本。各source_refに、値、レース、対象馬またはペア、項目、単位、観測時刻、利用可能時刻、派生関係が付いている。
+@@ -80,7 +85,7 @@
+ {JSON}
+ <<<BAGANRIKI_V041_R8_END>>>
+ schema_version="baganriki-v041-r8-1"。
+-prompt_version="baganriki-v041-r8-local-recovery-20261017"。
++prompt_version="baganriki-v041-r12-1-quota-20261017"。
+ 追加キー、Markdown、旧候補行、旧11項目JSON、重複キー、NaN/Infinity、数値文字列、末尾カンマ、単独のサロゲート文字は禁止。JSONの入れ子は最大64階層、整数・小数は最大128桁。
+ トップレベル必須キー：schema_version,prompt_version,ai_role,race_id,snapshot_hash,selection_enabled,mode,target_count,role_cap,quota,role_quota,learning_stage,horses,band_ranks,evidence_band_ranks,public_candidates,shortfalls,validation_issues。
+ horsesの必須キー：horse_no,band,tier,eligibility,family_review,evidence,counterevidence,scores,score_evidence,score_status,total_score,observed_sum,observed_cap,rank_basis,rank_reason,evidence_rank_evidence_ids,evidence_rank_reason,public_candidate,nonselect_reason,explanation。
+--- r12/prompt_2nd.txt
++++ r12.1/prompt_2nd.txt
+@@ -16,6 +16,11 @@
+ 8. Nは凍結snapshotの頭数。6分前以降の取消はPHPの別状態更新で処理する。AIは現在の出走頭数を推測してNや人気を詰め直さず、入力のN頭を評価する。取消後の最終公開候補はPHPが除外・再配分する。
+ 9. mode=UNKNOWNならselection_enabled=false、quota/role_quota=null、role_cap=0。全頭の評価・順位は返せるがpublic_candidates=[]、公開フラグfalse、shortfalls=[]、非選出理由SELECTION_DISABLEDとする。UNKNOWNをFIRMに変えない。基礎入力不正DATA_INVALIDはPHP側で止め、このAIへ送らない。
+ 10. 校正済み確率がない場合、H/V点・OPI・過去回収率を勝率や数学的期待値と呼ばない。EVを創作しない。
++
++【7頭・混戦の配分契約（r12.1）】
++構造調整前のC=7・MIXED基本配分はA/B/D=3/3/1。1～6番人気3頭、7～10番人気3頭、11番人気以下1頭とする。C=7・VOLATILEも3/3/1、C=6・MIXED/VOLATILEは3/2/1。
++構造調整のないC=7・MIXED/VOLATILEでは、1stのrole_quotaは3/3/1、2ndは最大5頭の中で1/3/1。2ndも穴側4頭を比較・選出する。両AIとも全N頭を評価する。
++構造上の実在頭数不足による調整はPHPが確定し、AIはINPUT_JSONのquota/role_quotaに従う。評価後の穴側不足は人気側へ移さず、不足と根拠を記録する。
+ 
+ 【入力の読み方】
+ source_registryが数値・事実の正本。各source_refに、値、レース、対象馬またはペア、項目、単位、観測時刻、利用可能時刻、派生関係が付いている。
+@@ -81,7 +86,7 @@
+ {JSON}
+ <<<BAGANRIKI_V041_R8_END>>>
+ schema_version="baganriki-v041-r8-1"。
+-prompt_version="baganriki-v041-r8-local-recovery-20261017"。
++prompt_version="baganriki-v041-r12-1-quota-20261017"。
+ 追加キー、Markdown、旧候補行、旧11項目JSON、重複キー、NaN/Infinity、数値文字列、末尾カンマ、単独のサロゲート文字は禁止。JSONの入れ子は最大64階層、整数・小数は最大128桁。
+ トップレベル必須キー：schema_version,prompt_version,ai_role,race_id,snapshot_hash,selection_enabled,mode,target_count,role_cap,quota,role_quota,learning_stage,horses,band_ranks,evidence_band_ranks,public_candidates,shortfalls,validation_issues。
+ horsesの必須キー：horse_no,band,tier,eligibility,family_review,evidence,counterevidence,scores,score_evidence,score_status,total_score,observed_sum,observed_cap,rank_basis,rank_reason,evidence_rank_evidence_ids,evidence_rank_reason,public_candidate,nonselect_reason,explanation。
+--- r12/input_schema.json
++++ r12.1/input_schema.json
+@@ -6,7 +6,7 @@
+       "const": "baganriki-v041-r8-1"
+     },
+     "prompt_version": {
+-      "const": "baganriki-v041-r8-local-recovery-20261017"
++      "const": "baganriki-v041-r12-1-quota-20261017"
+     },
+     "race_id": {
+       "type": "string",
+--- r12/output_schema.json
++++ r12.1/output_schema.json
+@@ -6,7 +6,7 @@
+       "const": "baganriki-v041-r8-1"
+     },
+     "prompt_version": {
+-      "const": "baganriki-v041-r8-local-recovery-20261017"
++      "const": "baganriki-v041-r12-1-quota-20261017"
+     },
+     "ai_role": {
+       "enum": [
+--- r12/server_contract.txt
++++ r12.1/server_contract.txt
+@@ -1,4 +1,4 @@
+-第3部 r12 実装契約（r8プロトコル＋永続ワーカー・境界検証）
++第3部 r12.1 実装契約（r8プロトコル＋永続ワーカー・境界検証）
+ 
+ 1. 構成と責務
+ engine.pyが入力作成・検証、原応答の局所回復、訂正、順位、両AI統合、取消後の候補を処理する。
+@@ -49,8 +49,8 @@
+ N1～3:C=N、4～8:C4、9～13:C5、14～15:C6、16～18:C7。
+ A=1～6人気、B=7～10人気、D=11以下。配分はconfig.jsonとreference.BASEの一致を契約試験で必須検証する。
+ C4 堅3/1/0 中2/2/0 強2/1/1、C5 堅4/1/0 中3/2/0 強2/2/1。
+-C6 堅4/2/0 中3/2/1 強3/2/1、C7 堅5/2/0 中4/2/1 強3/3/1。
+-r5比率を維持。中も3＋4へ変更した版ではない。配分変更はconfig・試験・指示を同時に版更新する。
++C6 堅4/2/0 中3/2/1 強3/2/1、C7 堅5/2/0 中3/3/1 強3/3/1。
++r12.1でC7混戦を人気側3頭＋穴側4頭へ変更した。C7混戦・波乱の2ndはA/B/D=1/3/1。設定・実装・両AI本文・試験・仕様書を同じ版で切り替える。
+ 構造不存在の調整と評価後の不足を区別する。評価後のB/D不足をAへ流さない。
+ 
+ 6. 原応答、局所回復、訂正
+@@ -93,7 +93,7 @@
+ 同梱試験の合格はローカル実装の確認。本番Laravelの反映済み・実AIの成功・予測精度向上・将来の全入力で不具合ゼロを表さない。
+ 
+ 10. r9永続ワーカー契約
+-AI向けr8の本文/Schema/版/hash/配分は変更しない。実行パッケージ版はr12。
++実行パッケージ版はr12.1。prompt_version=baganriki-v041-r12-1-quota-20261017へ更新し、C7混戦の配分を3/3/1へ変更する。schema_version・marker・hash方式はr8を維持する。旧prompt_versionの応答を混在させない。
+ 各race/generation/roleに初回0・訂正1の2枠のみ。予約commit後に送信し、原応答とcompleteをcommitしてから訂正を開始する。
+ 予約済み枠を重複キュー・期限切れ・再起動で再発行しない。初回未受領またはFAILEDでは訂正を予約しない。正常初回で訂正不要なら1枠だけ。
+ 初回保存後の停止は再起動で訂正判定を再開できる。訂正の結果不明/失敗時は初回の正常部分を保持する。
+--- r12/INSTALL.txt
++++ r12.1/INSTALL.txt
+@@ -1,32 +1,32 @@
+-馬眼力 r12 導入手順（エンジニア向け）
++馬眼力 r12.1 導入手順（エンジニア向け）
+ 
+ 前提と今回確認した現行コード
+ 対象：AiController(20261017-054624).zip内のAiController.php。
+-現行コード全体を置き換えるのではなく、新しいキュー処理と読取APIへr12を接続する。
++現行コード全体を置き換えるのではなく、新しいキュー処理と読取APIへr12.1を接続する。
+ PHP＋Pythonの構成。全ワーカーは同じ1台のホストに置き、同じ永続SQLiteを参照する。
+ 既存DBテーブルは書き換えない。元値・元プロンプト・元応答は保持する。
+ 
+ 1. 現行のどこを通さないか
+-getHorseOddsFinderAiAnalysis内、_getAiAnalysisPrompt呼出し以降の旧経路をr12では使用しない。
++getHorseOddsFinderAiAnalysis内、_getAiAnalysisPrompt呼出し以降の旧経路をr12.1では使用しない。
+ ・1331行付近の旧firstAiSystemPromptには「人気帯別頭数上限は廃止」「能力適性だけで候補を決めない」等がある。r8の指示と併用しない。
+ ・public/baganriki_brain/baganriki_brain.txtの追記はCOLLECT_ONLYへ混入させない。
+-・2ndの旧oddsData再構成、1st待ち、旧publicCandidateNums、_trimAiCandidates、_mergeAiResultsへr12結果を戻さない。
++・2ndの旧oddsData再構成、1st待ち、旧publicCandidateNums、_trimAiCandidates、_mergeAiResultsへr12.1結果を戻さない。
+ ・旧analysis_textの正規表現はr8のJSONを扱えない。新API DTOを使う。
+ 行番号は提供ファイルの確認位置。改版されたコードでは関数名と上記処理で照合すること。
+ 
+ 2. 配置とインストール
+-アプリ専用の永続ディレクトリ（例：/opt/baganriki/r12）へZIP内ファイルを配置する。
+-python3 -m venv /opt/baganriki/r12/.venv
+-/opt/baganriki/r12/.venv/bin/python -m pip install -r /opt/baganriki/r12/requirements-test.lock.txt
+-/opt/baganriki/r12/.venv/bin/python /opt/baganriki/r12/verify.py
+-DBの例：/var/lib/baganriki/r12.sqlite。Webユーザーとキューユーザーの必要な権限を同一グループ等で揃える。SQLite本体だけでなく親ディレクトリとWAL/SHMを作成可能にする。
++アプリ専用の永続ディレクトリ（例：/opt/baganriki/r12_1）へZIP内ファイルを配置する。
++python3 -m venv /opt/baganriki/r12_1/.venv
++/opt/baganriki/r12_1/.venv/bin/python -m pip install -r /opt/baganriki/r12_1/requirements-test.lock.txt
++/opt/baganriki/r12_1/.venv/bin/python /opt/baganriki/r12_1/verify.py
++DBの例：/var/lib/baganriki/r12_1.sqlite。Webユーザーとキューユーザーの必要な権限を同一グループ等で揃える。SQLite本体だけでなく親ディレクトリとWAL/SHMを作成可能にする。
+ 新APIに既存の認証・認可を適用する。内部cliを公開HTTPへ直接出さない。
+ 
+ PHPロード例
+-require_once '/opt/baganriki/r12/php/BaganrikiR12Bridge.php';
+-require_once '/opt/baganriki/r12/php/RoleWorker.php';
+-require_once '/opt/baganriki/r12/php/PublicView.php';
+-$bridge = new \Baganriki\BaganrikiR12Bridge('/opt/baganriki/r12/.venv/bin/python', '/opt/baganriki/r12', '/var/lib/baganriki/r12.sqlite');
++require_once '/opt/baganriki/r12_1/php/BaganrikiR12Bridge.php';
++require_once '/opt/baganriki/r12_1/php/RoleWorker.php';
++require_once '/opt/baganriki/r12_1/php/PublicView.php';
++$bridge = new \Baganriki\BaganrikiR12Bridge('/opt/baganriki/r12_1/.venv/bin/python', '/opt/baganriki/r12_1', '/var/lib/baganriki/r12_1.sqlite');
+ PHP側でPythonへ渡すパスをユーザー入力から組み立てない。
+ 
+ 3. DB exportを1レース単位で作る
+@@ -108,11 +108,11 @@
+ COLLECT_ONLY以外の学習段階、未検証のX6集計、購入推奨。禁止入力はエラーで止める。
+ X6の正しい過去データがない間はUNKNOWNとし、他信号からmodeが一意なら候補を出す。
+ 旧X6相当の別定義統計を有効な同一定義だと見なさない。
+-既存の購入フラグ・学習文をr12へ無条件で足さない。
++既存の購入フラグ・学習文をr12.1へ無条件で足さない。
+ 
+ 9. r7から引き継いだ接続条件
+-・r9は永続処理の改訂。プロンプト本文、marker、prompt_version、schema_version、hash方式はr8を維持する。改名だけの置換をしない。r7以前のプロンプトは混ぜない。
+-・既存DBへr12を直接向けない。/var/lib/baganriki/r12.sqlite等の別DBを用い、既存履歴を保存したまま新規レースから切り替える。進行中のsnapshotを再生成しない。
++・r12.1のprompt_versionはbaganriki-v041-r12-1-quota-20261017。marker、schema_version、hash方式はr8を維持する。旧版の本文・設定・応答を混ぜない。
++・既存DBへr12.1を直接向けない。/var/lib/baganriki/r12_1.sqlite等の別DBを用い、既存履歴を保存したまま新規レースから切り替える。進行中のsnapshotを再生成しない。
+ ・direct prepareのseedにもcoverageを必須で渡す。prepareExportだけの項目ではない。read.input_auditで7区分の利用可否・不足理由を確認できる。
+ ・SALES_CLOSE_TIMEはanchor_atと凍結sales_close_atを同じ時刻にする。POST_TIMEはanchor_atを正本の発走時刻と照合する。凍結後の前倒しはupdateLiveへ渡す。
+ ・親ジョブはread.live_state.effective_publish_deadlineを最終の公開上限として扱う。前倒しにより元のpublish_deadlineより早まる場合がある。
+@@ -141,7 +141,7 @@
+ 短縮済みlive_closeも呼出枠の期限へ反映する。呼出し開始後に締切が前倒しされた場合、返答が来ても公開時の最新締切検査が優先される。
+ SQLiteは同期モードFULL/WAL、同一ホストの永続ローカルDBを全キューで共有する。コンテナごとの一時DBや別々のコピーでは重複防止にならない。
+ DBのバックアップはSQLiteのオンラインバックアップ等、WALを含む整合した方法を使う。稼働中DB本体だけの単純コピーで復旧しない。
+-旧DBの履歴を消さず、r12専用DBに新規レースから切り替える。進行中のレースは既存版で完了させる。
++旧DBの履歴を消さず、r12.1専用DBに新規レースから切り替える。進行中のレースは既存版で完了させる。
+ 
+ PHP試験（導入先の実PHPでも実行）
+ python php/make_test_fixture.py
+@@ -159,7 +159,7 @@
+ ・reply_deadline等の時刻引数はサーバーの時刻。空文字/false/0で「締切変更なし」を表さない。未変更はnull。同一時刻のタイムゾーン表記違いは版を増やさない。
+ ・prepare生成後も役割別入力を4MiB以内か確認する。超過は入力作成時に明示的なエラーとし、利用できる元データを黙って削らない。導入側で項目構成を見直す。
+ ・破損したroleの応答一覧、3本以上の応答一覧はそのroleだけを不採用にする。正常なもう片側は公開可能。3本目の採用や自動追加呼出しは行わない。
+-・PublicViewはr12版をBridge/Storeと一緒に切り替える。read.live_stateへ現在active_count、publication_target_count、publication_quotaを追加した。
++・PublicViewはr12.1版をBridge/Storeと一緒に切り替える。read.live_stateへ現在active_count、publication_target_count、publication_quotaを追加した。
+ ・DTOのactive_count、actual_quota、available_candidate_countは現在の取消を反映する。prediction_*は正式公開時の値。
+ ・DTOのpublication_target_count/publication_quotaは正式公開時の目標/配分を保持する。最新頭数の目安はlive_target_count/live_quotaで別表示する。16→15頭で目標7→6になる等の場合にも、期限後の候補削除・補充で履歴を改変しない。
+ ・未公開は期限内PENDING、期限超過UNAVAILABLE、全頭取消CANCELLED。公開済みはPUBLISHED（全頭取消時CANCELLED）。status_flagsの不足/取消/状態変更を画面へ反映する。
+@@ -167,7 +167,7 @@
+ ・追加確認：php php/test_public_view.php。期限ちょうど/超過、取消、現頭数、残り候補数、正式予想の不変性を確認できる。
+ 
+ 13. r11の境界検証
+-・BridgeクラスはBaganrikiR12Bridge。RoleWorker/PublicView/Timestamp.phpも同じ版を配置する。AI向けmarker、prompt_version、schema_version、hash方式はr8のまま。
++・BridgeクラスはBaganrikiR12Bridge。RoleWorker/PublicView/Timestamp.phpも同じ版を配置する。AI向けmarker、schema_version、hash方式はr8のまま。prompt_versionはbaganriki-v041-r12-1-quota-20261017。
+ ・日時はYYYY-MM-DDTHH:MM:SS[.1～6桁](Zまたは±HH:MM)。小文字t/zも同値。秒以下7桁以上、秒省略、空白区切り、週日付は拒否する。元の時刻を勝手に丸めて締切内へ入れない。
+ ・数値128桁、調整後指数−308～308はネイティブDTOにも適用する。ゼロの指数も範囲内にする。prepare/install成功後に読めない入力を残さない。
+ ・nonselect_reason/public_candidateの型不正は表示訂正として扱う。他馬や正常な穴根拠を再評価させない。
+@@ -175,7 +175,7 @@
+ ・追加試験：python test_r11_regressions.py、python php/make_test_fixture.py、php php/test_time_boundary.php。
+ ・全Python検証：python verify.py。PHPはtest_bridge/test_worker/test_durability/test_fault_isolation/test_public_view/test_time_boundary/test_exact_jsonの7本を実行する。fixture期限を過ぎたら合成fixtureだけを再生成する。
+ 
+-14. r12の数値表示・保存更新契約
++14. r12.1の数値表示・保存更新契約
+ ・BaganrikiR12Bridge.phpはExactJson.phpを自動ロードする。RoleWorker、PublicView、Timestamp、ExactJsonも同梱版で配置する。
+ ・Bridgeが返すPHP配列では、小数/指数表記の数値は原トークンの文字列、大きな整数は文字列で保持する。馬番・頭数・revision等の通常整数は整数のまま。数値の桁や値を丸めずにHTTP JSONへ渡せる。
+ ・画面用facts/counterfactsにvalue_type（number/string/boolean/null）を追加。value_type=numberのvalueは整数または十進数文字列として表示する。floatキャストやJavaScript Numberで一律に再変換しない。計算が必要なら任意精度の十進数処理を使う。
+@@ -184,4 +184,11 @@
+ ・公開の検証中/commit直前の時計逆行は取引を戻す。訂正予約時に過去の予約/受領時刻より時計が戻っていればCLOCK_ROLLBACKで予約しない。原因を確認し、正常時刻へ復旧後に保存済み状態から再開する。
+ ・既存履歴や正常なAI応答は残る。不正入力の値を勝手に丸めたり書き換えて再送しない。
+ ・追加試験：python test_r12_regressions.py、python php/make_test_fixture.py、php php/test_exact_json.php。PHPは従来6本＋数値試験の計7本。
+-・runtime_contract.template.jsonのrelease表記をr12へ整合。本番検証のfalseはローカル合格だけでtrueに変えない。
++・runtime_contract.template.jsonのrelease表記をr12.1へ整合。本番検証のfalseはローカル合格だけでtrueに変えない。
++
++15. r12.1の配分改訂
++C7 MIXEDの基本配分をA/B/D=3/3/1へ更新。1stは3/3/1、2ndは1/3/1。C7 VOLATILEとC6の配分は維持する。
++config.json、reference.py、prompt_1st/2nd.txt、input/output_schema.json、store.pyを含む一式を同時に配置する。PHPの互換クラス名BaganrikiR12Bridgeは維持する。
++新規レースからr12.1専用経路・DBへ切り替える。旧r12の凍結snapshotと原応答は旧版で完了させ、新版へ付け替えない。
++python test_quota_revision.pyを含むverify.pyを実行し、C7混戦3/3/1・2nd1/3/1・穴枠不足時のA補充禁止・取消後C6配分を確認する。
++本番受入欄は実環境で確認するまでfalseを維持する。
+--- r12/README.txt
++++ r12.1/README.txt
+@@ -1,45 +1,45 @@
+-馬眼力 r12 組込用実装パッケージ
++馬眼力 r12.1 配分修正版・組込用実装パッケージ
+ 
+-r11を再監査し、異常な更新後の読取不能、取消型、時刻逆行、PHP数値の精度損失を修正しました。
+-今回確認した不具合は修正済みです。実DB・実AI・本番キュー・既存画面への接続は未検証です。
+-AI向け本文・Schema・marker・hash・配分はr8契約を維持。実行版r12へ更新してもmarkerを変えません。
++7頭選出の混戦（C7 MIXED）を、人気側4頭＋穴側3頭から、人気側3頭＋穴側4頭へ修正しました。
++基本配分はA/B/D=3/3/1。Aは凍結6分前単勝1～6番人気、Bは7～10番人気、Dは11番人気以下です。
++構造調整のない場合、1stの公開配分は3/3/1、2ndは最大5頭の中で1/3/1。両AIとも全N頭を独立評価します。
++C7 VOLATILEは3/3/1、C6 MIXED/VOLATILEは3/2/1を維持します。その他の基本配分も維持します。
+ 
+-修正内容
+-・極端な締切を受理して保存状態を読めなくする更新を、保存前に拒否。
+-・取消を配列として検証。object等を正しい空の取消一覧として扱わない。
+-・検証/保存中の時刻逆行で公開しない。過去の受領より前へ時計が戻ったときに訂正枠を消費しない。
+-・PHPの小数/指数数値と大きな整数を正確な文字列で保持し、無限大化や丸めによる表示失敗を防止。
+-・表示事実にvalue_typeを付けて数値・文字列・真偽・nullを区別。入力・DB原値とAI向けJSONは変更しない。
+-・runtime_contractの古いrelease表記もr12へ整合。本番の未確認項目はfalseを維持。
++変更したもの
++config.json・reference.pyのC7 MIXED、両AIのsystem本文、版識別、入出力Schemaのprompt_version定数、導入手順・実装契約・仕様書・試験を更新しました。
++prompt_versionとimplementation_versionはbaganriki-v041-r12-1-quota-20261017。
++schema_version=baganriki-v041-r8-1、marker、hash方式、PHP互換クラス名BaganrikiR12Bridgeは維持します。
++旧r12の凍結snapshotや原応答を新版へ付け替えず、新規レースから一式で切り替えてください。
++
++穴枠の扱い
++個別の確認済みSIGNALが1系統あれば候補資格を維持します。低人気、旧資格、回収率、低配当、部分欠損だけで一律除外しません。
++評価後の穴枠不足はB/D間で補い、Aの人気上位へ移しません。根拠が不足する場合は不足を明示します。
++実在頭数が足りない場合の構造調整と、評価後の根拠不足は区別します。
+ 
+ 実行
+   python3 -m venv .venv
+   .venv/bin/python -m pip install -r requirements-test.lock.txt
+   .venv/bin/python verify.py
+   .venv/bin/python cli.py < demo_replay_request.json
+-最後は架空データの再生で、保存・実AI呼出しを伴いません。
+-PHPはINSTALL.txtに従い、同梱7本を導入先の実PHPでも実行してください。
+-Python3.10以上、PHP8.0以上、proc_open、同一ホストの共有永続SQLiteが必要です。
++最後は架空データの再生です。実AI呼出し・本番保存を行いません。
++Python3.10以上、PHP8.0以上、proc_open、単一ホスト上の共有永続SQLiteが必要です。
++PHPはINSTALL.txtに従い、同梱7本を導入先の実PHPで実行してください。
+ 
+ 同梱物
+-prompt_1st.txt / prompt_2nd.txt：AIへ渡すsystem本文。
+-engine.py / reference.py / adapter.py：入力・出典・採点・順位・穴枠・訂正・統合・取消。
+-journal.py / store.py：永続呼出枠、原応答、競合検査、公開履歴。
+-php/BaganrikiR12Bridge.php / RoleWorker.php / Timestamp.php / ExactJson.php：PHP接続・永続ワーカー・厳密な日時。
+-php/PublicView.php：現在の取消状態と正式予想の履歴を表示するDTO。
+-php/LaravelIntegration.example.php：独立roleジョブと固定公開intentの接続例。
+-INSTALL.txt / server_contract.txt：導入手順と実装契約。r12追加条件まで確認。
+-verify.py：201単体試験、異常応答304条件、標準Schemaの一括検証。
+-php_bridge_results.json：PHP-WASM8.5.10、模擬AI、Python、SQLiteによる7系列の結果。
+-IMPLEMENTATION_REPORT.txt：今回の修正と確認範囲。
+-runtime_contract.template.json：本番受入記録。ローカル合格だけでtrueに変えない。
+-SHA256SUMS.txt：配布内容の照合。audit/：修正前の失敗再現・差分・試験記録。
++prompt_1st.txt / prompt_2nd.txt：各AIへ送るsystem本文。完全版.txt全体をAIへ送らないでください。
++config.json / reference.py / engine.py / adapter.py：入力、配分、検証、採点、順位、統合、取消。
++store.py / journal.py：保存、公開履歴、独立したAI呼出し枠。
++php/BaganrikiR12Bridge.php / RoleWorker.php / PublicView.php等：PHP接続と公開表示。
++server_contract.txt / INSTALL.txt：実装契約と導入手順。
++verify.py：既存試験に配分回帰試験12件を加えた一括検証。
++test_quota_revision.py / quota_revision_results.json：C7混戦、両AI、最終統合、不足、取消、旧版拒否の確認。
++IMPLEMENTATION_REPORT.txt：今回の変更と実施した検証範囲。
++runtime_contract.template.json：本番受入記録。未確認欄はfalseのままです。
++audit/：旧r12以前の検証記録と今回の差分。旧配分の記載は歴史資料で、現行設定ではありません。
++SHA256SUMS.txt：配布ファイルの照合用。
+ 
+-保持した仕様
+-確認済み個別根拠1系統で候補資格を維持。人気薄や低配当という理由だけの一律削除をしません。
+-C7混戦A/B/D=4/2/1、波乱=3/3/1。C6混戦・波乱=3/2/1。評価後の穴枠不足をAへ渡しません。
+-1st/2ndは独立、各roleは初回＋必要時の訂正1回。予約を永続保存してからAIを呼びます。
+-SDKの自動リトライは0。結果不明の予約を期限切れで再送せず、保存済み応答で縮退します。
+-全キューで同一ホストの同一永続DBを共有し、進行中のレースと旧履歴を保持します。
+-COLLECT_ONLY、未検証X6はUNKNOWN、購入推奨はfalseを維持。
+-試験合格は本番反映、予測精度改善、将来の全入力での不具合ゼロを保証するものではありません。
++検証と未実施範囲
++今回の結果はverification_results.jsonとIMPLEMENTATION_REPORT.txtを参照してください。
++php_bridge_results.jsonは旧r12のPHP-WASMによる7系列の記録です。r12.1での再実行結果ではありません。
++学習はCOLLECT_ONLY、未検証X6はUNKNOWN、購入推奨はfalseを維持します。
++本番配置・実DB・実AI・本番キュー・既存画面への接続、および高配当捕捉率・回収率の改善確認は未実施です。
+--- r12/runtime_contract.template.json
++++ r12.1/runtime_contract.template.json
+@@ -1,5 +1,5 @@
+ {
+-  "prompt_version": "baganriki-v041-r8-local-recovery-20261017",
++  "prompt_version": "baganriki-v041-r12-1-quota-20261017",
+   "candidate_route_ready": false,
+   "purchase_ready": false,
+   "live_learning_ready": false,
+@@ -66,13 +66,14 @@
+     "db_timestamp_columns": null,
+     "new_api_route": null,
+     "ui_connected": false,
+-    "release": "r12",
++    "release": "r12.1",
+     "journal_tests": "journal_results.json",
+     "concurrency_tests": "r10_regression_results.json",
+     "boundary_tests": [
+       "r11_regression_results.json",
+       "r12_regression_results.json"
+-    ]
++    ],
++    "quota_tests": "quota_revision_results.json"
+   },
+   "durable_worker": {
+     "shared_persistent_db_verified": false,
+--- r12/verify.py
++++ r12.1/verify.py
+@@ -2,7 +2,7 @@
+ import subprocess,sys,json
+ from pathlib import Path
+ root=Path(__file__).resolve().parent;results=[]
+-for script in ('test_reference.py','test_contract.py','test_engine.py','test_audit_regressions.py','test_r7_integration.py','test_r8_regressions.py','test_journal.py','test_r10_regressions.py','test_r11_regressions.py','test_r12_regressions.py','test_malformed_responses.py','schema_standard_check.py'):
++for script in ('test_reference.py','test_contract.py','test_engine.py','test_audit_regressions.py','test_r7_integration.py','test_r8_regressions.py','test_journal.py','test_r10_regressions.py','test_r11_regressions.py','test_r12_regressions.py','test_quota_revision.py','test_malformed_responses.py','schema_standard_check.py'):
+  p=subprocess.run([sys.executable,str(root/script)],cwd=root,capture_output=True,text=True)
+  (root/(script+'.log')).write_text(p.stdout+p.stderr,encoding='utf-8')
+  results.append(dict(script=script,exit_code=p.returncode))
+--- r12/test_quota_revision.py
++++ r12.1/test_quota_revision.py
+@@ -0,0 +1,163 @@
++"""r12.1 acceptance: C7 MIXED keeps four evidenced longshots through publication.
++Synthetic observations only. These tests do not measure real-race returns.
++"""
++import copy
++import json
++import unittest
++from pathlib import Path
++
++import engine as e
++import fixtures as f
++import reference as r
++from test_audit_regressions import set_orders
++
++
++def mixed(n=16):
++    seed = f.seed(n)
++    # Remove the synthetic shrinking top gap. X3 and X4 yield MIXED even with X6 unknown.
++    seed['source_registry']['h2_win_odds_21']['value'] = seed['source_registry']['h2_win_odds_6']['value']
++    return e.prepare(seed, f.REQUEST)
++
++
++def without_evidence(inp, excluded):
++    obj = f.output(inp)
++    orders = {b: [n for n in ns if n not in excluded] for b, ns in obj['band_ranks'].items()}
++    set_orders(obj, orders)
++    for row in obj['horses']:
++        if row['horse_no'] not in excluded:
++            continue
++        row.update(evidence=[], tier='UNVERIFIED', eligibility='UNVERIFIED',
++                   rank_basis='NOT_RANKED', evidence_rank_evidence_ids=[],
++                   nonselect_reason={'code': 'UNVERIFIED', 'reason': '合成試験：個別根拠が未取得'})
++        for review in row['family_review'].values():
++            review.update(status='DATA_MISSING', source_refs=[], evidence_ids=[], reason='合成試験：未取得')
++    obj['shortfalls'] = [dict(band=b, requested=inp['role_quota'][b], eligible=len(orders[b]),
++                              missing=inp['role_quota'][b]-len(orders[b]), reason='合成試験：根拠不足')
++                         for b in r.BANDS if len(orders[b]) < inp['role_quota'][b]]
++    return obj
++
++
++def replies(prepared, excluded=()):
++    return {role: [dict(text=f.text(without_evidence(inp, excluded)), received_at=f.RECEIVED)]
++            for role, inp in prepared['inputs'].items()}
++
++
++class QuotaRevisionTests(unittest.TestCase):
++    def test_c7_mixed_all_sizes_roles_and_final_publication(self):
++        for n in (16, 17, 18):
++            with self.subTest(n=n):
++                p = mixed(n)
++                first, second = p['inputs']['1st'], p['inputs']['2nd']
++                self.assertEqual(first['mode'], 'MIXED')
++                self.assertEqual(first['quota'], dict(A=3, B=3, D=1))
++                self.assertEqual(first['role_quota'], dict(A=3, B=3, D=1))
++                self.assertEqual(second['role_quota'], dict(A=1, B=3, D=1))
++                self.assertEqual(second['role_cap'], 5)
++                self.assertEqual(first['snapshot_hash'], second['snapshot_hash'])
++                self.assertEqual(f.output(second)['public_candidates'], [1, 7, 8, 9, 11])
++                for inp in (first, second):
++                    self.assertEqual(len(f.output(inp)['horses']), n)
++                    e.validate_input(inp, f.REQUEST)
++                out = e.resolve(first, f.responses(p), [], f.NOW)
++                self.assertEqual(out['actual_quota'], dict(A=3, B=3, D=1))
++                self.assertEqual(out['public_candidates'], [1, 2, 3, 7, 8, 9, 11])
++                self.assertFalse(out['status_flags'])
++
++    def test_other_base_allocations_unchanged(self):
++        expected = {
++            4: {'FIRM': (3, 1, 0), 'MIXED': (2, 2, 0), 'VOLATILE': (2, 1, 1)},
++            5: {'FIRM': (4, 1, 0), 'MIXED': (3, 2, 0), 'VOLATILE': (2, 2, 1)},
++            6: {'FIRM': (4, 2, 0), 'MIXED': (3, 2, 1), 'VOLATILE': (3, 2, 1)},
++            7: {'FIRM': (5, 2, 0), 'MIXED': (3, 3, 1), 'VOLATILE': (3, 3, 1)},
++        }
++        self.assertEqual(r.BASE, expected)
++        self.assertEqual(e.CONFIG['base_quota'], {str(c): {m: list(q) for m, q in modes.items()}
++                                                 for c, modes in expected.items()})
++
++    def test_partial_scores_and_single_evidence_keep_four_holes(self):
++        p = mixed()
++        for inp in p['inputs'].values():
++            for row in f.output(inp)['horses']:
++                self.assertEqual(len(row['evidence']), 1)
++                self.assertEqual(row['score_status'], 'partial')
++                self.assertIsNone(row['total_score'])
++        out = e.resolve(p['inputs']['1st'], replies(p), [], f.NOW)
++        self.assertEqual(out['actual_quota'], dict(A=3, B=3, D=1))
++
++    def test_d_shortfall_fills_from_b_not_a(self):
++        p = mixed()
++        out = e.resolve(p['inputs']['1st'], replies(p, range(11, 17)), [], f.NOW)
++        self.assertEqual(out['actual_quota'], dict(A=3, B=4, D=0))
++        self.assertEqual(out['public_candidates'], [1, 2, 3, 7, 8, 9, 10])
++
++    def test_b_shortfall_fills_from_d_not_a(self):
++        p = mixed()
++        out = e.resolve(p['inputs']['1st'], replies(p, (8, 9, 10)), [], f.NOW)
++        self.assertEqual(out['actual_quota'], dict(A=3, B=1, D=3))
++        self.assertEqual(len(out['public_candidates']), 7)
++
++    def test_hole_shortage_does_not_add_fourth_popular_horse(self):
++        p = mixed()
++        out = e.resolve(p['inputs']['1st'], replies(p, range(8, 17)), [], f.NOW)
++        self.assertEqual(out['actual_quota'], dict(A=3, B=1, D=0))
++        self.assertEqual(out['public_candidates'], [1, 2, 3, 7])
++        self.assertTrue(out['status_flags'])
++
++    def test_one_ai_failure_keeps_hole_allocation(self):
++        p = mixed()
++        for failed in ('1st', '2nd'):
++            res = f.responses(p)
++            res[failed][0]['text'] = 'truncated'
++            out = e.resolve(p['inputs']['1st'], res, [], f.NOW)
++            self.assertEqual(out['actual_quota'], dict(A=3, B=3, D=1))
++            self.assertIn('SINGLE_AI', out['status_flags'])
++
++    def test_cancellation_crosses_c7_to_c6_with_frozen_ranks(self):
++        p = mixed(16)
++        out = e.resolve(p['inputs']['1st'], f.responses(p), [1], f.NOW)
++        self.assertEqual(out['active_count'], 15)
++        self.assertEqual(out['publication_quota'], dict(A=3, B=2, D=1))
++        self.assertEqual(out['actual_quota'], dict(A=3, B=2, D=1))
++        self.assertNotIn(1, out['public_candidates'])
++        self.assertIn(7, out['public_candidates'])
++
++    def test_cancellation_retaining_c7_keeps_four_holes(self):
++        p = mixed(18)
++        out = e.resolve(p['inputs']['1st'], f.responses(p), [7], f.NOW)
++        self.assertEqual(out['active_count'], 17)
++        self.assertEqual(out['actual_quota'], dict(A=3, B=3, D=1))
++        self.assertTrue({8, 9, 10}.issubset(out['public_candidates']))
++
++    def test_old_c7_quota_rejected_even_after_hash_recalculation(self):
++        inp = copy.deepcopy(mixed()['inputs']['1st'])
++        for key in ('base_quota', 'quota', 'role_quota'):
++            inp[key] = dict(A=4, B=2, D=1)
++        inp['snapshot_hash'] = r.canonical_hash(e.common_payload(inp))
++        with self.assertRaises(e.ContractError):
++            e.validate_input(inp, f.REQUEST)
++
++    def test_old_prompt_response_rejected(self):
++        inp = mixed()['inputs']['1st']
++        obj = f.output(inp)
++        obj['prompt_version'] = 'baganriki-v041-r8-local-recovery-20261017'
++        with self.assertRaisesRegex(e.ContractError, 'envelope prompt_version'):
++            e.response_view(f.text(obj), inp)
++
++    def test_release_and_prompts_identify_quota_revision(self):
++        self.assertEqual(e.CONFIG['prompt_version'], 'baganriki-v041-r12-1-quota-20261017')
++        runtime = json.loads(Path('runtime_contract.template.json').read_text())
++        self.assertEqual(runtime['implementation']['release'], 'r12.1')
++        self.assertEqual(runtime['prompt_version'], e.CONFIG['prompt_version'])
++        for name in ('prompt_1st.txt', 'prompt_2nd.txt'):
++            text = Path(name).read_text()
++            self.assertIn('C=7・MIXED基本配分はA/B/D=3/3/1', text)
++            self.assertIn('2ndは最大5頭の中で1/3/1', text)
++            self.assertIn(e.CONFIG['prompt_version'], text)
++
++
++if __name__ == '__main__':
++    result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(QuotaRevisionTests))
++    Path('quota_revision_results.json').write_text(json.dumps(dict(
++        release='r12.1', tests_run=result.testsRun, failures=len(result.failures), errors=len(result.errors),
++        synthetic_only=True, real_model_calls=False, production_deployed=False), indent=2)+'\n')
++    raise SystemExit(0 if result.wasSuccessful() else 1)

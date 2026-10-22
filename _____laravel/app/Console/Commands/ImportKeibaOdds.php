@@ -30,6 +30,21 @@ use App\Events\BaganrikiOddsSent;
  *   【ブロック 8】取得タイミング記録（t_horse_odds_finder_odds_get_timing）
  *   【ブロック 9】人気順位変動ログ出力
  *   【ブロック 10】有意変動（2位以上）の WebPush 通知
+ *   【ブロック 11】r12.2 取得監査の記録（@ANCHOR-20261020-R122-AUDIT）
+ *
+ * 【r12.2 取得監査について】
+ *   server_contract_r12.2.txt 4章・8章／詳細設計書 4.3 のお願い②（A案）です。
+ *   「いつ要求を出し、いつ受け取り、いつ読めるようになったか」の実時刻と、
+ *   受け取った原ペイロードそのものを baganriki_acquisition_batches へ残します。
+ *   既存の t_horse_odds_finder_odds_get_timing の get_datetime は
+ *   「保存が終わった時刻」なので、要求開始・受信完了の代わりには使えません。
+ *
+ *   <b>既存の列・元値・保存処理には一切触れていません。</b>
+ *   新しいテーブルへ1行 INSERT するだけで、失敗しても本番は止めません
+ *   （記録できなかったことをログに残し、そのバッチは採用しません）。
+ *
+ *   止め方: .env に BAGANRIKI_R122_AUDIT=0 を入れると記録しません。
+ *   テーブルが無い環境では自動的に何もしません。
  *
  * 【cron設定】
  *   * 9-17 * * * php /var/www/horse_odds_finder/artisan keiba:importOdds >> /var/www/horse_odds_finder/storage/logs/cron_odds.log 2>&1
@@ -183,6 +198,8 @@ $prevMinutesBefore = ($prevDiff === $timings[0]) ? Constants::ODDS_DB_FIRST : $p
             //   リトライ間隔3秒（JRAサーバの一時的な応答遅延を考慮）。
             // ─────────────────────────────────────────────────────────────
             $raceStart = microtime(true);
+            // @ANCHOR-20261020-R122-AUDIT  要求を出す直前の実時刻
+            $r122ReqStartedAt = self::r122Now();
             $command   = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($script)
                 . ' ' . escapeshellarg($race->date)
                 . ' ' . escapeshellarg($race->kaisuu)
@@ -208,10 +225,26 @@ $prevMinutesBefore = ($prevDiff === $timings[0]) ? Constants::ODDS_DB_FIRST : $p
 
             $fetchMs  = round((microtime(true) - $raceStart) * 1000);
             $fetchSec = number_format($fetchMs / 1000, 2);
+            // @ANCHOR-20261020-R122-AUDIT  受信し終えた実時刻（= observed_at）
+            $r122RespReceivedAt = self::r122Now();
 
             if (!$odds) {
                 $this->error("  [単複] オッズ取得失敗。このレースをスキップします。({$fetchSec}秒 / {$fetchMs}ms)");
                 $this->error("  Node.js 出力: " . $output);
+                // ─────────────────────────────────────────────────────
+                // @ANCHOR-20261020-R122-AUDIT  取れなかったことも残します
+                //   採用しない監査行（committed=0・REJECTED）として入れます。
+                //   「記録が無い」と「取れなかった」を区別するためです。
+                // ─────────────────────────────────────────────────────
+                $this->r122RecordBatch($race, $diff, [
+                    'request_started_at'   => $r122ReqStartedAt,
+                    'response_received_at' => $r122RespReceivedAt,
+                    'available_at'         => null,
+                    'raw_payload'          => (string) $output,
+                    'validation_result'    => 'REJECTED',
+                    'rejection_reason'     => 'オッズ取得に失敗（Node.jsの出力をJSONとして読めない）',
+                    'committed'            => 0,
+                ]);
                 continue;
             }
 
@@ -332,6 +365,22 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
             $this->info("  [単複] DB保存完了 → {$saved} 頭分 (合計 {$totalSec}秒 / {$totalMs}ms)");
             $totalInserted += $saved;
 
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 11】r12.2 取得監査の記録
+            // @ANCHOR-20261020-R122-AUDIT
+            //   available_at は「保存が終わって読めると確かめた実時刻」です。
+            //   予定時刻で埋めません。ここは保存トランザクションの<b>後</b>です。
+            // ─────────────────────────────────────────────────────────────
+            $this->r122RecordBatch($race, $diff, [
+                'request_started_at'   => $r122ReqStartedAt,
+                'response_received_at' => $r122RespReceivedAt,
+                'available_at'         => self::r122Now(),
+                'raw_payload'          => (string) $output,
+                'validation_result'    => 'ADOPTED',
+                'rejection_reason'     => null,
+                'committed'            => 1,
+            ]);
+
             // ─────────────────────────────────────────────────────────
             // 【ブロック 10.5】WebSocket broadcast
             //   DB保存完了後、Flutter側にオッズ更新を通知する。
@@ -381,6 +430,104 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
         $this->info('');
         $this->info('========== keiba:importOdds 終了 ' . date('Y-m-d H:i:s') . ' ==========');
         $this->info('');
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-AUDIT  いまの実時刻（マイクロ秒まで）
+     * ═══════════════════════════════════════════════════════════════════════
+     * DATETIME(6) へそのまま入れられる形で返します。
+     * サーバのタイムゾーン（JST）のままです。
+     */
+    private static function r122Now(): string
+    {
+        return (new \DateTimeImmutable('now'))->format('Y-m-d H:i:s.u');
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-AUDIT  取得監査を1行残す（お願い②・A案）
+     * ═══════════════════════════════════════════════════════════════════════
+     * 根拠：server_contract_r12.2.txt 4章・8章／詳細設計書 4.3
+     *
+     * ■ 残すもの
+     *   batch_id              同じ応答バッチの一意ID
+     *   slot                  発走までの分（21/18/15/12/9/6。30・3・0も残します）
+     *   slot_scheduled_at     発走時刻から slot 分を引いた予定時刻
+     *   source_updated_at     取得元の更新時刻。取れないので null のままです
+     *   request_started_at    要求を出した実時刻
+     *   response_received_at  受信し終えた実時刻（＝ observed_at）
+     *   available_at          保存が終わって読めると確かめた実時刻
+     *   raw_payload           受け取った原文そのもの（加工しません）
+     *   payload_hash          原文の SHA-256
+     *   validation_result     ADOPTED / REJECTED
+     *   committed             1 のものだけを採用します
+     *
+     * ■ やらないこと
+     *   ・既存の列や元値を書き換えません。新しいテーブルへ INSERT するだけです。
+     *   ・時刻を予定時刻で埋めません。取れないものは null のままにします。
+     *   ・ここで失敗しても本番を止めません。ログに残してそのまま進みます
+     *     （記録できなかったバッチは committed=0 のまま＝採用されません）。
+     *
+     * ■ 止め方
+     *   .env に BAGANRIKI_R122_AUDIT=0 を入れると記録しません。
+     *   テーブルが無い環境では何もしません（--r122-install で作ります）。
+     */
+    private function r122RecordBatch($race, int $diff, array $v): void
+    {
+        try {
+            $sw = (string) env('BAGANRIKI_R122_AUDIT', '1');
+            if (in_array($sw, ['0', 'false', 'off', 'no'], true)) {
+                return;
+            }
+            if (!\Illuminate\Support\Facades\Schema::hasTable('baganriki_acquisition_batches')) {
+                return;
+            }
+
+            $raceId = \App\Http\Controllers\Api\AiController::r122RaceId(
+                $race->date, $race->kaisuu, $race->basho, $race->day, $race->race);
+
+            // 予定時刻は「発走時刻 − slot分」。実時刻の代わりには使いません。
+            $anchor = strtotime("{$race->date} {$race->start_time}");
+            $slotScheduledAt = ($anchor === false) ? null
+                : date('Y-m-d H:i:s.000000', $anchor - $diff * 60);
+
+            $raw  = (string) ($v['raw_payload'] ?? '');
+            $hash = ($raw === '') ? null : hash('sha256', $raw);
+
+            // batch_id は UNIQUE。同じレース・同じスロットで撮り直したときも
+            // 別の行として残るように、実時刻と乱数を混ぜます。
+            $batchId = $raceId . '-' . $diff . '-'
+                     . date('YmdHis') . '-' . substr(bin2hex(random_bytes(4)), 0, 8);
+
+            \Illuminate\Support\Facades\DB::table('baganriki_acquisition_batches')->insert([
+                'race_id'              => $raceId,
+                'slot'                 => $diff,
+                'batch_id'             => $batchId,
+                'slot_scheduled_at'    => $slotScheduledAt,
+                'source_updated_at'    => null,   // 取得元の更新時刻は取れません
+                'request_started_at'   => $v['request_started_at']   ?? null,
+                'response_received_at' => $v['response_received_at'] ?? null,
+                'available_at'         => $v['available_at']         ?? null,
+                'raw_payload'          => ($raw === '') ? null : $raw,
+                'payload_hash'         => $hash,
+                'validation_result'    => $v['validation_result'] ?? null,
+                'rejection_reason'     => $v['rejection_reason']  ?? null,
+                'committed'            => (int) ($v['committed'] ?? 0),
+                'created_at'           => self::r122Now(),
+            ]);
+
+            $this->info(sprintf('  [r12.2監査] %s slot=%d %s hash=%s',
+                $raceId, $diff, (string) ($v['validation_result'] ?? ''),
+                ($hash === null) ? '(なし)' : substr($hash, 0, 12)));
+        } catch (\Throwable $e) {
+            // 記録できなくても本番は止めません。採用もされません。
+            $this->warn('  [r12.2監査] 記録できませんでした: ' . $e->getMessage());
+            \Log::warning('[R122-AUDIT] 取得監査を記録できませんでした', [
+                'date' => $race->date ?? null, 'race' => $race->race ?? null,
+                'slot' => $diff, 'err' => $e->getMessage(),
+            ]);
+        }
     }
 
 }

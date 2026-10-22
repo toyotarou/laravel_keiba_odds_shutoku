@@ -1,0 +1,2022 @@
+--- "/mnt/user-data/uploads/KEIBA/20261021\343\202\210\343\201\243\343\201\227\343\203\274\346\214\207\346\221\230/_base010/AiController.php"	2026-10-21 04:57:22.785818606 +0000
++++ teishutsu_010/code/AiController.php	2026-10-21 04:57:34.202784717 +0000
+@@ -17529,6 +17529,23 @@
+         }
+         $salvaged = []; $salvageDetail = [];
+         $normal = [];
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-TYPEMAP  並べ替えに型の地図を追従させます
++        // ══════════════════════════════════════════════════════════════
++        //   ご指摘（010の3-4）：
++        //     「並べ替え後のnormalにも種類が追従することが条件です。」
++        //   応答の馬の行は ["horses", 3] の位置にあります。
++        //   normal は<b>馬番をキーにしたオブジェクト</b>に組み替えるので、
++        //   位置が ["7"] に変わります。地図の経路もそのとおりに
++        //   付け替えないと、再保存で {} が [] に化けたり、
++        //   数値が文字列に化けたりします。
++        //   先に「馬番 → 応答での位置」を控えておきます。
++        $idxOf = [];
++        foreach (array_values((array) ($res['horses'] ?? [])) as $iH => $rowH) {
++            $nH = (int) (((array) $rowH)['horse_no'] ?? 0);
++            if ($nH > 0 && !isset($idxOf[$nH])) { $idxOf[$nH] = (int) $iH; }
++        }
++        $resMap = (array) ($ex['map'] ?? BaganrikiJson::emptyMap());
+         foreach ((array) $iso['kept'] as $k => $h) {
+             $no = is_int($k) ? $k : (int) ($h['horse_no'] ?? 0);
+             if ($no <= 0) { continue; }
+@@ -17650,9 +17667,30 @@
+             // @ANCHOR-20261020-R122-SCOREKEY  馬ごとの「おかしい採点項目」
+             'bad_scores' => (array) ($d['bad_scores'] ?? []),
+         ];
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-TYPEMAP  normal の型の地図（010の3-1・3-4）
++        // ══════════════════════════════════════════════════════════════
++        //   normal は馬番をキーにしたオブジェクトです。
++        //   最上位を obj と印し、各馬の枝を応答の位置から付け替えます。
++        //   救済で計算し直した欄（observed_sum など）は、こちらで
++        //   作ったPHPの整数です。地図に載っていた古い印をそのまま使うと
++        //   「原トークンを書き戻す」ことになって値が戻ってしまうので、
++        //   encode は<b>値が地図と食い違えばいまの値を書きます</b>
++        //   （@ANCHOR-20261021-R122-TYPEMAP の sameNumberValue）。
++        $normalMap = BaganrikiJson::mapWithKind(
++            BaganrikiJson::emptyMap(), [], 'obj');
++        foreach (array_keys($normal) as $noN) {
++            if (!isset($idxOf[(int) $noN])) { continue; }
++            $normalMap = BaganrikiJson::mapMerge($normalMap,
++                BaganrikiJson::mapMove($resMap,
++                    ['horses', (int) $idxOf[(int) $noN]], [(string) $noN]));
++        }
++        $out['map']        = $resMap;        // 応答そのものの地図
++        $out['normal_map'] = $normalMap;     // 正常部分の地図（並べ替え後）
++
+         $this->r122SaveValidation((int) $a->id, $normal, $out,
+             $d['repair_scope'], self::r122FieldSources($normal),
+-            self::r122RankSources($res));
++            self::r122RankSources($res), $normalMap);
+         return $out;
+     }
+ 
+@@ -17702,9 +17740,14 @@
+             $frozen[] = (int) $n;
+         }
+ 
++        // @ANCHOR-20261021-R122-TYPEMAP  型の地図も渡します（010の3-2）
++        //   どちらも「馬番をキーにした入れ物」の地図なので、
++        //   経路の先頭が馬番でそろいます。
+         $acc = BaganrikiResponse::acceptCorrection(
+             $first['normal'], $fix['normal'], $firstAt, $fixAt,
+-            $frozen, $first['repair_scope'], $fix['row_valid']);
++            $frozen, $first['repair_scope'], $fix['row_valid'],
++            (array) ($first['normal_map'] ?? BaganrikiJson::emptyMap()),
++            (array) ($fix['normal_map']   ?? BaganrikiJson::emptyMap()));
+         if (($acc['ok'] ?? false) !== true) {
+             $out['ok'] = true; $out['code'] = 'FIX_REJECTED';
+             $out['reason'] = '訂正を採用しません（' . (string) ($acc['reason'] ?? '')
+@@ -17713,6 +17756,20 @@
+         }
+         $out['merged']  = BaganrikiResponse::applyCorrection(
+                               $first['normal'], $fix['normal'], $acc);
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-TYPEMAP  当てた行だけ地図も差し替えます
++        // ══════════════════════════════════════════════════════════════
++        //   merged は「初回の行＋当てた行」です。地図も同じ組み方に
++        //   しないと、当てた行の型が初回のものに戻ってしまいます。
++        $mergedMap = (array) ($first['normal_map'] ?? BaganrikiJson::emptyMap());
++        $fixMapAll = (array) ($fix['normal_map']   ?? BaganrikiJson::emptyMap());
++        foreach (array_merge((array) ($acc['applied'] ?? []),
++                             (array) ($acc['rescued'] ?? [])) as $noM) {
++            $mergedMap = BaganrikiJson::mapMerge($mergedMap,
++                BaganrikiJson::mapMove($fixMapAll,
++                    [(string) (int) $noM], [(string) (int) $noM]));
++        }
++        $out['merged_map'] = $mergedMap;
+         $out['applied'] = (array) ($acc['applied'] ?? []);
+         $out['rescued'] = (array) ($acc['rescued'] ?? []);
+         $out['skipped'] = (array) ($acc['skipped'] ?? []);
+@@ -17776,16 +17833,38 @@
+     /** @ANCHOR-20261020-R122-RESP  検証の結果を残します（表が無ければ何もしません） */
+     private function r122SaveValidation(int $attemptId, ?array $normal, array $out,
+                                         ?array $scope, ?array $fieldSources,
+-                                        ?array $rankSources): void
++                                        ?array $rankSources,
++                                        ?array $normalMap = null): void
+     {
+         if (!\Schema::hasTable('baganriki_validation_results')) { return; }
+         $j = static fn($v) => ($v === null) ? null : (string) json_encode($v,
+             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-TYPEMAP  正常部分は専用シリアライザで書きます
++        // ══════════════════════════════════════════════════════════════
++        //   ご指摘（010の3-1）：
++        //     「提示された jsonSerialize() は string型のdecimalを返します。
++        //       これを通常のjson_encodeで保存すると、JSONの数値ではなく
++        //       引用符付き文字列になります。現行 r122SaveValidation も
++        //       通常のjson_encodeです。クラスを追加するだけでは009の
++        //       問題は解消しません。」
++        //   そのとおりでした。ここが通常の json_encode のままだと、
++        //   丸まる数値（文字列で持っているもの）が<b>引用符付きで
++        //   保存されて、読み戻すと文字列になります。</b>
++        //   【いま】型の地図があるときは encode で書きます。
++        //   数値だった位置は引用符なし、{} と [] の種類もそのままです。
++        //   JSON_NUMERIC_CHECK も float への変換も使っていません。
++        //   読み戻しは BaganrikiJson::decode です（r122NormalPart）。
++        $jn = static function ($v) use ($normalMap, $j) {
++            if ($v === null) { return null; }
++            if ($normalMap === null) { return $j($v); }
++            return BaganrikiJson::encode($v, $normalMap);
++        };
+         try {
+             \DB::table('baganriki_validation_results')->insert([
+                 'attempt_id'        => $attemptId,
+                 'validator_version' => BaganrikiDiagnose::VERSION,
+-                'normal_part'       => $j($normal),
++                'normal_part'       => $jn($normal),
+                 'diagnostics'       => $j(['stage' => $out['stage'], 'code' => $out['code'],
+                                            'reason' => $out['reason'],
+                                            'diag' => $out['diag'] ?? null]),
+@@ -17801,6 +17880,81 @@
+ 
+     /**
+      * ═══════════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-TYPEREAD  保存した正常部分を読み戻します（010の3-3）
++     * ═══════════════════════════════════════════════════════════════════════
++     * ご指摘：
++     *   「保存後も通常のjson_decodeで読み戻せば、長い数値が再びfloatに
++     *     なります。診断、訂正比較、normal保存、再読込、公開用の一致確認まで
++     *     同じ型保持方式を通してください。」
++     *
++     *   そのとおりです。保存を専用シリアライザにしても、読むほうが
++     *   json_decode なら、そこで型が落ちます。
++     *   <b>読み戻しも専用パーサ（BaganrikiJson::decode）に統一します。</b>
++     *   返すのは「値」と「型の地図」の両方です。
++     *
++     * @return array ['ok','code','reason','value','map','raw']
++     */
++    public function r122NormalPart(int $attemptId): array
++    {
++        $out = ['ok' => false, 'code' => null, 'reason' => null,
++                'value' => null, 'map' => BaganrikiJson::emptyMap(), 'raw' => null];
++        if (!\Schema::hasTable('baganriki_validation_results')) {
++            $out['code'] = 'TABLE_MISSING';
++            return $out;
++        }
++        $r = \DB::table('baganriki_validation_results')
++               ->where('attempt_id', $attemptId)
++               ->orderByDesc('id')->first(['normal_part']);
++        if ($r === null) {
++            $out['code'] = 'NO_ROW';
++            $out['reason'] = 'その枠の検証結果がありません';
++            return $out;
++        }
++        $raw = $r->normal_part;
++        if ($raw === null || (string) $raw === '') {
++            $out['code'] = 'NO_NORMAL';
++            $out['reason'] = '正常部分が保存されていません';
++            return $out;
++        }
++        $out['raw'] = (string) $raw;
++        // @ANCHOR-20261021-R122-TYPEREAD  json_decode は使いません
++        $d = BaganrikiJson::decode((string) $raw);
++        if (!$d['ok']) {
++            $out['code'] = (string) $d['code'];
++            $out['reason'] = (string) $d['reason'];
++            return $out;
++        }
++        $out['ok'] = true;
++        $out['code'] = 'OK';
++        $out['value'] = $d['value'];
++        $out['map'] = (array) $d['map'];
++        return $out;
++    }
++
++    /**
++     * @ANCHOR-20261021-R122-TYPEREAD  保存した正常部分が、いまの値と同じか
++     *
++     *   保存 → 読戻し で型も値も落ちていないことを、その場で確かめます。
++     *   「公開用の一致確認」までこの比較1本で通します（010の3-3）。
++     *
++     * @return array ['ok','same','where','reason']
++     */
++    public function r122NormalRoundTrip(int $attemptId, array $normal,
++                                        array $normalMap): array
++    {
++        $rd = $this->r122NormalPart($attemptId);
++        if (!$rd['ok']) {
++            return ['ok' => false, 'same' => false, 'where' => null,
++                    'reason' => '読み戻せません（' . (string) $rd['code'] . '）'];
++        }
++        $r = BaganrikiJson::same($normal, $normalMap,
++                                 $rd['value'], $rd['map'], true);
++        return ['ok' => true, 'same' => (bool) $r['same'],
++                'where' => $r['where'], 'reason' => $r['reason']];
++    }
++
++    /**
++     * ═══════════════════════════════════════════════════════════════════════
+      * @ANCHOR-20261020-R122-PUB  統合・公開・intent・revision（本番接続）
+      * ═══════════════════════════════════════════════════════════════════════
+      * 根拠：server_contract_r12.2.txt 7章・8章・10章・11章
+@@ -19235,6 +19389,646 @@
+ 
+     /**
+      * ═══════════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-SETTLE  受領の終端と、採否の確定を分けます
++     * ═══════════════════════════════════════════════════════════════════════
++     * ご指摘（010の2-4「並列化で新たに注意が必要な早すぎる公開」）：
++     *
++     *   「現行 r122PublishWhenReady は、初回statusがTERMINALで、訂正枠が
++     *     まだなければ、そのroleを終端として数えます。
++     *     TERMINALにはRECEIVEDが含まれます。
++     *     一方、初回応答をRECEIVEDにした後に、r122AfterReceiveで診断・
++     *     訂正判断が始まります。このため、単純に2roleを並列にすると、
++     *     片方が『受領済みだが訂正の要否をまだ判定していない』間に、
++     *     もう片方が両role完了とみなして公開へ進む競合が起こり得ます。
++     *     HTTP受領の終端と、診断・訂正・採否の確定は別に管理してください。」
++     *
++     * そのとおりです。いまの数え方は「HTTPが返ってきた」までしか見ていません。
++     *
++     * ■ 分けたもの
++     *   ・<b>受領の終端</b> … baganriki_ai_attempts.status が TERMINAL。
++     *                        HTTPが返った（または失敗が確定した）だけです。
++     *   ・<b>採否の確定</b> … 診断→必要な訂正→採否（r122AcceptedHorses）まで
++     *                        終わった印。baganriki_audit_events に
++     *                        kind='R122_ROLE_SETTLED' で1行入れます。
++     *
++     *   印は「対象snapshot・role・応答の版」と結び付けます。版は、その role の
++     *   初回と訂正の (attempt_no, status, response_hash, complete) から作る
++     *   SHA-256 です。印を付けたあとに訂正が届けば版が変わるので、
++     *   印は自動的に効かなくなり、もう一度待ちに戻ります。
++     *
++     *   <b>新しい表は作りません。</b>baganriki_audit_events は既にあります。
++     *   migration を増やさずに済ませています。
++     *
++     * ■ 期限との関係
++     *   期限前は「両roleの採否確定」まで待ちます。
++     *   応答期限に達したら、待つのをやめて保存済みの結果で公開判定へ進みます
++     *   （010の2-4 末尾「期限到達時だけ保存済み結果で終了させます」）。
++     */
++
++    /**
++     * その role の「応答の版」を作ります。
++     *
++     *   初回と訂正の行を attempt_no 順に並べ、状態の分かる項目だけを
++     *   連結して SHA-256 にします。行が無ければ 'none' を混ぜます。
++     *   （raw_response そのものは混ぜません。response_hash で足ります）
++     *
++     * @return string 64文字
++     */
++    public static function r122RoleVersion(int $snapshotId, string $role): string
++    {
++        $parts = [];
++        $rows = \DB::table('baganriki_ai_attempts')
++                  ->where('snapshot_id', $snapshotId)
++                  ->where('role', $role)
++                  ->orderBy('attempt_no')
++                  ->get(['attempt_no', 'status', 'response_hash', 'complete']);
++        foreach ($rows as $r) {
++            $parts[] = implode("\x1f", [
++                (string) (int) $r->attempt_no,
++                (string) $r->status,
++                (string) ($r->response_hash ?? ''),
++                (string) (int) $r->complete,
++            ]);
++        }
++        if ($parts === []) { $parts[] = 'none'; }
++        return hash('sha256', $snapshotId . "\x1e" . $role . "\x1e" . implode("\x1e", $parts));
++    }
++
++    /**
++     * 採否が確定した印を付けます（同じ版に二度は付けません）。
++     *
++     * @param array $info 印に添える内容（resolve の結果など）
++     * @return array ['marked','version','already']
++     */
++    public static function r122MarkRoleSettled(int $snapshotId, string $role,
++                                               array $info = [],
++                                               ?int $nowUs = null): array
++    {
++        $out = ['marked' => false, 'version' => null, 'already' => false];
++        if (!\Schema::hasTable('baganriki_audit_events')) { return $out; }
++
++        $ver = self::r122RoleVersion($snapshotId, $role);
++        $out['version'] = $ver;
++
++        // すでに同じ版の印があれば足しません
++        $cur = self::r122RoleSettled($snapshotId, $role);
++        if ($cur['settled']) { $out['already'] = true; return $out; }
++
++        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
++        $live = \DB::table('baganriki_live_states')
++                  ->where('snapshot_id', $snapshotId)->first();
++        $now  = $nowUs !== null ? $nowUs : BaganrikiWorker::nowUs();
++
++        BaganrikiWorker::event(
++            (string) ($snap->race_id ?? ''),
++            $snapshotId,
++            'R122_ROLE_SETTLED',
++            null,
++            $live !== null ? (int) $live->response_revision : null,
++            ['role' => $role, 'version' => $ver] + $info,
++            $role,
++            $now
++        );
++        $out['marked'] = true;
++        return $out;
++    }
++
++    /**
++     * その role の採否が確定しているかを見ます。
++     *
++     *   いまの版と同じ版の印が1つでもあれば確定です。
++     *   版が違う印（訂正が後から届いた等）は確定として数えません。
++     *
++     * @return array ['settled','version','found','stale']
++     */
++    public static function r122RoleSettled(int $snapshotId, string $role): array
++    {
++        $out = ['settled' => false, 'version' => null, 'found' => 0, 'stale' => 0,
++                'by' => null];
++        if (!\Schema::hasTable('baganriki_audit_events')) {
++            // 監査表が無い環境では、印で待たせません（従来どおりの数え方）
++            $out['settled'] = true;
++            return $out;
++        }
++        $ver = self::r122RoleVersion($snapshotId, $role);
++        $out['version'] = $ver;
++
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-NOTHINGTOADOPT  採るものが無い role
++        // ══════════════════════════════════════════════════════════════
++        //   初回が FAILED（明確な失敗）か UNKNOWN_RESULT（結果不明）で、
++        //   訂正の枠も無い（または終端）なら、その role には
++        //   <b>診断も訂正も採否も、やることが残っていません。</b>
++        //   印を待っても永久に付きません（印を付けるのは
++        //   r122AfterReceive で、それは受領に成功したときだけ動きます）。
++        //   ここで待たせると、失敗した役のぶんだけ公開が応答期限まで
++        //   遅れます。公開期限は応答期限の30秒後しかありません。
++        //   なので「採るものが無い」ことを確定として数えます。
++        //   RECEIVED のときは<b>数えません</b>。それが010の2-4です。
++        $f = \DB::table('baganriki_ai_attempts')
++               ->where('snapshot_id', $snapshotId)->where('role', $role)
++               ->where('attempt_no', BaganrikiWorker::FIRST)->first();
++        if ($f !== null
++            && in_array((string) $f->status,
++                        [BaganrikiWorker::FAILED, BaganrikiWorker::UNKNOWN], true)) {
++            $x = \DB::table('baganriki_ai_attempts')
++                   ->where('snapshot_id', $snapshotId)->where('role', $role)
++                   ->where('attempt_no', BaganrikiWorker::FIX)->first();
++            if ($x === null
++                || in_array((string) $x->status, BaganrikiWorker::TERMINAL, true)) {
++                $out['settled'] = true;
++                $out['by'] = 'NOTHING_TO_ADOPT';
++                $out['first_status'] = (string) $f->status;
++                return $out;
++            }
++        }
++
++        $rows = \DB::table('baganriki_audit_events')
++                  ->where('snapshot_id', $snapshotId)
++                  ->where('kind', 'R122_ROLE_SETTLED')
++                  ->where('related_id', $role)
++                  ->orderByDesc('id')
++                  ->limit(20)
++                  ->get(['diagnostics']);
++        foreach ($rows as $r) {
++            $out['found']++;
++            $d = json_decode((string) $r->diagnostics, true);
++            if (is_array($d) && (string) ($d['version'] ?? '') === $ver) {
++                $out['settled'] = true;
++            } else {
++                $out['stale']++;
++            }
++        }
++        return $out;
++    }
++
++    /**
++     * ═══════════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-JOBWIRE  Job構成の土台（010の2章）
++     * ═══════════════════════════════════════════════════════════════════════
++     * app/Jobs の4本から呼ぶものを、ここに置きます。
++     * Jobの段（BAGANRIKI_R122_JOBS）が下りているあいだ、
++     * これらは<b>どこからも呼ばれません。</b>いまの経路は変わりません。
++     */
++
++    /** このレースで使う経路（JOB／SYNC）を記録する監査の種別 */
++    public const R122_PATH_KIND = 'R122_PATH_FIXED';
++
++    /**
++     * レースの処理開始時に使う経路を固定します（010の2-5）。
++     *
++     *   「旧経路を残す場合も、レースの処理開始時に使う経路を固定します。
++     *     Job失敗を理由に、送信済み・結果不明の同じ枠を旧経路から
++     *     再送してはいけません。」
++     *
++     *   すでに固定されていれば<b>上書きしません。</b>先に決めたほうが勝ちです。
++     *
++     * @return array ['path','fixed','already']
++     */
++    public static function r122FixPath(int $snapshotId, string $path): array
++    {
++        $out = ['path' => null, 'fixed' => false, 'already' => false];
++        if ($path !== 'JOB' && $path !== 'SYNC') { return $out; }
++        if (!\Schema::hasTable('baganriki_audit_events')) {
++            $out['path'] = $path;   // 監査表が無ければ記録できません
++            return $out;
++        }
++        $cur = self::r122PathOf($snapshotId);
++        if ($cur !== null) {
++            $out['path'] = $cur;
++            $out['already'] = true;
++            return $out;
++        }
++        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
++        BaganrikiWorker::event(
++            (string) ($snap->race_id ?? ''), $snapshotId, self::R122_PATH_KIND,
++            null, null, ['path' => $path], $path, BaganrikiWorker::nowUs()
++        );
++        $out['path'] = $path;
++        $out['fixed'] = true;
++        return $out;
++    }
++
++    /**
++     * そのレースに固定された経路を返します。
++     *   固定されていなければ null（＝まだどちらでもない）です。
++     */
++    public static function r122PathOf(int $snapshotId): ?string
++    {
++        if (!\Schema::hasTable('baganriki_audit_events')) { return null; }
++        $r = \DB::table('baganriki_audit_events')
++               ->where('snapshot_id', $snapshotId)
++               ->where('kind', self::R122_PATH_KIND)
++               ->orderBy('id')->first(['diagnostics', 'related_id']);
++        if ($r === null) { return null; }
++        $d = json_decode((string) $r->diagnostics, true);
++        $p = is_array($d) ? (string) ($d['path'] ?? '') : '';
++        if ($p === '') { $p = (string) ($r->related_id ?? ''); }
++        return ($p === 'JOB' || $p === 'SYNC') ? $p : null;
++    }
++
++    /**
++     * ═══════════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-TARGET12  10月24日の非公開12レースだけに限る
++     * ═══════════════════════════════════════════════════════════════════════
++     * ご指摘（010の2-5・7章⑤）：
++     *   「10月24日の非公開12レースについては、通常アクセス・キャッシュ後・
++     *     巡回・訂正の全入口で対象race_idを確認し、送信許可の直前でも
++     *     確認します。1レースの最大4回という制約だけでは、対象レース
++     *     総数12を保証できません。」
++     *
++     * ■ 決め方
++     *   .env の BAGANRIKI_R122_TARGETS に race_id を読点（,）で並べます。
++     *     BAGANRIKI_R122_TARGETS=20261024-5-05-1-1,20261024-5-05-1-2,…
++     *   <b>空のときは1つも送りません。</b>「指定が無ければ全部送る」に
++     *   しません。逆にしておくと、設定を入れ忘れた日に全レースへ
++     *   送ってしまいます。
++     *
++     * ■ どこで見るか
++     *   ・r122SendFirst（初回の送信許可の直前）
++     *   ・r122SendFix（訂正の送信許可の直前）
++     *   ・r122SweepPending（巡回が拾ったとき）
++     *   ・r122AfterCached（キャッシュ後の後始末）
++     *   ・R122RunRoleJob（待ち行列から出たとき。積まれてから時間が経つため）
++     *   同じ関数を全部から呼びます。判定を書き写しません。
++     *
++     * @return array ['ok','code','reason','count','targets']
++     */
++    public static function r122Targets(): array
++    {
++        $raw = (string) env('BAGANRIKI_R122_TARGETS', '');
++        $out = [];
++        foreach (explode(',', $raw) as $t) {
++            $t = trim($t);
++            if ($t === '') { continue; }
++            $out[$t] = true;
++        }
++        return array_keys($out);
++    }
++
++    public static function r122TargetCheck(string $raceId): array
++    {
++        $t = self::r122Targets();
++        $out = ['ok' => false, 'code' => null, 'reason' => null,
++                'count' => count($t), 'targets' => $t];
++
++        // 段が下りていれば、この見張りは使いません（いまの経路のまま）
++        if (!BaganrikiWorker::targetsEnforced()) {
++            $out['ok'] = true;
++            $out['code'] = 'NOT_ENFORCED';
++            $out['reason'] = '対象レースの限定は効かせていません';
++            return $out;
++        }
++        if ($t === []) {
++            $out['code'] = 'NO_TARGETS';
++            $out['reason'] = 'BAGANRIKI_R122_TARGETS が空なので1レースも送りません';
++            return $out;
++        }
++        if (!in_array($raceId, $t, true)) {
++            $out['code'] = 'NOT_TARGET';
++            $out['reason'] = $raceId . ' は検証の対象レース（' . count($t)
++                           . '件）に入っていません';
++            return $out;
++        }
++        $out['ok'] = true;
++        $out['code'] = 'TARGET';
++        $out['reason'] = $raceId . ' は検証の対象レースです';
++        return $out;
++    }
++
++    /**
++     * ═══════════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-JOBDISPATCH  Jobを積む唯一の入口
++     * ═══════════════════════════════════════════════════════════════════════
++     * ご指摘（010の2-3）：
++     *   「通常アクセスと r122AfterCached：対象判定後、凍結がなければ
++     *     FreezeRaceJob、既にあれば不足しているroleのJobと集計Jobを
++     *     投入する短い処理にします。terminating内で長いAIのHTTP応答を
++     *     待つ形を残しません。」
++     *
++     *   ここは<b>短い処理だけ</b>です。AIのHTTP応答は待ちません。
++     *   Jobの段が下りているときは何もせず、呼び出し元は従来の経路へ進みます。
++     *
++     * @return array ['ran','code','reason','dispatched'=>[…]]
++     */
++    public function r122DispatchForRace($date, $kaisuu, $basho, $day, $race): array
++    {
++        $out = ['ran' => false, 'code' => null, 'reason' => null, 'dispatched' => []];
++        try {
++            if (!BaganrikiWorker::jobs()) {
++                $out['code'] = 'JOBS_OFF';
++                $out['reason'] = 'Jobの段が下りているので積みません';
++                return $out;
++            }
++            if (!class_exists(\App\Jobs\R122FreezeRaceJob::class)) {
++                $out['code'] = 'JOBS_MISSING';
++                $out['reason'] = 'app/Jobs が配置されていません';
++                return $out;
++            }
++            if (!\App\Jobs\R122Job::ready()) {
++                $out['code'] = 'QUEUE_TABLE_MISSING';
++                $out['reason'] = 'jobs 表がありません';
++                return $out;
++            }
++            $raceId = self::r122RaceId($date, $kaisuu, $basho, $day, $race);
++
++            // ── 対象レースの確認（ここでも見ます）────────────────────
++            $tg = self::r122TargetCheck($raceId);
++            if (!$tg['ok']) {
++                $out['code'] = (string) $tg['code'];
++                $out['reason'] = (string) $tg['reason'];
++                return $out;
++            }
++            $out['ran'] = true;
++
++            $snap = \DB::table('baganriki_snapshots')
++                      ->where('race_id', $raceId)->where('generation', 0)->first();
++
++            // ── 凍結がまだなら、凍結のJobだけ積みます ────────────────
++            if ($snap === null) {
++                \App\Jobs\R122FreezeRaceJob::dispatch(
++                    (string) $date, (string) $kaisuu, (string) $basho,
++                    (string) $day, (int) $race);
++                $out['code'] = 'FREEZE_DISPATCHED';
++                $out['dispatched'][] = 'freeze';
++                return $out;
++            }
++
++            $sid = (int) $snap->id;
++
++            // ── 旧経路で始まったレースには触りません（010の2-5）──────
++            $path = self::r122PathOf($sid);
++            if ($path === 'SYNC') {
++                $out['code'] = 'PATH_IS_SYNC';
++                $out['reason'] = 'このレースは旧経路で始まっているので積みません';
++                return $out;
++            }
++            self::r122FixPath($sid, 'JOB');
++
++            // ── 足りない role のJobを積みます ───────────────────────
++            foreach (['1st', '2nd'] as $role) {
++                $has = \DB::table('baganriki_ai_attempts')
++                         ->where('snapshot_id', $sid)->where('role', $role)
++                         ->where('attempt_no', BaganrikiWorker::FIRST)->exists();
++                if ($has) { continue; }
++                \App\Jobs\R122RunRoleJob::dispatch($sid, $role);
++                $out['dispatched'][] = 'role:' . $role;
++            }
++
++            // ── 集計も積みます（受領を待たずに期限で動く側）──────────
++            \App\Jobs\R122AggregateRaceJob::dispatch($sid, 'ENTRY');
++            $out['dispatched'][] = 'aggregate';
++            $out['code'] = 'DISPATCHED';
++            return $out;
++        } catch (\Throwable $e) {
++            // @ANCHOR-20261005-AUX-NEVER-BREAKS  記録のための処理で予想を殺しません
++            \Log::error('[R122-JOB] 積むところで例外（予想は返します）',
++                ['message' => $e->getMessage(),
++                 'at' => $e->getFile() . ':' . $e->getLine()]);
++            $out['code'] = 'EXCEPTION';
++            $out['reason'] = $e->getMessage();
++            return $out;
++        }
++    }
++
++    /**
++     * ═══════════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-APPLYLIVE  実状態の変更を既存の版管理へ入れます
++     * ═══════════════════════════════════════════════════════════════════════
++     * ご指摘（010の2-2 UpdateRaceLiveJob）：
++     *   「正式取消・発走時刻等の実状態変更を既存の版管理に接続し、
++     *     必要な再判定を起動します。AIの新規送信や、凍結済み本文の
++     *     無断変更は担当させません。」
++     *
++     * ■ 入れるもの
++     *   cancellations  正式取消の馬番。<b>足すだけです。</b>
++     *                  一度取消になった馬は戻しません。消す指示は受けません。
++     *   live_close     締切の前倒し。<b>延長はしません。</b>
++     *                  （表の注記「締切の前倒し。延長はしない」のとおり）
++     *
++     * ■ 入れないもの
++     *   ・凍結済み本文（input_json_1st／input_json_2nd）は1バイトも触りません。
++     *   ・anchor_at・cutoff_at・sales_close_at も触りません。これは正本です。
++     *     発走時刻が変わったときは、前倒しのぶんを live_close で表します。
++     *   ・AIへの送信はしません。
++     *
++     * ■ 版
++     *   実際に変わったときだけ state_revision を1つ増やし、
++     *   baganriki_audit_events に1行残します。
++     *   何も変わらなければ版も増やしません（毎回増やすと版の意味が薄れます）。
++     *
++     * @param array $change ['cancellations'=>int[], 'live_close_us'=>?int]
++     * @return array ['ok','code','reason','changed','state_revision',
++     *                'cancellations','live_close_us']
++     */
++    public function r122ApplyLive(int $snapshotId, array $change): array
++    {
++        $out = ['ok' => false, 'code' => null, 'reason' => null, 'changed' => [],
++                'state_revision' => null, 'cancellations' => [],
++                'live_close_us' => null];
++        try {
++            $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
++            if ($snap === null) {
++                $out['code'] = 'NO_SNAPSHOT';
++                $out['reason'] = '凍結入力がありません';
++                return $out;
++            }
++            BaganrikiWorker::ensureLive($snapshotId, BaganrikiWorker::nowUs());
++
++            $res = \DB::transaction(function () use ($snapshotId, $change, $snap) {
++                $live = \DB::table('baganriki_live_states')
++                          ->where('snapshot_id', $snapshotId)
++                          ->lockForUpdate()->first();
++                if ($live === null) {
++                    return ['ok' => false, 'code' => 'NO_LIVE',
++                            'reason' => 'ライブ状態の行がありません', 'changed' => []];
++                }
++                $changed = [];
++
++                // ── ① 正式取消（足すだけ）────────────────────────────
++                $cur = (array) json_decode((string) ($live->cancellations ?? '[]'), true);
++                $cur = array_values(array_unique(array_map('intval', $cur)));
++                sort($cur);
++                $add = array_values(array_unique(array_map('intval',
++                           (array) ($change['cancellations'] ?? []))));
++                $new = $cur;
++                foreach ($add as $n) {
++                    if ($n > 0 && !in_array($n, $new, true)) { $new[] = $n; }
++                }
++                sort($new);
++                if ($new !== $cur) {
++                    $changed['cancellations'] = ['前' => $cur, '後' => $new];
++                }
++
++                // ── ② 締切の前倒し（延長はしません）──────────────────
++                $curClose = BaganrikiWorker::dbUs($live->live_close ?? null);
++                $want = $change['live_close_us'] ?? null;
++                $newClose = $curClose;
++                if ($want !== null) {
++                    $want = (int) $want;
++                    $sales = BaganrikiWorker::dbUs($snap->sales_close_at ?? null);
++                    if ($sales !== null && $want >= $sales) {
++                        // 正本より後ろへは動かしません（延長になります）
++                        $changed['live_close_rejected'] =
++                            '正本の投票締切より後ろなので入れません';
++                    } elseif ($curClose === null || $want < $curClose) {
++                        $newClose = $want;
++                        $changed['live_close'] = ['前' => $curClose, '後' => $newClose];
++                    } else {
++                        $changed['live_close_rejected'] =
++                            'いまの前倒しより後ろなので入れません（延長はしません）';
++                    }
++                }
++
++                // ── ③ 実際に変わったときだけ版を増やします ────────────
++                $realChange = isset($changed['cancellations'])
++                           || isset($changed['live_close']);
++                $rev = (int) $live->state_revision;
++                if ($realChange) {
++                    $rev = $rev + 1;
++                    $upd = ['state_revision' => $rev,
++                            'updated_at' => BaganrikiWorker::toDb(
++                                                BaganrikiWorker::nowUs())];
++                    if (isset($changed['cancellations'])) {
++                        $upd['cancellations'] = self::r122Json($new);
++                        // 有効頭数は集合矛盾のときNULLにする列です。
++                        // ここでは触りません（既存の計算に任せます）。
++                    }
++                    if (isset($changed['live_close'])) {
++                        $upd['live_close'] = BaganrikiWorker::toDb($newClose);
++                    }
++                    \DB::table('baganriki_live_states')
++                      ->where('snapshot_id', $snapshotId)
++                      ->where('state_revision', (int) $live->state_revision)
++                      ->update($upd);
++
++                    BaganrikiWorker::event(
++                        (string) $snap->race_id, $snapshotId, 'R122_LIVE_APPLIED',
++                        (int) $live->state_revision, $rev, $changed, null,
++                        BaganrikiWorker::nowUs()
++                    );
++                }
++                return ['ok' => true, 'code' => $realChange ? 'APPLIED' : 'NO_CHANGE',
++                        'reason' => $realChange ? '実状態を入れました'
++                                                : '変わるところがありません',
++                        'changed' => $changed, 'state_revision' => $rev,
++                        'cancellations' => $new, 'live_close_us' => $newClose];
++            });
++
++            $out['ok']     = (bool) ($res['ok'] ?? false);
++            $out['code']   = (string) ($res['code'] ?? '');
++            $out['reason'] = $res['reason'] ?? null;
++            $out['changed'] = (array) ($res['changed'] ?? []);
++            $out['state_revision'] = $res['state_revision'] ?? null;
++            $out['cancellations']  = (array) ($res['cancellations'] ?? []);
++            $out['live_close_us']  = $res['live_close_us'] ?? null;
++            return $out;
++        } catch (\Throwable $e) {
++            \Log::error('[R122-LIVE] 実状態を入れるところで例外',
++                ['message' => $e->getMessage(),
++                 'at' => $e->getFile() . ':' . $e->getLine()]);
++            $out['code'] = 'EXCEPTION';
++            $out['reason'] = $e->getMessage();
++            return $out;
++        }
++    }
++
++    /** JSONへ（既存の書き方にそろえます） */
++    private static function r122Json($v): string
++    {
++        return (string) json_encode($v,
++            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
++    }
++
++    /**
++     * ═══════════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-USAGE  実モデルと使用量を残します（010の7章⑤）
++     * ═══════════════════════════════════════════════════════════════════════
++     * ご指摘：
++     *   「usageと実モデルの記録、初回24回／最大48回の費用を示すこと。」
++     *   「2nd自身のトークナイザ、実モデル、finish_reason、usage、
++     *     JSON検証結果を揃えてください。」
++     *
++     *   こちらで決めた名前ではなく、<b>応答に書かれていたモデル名</b>と
++     *   使用量をそのまま残します。
++     *   新しい表は作りません。baganriki_audit_events に1行入れます。
++     *     kind       R122_USAGE
++     *     related_id role#attempt_no
++     *     diagnostics {model, stop, usage, bytes, complete}
++     *
++     * @param array $call r122CallAi の戻り
++     */
++    public static function r122RecordUsage(int $snapshotId, string $role,
++                                           int $attemptNo, array $call): void
++    {
++        try {
++            if (!\Schema::hasTable('baganriki_audit_events')) { return; }
++            $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
++            $u = $call['usage'] ?? null;
++            BaganrikiWorker::event(
++                (string) ($snap->race_id ?? ''), $snapshotId, 'R122_USAGE',
++                null, null,
++                [
++                    'role'        => $role,
++                    'attempt_no'  => $attemptNo,
++                    // 応答が名乗ったモデル（設定値ではありません）
++                    'model'       => (string) ($call['model'] ?? ''),
++                    'stop'        => $call['stop'] ?? null,
++                    'usage'       => is_array($u) ? $u : null,
++                    'raw_bytes'   => strlen((string) ($call['raw'] ?? '')),
++                    'complete'    => (bool) ($call['complete'] ?? false),
++                    'code'        => (string) ($call['code'] ?? ''),
++                ],
++                $role . '#' . $attemptNo,
++                BaganrikiWorker::nowUs()
++            );
++        } catch (\Throwable $e) {
++            // 記録で落ちても送信は止めません
++            \Log::error('[R122-USAGE] 使用量を残せません',
++                ['message' => $e->getMessage()]);
++        }
++    }
++
++    /**
++     * @ANCHOR-20261021-R122-USAGE  そのレースの使用量をまとめて返します
++     *
++     *   なるへ出す「初回24回／最大48回の費用」は、ここの実測から出します。
++     *   単価は資料に書くので、ここでは<b>トークン数と実モデル</b>だけです。
++     *
++     * @return array ['rows'=>[…], 'by_model'=>[model=>['in','out','calls']]]
++     */
++    public static function r122UsageOf(int $snapshotId): array
++    {
++        $out = ['rows' => [], 'by_model' => []];
++        if (!\Schema::hasTable('baganriki_audit_events')) { return $out; }
++        $rows = \DB::table('baganriki_audit_events')
++                  ->where('snapshot_id', $snapshotId)
++                  ->where('kind', 'R122_USAGE')
++                  ->orderBy('id')->get(['diagnostics', 'happened_at']);
++        foreach ($rows as $r) {
++            $d = json_decode((string) $r->diagnostics, true);
++            if (!is_array($d)) { continue; }
++            $m = (string) ($d['model'] ?? '');
++            $u = (array) ($d['usage'] ?? []);
++            // Anthropic は input_tokens／output_tokens、
++            // DeepSeek は prompt_tokens／completion_tokens です。
++            $in  = (int) ($u['input_tokens']  ?? ($u['prompt_tokens']     ?? 0));
++            $o   = (int) ($u['output_tokens'] ?? ($u['completion_tokens'] ?? 0));
++            $d['in'] = $in; $d['out'] = $o;
++            $d['at'] = (string) $r->happened_at;
++            $out['rows'][] = $d;
++            if (!isset($out['by_model'][$m])) {
++                $out['by_model'][$m] = ['in' => 0, 'out' => 0, 'calls' => 0];
++            }
++            $out['by_model'][$m]['in']    += $in;
++            $out['by_model'][$m]['out']   += $o;
++            $out['by_model'][$m]['calls'] += 1;
++        }
++        return $out;
++    }
++
++    /**
++     * ═══════════════════════════════════════════════════════════════════════
+      * @ANCHOR-20261020-R122-WIRE  実送信の後へ接続します（6-4）
+      * ═══════════════════════════════════════════════════════════════════════
+      * 根拠：10月20日006のご指摘6-4／server_contract_r12.2.txt 6章・10章・11章
+@@ -19450,8 +20244,21 @@
+     public function r122CallAi(string $role, string $system, string $user,
+                                int $timeout): array
+     {
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-USAGE  実モデルと使用量を残します（010の7章⑤）
++        // ══════════════════════════════════════════════════════════════
++        //   ご指摘：
++        //     「12個のrace_idへの限定、非公開の読取経路、usageと実モデルの
++        //       記録、初回24回／最大48回の費用を示すこと。」
++        //     「2ndは添付コード上でdeepseek-chat、max_tokens=8,192です。
++        //       …2nd自身のトークナイザ、実モデル、finish_reason、usage、
++        //       JSON検証結果を揃えてください。」
++        //   応答の usage と、API が名乗ったモデル名をそのまま残します。
++        //   <b>こちらで決めた名前ではなく、応答に書かれていたもの</b>です。
++        //   入れる場所は baganriki_audit_events です（新しい表は作りません）。
+         $out = ['ok' => false, 'raw' => '', 'complete' => false,
+-                'code' => null, 'reason' => null];
++                'code' => null, 'reason' => null,
++                'usage' => null, 'model' => null, 'stop' => null];
+         try {
+             if ($role === '2nd') {
+                 $res = \Illuminate\Support\Facades\Http::timeout($timeout)
+@@ -19476,6 +20283,11 @@
+                 $out['code']     = 'OK';
+                 $out['raw']      = $raw;
+                 $out['complete'] = (($fin === null || $fin === 'stop') && $raw !== '');
++                // @ANCHOR-20261021-R122-USAGE  応答が名乗ったモデルと使用量
++                $out['model'] = (string) ($j['model'] ?? '');
++                $out['stop']  = ($fin === null) ? null : (string) $fin;
++                $out['usage'] = is_array($j['usage'] ?? null)
++                              ? (array) $j['usage'] : null;
+                 return $out;
+             }
+             $res = $this->anthropic->sendWithRetry(
+@@ -19496,6 +20308,11 @@
+             $out['code']     = 'OK';
+             $out['raw']      = $raw;
+             $out['complete'] = (($stop === null || $stop === 'end_turn') && $raw !== '');
++            // @ANCHOR-20261021-R122-USAGE  応答が名乗ったモデルと使用量
++            $out['model'] = (string) ($res->json('model') ?? '');
++            $out['stop']  = ($stop === null) ? null : (string) $stop;
++            $u = $res->json('usage');
++            $out['usage'] = is_array($u) ? (array) $u : null;
+             return $out;
+         } catch (\Illuminate\Http\Client\ConnectionException $e) {
+             // 届いたかどうか分からないので「結果不明」にします（再送しません）
+@@ -19537,6 +20354,23 @@
+             $out['code'] = 'NO_SNAPSHOT'; $out['reason'] = '凍結入力がありません';
+             return $out;
+         }
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-TARGET12  訂正の入口でも対象レースを見ます
++        // ══════════════════════════════════════════════════════════════
++        //   ご指摘（010の2-5）：
++        //     「通常アクセス・キャッシュ後・巡回・訂正の全入口で
++        //       対象race_idを確認し、送信許可の直前でも確認します。
++        //       1レースの最大4回という制約だけでは、対象レース総数12を
++        //       保証できません。」
++        //   訂正は1レースあたり最大1回ですが、レースの数は制限されません。
++        //   ここでも見ます。判定は全入口で同じ関数（r122TargetCheck）です。
++        $tgF = self::r122TargetCheck((string) $snap->race_id);
++        if (!$tgF['ok']) {
++            $out['code']   = (string) $tgF['code'];
++            $out['reason'] = (string) $tgF['reason'];
++            return $out;
++        }
++
+         $dl = BaganrikiWorker::deadlines($snap, $live);
+         if (!$dl['ok']) {
+             $out['code'] = (string) $dl['code']; $out['reason'] = (string) $dl['reason'];
+@@ -19591,6 +20425,8 @@
+         $call = $this->r122CallAi($role, (string) $asm['system'], (string) $asm['user'],
+                                   $wait);
+         $out['sent'] = true;
++        // @ANCHOR-20261021-R122-USAGE  実モデルと使用量を残します（010の7章⑤）
++        self::r122RecordUsage($snapshotId, $role, BaganrikiWorker::FIX, $call);
+         if (!$call['ok']) {
+             // 通信失敗・待ち時間切れは「結果不明」。明確な失敗は FAILED。
+             $unknown = ($call['code'] === 'CONNECTION' || $call['code'] === 'EXCEPTION');
+@@ -19689,6 +20525,19 @@
+             $out['reason'] = (string) $dl['reason'];
+             return $out;
+         }
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-TARGET12  初回の送信許可の直前（010の2-5）
++        // ══════════════════════════════════════════════════════════════
++        //   「送信許可の直前でも確認します」。
++        //   巡回や待ち行列から来たときは、拾ってから時間が経っています。
++        //   予約（reserve）の前にもう一度見ます。
++        $tgS = self::r122TargetCheck((string) $snap->race_id);
++        if (!$tgS['ok']) {
++            $out['code']   = (string) $tgS['code'];
++            $out['reason'] = (string) $tgS['reason'];
++            return $out;
++        }
++
+         $now  = BaganrikiWorker::nowUs();
+         $left = (int) floor(($dl['reply'] - $now) / 1000000);
+         if ($left < self::R122_FIRST_MIN_SEC) {
+@@ -19747,6 +20596,8 @@
+         $wait = max(20, min(self::R122_FIRST_MAX_WAIT, $left - 5));
+         $call = $this->r122CallAi($role, (string) $sys['body'], $user, $wait);
+         $out['sent'] = true;
++        // @ANCHOR-20261021-R122-USAGE  実モデルと使用量を残します（010の7章⑤）
++        self::r122RecordUsage($snapshotId, $role, BaganrikiWorker::FIRST, $call);
+         if (!$call['ok']) {
+             $unknown = ($call['code'] === 'CONNECTION' || $call['code'] === 'EXCEPTION');
+             BaganrikiWorker::fail((string) $r['token'],
+@@ -19818,6 +20669,19 @@
+                     $waiting[] = $role . '（訂正中）';
+                     continue;
+                 }
++                // ══════════════════════════════════════════════════════════
++                // @ANCHOR-20261021-R122-SETTLE  受領の終端≠採否の確定
++                // ══════════════════════════════════════════════════════════
++                //   ここまでで分かるのは「HTTPが返った」ことだけです。
++                //   TERMINAL には RECEIVED が含まれるので、
++                //   診断・訂正の要否をまだ判定していない role まで
++                //   終端として数えてしまいます（010の2-4）。
++                //   採否確定の印（R122_ROLE_SETTLED）を別に見ます。
++                $sv = self::r122RoleSettled($snapshotId, $role);
++                if (!$sv['settled']) {
++                    $waiting[] = $role . '（採否未確定）';
++                    continue;
++                }
+                 $settled++;
+                 continue;
+             }
+@@ -19825,7 +20689,18 @@
+         }
+         if ($waiting !== []) {
+             // 応答期限を過ぎたら待ちません（もう届いても遅着です）
+-            $late = ($dl['ok'] && $dl['reply'] !== null && $now > $dl['reply']);
++            // ══════════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-ATDEADLINE  期限ぴったりも「過ぎた」と見ます
++            // ══════════════════════════════════════════════════════════════
++            //   ご指摘（010の2-3 末尾）：
++            //     「現行 r122PublishWhenReady は $now > reply の判定なので、
++            //       期限ぴったりの1回でWAITINGになって終わらないよう、
++            //       期限直後の再判定まで含めて設計してください。」
++            //   `>` だと、期限と同じマイクロ秒に来た1回が WAITING で終わり、
++            //   その後だれも呼び直さないと公開されないままになります。
++            //   `>=` にして、期限に達した時点で待つのをやめます。
++            // $late = ($dl['ok'] && $dl['reply'] !== null && $now > $dl['reply']);  // 旧
++            $late = ($dl['ok'] && $dl['reply'] !== null && $now >= $dl['reply']);
+             if (!$late) {
+                 return ['ok' => false, 'code' => 'WAITING',
+                         'reason' => 'まだ終端でないroleがあります: '
+@@ -19853,7 +20728,7 @@
+                                      string $role, array $q): array
+     {
+         $out = ['ran' => false, 'inspect' => null, 'fix' => null,
+-                'resolve' => null, 'publish' => null];
++                'resolve' => null, 'publish' => null, 'settled' => null];
+         if (($q['skip'] ?? true) || !($q['ok'] ?? false)) { return $out; }
+         $sid = (int) ($q['snapshot_id'] ?? 0);
+         if ($sid <= 0) { return $out; }
+@@ -19895,7 +20770,51 @@
+             $out['resolve'] = ['ok' => $rv['ok'] ?? false, 'code' => $rv['code'] ?? null,
+                                'merged' => count((array) ($rv['merged'] ?? []))];
+ 
+-            // ④ 公開（両roleが終端になってから）
++            // ══════════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-SETTLE  ここで採否が確定しました（010の2-4）
++            // ══════════════════════════════════════════════════════════════
++            //   診断（①）→必要な訂正（②）→採否（③）まで終わったので、
++            //   この role の「採否確定」の印を付けます。
++            //   印には、いまの応答の版（初回と訂正の状態から作るSHA-256）を
++            //   入れます。あとから訂正が届けば版が変わり、印は効きません。
++            $mk = self::r122MarkRoleSettled($sid, $role, [
++                'resolve_ok'   => (bool) ($rv['ok'] ?? false),
++                'resolve_code' => (string) ($rv['code'] ?? ''),
++                'merged'       => count((array) ($rv['merged'] ?? [])),
++                'fix_sent'     => (bool) ($out['fix']['sent'] ?? false),
++                'inspect_code' => (string) ($insp['code'] ?? ''),
++            ]);
++            $out['settled'] = $mk;
++            \Log::error('[R122-WIRE] 採否を確定しました', [
++                'race_id' => $raceId, 'role' => $role,
++                'marked'  => $mk['marked'], 'already' => $mk['already'],
++                'version' => $mk['version'],
++            ]);
++
++            // ══════════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-JOBHANDOFF  公開は集計Jobへ渡します
++            // ══════════════════════════════════════════════════════════════
++            //   ご指摘（010の2-2 RunRoleJob）：
++            //     「r122AfterReceive末尾の直接公開は、roleの処理完了を
++            //       保存してAggregateRaceJobへ渡す形に変更します。」
++            //
++            //   Jobの段が上がっているときは、ここで公開まで進めません。
++            //   ③で採否確定の印を残したので、集計Jobがそれを見ます。
++            //   Jobの段が下りているときは、これまでどおりここで進めます
++            //   （いまの本番はこちらです。動きは変わりません）。
++            if (BaganrikiWorker::jobs()
++                && class_exists(\App\Jobs\R122AggregateRaceJob::class)) {
++                $out['publish'] = ['ok' => false, 'code' => 'HANDED_TO_AGGREGATE',
++                                   'publication_id' => null, 'candidates' => 0,
++                                   'reason' => '採否確定の印を残し、集計Jobへ渡しました'];
++                \Log::error('[R122-WIRE] 公開は集計Jobへ渡しました', [
++                    'race_id' => $raceId, 'role' => $role,
++                    'settled' => $mk['marked'] ?? null,
++                ]);
++                return $out;
++            }
++
++            // ④ 公開（両roleの採否が確定してから）
+             $pb = $this->r122PublishWhenReady($sid);
+             $out['publish'] = ['ok' => $pb['ok'] ?? false, 'code' => $pb['code'] ?? null,
+                                'publication_id' => $pb['publication_id'] ?? null,
+@@ -20009,6 +20928,37 @@
+                 $rid = \App\Http\Controllers\Api\AiController::r122RaceId($d, $k, $b, $y, $r);
+                 $sn = \DB::table('baganriki_snapshots')
+                         ->where('race_id', $rid)->where('generation', 0)->first();
++                // ══════════════════════════════════════════════════════
++                // @ANCHOR-20261021-R122-JOBENTRY  Jobの段なら積むだけです
++                // ══════════════════════════════════════════════════════
++                //   ご指摘（010の2-3）：
++                //     「通常アクセスと r122AfterCached：対象判定後、凍結が
++                //       なければFreezeRaceJob、既にあれば不足しているroleの
++                //       Jobと集計Jobを投入する短い処理にします。
++                //       terminating内で長いAIのHTTP応答を待つ形を
++                //       残しません。」
++                //   Jobの段が上がっているときは、ここで送りません。
++                //   積むだけで、この terminating はすぐ終わります。
++                if (BaganrikiWorker::jobs()) {
++                    $dp = $self->r122DispatchForRace($d, $k, $b, $y, $r);
++                    \Log::error('[R122-JOB] キャッシュ後に積みました', [
++                        'race_id' => $rid, 'code' => $dp['code'],
++                        'reason' => $dp['reason'], 'dispatched' => $dp['dispatched'],
++                    ]);
++                    return;
++                }
++                // ══════════════════════════════════════════════════════
++                // @ANCHOR-20261021-R122-TARGET12  キャッシュ後の入口（010の2-5）
++                // ══════════════════════════════════════════════════════
++                $tgC = \App\Http\Controllers\Api\AiController
++                           ::r122TargetCheck($rid);
++                if (!$tgC['ok']) {
++                    \Log::error('[R122-TARGET] 対象レースではないので送りません', [
++                        'race_id' => $rid, 'code' => $tgC['code'],
++                        'reason' => $tgC['reason'],
++                    ]);
++                    return;
++                }
+                 if ($sn !== null && BaganrikiWorker::enabled()) {
+                     // @ANCHOR-20261021-R122-SENDFIRST  008のご指摘5
+                     //   凍結できただけで止めません。初回の枠が無ければ
+@@ -20054,7 +21004,9 @@
+     {
+         $out = ['scanned' => 0, 'resumed' => 0, 'published' => 0, 'rows' => [],
+                 // @ANCHOR-20261021-R122-SENDFIRST  初回をやり直した件数
+-                'first_sent' => 0, 'first_codes' => []];
++                'first_sent' => 0, 'first_codes' => [],
++                // @ANCHOR-20261021-R122-JOBSWEEP  Jobを積んだ件数（010の2-3）
++                'dispatched' => 0];
+         if (!BaganrikiWorker::enabled() || !BaganrikiWorker::ready()) { return $out; }
+         $now = (int) ($opt['now_us'] ?? BaganrikiWorker::nowUs());
+ 
+@@ -20087,6 +21039,19 @@
+                     if ((array) ($rs['unknown'] ?? []) !== []) { $out['resumed']++; }
+                 }
+ 
++                // ══════════════════════════════════════════════════════
++                // @ANCHOR-20261021-R122-TARGET12  巡回の入口（010の2-5）
++                // ══════════════════════════════════════════════════════
++                //   対象レースでないものは、拾っても何もしません。
++                //   送信の手前で断ってもよいのですが、空振りのログが
++                //   毎分ぶん増えるので、ここで外します。
++                $tgW = self::r122TargetCheck((string) $snap->race_id);
++                if (!$tgW['ok']) {
++                    $out['rows'][] = (string) $snap->race_id . ':'
++                                   . (string) $tgW['code'];
++                    continue;
++                }
++
+                 foreach (['1st', '2nd'] as $role) {
+                     // ══════════════════════════════════════════════════
+                     // @ANCHOR-20261021-R122-SENDFIRST  008のご指摘5
+@@ -20102,6 +21067,24 @@
+                              ->where('snapshot_id', $sid)->where('role', $role)
+                              ->where('attempt_no', BaganrikiWorker::FIRST)->first();
+                     if ($any === null) {
++                        // ══════════════════════════════════════════════
++                        // @ANCHOR-20261021-R122-JOBSWEEP  010の2-3
++                        // ══════════════════════════════════════════════
++                        //   ご指摘：
++                        //     「r122SweepPending：未処理対象の発見、投入漏れ
++                        //       の回復、期限判定、集計の起動に限定し、
++                        //       r122SendFirst／r122SendFixを同期実行
++                        //       しません。」
++                        //   Jobの段が上がっているときは、ここでは送らず、
++                        //   <b>積むだけ</b>にします。巡回は1分ごとなので、
++                        //   ここでAIを待つと巡回そのものが詰まります。
++                        if (BaganrikiWorker::jobs()
++                            && class_exists(\App\Jobs\R122RunRoleJob::class)) {
++                            \App\Jobs\R122RunRoleJob::dispatch($sid, $role);
++                            $out['first_codes'][] = $role . ':JOB_DISPATCHED';
++                            $out['dispatched'] = (int) ($out['dispatched'] ?? 0) + 1;
++                            continue;
++                        }
+                         $fs = $this->r122SendFirst($sid, $role);
+                         if ($fs['sent']) { $out['first_sent']++; }
+                         $out['first_codes'][] = $role . ':' . (string) $fs['code'];
+@@ -20121,6 +21104,23 @@
+                         && ($now - $recv) < self::R122_SWEEP_GRACE_SEC * 1000000) {
+                         continue;
+                     }
++                    // ══════════════════════════════════════════════════
++                    // @ANCHOR-20261021-R122-JOBSWEEP  訂正も同期では送りません
++                    // ══════════════════════════════════════════════════
++                    //   Jobの段が上がっているときは、巡回から訂正を
++                    //   送りません。受領まで進んでいて採否が未確定なら、
++                    //   そのroleのJobを積み直します（投入漏れの回復）。
++                    //   訂正を送るのは RunRoleJob の中だけです。
++                    if (BaganrikiWorker::jobs()) {
++                        $sv = self::r122RoleSettled($sid, $role);
++                        if (!$sv['settled']
++                            && class_exists(\App\Jobs\R122RunRoleJob::class)) {
++                            \App\Jobs\R122RunRoleJob::dispatch($sid, $role);
++                            $out['first_codes'][] = $role . ':JOB_REDISPATCHED';
++                            $out['dispatched'] = (int) ($out['dispatched'] ?? 0) + 1;
++                        }
++                        continue;
++                    }
+                     $insp = $this->r122InspectResponse($sid, $role,
+                                                        BaganrikiWorker::FIRST);
+                     if ($insp['ok'] && $insp['needs_fix']
+@@ -22036,9 +23036,19 @@
+         // @ANCHOR-20261021-R122-NUMTYPE  JSON上の型の印を後段へ引き継ぎます。
+         //   これが無いと、丸まる数を文字列で持ったときに
+         //   「数値だったのか、最初から文字列だったのか」が分かりません。
+-        //   再保存は BaganrikiJson::reserialize($json, $number_paths) です。
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-TYPEMAP  型の地図を後段へ渡します（010の3章）
++        // ══════════════════════════════════════════════════════════════
++        //   number_paths だけでは、{} と [] の区別や、
++        //   {"0":"a"} と ["a"] の区別が残りません（010の3-4）。
++        //   obj／arr の種類も一緒にした「地図」を渡します。
++        //     保存     BaganrikiJson::encode($json, $map)
++        //     読戻し   BaganrikiJson::decode($本文)
++        //     比べる   BaganrikiJson::same($a, $mapA, $b, $mapB)
++        //   number_paths は、これまでの呼び出し元のために残します。
+         return ['ok' => true, 'code' => null, 'reason' => null, 'json' => $data,
+-                'number_paths' => (array) ($st['number_paths'] ?? [])];
++                'number_paths' => (array) ($st['number_paths'] ?? []),
++                'map' => (array) ($st['map'] ?? BaganrikiJson::emptyMap())];
+     }
+ 
+     /**
+@@ -22136,9 +23146,38 @@
+     public static function acceptCorrection(array $first, array $fix,
+                                             ?string $firstAt = null, ?string $fixAt = null,
+                                             array $frozenNums = [], ?array $repairScope = null,
+-                                            array $rowValid = []): array
++                                            array $rowValid = [],
++                                            ?array $firstMap = null,
++                                            ?array $fixMap = null): array
+     {
+         // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-TYPEMAP  型まで見て比べます（010の3-2）
++        // ══════════════════════════════════════════════════════════════
++        //   ご指摘：
++        //     「既存には、sameHorseRowの厳密比較と、訂正対象外フィールドの
++        //       $v0 !== $v1 があります。オブジェクトを導入すると、同じ数値
++        //       でも別インスタンスであることを理由に差異と判定する可能性が
++        //       あります。共通の比較関数で、JSONの型、正確な十進値、
++        //       必要な整数／小数・指数表記の区別を比較してください。
++        //       通常のオブジェクトのキー順は無視し、配列の順序は
++        //       保持します。」
++        //
++        //   $firstMap／$fixMap（型の地図）が両方そろっているときは、
++        //   <b>BaganrikiJson::same</b> で比べます。
++        //   ・PHPの === では、丸まる数値を文字列で持っているときに
++        //     「元が数値だったか文字列だったか」が区別できません。
++        //   ・値オブジェクトを使う案は、同じ値の別インスタンスを
++        //     差異と見るおそれがあります。地図は値を包まないので、
++        //     その問題は起きません。
++        //   地図が無いときは、これまでどおり === で比べます
++        //   （試験用の素の配列はこちらを通ります）。
++        $typed = ($firstMap !== null && $fixMap !== null);
++        $sameV = static function ($a, $b, array $path) use ($typed, $firstMap, $fixMap) {
++            if (!$typed) { return ($a === $b); }
++            return (bool) BaganrikiJson::same($a, (array) $firstMap,
++                                              $b, (array) $fixMap, true, $path)['same'];
++        };
++        // ══════════════════════════════════════════════════════════════
+         // @ANCHOR-20261020-R122-REPAIR  10月20日005のご指摘5-1
+         // ══════════════════════════════════════════════════════════════
+         // 【直した中身】
+@@ -22284,7 +23323,8 @@
+                 if ($fields === []) {
+                     // @ANCHOR-...-RESTATE  初回と同じなら「再掲」です
+                     if (array_key_exists($num, $first)
+-                        && self::sameHorseRow((array) $first[$num], (array) $h1)) {
++                        && self::sameHorseRow((array) $first[$num], (array) $h1,
++                                              $firstMap, $fixMap, [(string) $num])) {
+                         $restated[] = $num;
+                         continue;
+                     }
+@@ -22298,9 +23338,22 @@
+                     if (in_array((string) $k, $fields, true)) { continue; }
+                     // @ANCHOR-20261021-R122-METASPLIT  内部の監査項目は見ません
+                     if (strncmp((string) $k, 'r122_', 5) === 0) { continue; }
+-                    $v0 = $h0[$k] ?? null;
+-                    $v1 = ((array) $h1)[$k] ?? null;
+-                    if ($v0 !== $v1) { $outOfField[] = $num . ':' . $k; }
++                    // @ANCHOR-20261021-R122-TYPEMAP  型まで見て比べます
++                    //   どちらかにキーが無い場合もここで分かります
++                    //   （?? null は null の値と見分けが付かないので、
++                    //     キーの有無を先に見ます）
++                    $has0 = array_key_exists($k, $h0);
++                    $has1 = array_key_exists($k, (array) $h1);
++                    if ($has0 !== $has1) {
++                        $outOfField[] = $num . ':' . $k;
++                        continue;
++                    }
++                    if (!$has0) { continue; }           // どちらにも無い
++                    $v0 = $h0[$k];
++                    $v1 = ((array) $h1)[$k];
++                    if (!$sameV($v0, $v1, [(string) $num, (string) $k])) {
++                        $outOfField[] = $num . ':' . $k;
++                    }
+                 }
+             }
+             if (!empty($outOfScope)) {
+@@ -22368,7 +23421,9 @@
+      *   入れ子も並べ替えてから比べます。数値の型の違い（1 と 1.0）は
+      *   別物として扱います（採点は整数と決まっているためです）。
+      */
+-    public static function sameHorseRow(array $a, array $b): bool
++    public static function sameHorseRow(array $a, array $b,
++                                        ?array $mapA = null, ?array $mapB = null,
++                                        array $path = []): bool
+     {
+         // @ANCHOR-20261021-R122-METASPLIT  内部の監査項目（r122_）は比べません。
+         //   こちらが足したもので、AIが返す項目ではないためです。
+@@ -22380,6 +23435,19 @@
+             }
+             return $o;
+         };
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-TYPEMAP  型の地図があるときは型まで見ます
++        // ══════════════════════════════════════════════════════════════
++        //   地図があれば、JSON上の型・正確な十進値・整数/小数/指数の
++        //   表記まで見ます（010の3-2）。並べ替えは中で行うので、
++        //   ここで ksort する必要はありません
++        //   （same はオブジェクトのキー順を無視します）。
++        if ($mapA !== null && $mapB !== null) {
++            $r = BaganrikiJson::same($strip($a), $mapA, $strip($b), $mapB,
++                                     true, $path);
++            return (bool) $r['same'];
++        }
++        // 地図が無いとき（試験用の素の配列など）は、これまでどおりです。
+         $norm = static function ($v) use (&$norm) {
+             if (!is_array($v)) { return $v; }
+             $isList = (array_keys($v) === range(0, count($v) - 1));
+@@ -26876,6 +27944,41 @@
+         return self::mode() === 'on';
+     }
+ 
++    // ══════════════════════════════════════════════════════════════════════
++    // @ANCHOR-20261021-R122-JOBFLAG  Job構成の段（010の2章）
++    // ══════════════════════════════════════════════════════════════════════
++    //   BAGANRIKI_R122_JOBS=1 のときだけ、待ち行列（app/Jobs の4本）で
++    //   動きます。既定は 0 です。<b>0 のあいだ、いまの同期の経路は
++    //   1バイトも変わりません。</b>（010の2-5「旗による切替を残す」）
++    //
++    //   枠の段（BAGANRIKI_R122_QUEUE）とは別の旗にします。
++    //   枠の段は「予約と送信権の仕組みを動かすか」、
++    //   Jobの段は「それを待ち行列で動かすか」で、意味が違います。
++    //   Jobで動かすには枠の段も上がっている必要があります。
++
++    /** Job構成で動かすか */
++    public static function jobs(): bool
++    {
++        $v = strtolower(trim((string) env('BAGANRIKI_R122_JOBS', '0')));
++        if (!in_array($v, ['1', 'true', 'on', 'yes'], true)) { return false; }
++        // 枠の段が上がっていなければ、Jobでも送りません
++        return self::mode() === 'on';
++    }
++
++    // ══════════════════════════════════════════════════════════════════════
++    // @ANCHOR-20261021-R122-TARGETFLAG  対象レースの限定を効かせるか
++    // ══════════════════════════════════════════════════════════════════════
++    //   BAGANRIKI_R122_TARGETS_ENFORCE=1 のとき、
++    //   BAGANRIKI_R122_TARGETS に並べた race_id 以外へは1レースも送りません。
++    //   <b>Jobの段が上がっているときは、設定に関わらず効かせます。</b>
++    //   10月24日の非公開検証で、12レース以外へ送らないためです（010の2-5）。
++    public static function targetsEnforced(): bool
++    {
++        if (self::jobs()) { return true; }
++        $v = strtolower(trim((string) env('BAGANRIKI_R122_TARGETS_ENFORCE', '0')));
++        return in_array($v, ['1', 'true', 'on', 'yes'], true);
++    }
++
+     /** 必要な表がそろっているか */
+     public static function ready(): bool
+     {
+@@ -28167,6 +29270,69 @@
+  *   参照20,000件は source_registry 固有の限度なので、ここでは数えて返すだけに
+  *   して、使う側（入力の自己点検）で判定します。
+  */
++/**
++ * ═══════════════════════════════════════════════════════════════════════════
++ * @ANCHOR-20261021-R122-DECIMAL  値と型を一緒に運ぶ入れ物（10月21日009のご指摘4）
++ * ═══════════════════════════════════════════════════════════════════════════
++ * ■ なぜ要るか
++ *   前の版は「どの経路がJSON上の数値だったか」を<b>別の表（number_paths）</b>で
++ *   持っていました。これだと、
++ *     ・診断・訂正の比較・保存へ渡していなければ、そこで型が消える
++ *     ・horses を馬番キーへ並べ替えると、経路がずれる
++ *     ・値を直しても、経路の表は古い値のままなので、書き戻すと元へ戻る
++ *     ・監査用の5,000件の制限で、型の保持まで打ち切られる
++ *   という問題が残ります。10月21日009のご指摘のとおりです。
++ *
++ * ■ いま
++ *   <b>値そのものを、この入れ物に入れます。</b>値と型が常に一緒に動くので、
++ *   並べ替えても、別の関数へ渡しても、保存しても、離れません。
++ *   5,000件の制限も関係ありません（表ではなく値だからです）。
++ *
++ * ■ 使う側から見た振る舞い
++ *   ・`is_int()` は false。採点は整数と決まっているので、採点の検査が落とします
++ *   ・`(string)` で十進数の原表現になります
++ *   ・`json_encode` すると文字列になります。<b>原表現のまま数値で書き戻すときは
++ *     `BaganrikiJson::reserialize()` を使ってください</b>
++ *   ・`===` は同じ中身なら true になりません（オブジェクトなので）。
++ *     比べるときは `BaganrikiJson::plain()` で素の形にしてください
++ */
++final class BaganrikiDecimal implements \JsonSerializable
++{
++    // ══════════════════════════════════════════════════════════════════
++    // @ANCHOR-20261021-R122-PHP80  このサーバの artisan は PHP 8.0.30 です
++    // ══════════════════════════════════════════════════════════════════
++    //   `readonly` は PHP 8.1 からです。8.0 では構文エラーになります。
++    //   コンストラクタのプロモーションは 8.0 で使えるので、そちらだけ使い、
++    //   書き換え防止は「private + 読み出し用メソッド」で行います。
++    //   戻り値型 `mixed` も 8.0 からなので、そのまま使えます。
++
++    /** @param string $raw 原トークン（AIが書いたままの文字列） */
++    /** @param string $decimal 正確な十進値（指数を展開し、符号を正規化したもの） */
++    public function __construct(
++        private string $rawToken,
++        private string $decimalValue
++    ) {}
++
++    public function raw(): string { return $this->rawToken; }
++    public function decimal(): string { return $this->decimalValue; }
++
++    public function __toString(): string { return $this->decimalValue; }
++
++    /** json_encode したときは文字列になります（型を保ちたいなら reserialize） */
++    public function jsonSerialize(): mixed { return $this->decimalValue; }
++}
++
++/**
++ * @ANCHOR-20261021-R122-EMPTYOBJ  空の {} と空の [] を区別する入れ物
++ *   json_decode(..., true) はどちらも空配列にします。
++ *   書き戻すときに {} が [] になってしまうので、空の {} だけ印を付けます
++ *   （10月21日009のご指摘4(a)）。
++ */
++final class BaganrikiEmptyObject implements \JsonSerializable
++{
++    public function jsonSerialize(): mixed { return new \stdClass(); }
++}
++
+ final class BaganrikiJson
+ {
+     public const MAX_BYTES  = 4194304;   // 4 MiB
+@@ -28174,6 +29340,32 @@
+     public const MAX_DIGITS = 128;
+     /** @ANCHOR-20261020-R122-NUMEXACT  監査に残す数値トークンの上限 */
+     public const MAX_NUMBERS_KEPT = 5000;
++    // ══════════════════════════════════════════════════════════════════
++    // @ANCHOR-20261021-R122-TYPECAP  型の地図は監査の5,000件とは別です
++    // ══════════════════════════════════════════════════════════════════
++    //   ご指摘（010の3-1）：
++    //     「値に型を持たせる方式は、馬番キーへの並べ替え、修正後の値への
++    //       置換、<b>監査5,000件制限との分離</b>に適しています。」
++    //   そのとおりでした。監査に残す一覧（numbers）と、再保存に使う
++    //   型の地図（number_paths）を<b>同じ 5,000 で切っていました。</b>
++    //   丸まる数値の置き替え（inexact）には上限が無いので、
++    //   5,001個目から先は「文字列に置き替わったのに、数値だった印が
++    //   地図に無い」状態になり、再保存で<b>数値が文字列へ化けます。</b>
++    //   なるの3-5の「5,001個目の長い数値」がこれです。
++    //   【いま】地図は監査とは別の上限にします。
++    //     numbers（監査の一覧）      5,000 件のまま
++    //     number_paths（型の地図）   200,000 件
++    //     kind_paths（obj/arr の地図） 200,000 件
++    //   18頭・過去5走の本文でも、値の数は数万で収まります。
++    public const MAX_NUMTYPE_KEPT = 200000;
++    // ══════════════════════════════════════════════════════════════════
++    // @ANCHOR-20261021-R122-KINDPATH  obj／arr を控える位置の上限
++    // ══════════════════════════════════════════════════════════════════
++    //   数値の上限（5,000）とは別にします。obj／arr の印は
++    //   <b>再保存のときに形を決める</b>ので、落とすと {} が [] に
++    //   化けます。18頭の本文でも階層の数は数万には届かないので、
++    //   数値より多めにしておきます。
++    public const MAX_KINDS_KEPT = 200000;
+     public const EXP_MIN    = -308;
+     public const EXP_MAX    = 308;
+ 
+@@ -28208,7 +29400,23 @@
+               'numbers' => [], 'inexact' => [],
+               // @ANCHOR-20261021-R122-NUMTYPE  いま読んでいる位置（経路）と、
+               //   「ここはJSON上の数値だった」という印
+-              'path' => [], 'number_paths' => []];
++              'path' => [], 'number_paths' => [],
++              // ══════════════════════════════════════════════════════
++              // @ANCHOR-20261021-R122-KINDPATH  10月21日010の3-4
++              // ══════════════════════════════════════════════════════
++              //   ご指摘：
++              //     「BaganrikiEmptyObjectで {} と [] を区別するのは
++              //       必要ですが、それだけでは、例えば
++              //       {"0":"a","1":"b"} と ["a","b"] の区別が
++              //       失われ得ます。数値キーを含む非空オブジェクトも
++              //       含め、JSONオブジェクト／配列の種類を保持して
++              //       ください。」
++              //   そのとおりです。json_decode(…, true) は
++              //   {"0":"a","1":"b"} も ["a","b"] も同じPHP配列にします。
++              //   【いま】<b>経路ごとに obj／arr を控えます。</b>
++              //   空かどうかに関係なく、数値キーのオブジェクトも
++              //   区別できます。
++              'kind_paths' => []];
+ 
+         self::ws($s);
+         $okTop = self::value($s);
+@@ -28226,7 +29434,9 @@
+                   // @ANCHOR-20261020-R122-NUMEXACT  原表現（監査用）
+                   'numbers' => count($s['numbers']),
+                   // @ANCHOR-20261021-R122-NUMTYPE  数値だった位置の数
+-                  'number_paths' => count($s['number_paths'])];
++                  'number_paths' => count($s['number_paths']),
++                  // @ANCHOR-20261021-R122-KINDPATH  obj／arr を控えた位置の数
++                  'kind_paths' => count($s['kind_paths'])];
+         if (!$okTop) {
+             $e = $s['err'] ?? ['JSON_INVALID', '読めない形です'];
+             return $ng($e[0], $e[1], $stats);
+@@ -28261,7 +29471,14 @@
+         return ['ok' => true, 'code' => null, 'reason' => null,
+                 'value' => $v, 'stats' => $stats,
+                 // @ANCHOR-20261021-R122-NUMTYPE  JSON上の型を結び付けた印
+-                'number_paths' => $s['number_paths']];
++                'number_paths' => $s['number_paths'],
++                // @ANCHOR-20261021-R122-KINDPATH  obj／arr の印
++                'kind_paths' => $s['kind_paths'],
++                // @ANCHOR-20261021-R122-TYPEMAP  上の2つをまとめた型の地図
++                //   これ1つを持ち回せば、型を落とさずに
++                //   診断→訂正比較→保存→読戻しまで通せます（010の3章）。
++                'map' => ['num' => $s['number_paths'],
++                          'kind' => $s['kind_paths']]];
+     }
+ 
+     // ── 以下は走査の部品 ───────────────────────────────────────────────
+@@ -28321,6 +29538,10 @@
+ 
+     private static function obj(array &$s): bool
+     {
++        // @ANCHOR-20261021-R122-KINDPATH  ここはJSONオブジェクトです（010の3-4）
++        if (count($s['kind_paths']) < self::MAX_KINDS_KEPT) {
++            $s['kind_paths'][self::pathKey($s['path'])] = 'obj';
++        }
+         $s['i']++;                       // '{'
+         $s['depth']++;
+         if ($s['depth'] > $s['max_depth']) { $s['max_depth'] = $s['depth']; }
+@@ -28378,6 +29599,10 @@
+ 
+     private static function arr(array &$s): bool
+     {
++        // @ANCHOR-20261021-R122-KINDPATH  ここはJSON配列です（010の3-4）
++        if (count($s['kind_paths']) < self::MAX_KINDS_KEPT) {
++            $s['kind_paths'][self::pathKey($s['path'])] = 'arr';
++        }
+         $s['i']++;                       // '['
+         $s['depth']++;
+         if ($s['depth'] > $s['max_depth']) { $s['max_depth'] = $s['depth']; }
+@@ -28629,9 +29854,29 @@
+         //   reserialize() はこの印を見て、数値の位置は引用符を付けずに
+         //   書き戻します。AIが最初から引用符付きで返した文字列は
+         //   ここに載らないので、勝手に数値へ変えることはありません。
+-        if (count($s['number_paths']) < self::MAX_NUMBERS_KEPT) {
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-NUMFORM  10月21日010の3-2・3-3
++        // ══════════════════════════════════════════════════════════════
++        //   ご指摘：
++        //     「共通の比較関数で、JSONの型、正確な十進値、必要な整数／
++        //       小数・指数表記の区別を比較してください。」
++        //     「現行sameHorseRowは1と1.0を区別する仕様を明記しています。
++        //       値オブジェクトから十進値『1』だけを出力して、1.0や1e0を
++        //       読戻し時に整数1へ変えてしまわないようにします。」
++        //   十進値だけでは 1 ／ 1.0 ／ 1e0 が同じになります。
++        //   <b>原トークンの表記（form）も控えます。</b>
++        //     int  小数点も指数も無い   1
++        //     dec  小数点がある         1.0
++        //     exp  指数がある           1e0
++        //   再保存は原トークンをそのまま書くので、表記も戻ります。
++        $form = 'int';
++        if (strpbrk($tok, 'eE') !== false) { $form = 'exp'; }
++        elseif (strpos($tok, '.') !== false) { $form = 'dec'; }
++        // @ANCHOR-20261021-R122-TYPECAP  監査（5,000件）とは別の上限です
++        if (count($s['number_paths']) < self::MAX_NUMTYPE_KEPT) {
+             $s['number_paths'][self::pathKey($s['path'])] =
+-                ['raw' => $tok, 'decimal' => $norm, 'exact' => $exact];
++                ['raw' => $tok, 'decimal' => $norm, 'exact' => $exact,
++                 'form' => $form];
+         }
+         return true;
+     }
+@@ -28683,6 +29928,447 @@
+             | JSON_PRESERVE_ZERO_FRACTION);
+     }
+ 
++    // ══════════════════════════════════════════════════════════════════════
++    // @ANCHOR-20261021-R122-TYPEMAP  型を落とさない読み・書き・比べ（010の3章）
++    // ══════════════════════════════════════════════════════════════════════
++    // 10月21日010（なる）の第3章ぜんぶに対する実装です。
++    //
++    // ■ なぜ値オブジェクトを「全部の値」に使わないのか
++    //   ご指摘のとおり、値に型を持たせる方式（設計A）を採ります。
++    //   ただし<b>すべての値を包む</b>と、既存の業務の判定
++    //   （is_int・array_sum・foreach・比較演算）が全部落ちます。
++    //   ご指摘にもあるとおり「全部包むがis_isはそのまま」では
++    //   正しい整数まで落ちます。
++    //   【採った形】値はこれまでどおりPHPの素の値で持ち、
++    //   <b>型は経路をキーにした地図（map）で並べて持ちます。</b>
++    //     map['num'][経路]  = ['raw','decimal','exact','form']
++    //     map['kind'][経路] = 'obj' | 'arr'
++    //   業務の判定は素の値でそのまま動き、型が必要な場所
++    //   （比較・保存・読戻し）だけが地図を見ます。
++    //   値オブジェクト（BaganrikiDecimal）は、1つの値を持ち回すときの
++    //   入れ物として残します。地図はその「全体版」です。
++    //
++    // ■ 保存と読戻しが同じ形で閉じます（3-1・3-3）
++    //   encode(値, 地図)   数値は<b>原トークンのまま引用符なし</b>で書き、
++    //                      obj／arr の種類も地図のとおりに書きます
++    //   decode(本文)       走査して 値＋地図 を返します（strict と同じ）
++    //   encode したものを decode すれば、値も型も表記も戻ります。
++    //   JSON_NUMERIC_CHECK も float への変換も使っていません。
++    //
++    // ■ 比べ方（3-2）
++    //   same(値A,地図A, 値B,地図B) が、
++    //     ・JSON上の型（数値／文字列／真偽／null／obj／arr）
++    //     ・数値は正確な十進値と表記（int／dec／exp）
++    //     ・obj はキーの集合（<b>順序は無視</b>）
++    //     ・arr は長さと<b>順序</b>
++    //   を見ます。同じ値の別インスタンスという概念がないので、
++    //   「同じ数値なのに別物と判定する」ことは起きません。
++    // ══════════════════════════════════════════════════════════════════════
++
++    /** 空の地図 */
++    public static function emptyMap(): array
++    {
++        return ['num' => [], 'kind' => []];
++    }
++
++    /**
++     * 専用パーサ。走査して「値」と「型の地図」を返します。
++     *
++     * @return array ['ok','code','reason','value','map','stats']
++     */
++    public static function decode(string $raw): array
++    {
++        $r = self::strict($raw);
++        if (!$r['ok']) {
++            return ['ok' => false, 'code' => $r['code'], 'reason' => $r['reason'],
++                    'value' => null, 'map' => self::emptyMap(),
++                    'stats' => $r['stats']];
++        }
++        return ['ok' => true, 'code' => null, 'reason' => null,
++                'value' => $r['value'],
++                'map' => (array) ($r['map'] ?? self::emptyMap()),
++                'stats' => $r['stats']];
++    }
++
++    /**
++     * 専用シリアライザ。型の地図のとおりに書き戻します。
++     *
++     *   ・数値だった経路は<b>原トークンをそのまま</b>引用符なしで書きます
++     *     （1.0 は 1.0 のまま。1 へ丸めません）
++     *   ・obj だった経路は、PHPの値が空配列でも数値キーでも {} で書きます
++     *   ・arr だった経路は [] で書きます
++     *   ・地図に無い経路は、PHPの値の形から決めます
++     *     （連番の配列なら [ ]、それ以外は { }）
++     *   ・BaganrikiDecimal は原トークン、BaganrikiEmptyObject は {}
++     *
++     * @param mixed $value
++     * @param array $map   decode の返り値 map
++     * @param array $path  いまの経路（内部用）
++     */
++    public static function encode($value, array $map, array $path = []): string
++    {
++        $k    = self::pathKey($path);
++        $nums = (array) ($map['num'] ?? []);
++        $kind = (array) ($map['kind'] ?? []);
++
++        // ── ① 値オブジェクトは、それ自身が型を持っています ──────────
++        if ($value instanceof BaganrikiDecimal) {
++            return $value->raw();
++        }
++        if ($value instanceof BaganrikiEmptyObject) {
++            return '{}';
++        }
++
++        // ── ② 数値だった経路 ───────────────────────────────────────
++        //   文字列として持っている（丸まる数値）場合も、整数・小数で
++        //   持っている場合も、原トークンを書きます。
++        if (isset($nums[$k])) {
++            $n = (array) $nums[$k];
++            if (is_string($value) || is_int($value) || is_float($value)) {
++                // 値が差し替えられていないかを見ます（3-3 の「整合」）。
++                //   差し替えられていれば、その新しい値を数値として書きます。
++                //   原トークンを押し付けると、訂正で変えた値が戻ってしまいます。
++                if (self::sameNumberValue($value, $n)) {
++                    return (string) $n['raw'];
++                }
++                return self::numberLiteral($value);
++            }
++        }
++
++        // ── ③ 配列・オブジェクト ────────────────────────────────────
++        if (is_array($value)) {
++            $want = $kind[$k] ?? null;
++            if ($want === null) {
++                $want = (array_keys($value) === range(0, count($value) - 1))
++                      ? 'arr' : 'obj';
++                if ($value === []) { $want = 'arr'; }   // 地図が無ければ []
++            }
++            $out = [];
++            if ($want === 'arr') {
++                foreach (array_values($value) as $i => $vv) {
++                    $sub = $path; $sub[] = (int) $i;
++                    $out[] = self::encode($vv, $map, $sub);
++                }
++                return '[' . implode(',', $out) . ']';
++            }
++            foreach ($value as $kk => $vv) {
++                $sub = $path; $sub[] = (string) $kk;
++                $out[] = (string) json_encode((string) $kk,
++                             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
++                       . ':' . self::encode($vv, $map, $sub);
++            }
++            return '{' . implode(',', $out) . '}';
++        }
++
++        if ($value instanceof \stdClass) {
++            $out = [];
++            foreach ((array) $value as $kk => $vv) {
++                $sub = $path; $sub[] = (string) $kk;
++                $out[] = (string) json_encode((string) $kk,
++                             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
++                       . ':' . self::encode($vv, $map, $sub);
++            }
++            return '{' . implode(',', $out) . '}';
++        }
++
++        // ── ④ そのほか（文字列・真偽・null・素の数値）────────────────
++        return (string) json_encode($value,
++            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
++            | JSON_PRESERVE_ZERO_FRACTION);
++    }
++
++    /**
++     * いまのPHPの値が、地図に控えた数値と同じ値かどうか。
++     *   文字列で持っている場合は十進値を文字どおりに比べます。
++     *   整数・小数で持っている場合は十進値へ直してから比べます。
++     */
++    private static function sameNumberValue($value, array $n): bool
++    {
++        $dec = (string) ($n['decimal'] ?? '');
++        if (is_string($value)) {
++            return ($value === (string) ($n['raw'] ?? '')) || ($value === $dec);
++        }
++        if (is_int($value)) {
++            return (self::intToDecimalString($value) === $dec);
++        }
++        if (is_float($value)) {
++            if (!is_finite($value)) { return false; }
++            return (BaganrikiPrompt::numToDecimalString($value) === $dec);
++        }
++        return false;
++    }
++
++    /** 整数を十進数の文字列へ（normDec と同じ形にそろえます） */
++    private static function intToDecimalString(int $v): string
++    {
++        return ($v === 0) ? '0' : (string) $v;
++    }
++
++    /**
++     * 差し替えられた数値を、JSONの数値として書きます。
++     *   <b>引用符は付けません。</b>文字列へ化けさせないためです。
++     *   数字として読めないものは、JSONとして壊れないように
++     *   文字列で書きます（黙って0にはしません）。
++     */
++    private static function numberLiteral($value): string
++    {
++        if (is_int($value)) { return (string) $value; }
++        if (is_float($value)) {
++            if (!is_finite($value)) {
++                // 無限大・NaN はJSONに書けません。文字列で残します
++                return (string) json_encode((string) $value);
++            }
++            return BaganrikiPrompt::numToDecimalString($value);
++        }
++        $t = trim((string) $value);
++        if ($t !== '' && preg_match('/\A-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?\z/', $t) === 1) {
++            return $t;
++        }
++        return (string) json_encode((string) $value,
++            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
++    }
++
++    /**
++     * 地図から、ある経路より下だけを取り出して、経路を付け替えます。
++     *
++     *   馬の行だけを比べるときに使います。
++     *   ["horses",3,"scores","H1"] を、["scores","H1"] にします。
++     */
++    public static function mapSub(array $map, array $from): array
++    {
++        $out = self::emptyMap();
++        $pre = self::pathKey($from);
++        $preBody = substr($pre, 1, -1);          // 角括弧の中身
++        foreach (['num', 'kind'] as $sec) {
++            foreach ((array) ($map[$sec] ?? []) as $k => $v) {
++                if ($from === []) { $out[$sec][$k] = $v; continue; }
++                if ($k === $pre) { $out[$sec]['[]'] = $v; continue; }
++                $head = '[' . $preBody . ',';
++                if (strncmp($k, $head, strlen($head)) === 0) {
++                    $out[$sec]['[' . substr($k, strlen($head))] = $v;
++                }
++            }
++        }
++        return $out;
++    }
++
++    /**
++     * ═══════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-MAPMOVE  並べ替えに地図を追従させます（010の3-4）
++     * ═══════════════════════════════════════════════════════════════════
++     * ご指摘：
++     *   「並べ替え後のnormalにも種類が追従することが条件です。」
++     *
++     *   応答の馬の行は ["horses", 3] のような位置にあります。
++     *   正常部分（normal）は<b>馬番をキーにしたオブジェクト</b>に
++     *   組み替えるので、位置が ["7"] に変わります。
++     *   地図の経路もそのとおりに付け替えないと、再保存で型が落ちます。
++     *
++     *   mapMove(地図, ["horses",3], ["7"]) で、その枝だけを付け替えます。
++     *   mapMerge で、付け替えた枝を1つの地図にまとめます。
++     */
++    public static function mapMove(array $map, array $from, array $to): array
++    {
++        $sub = self::mapSub($map, $from);
++        $out = self::emptyMap();
++        $pre = self::pathKey($to);
++        $preBody = substr($pre, 1, -1);
++        foreach (['num', 'kind'] as $sec) {
++            foreach ((array) ($sub[$sec] ?? []) as $k => $v) {
++                if ($k === '[]') {
++                    $out[$sec][$pre] = $v;
++                    continue;
++                }
++                // '["scores","H1"]' の先頭の '[' を、'["7",' に差し替えます
++                $out[$sec]['[' . $preBody . ',' . substr($k, 1)] = $v;
++            }
++        }
++        return $out;
++    }
++
++    /** 地図を重ねます（後から渡したものが勝ちます） */
++    public static function mapMerge(array ...$maps): array
++    {
++        $out = self::emptyMap();
++        foreach ($maps as $m) {
++            foreach (['num', 'kind'] as $sec) {
++                foreach ((array) ($m[$sec] ?? []) as $k => $v) {
++                    $out[$sec][$k] = $v;
++                }
++            }
++        }
++        return $out;
++    }
++
++    /** 経路に種類（obj/arr）を書き入れた地図を返します */
++    public static function mapWithKind(array $map, array $path, string $kind): array
++    {
++        $map['kind'][self::pathKey($path)] = $kind;
++        return $map;
++    }
++
++    /**
++     * ═══════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-SAMEVALUE  共通の比較関数（010の3-2）
++     * ═══════════════════════════════════════════════════════════════════
++     * ご指摘：
++     *   「plain()で数値オブジェクトを文字列やfloatに戻してから比べる方式は
++     *     採用しません。数値と数値文字列の違い、正確な値が消えるためです。」
++     *   「共通の比較関数で、JSONの型、正確な十進値、必要な整数／小数・
++     *     指数表記の区別を比較してください。通常のオブジェクトのキー順は
++     *     無視し、配列の順序は保持します。」
++     *
++     * ■ 見るもの
++     *   ・JSON上の型            数値／文字列／真偽／null／obj／arr
++     *   ・数値                  正確な十進値と、表記（int／dec／exp）
++     *   ・obj                   キーの集合（<b>順序は無視</b>）
++     *   ・arr                   長さと<b>順序</b>
++     *
++     * ■ $strictForm
++     *   true  … 1 と 1.0 と 1e0 を<b>別物</b>として見ます（既定）。
++     *           sameHorseRow の「1と1.0を区別する」仕様に合わせます。
++     *   false … 十進値が同じなら同じと見ます。
++     *           「値が変わっていないか」だけを見たいときに使います。
++     *
++     * ■ 末尾の0（1.50 と 1.5）は「同じ」と見ます
++     *   どちらも十進値 1.5 で、表記も小数（dec）です。
++     *   値も型も同じなので、<b>範囲外を変えた</b>とは見ません。
++     *   区別しているのは
++     *     int  小数点も指数も無い   1
++     *     dec  小数点がある         1.0／1.50／1.5
++     *     exp  指数がある           1e0
++     *   の3つです。1 と 1.0 の区別（整数必須の検査に効くもの）は残り、
++     *   書き方のゆらぎだけで訂正を蹴ることはしません。
++     *   なお<b>保存では原トークンをそのまま書く</b>ので、
++     *   1.50 は 1.50 のまま残ります（丸めていません）。
++     *
++     * @return array ['same','where','reason']
++     *   where は食い違った経路（JSON配列の文字列）です。
++     */
++    public static function same($a, array $mapA, $b, array $mapB,
++                                bool $strictForm = true,
++                                array $path = []): array
++    {
++        $k  = self::pathKey($path);
++        $na = ((array) ($mapA['num'] ?? []))[$k] ?? null;
++        $nb = ((array) ($mapB['num'] ?? []))[$k] ?? null;
++        $ka = ((array) ($mapA['kind'] ?? []))[$k] ?? null;
++        $kb = ((array) ($mapB['kind'] ?? []))[$k] ?? null;
++
++        $ng = static fn(string $why) => ['same' => false, 'where' => $k,
++                                         'reason' => $why];
++
++        // ── ① どちらかがJSON上の数値だったとき ────────────────────
++        if ($na !== null || $nb !== null) {
++            if ($na === null || $nb === null) {
++                return $ng('片方はJSON上の数値、もう片方は数値ではありません');
++            }
++            if ((string) ($na['decimal'] ?? '') !== (string) ($nb['decimal'] ?? '')) {
++                return $ng('数値の十進値が違います（'
++                         . (string) ($na['decimal'] ?? '') . ' と '
++                         . (string) ($nb['decimal'] ?? '') . '）');
++            }
++            if ($strictForm
++                && (string) ($na['form'] ?? '') !== (string) ($nb['form'] ?? '')) {
++                return $ng('同じ値ですが表記が違います（'
++                         . (string) ($na['raw'] ?? '') . ' と '
++                         . (string) ($nb['raw'] ?? '') . '）');
++            }
++            return ['same' => true, 'where' => null, 'reason' => null];
++        }
++
++        // ── ② obj／arr の種類 ─────────────────────────────────────
++        $aArr = is_array($a) || ($a instanceof BaganrikiEmptyObject);
++        $bArr = is_array($b) || ($b instanceof BaganrikiEmptyObject);
++        if ($aArr !== $bArr) {
++            return $ng('片方だけが入れ物です');
++        }
++        if ($aArr) {
++            // 種類は地図で決めます。地図に無ければPHPの形から決めます
++            $kindA = $ka ?? self::kindOf($a);
++            $kindB = $kb ?? self::kindOf($b);
++            if ($kindA !== $kindB) {
++                return $ng('片方はオブジェクト、もう片方は配列です（'
++                         . $kindA . ' と ' . $kindB . '）');
++            }
++            $av = ($a instanceof BaganrikiEmptyObject) ? [] : (array) $a;
++            $bv = ($b instanceof BaganrikiEmptyObject) ? [] : (array) $b;
++
++            if ($kindA === 'arr') {
++                $av = array_values($av); $bv = array_values($bv);
++                if (count($av) !== count($bv)) {
++                    return $ng('配列の長さが違います（' . count($av) . ' と '
++                             . count($bv) . '）');
++                }
++                foreach ($av as $i => $vv) {
++                    $sub = $path; $sub[] = (int) $i;
++                    $r = self::same($vv, $mapA, $bv[$i], $mapB, $strictForm, $sub);
++                    if (!$r['same']) { return $r; }
++                }
++                return ['same' => true, 'where' => null, 'reason' => null];
++            }
++
++            // オブジェクト。キーの集合だけ見ます（順序は無視）
++            $akeys = array_map('strval', array_keys($av));
++            $bkeys = array_map('strval', array_keys($bv));
++            sort($akeys); sort($bkeys);
++            if ($akeys !== $bkeys) {
++                $only = array_merge(array_diff($akeys, $bkeys),
++                                    array_diff($bkeys, $akeys));
++                return $ng('キーの集合が違います（'
++                         . implode('・', array_slice($only, 0, 5)) . '）');
++            }
++            foreach ($av as $kk => $vv) {
++                $sub = $path; $sub[] = (string) $kk;
++                $r = self::same($vv, $mapA, $bv[$kk] ?? null, $mapB,
++                                $strictForm, $sub);
++                if (!$r['same']) { return $r; }
++            }
++            return ['same' => true, 'where' => null, 'reason' => null];
++        }
++
++        // ── ③ 素の値（文字列・真偽・null・地図に載らない数値）─────────
++        if (gettype($a) !== gettype($b)) {
++            return $ng('型が違います（' . gettype($a) . ' と ' . gettype($b) . '）');
++        }
++        if ($a !== $b) {
++            return $ng('値が違います');
++        }
++        return ['same' => true, 'where' => null, 'reason' => null];
++    }
++
++    /** PHPの値から obj／arr を決めます（地図に無いときだけ使います） */
++    private static function kindOf($v): string
++    {
++        if ($v instanceof BaganrikiEmptyObject) { return 'obj'; }
++        if (!is_array($v)) { return 'arr'; }
++        if ($v === []) { return 'arr'; }
++        return (array_keys($v) === range(0, count($v) - 1)) ? 'arr' : 'obj';
++    }
++
++    /**
++     * 本文どうしを、型まで見て比べます（読戻しの確認に使います）。
++     *
++     * @return array ['same','where','reason','ok']
++     *   ok=false は、どちらかが走査を通らなかったことを表します。
++     */
++    public static function sameJson(string $rawA, string $rawB,
++                                    bool $strictForm = true): array
++    {
++        $da = self::decode($rawA);
++        $db = self::decode($rawB);
++        if (!$da['ok'] || !$db['ok']) {
++            return ['ok' => false, 'same' => false, 'where' => null,
++                    'reason' => '走査を通らない本文があります（'
++                              . (string) ($da['code'] ?? '')
++                              . '／' . (string) ($db['code'] ?? '') . '）'];
++        }
++        $r = self::same($da['value'], $da['map'], $db['value'], $db['map'],
++                        $strictForm);
++        $r['ok'] = true;
++        return $r;
++    }
++
+     /**
+      * @ANCHOR-20261020-R122-NUMEXACT  原表現を十進数の文字列へ（文字だけで動かします）
+      *   指数は小数点を動かすだけで展開します。float を通りません。

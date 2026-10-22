@@ -1,0 +1,1 @@
+{"status": "PASSED", "schemas": 3, "normal_fixtures": 11, "invalid_fixtures": 9, "scope": "Schema gate only; arithmetic, ownership, timestamps, recovery and runtime need separate tests"}

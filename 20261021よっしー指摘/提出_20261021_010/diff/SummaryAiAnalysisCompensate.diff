@@ -1,0 +1,2122 @@
+--- "/mnt/user-data/uploads/KEIBA/20261021\343\202\210\343\201\243\343\201\227\343\203\274\346\214\207\346\221\230/_base010/SummaryAiAnalysisCompensate.php"	2026-10-21 04:57:22.493818589 +0000
++++ teishutsu_010/code/SummaryAiAnalysisCompensate.php	2026-10-21 04:57:34.203454588 +0000
+@@ -235,8 +235,15 @@
+                            // @ANCHOR-20261021-R122-TOKENS  008のご指摘1（費用）
+                            . ' {--r122-token-count= : トークン数を課金ゼロで実測する。count_tokens だけを使い、本文の生成は1回も呼ばない。送付資料ルートのパスを渡す。読むだけ}'
+                            . ' {--r122-token-out= : 実測した本文の書き出し先（DeepSeek側を公開トークナイザで数えるため）}'
++                           . ' {--r122-token-model= : 数えるモデルを1つに絞る（既定は claude-haiku-4-5 と claude-haiku-5-5 の両方）}'
+                            // @ANCHOR-20261020-R122-WIRETEST  007のE（実起動経路）
+                            . ' {--r122-wire-test= : 送信口（Httpクライアント）を偽応答に差し替え、初回→検証→訂正→解決→公開を本番の関数で通す。片側失敗・通信不能・途中切れ・応答期限到達・公開期限到達・プロセス停止後の復旧・上限前呼出しも通す。送付資料ルートのパスを渡す。実AIは1回も呼ばない。すべてロールバックする}'
++                           // @ANCHOR-20261021-R122-E2E  実凍結から一続きの通し試験（010の5章末尾）
++                           . ' {--r122-e2e-test= : 実在レースの出馬表・オッズから監査行を作り、発走時刻を10分後へ寄せて、締切を渡さずに導出させ、キャッシュ後の入口が呼ぶ関数で実凍結し、期限の幅を1つずつ確かめ、送信口を偽応答に差し替えて初回→検証→訂正→採否→公開まで本番の関数で通す。3,600秒の決め打ちはしない。送付資料ルートのパスを渡す。実AIは1回も呼ばない。すべてロールバックする}'
++                           // @ANCHOR-20261021-R122-TYPETEST  型保持の通し試験（010の3章）
++                           . ' {--r122-type-test= : JSONの型（数値／文字列、オブジェクト／配列、整数／小数／指数）を、診断→訂正比較→保存→読戻しまで落とさずに通せることを確かめる。010の3-5の6例をすべて含む。型の地図を渡さない場合に何を見逃すかも並べて出す。送付資料ルートのパスを渡す。実AIは1回も呼ばない。すべてロールバックする}'
++                           // @ANCHOR-20261021-R122-JOBTEST  Job構成の通し試験（010の2章）
++                           . ' {--r122-job-test : Job構成（凍結・role・集計・実状態の4本）が、どの待ち行列へどの引数で積まれるかをjobs表の行から確かめる。秒数の整合（Jobの上限・retry_after・HTTPの上限）、経路の固定、対象レースの限定、実状態の変更（取消は足すだけ・締切は前倒しだけ）も見る。workerは立てず、Jobは1本も実行しない。実AIは1回も呼ばない。すべてロールバックする}'
+                            // @ANCHOR-20261020-R122-WIRE  再起動後のやり直し（006の6-4）
+                            . ' {--r122-sweep : 原応答を保存したあと訂正・公開が始まらないまま止まったレースを拾い、訂正判定と公開だけやり直す。初回の送信はしない。1分おきのcronに入れてよい}'
+                            // @ANCHOR-20261020-R122-SWEEPWATCH  007の6-2（期限での起動）
+@@ -475,6 +482,24 @@
+         }
+ 
+         // @ANCHOR-20261020-R122-WIRETEST  007のE（実起動経路）
++        // @ANCHOR-20261021-R122-E2E  実凍結から一続きの通し試験（010の5章末尾）
++        if ($this->hasOption('r122-e2e-test')
++            && $this->option('r122-e2e-test') !== null) {
++            $this->runR122E2eTest((string) $this->option('r122-e2e-test'));
++            return;
++        }
++        // @ANCHOR-20261021-R122-TYPETEST  型保持の通し試験（010の3章）
++        if ($this->hasOption('r122-type-test')
++            && $this->option('r122-type-test') !== null) {
++            $this->runR122TypeTest((string) $this->option('r122-type-test'));
++            return;
++        }
++        // @ANCHOR-20261021-R122-JOBTEST  Job構成の通し試験（010の2章）
++        if ($this->hasOption('r122-job-test')
++            && (bool) $this->option('r122-job-test')) {
++            $this->runR122JobTest();
++            return;
++        }
+         if ($this->hasOption('r122-wire-test')
+             && $this->option('r122-wire-test') !== null) {
+             $this->runR122WireTest((string) $this->option('r122-wire-test'));
+@@ -15505,8 +15530,17 @@
+                     $pw1 = $ctrlX->r122PublishWhenReady($sidX, ['now_us' => $now]);
+                     $check('X-20', '2ndが終端でなければ公開しない',
+                         $pw1['code'], 'WAITING');
++                    // ══════════════════════════════════════════════════
++                    // @ANCHOR-20261021-R122-SETTLE  待ちの中身が増えました
++                    // ══════════════════════════════════════════════════
++                    //   1st は初回も訂正も RECEIVED ですが、採否確定の印が
++                    //   まだ無いので「採否未確定」として待ちに入ります。
++                    //   （010の2-4。RECEIVED は HTTPが返っただけです）
++                    // $check('X-21', '待っている相手を名前で返す',
++                    //     (array) ($pw1['waiting'] ?? []), ['2nd（枠なし）']);  // 旧
+                     $check('X-21', '待っている相手を名前で返す',
+-                        (array) ($pw1['waiting'] ?? []), ['2nd（枠なし）']);
++                        (array) ($pw1['waiting'] ?? []),
++                        ['1st（採否未確定）', '2nd（枠なし）']);
+ 
+                     \DB::table('baganriki_ai_attempts')->insert([
+                         'snapshot_id' => $sidX, 'role' => '2nd', 'attempt_no' => 0,
+@@ -15516,12 +15550,71 @@
+                     $pw2 = $ctrlX->r122PublishWhenReady($sidX, ['now_us' => $now]);
+                     $check('X-22', '2ndが予約中でも公開しない', $pw2['code'], 'WAITING');
+ 
++                    // ══════════════════════════════════════════════════
++                    // @ANCHOR-20261021-R122-SETTLE  受領の終端≠採否の確定
++                    // ══════════════════════════════════════════════════
++                    //   ご指摘（010の2-4）の競合そのものを試験にします。
++                    //   「片方が受領済みだが訂正の要否をまだ判定していない
++                    //     間に、もう片方が両role完了とみなして公開へ進む」
++                    $check('X-22b', 'RECEIVEDだけでは採否は未確定',
++                        $A::r122RoleSettled($sidX, '1st')['settled'], false);
++
++                    $mk1 = $A::r122MarkRoleSettled($sidX, '1st',
++                                                   ['from' => 'queue-test'], $now);
++                    $check('X-22c', '採否確定の印を付けられる',
++                        [$mk1['marked'], $mk1['already']], [true, false]);
++                    $check('X-22d', '同じ版に二度は付けない',
++                        $A::r122MarkRoleSettled($sidX, '1st', [], $now)['already'],
++                        true);
++                    $check('X-22e', '印が付けば採否確定',
++                        $A::r122RoleSettled($sidX, '1st')['settled'], true);
++
++                    $pw2b = $ctrlX->r122PublishWhenReady($sidX, ['now_us' => $now]);
++                    $check('X-22f', '1stが確定しても2ndが未了なら公開しない',
++                        [$pw2b['code'], (array) ($pw2b['waiting'] ?? [])],
++                        ['WAITING', ['2nd（RESERVED）']]);
++
++                    // 印を付けたあとに訂正の中身が変われば、版が変わります
++                    \DB::table('baganriki_ai_attempts')->where('snapshot_id', $sidX)
++                      ->where('role', '1st')->where('attempt_no', 1)
++                      ->update(['response_hash' => hash('sha256', $rawX . '-another')]);
++                    $check('X-22g', '応答の版が変われば印は効かない',
++                        $A::r122RoleSettled($sidX, '1st')['settled'], false);
++                    $pw2c = $ctrlX->r122PublishWhenReady($sidX, ['now_us' => $now]);
++                    $check('X-22h', '版が変わったら待ちへ戻る',
++                        (array) ($pw2c['waiting'] ?? []),
++                        ['1st（採否未確定）', '2nd（RESERVED）']);
++
++                    // もとの版へ戻し、2nd も終端＋確定にして公開まで通します
++                    \DB::table('baganriki_ai_attempts')->where('snapshot_id', $sidX)
++                      ->where('role', '1st')->where('attempt_no', 1)
++                      ->update(['response_hash' => hash('sha256', $rawX)]);
++                    $check('X-22i', '版を戻せば印は効く',
++                        $A::r122RoleSettled($sidX, '1st')['settled'], true);
++
+                     // 応答期限を過ぎたら、来ないものを待ちません
+                     $lateX = (int) $W::dbUs($W::toDb($sales)) + 100 * 1000000;
+                     $pw3 = $ctrlX->r122PublishWhenReady($sidX, ['now_us' => $lateX]);
+                     $check('X-23', '応答期限を過ぎたら待たない',
+                         ($pw3['code'] === 'WAITING'), false);
+ 
++                    // ══════════════════════════════════════════════════
++                    // @ANCHOR-20261021-R122-ATDEADLINE  期限ぴったりの1回
++                    // ══════════════════════════════════════════════════
++                    //   ご指摘（010の2-3 末尾）：
++                    //     「$now > reply の判定なので、期限ぴったりの1回で
++                    //       WAITINGになって終わらないように」
++                    //   `>=` にしたので、期限と同じ時刻でも待ちません。
++                    $snapD = \DB::table('baganriki_snapshots')
++                               ->where('id', $sidX)->first();
++                    $liveD = \DB::table('baganriki_live_states')
++                               ->where('snapshot_id', $sidX)->first();
++                    $dlD   = $W::deadlines($snapD, $liveD);
++                    $pwD   = $ctrlX->r122PublishWhenReady(
++                                 $sidX, ['now_us' => (int) $dlD['reply']]);
++                    $check('X-23b', '応答期限ぴったりでも待たない',
++                        ($pwD['code'] === 'WAITING'), false);
++
+                     // ═══════════════════════════════════════════════════
+                     // 呼出経路そのものの確認（006：実ファイル・呼出経路）
+                     // ═══════════════════════════════════════════════════
+@@ -18169,6 +18262,8 @@
+         $j  = static fn($v) => (string) json_encode($v,
+             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+         $W     = \App\Http\Controllers\Api\BaganrikiWorker::class;
++        // @ANCHOR-20261021-R122-SETTLE  採否確定の印を見るために使います
++        $A     = \App\Http\Controllers\Api\AiController::class;
+         $BEGIN = \App\Http\Controllers\Api\BaganrikiResponse::BEGIN;
+         $END   = \App\Http\Controllers\Api\BaganrikiResponse::END;
+         $HTTP  = \Illuminate\Support\Facades\Http::class;
+@@ -18335,9 +18430,31 @@
+             $check('E-10', '欠落していた馬を救済した',
+                    in_array($goneNo, array_map('intval',
+                        (array) ($acc['rescued'] ?? [])), true), true);
+-            $check('E-11', '両roleが終端なので公開した',
+-                   (string) ($r['publish']['code'] ?? ''), 'PUBLISHED');
+-            $this->line('      公開候補 : ' . (int) ($r['publish']['candidates'] ?? 0) . ' 頭');
++            // ══════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-SETTLE  公開は両roleの採否確定の後です
++            // ══════════════════════════════════════════════════════════
++            //   【試験の前提が変わりました】
++            //   これまでは 1st だけ接続を通し、2nd は枠を RECEIVED に
++            //   しただけで「両roleが終端」と数えられていました。
++            //   010の2-4 のとおり、RECEIVED は「HTTPが返った」だけです。
++            //   本番は両roleが r122AfterReceive を通るので、試験もそう
++            //   します。そのうえで<b>1stだけでは公開しない</b>ことを
++            //   先に確かめます（これが010の2-4 の競合そのものです）。
++            $check('E-11-0', '1st の採否が確定した',
++                   (bool) ($r['settled']['marked'] ?? false), true);
++            // $check('E-11', '両roleが終端なので公開した',
++            //        (string) ($r['publish']['code'] ?? ''), 'PUBLISHED');  // 旧
++            $check('E-11-1', '1st だけでは公開しない（2nd は受領済みだが採否未確定）',
++                   (string) ($r['publish']['code'] ?? ''), 'WAITING');
++            $check('E-11-2', '待っている相手は 2nd の採否',
++                   (string) ($r['publish']['reason'] ?? ''),
++                   'まだ終端でないroleがあります: 2nd（採否未確定）');
++            $r1b = $ctrl->r122AfterReceive($D[0], $D[1], $D[2], $D[3], $D[4], '2nd', $q);
++            $check('E-11-3', '2nd の採否も確定した',
++                   (bool) ($r1b['settled']['marked'] ?? false), true);
++            $check('E-11', '両roleの採否が確定したので公開した',
++                   (string) ($r1b['publish']['code'] ?? ''), 'PUBLISHED');
++            $this->line('      公開候補 : ' . (int) ($r1b['publish']['candidates'] ?? 0) . ' 頭');
+ 
+             // ── ①-2 2nd（DeepSeek）側の送信口も同じように通す ───────────
+             $this->info('── ①-2 2nd 側の送信口（DeepSeek）──');
+@@ -18361,8 +18478,16 @@
+             $check('E-51', '2nd の欠落馬を救済した',
+                    in_array($gone2, array_map('intval',
+                        (array) ($accb['rescued'] ?? [])), true), true);
+-            $check('E-52', '2nd 側も公開まで進む',
+-                   (string) ($rb['publish']['code'] ?? ''), 'PUBLISHED');
++            // @ANCHOR-20261021-R122-SETTLE  こちらも両roleの採否確定が必要です
++            $check('E-52-1', '2nd だけでは公開しない',
++                   (string) ($rb['publish']['code'] ?? ''), 'WAITING');
++            $rb2 = $ctrl->r122AfterReceive($D[0], $D[1], $D[2], $D[3], $D[4], '1st', $qb);
++            $check('E-52-2', '1st の採否も確定した',
++                   (bool) ($rb2['settled']['marked'] ?? false), true);
++            // $check('E-52', '2nd 側も公開まで進む',
++            //        (string) ($rb['publish']['code'] ?? ''), 'PUBLISHED');  // 旧
++            $check('E-52', '2nd 側から始めても、両roleの確定後に公開まで進む',
++                   (string) ($rb2['publish']['code'] ?? ''), 'PUBLISHED');
+ 
+             // ── ② 訂正は最大1回（2回目は送らない）─────────────────────
+             $this->info('── ② 訂正は最大1回 ──');
+@@ -18390,8 +18515,18 @@
+             $acc2 = $ctrl->r122AcceptedHorses($m2['sid'], '1st');
+             $check('E-18', '初回の正常部分は残る（15頭）',
+                    count((array) ($acc2['merged'] ?? [])), 15);
+-            $check('E-19', '失敗しても公開まで進む',
+-                   (string) ($r2['publish']['code'] ?? ''), 'PUBLISHED');
++            // @ANCHOR-20261021-R122-SETTLE  訂正が失敗しても、採否は確定します
++            //   初回が RECEIVED で訂正が FAILED なら、初回の正常部分を
++            //   採って確定です。2nd は受領済みなので、こちらも接続を通します。
++            $check('E-19-0', '訂正が失敗しても 1st の採否は確定する',
++                   (bool) ($r2['settled']['marked'] ?? false), true);
++            $check('E-19-1', '1st だけでは公開しない',
++                   (string) ($r2['publish']['code'] ?? ''), 'WAITING');
++            $r2b = $ctrl->r122AfterReceive($D[0], $D[1], $D[2], $D[3], $D[4], '2nd', $q2);
++            // $check('E-19', '失敗しても公開まで進む',
++            //        (string) ($r2['publish']['code'] ?? ''), 'PUBLISHED');  // 旧
++            $check('E-19', '訂正が失敗しても、両roleの確定後に公開まで進む',
++                   (string) ($r2b['publish']['code'] ?? ''), 'PUBLISHED');
+ 
+             // ── ④ 通信できないときは「結果不明」（再送しない）───────────
+             $this->info('── ④ 通信できない（結果不明）──');
+@@ -18460,9 +18595,31 @@
+             $check('E-35', '送信済みは結果不明にする',
+                    (array) ($rs['unknown'] ?? []), ['1st#0']);
+             $check('E-36', '初回の送信はやり直さない', count($calls), 0);
++            // ══════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-NOTHINGTOADOPT  採るものが無い role
++            // ══════════════════════════════════════════════════════════
++            //   1st は結果不明（UNKNOWN_RESULT）で終わりました。
++            //   この役には診断も訂正も採否も、やることが残っていません。
++            //   印を待っても永久に付かない（印を付けるのは受領に成功した
++            //   ときだけ）ので、「採るものが無い」ことを確定として
++            //   数えます。RECEIVED のときは数えません（010の2-4）。
++            $sv1st = $A::r122RoleSettled($m7['sid'], '1st');
++            $check('E-37-0', '結果不明の役は「採るものが無い」で確定',
++                   [$sv1st['settled'], (string) ($sv1st['by'] ?? '')],
++                   [true, 'NOTHING_TO_ADOPT']);
++            $p7w = $ctrl->r122PublishWhenReady($m7['sid']);
++            $check('E-37-1', 'それでも 2nd の採否が未確定なら公開しない',
++                   (string) ($p7w['code'] ?? ''), 'WAITING');
++            $q7 = ['skip' => false, 'ok' => true, 'snapshot_id' => $m7['sid']];
++            $r7b = $ctrl->r122AfterReceive($D[0], $D[1], $D[2], $D[3], $D[4], '2nd', $q7);
++            $check('E-37-2', '2nd の採否が確定した',
++                   (bool) ($r7b['settled']['marked'] ?? false), true);
+             $p7 = $ctrl->r122PublishWhenReady($m7['sid']);
+-            $check('E-37', '結果不明も終端なので公開まで進む',
+-                   (string) ($p7['code'] ?? ''), 'PUBLISHED');
++            // $check('E-37', '結果不明も終端なので公開まで進む',
++            //        (string) ($p7['code'] ?? ''), 'PUBLISHED');  // 旧
++            $check('E-37', '結果不明の役があっても公開まで進む',
++                   in_array((string) ($p7['code'] ?? ''),
++                            ['PUBLISHED', 'ALREADY'], true), true);
+             $check('E-38', '片方だけなので加点しない',
+                    count(array_filter((array) ($p7['candidates'] ?? []),
+                        static fn($c) => ((float) ($c['bonus'] ?? 0)) > 0.0)), 0);
+@@ -18478,7 +18635,42 @@
+             //   初回の送信口も偽の応答に差し替えています（実AIは呼びません）。
+             $this->info('── ⑧-2 固定入力から初回を送る（キャッシュ後のやり直し）──');
+             //   初回は1頭欠けた応答、訂正は正しい全頭を返します（009のご指摘5）
+-            $port('ok', $broken, $out1);
++            // ══════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-BANDPROVE  10月21日010の5章③
++            // ══════════════════════════════════════════════════════════
++            //   ご指摘：
++            //     「E-58eの説明は『他の帯の順位は保たれている』ですが、
++            //       判定式はband_ranksの件数が1以上かを見るだけです。
++            //       これでは順位変更がないことを証明しません。
++            //       対象外の帯ごとに初回の配列と一致するか確認してください。」
++            //
++            //   そのとおりです。しかも初回（$broken）と訂正（$out1）は
++            //   band_ranks が同じ中身でした。保持できていなくても
++            //   気づけない試験でした。
++            //   いまは、<b>訂正の側で、訂正の対象ではない帯の並びを
++            //   わざと逆順にします。</b>それでも初回の並びが残ることを、
++            //   帯ごとに1つずつ突き合わせて確かめます。
++            //
++            //   どの帯が訂正の対象かは、①で作った同じ初回応答から
++            //   実際の repair_scope を取って決めます（決め打ちしません）。
++            $piF  = $ctrl->r122InspectResponse($m['sid'], '1st', $W::FIRST);
++            $badF = (array) \App\Http\Controllers\Api\AiController
++                        ::r122BadBands($piF['repair_scope'] ?? null);
++            $flipBand = null;
++            foreach (['A', 'B', 'D'] as $b) {
++                if (in_array($b, $badF, true)) { continue; }   // 訂正の対象の帯
++                if (count((array) ($out1['band_ranks'][$b] ?? [])) >= 2) {
++                    $flipBand = $b; break;
++                }
++            }
++            $check('E-58e-0', '訂正の対象外で2頭以上いる帯がある',
++                   $flipBand !== null, true);
++            $out1s = $out1;
++            if ($flipBand !== null) {
++                $out1s['band_ranks'][$flipBand] = array_reverse(
++                    array_values((array) $out1['band_ranks'][$flipBand]));
++            }
++            $port('ok', $broken, $out1s);
+             $mf = $mk([], [], ['no_attempt' => true, 'gen0' => true]);  // 枠は作りません
+             $check('E-53', '初回の枠が1つも無い状態から始める',
+                    (int) \DB::table('baganriki_ai_attempts')
+@@ -18523,8 +18715,45 @@
+                    in_array($goneNo, array_map('intval',
+                        (array) ($accF['rescued'] ?? [])), true), true);
+             $usedF = $ctrl->r122ResponseUsed($mf['sid'], '1st', $accF);
+-            $check('E-58e', '他の帯の順位は保たれている',
+-                   count((array) ($usedF['band_ranks'] ?? [])) >= 1, true);
++            // ══════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-BANDPROVE  帯ごとに1つずつ突き合わせます
++            // ══════════════════════════════════════════════════════════
++            // $check('E-58e', '他の帯の順位は保たれている',
++            //        count((array) ($usedF['band_ranks'] ?? [])) >= 1, true);  // 旧
++            $firstRanks = [];
++            foreach ((array) ($broken['band_ranks'] ?? []) as $b => $v) {
++                $firstRanks[(string) $b] = array_map('intval', array_values((array) $v));
++            }
++            $keptAll = true; $keptDetail = [];
++            foreach (['A', 'B', 'D'] as $b) {
++                if (in_array($b, $badF, true)) { continue; }      // 訂正の対象
++                if (!isset($firstRanks[$b]) || $firstRanks[$b] === []) { continue; }
++                $got = array_map('intval',
++                           array_values((array) ($usedF['band_ranks'][$b] ?? [])));
++                $same = ($got === $firstRanks[$b]);
++                $keptDetail[$b] = $same ? '一致' : '変わっています';
++                if (!$same) { $keptAll = false; }
++            }
++            $check('E-58e', '訂正の対象外の帯は初回の並びと1つずつ一致する',
++                   $keptAll, true);
++            $check('E-58e-1', '突き合わせた帯が1つ以上ある',
++                   count($keptDetail) >= 1, true);
++            $check('E-58e-2', 'わざと逆順にした帯でも初回の並びが残る',
++                   array_map('intval',
++                       array_values((array) ($usedF['band_ranks'][$flipBand] ?? []))),
++                   (array) ($firstRanks[$flipBand] ?? []));
++            $check('E-58e-3', 'その帯の順位の出どころは「初回の保持」',
++                   (string) ($usedF['rank_source'][$flipBand] ?? ''),
++                   'PREVIOUS_KEPT');
++            $check('E-58e-4', '訂正が違う並びを返していたことを記録に残す',
++                   count(array_filter((array) ($usedF['rank_notes'] ?? []),
++                       static fn($t) => strpos((string) $t,
++                           '訂正は違う順位を返していました') !== false)) >= 1, true);
++            $this->info('     対象外の帯の突き合わせ : '
++                . json_encode($keptDetail, JSON_UNESCAPED_UNICODE)
++                . ' ／ わざと逆順にした帯 : ' . (string) $flipBand
++                . ' ／ 訂正の対象の帯 : '
++                . (($badF === []) ? 'なし' : implode('・', $badF)));
+ 
+             $pf = $ctrl->r122PublishWhenReady($mf['sid']);
+             $check('E-62', '両roleがそろって公開まで進んでいる',
+@@ -18708,10 +18937,46 @@
+             $this->error('  × ANTHROPIC_API_KEY が読めません（.env をご確認ください）');
+             return;
+         }
+-        $model = 'claude-haiku-4-5';
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-TWOMODELS  両モデルで数えます
++        // ══════════════════════════════════════════════════════════════
++        //   ・Haiku 5.5 の $0.10／$0.50 は<b>入力10万トークンまで</b>。
++        //     10万を超えると、そのリクエスト全体が $0.50／$2.50 になります。
++        //   ・Haiku 5.5 はトークナイザが違うので、同じ本文でも数が変わります。
++        //     旧モデルの数値は使えません。モデルを指定して数え直します。
++        //   count_tokens はモデルを指定して呼べます。料金はかかりません。
++        $MODELS = [
++            'claude-haiku-4-5' => [
++                'name' => 'Haiku 4.5（いま使っているもの）',
++                'ctx'  => 200000,
++                // [長文のしきい値, 短文入力, 短文出力, 長文入力, 長文出力]
++                'price' => [null, 1.00, 5.00, 1.00, 5.00],
++            ],
++            'claude-haiku-5-5' => [
++                'name' => 'Haiku 5.5（新しいもの）',
++                'ctx'  => 1000000,
++                'price' => [100000, 0.10, 0.50, 0.50, 2.50],
++            ],
++        ];
++        $only = trim((string) ($this->option('r122-token-model') ?: ''));
++        if ($only !== '' && isset($MODELS[$only])) {
++            $MODELS = [$only => $MODELS[$only]];
++        }
++        $this->line('  単価の公式確認日 : 2026年10月21日');
++        foreach ($MODELS as $mid => $mi) {
++            $pr = $mi['price'];
++            $this->line(sprintf('    %-18s 上限 %s トークン／入力 $%.2f・出力 $%.2f%s',
++                $mid, number_format($mi['ctx']), $pr[1], $pr[2],
++                ($pr[0] === null) ? ''
++                  : sprintf('（入力%sトークン超は $%.2f・$%.2f）',
++                            number_format($pr[0]), $pr[3], $pr[4])));
++        }
++        $this->line('');
++        $model = array_key_first($MODELS);
+ 
+         // ── 数える道具（count_tokens は無料）──────────────────────────
+-        $count = function (string $system, string $user) use ($key, $model) {
++        $count = function (string $system, string $user, ?string $m = null)
++                 use ($key, &$model) {
+             try {
+                 $res = \Illuminate\Support\Facades\Http::timeout(60)
+                     ->withHeaders([
+@@ -18719,7 +18984,7 @@
+                         'anthropic-version' => '2023-06-01',
+                         'content-type'      => 'application/json',
+                     ])->post('https://api.anthropic.com/v1/messages/count_tokens', [
+-                        'model'    => $model,
++                        'model'    => ($m ?? $model),
+                         'system'   => $system,
+                         'messages' => [['role' => 'user', 'content' => $user]],
+                     ]);
+@@ -18751,7 +19016,7 @@
+         }
+ 
+         $rows = [];
+-        $this->info('── ① 初回の入力（system ＋ user）──');
++        $this->info('── ① 初回の入力（system ＋ user）をモデルごとに数えます ──');
+         foreach ($picked as $r) {
+             $raceId = \App\Http\Controllers\Api\AiController::r122RaceId($r->date, $r->kaisuu, $r->basho, $r->day, $r->race);
+             $g = \App\Http\Controllers\Api\AiController::r122GatherContext($r->date, $r->kaisuu, $r->basho,
+@@ -18767,7 +19032,6 @@
+                 $sys = \App\Http\Controllers\Api\BaganrikiPrompt::systemBody($role);
+                 $sysBody = ($sys['ok'] ?? false) ? (string) $sys['body'] : '';
+                 $user = (string) $asm['user'];
+-                $c = $count($sysBody, $user);
+                 $n = (int) ($asm['input']['N'] ?? 0);
+                 if ($outDir !== '') {
+                     @mkdir($outDir, 0775, true);
+@@ -18775,21 +19039,57 @@
+                                       $user);
+                     file_put_contents($outDir . '/system_' . $role . '.txt', $sysBody);
+                 }
+-                if (!$c['ok']) {
+-                    $this->error(sprintf('  × %-22s %-4s 数えられません：%s',
+-                        $raceId, $role, (string) $c['reason']));
+-                    continue;
++                $tk = [];
++                foreach ($MODELS as $mid => $mi) {
++                    $c = $count($sysBody, $user, $mid);
++                    if (!$c['ok']) {
++                        $this->error(sprintf('  × %-22s %-4s %-18s 数えられません：%s',
++                            $raceId, $role, $mid, (string) $c['reason']));
++                        continue;
++                    }
++                    $tk[$mid] = (int) $c['tokens'];
+                 }
++                if ($tk === []) { continue; }
+                 $rows[] = ['race' => $raceId, 'n' => $n, 'role' => $role,
+                            'bytes' => strlen($user) + strlen($sysBody),
+-                           'tokens' => (int) $c['tokens']];
+-                $this->line(sprintf('  ○ %-22s N=%-3d %-4s  %9s バイト → %9s トークン'
+-                                  . '（%.2f バイト/トークン）',
+-                    $raceId, $n, $role,
+-                    number_format(strlen($user) + strlen($sysBody)),
+-                    number_format((int) $c['tokens']),
+-                    (strlen($user) + strlen($sysBody)) / max(1, (int) $c['tokens'])));
++                           'tok' => $tk];
++                $this->line(sprintf('  %-22s N=%-3d %-4s  %9s バイト',
++                    $raceId, $n, $role, number_format(strlen($user) + strlen($sysBody))));
++                foreach ($tk as $mid => $v) {
++                    $ctx = (int) $MODELS[$mid]['ctx'];
++                    $this->line(sprintf('      %-18s %9s トークン  %s（上限 %s まで %+d）',
++                        $mid, number_format($v),
++                        ($v <= $ctx ? '○ 収まる' : '× 超える'),
++                        number_format($ctx), $ctx - $v));
++                }
++                if (count($tk) === 2) {
++                    $a = $tk['claude-haiku-4-5'] ?? 0;
++                    $b = $tk['claude-haiku-5-5'] ?? 0;
++                    if ($a > 0) {
++                        $this->line(sprintf('      → 5.5 は 4.5 の %+.1f%%',
++                            ($b - $a) / $a * 100));
++                    }
++                }
+             }
++            // ── 本文の内訳（なる様の6章：16頭と17頭で量が急増する理由）──
++            $in1 = (array) (\App\Http\Controllers\Api\BaganrikiPrompt::assemble($g['ctx'], '1st')['input'] ?? []);
++            $parts = [];
++            foreach ($in1 as $k => $v) {
++                $parts[$k] = strlen((string) json_encode($v,
++                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
++            }
++            arsort($parts);
++            $pastN = 0;
++            foreach ((array) ($in1['source_registry'] ?? []) as $e) {
++                if (strpos((string) ($e['ref'] ?? ''), '_past_') !== false) { $pastN++; }
++            }
++            $this->line(sprintf('      内訳：出走 %d 頭／source_registry %d 件'
++                              . '（うち過去走の出典 %d 件）',
++                $n, count((array) ($in1['source_registry'] ?? [])), $pastN));
++            $top = array_slice($parts, 0, 5, true);
++            $ps = [];
++            foreach ($top as $k => $v) { $ps[] = $k . ' ' . number_format($v); }
++            $this->line('      大きい順：' . implode('／', $ps));
+         }
+         $this->line('');
+ 
+@@ -18800,17 +19100,21 @@
+         //   実測で 18頭が 257,696 トークンだったので、<b>そのままでは
+         //   送れません。</b>過去走を何走まで減らせば収まるかを測ります。
+         //   ここも count_tokens だけなので料金はかかりません。
+-        $this->info('── ①-2 モデルの上限（200,000 トークン）に収まるか ──');
+-        $LIMIT = 200000;
+-        foreach ($rows as $w) {
+-            $this->line(sprintf('  %s %-22s %-4s %9s トークン（上限まで %+d）',
+-                ($w['tokens'] <= $LIMIT ? '○' : '×'),
+-                $w['race'], $w['role'], number_format($w['tokens']),
+-                $LIMIT - $w['tokens']));
+-        }
+-        $this->line('');
+         $this->info('── ①-3 過去走を減らすと、どこまで下がるか ──');
+         $this->line('  いちばん大きいレースについて、直近何走まで載せるかを変えて数えます。');
++        $this->line('  訂正は「初回の入力 ＋ 初回応答 ＋ 依頼文」なので、その分を足して見ます。');
++        // 初回応答の目安は②で数えますが、先にここで要るので仮に数えます
++        $fixAdd = 0;
++        $vDir0 = rtrim($root, '/') . '/validation/normal';
++        $f0 = $vDir0 . '/MIXED_N16_1st_output.json';
++        if (is_file($f0)) {
++            $c0 = $count('', \App\Http\Controllers\Api\BaganrikiResponse::BEGIN
++                 . trim((string) file_get_contents($f0))
++                 . \App\Http\Controllers\Api\BaganrikiResponse::END);
++            if ($c0['ok'] ?? false) { $fixAdd = (int) $c0['tokens'] + 165; }
++        }
++        $this->line('  足す分 : ' . number_format($fixAdd) . ' トークン'
++                  . '（初回応答の目安 ＋ 依頼文165）');
+         $big = null;
+         foreach ($picked as $r) {
+             if ($big === null || (int) $r->num_horses > (int) $big->num_horses) { $big = $r; }
+@@ -18835,17 +19139,25 @@
+                     if (!($ap['ok'] ?? false)) { continue; }
+                     $sp = \App\Http\Controllers\Api\BaganrikiPrompt::systemBody('1st');
+                     $spBody = ($sp['ok'] ?? false) ? (string) $sp['body'] : '';
+-                    $cp = $count($spBody, (string) $ap['user']);
+-                    if (!($cp['ok'] ?? false)) {
+-                        $this->error(sprintf('    直近%d走  数えられません：%s',
+-                            $pm, (string) $cp['reason']));
+-                        continue;
++                    $this->line(sprintf('    直近%d走  %9s バイト', $pm,
++                        number_format(strlen((string) $ap['user']) + strlen($spBody))));
++                    foreach ($MODELS as $mid => $mi) {
++                        $cp = $count($spBody, (string) $ap['user'], $mid);
++                        if (!($cp['ok'] ?? false)) {
++                            $this->error(sprintf('      %-18s 数えられません：%s',
++                                $mid, (string) $cp['reason']));
++                            continue;
++                        }
++                        $tk = (int) $cp['tokens'];
++                        // 訂正は「初回の入力＋初回応答＋依頼文」なので、その分を足して見ます
++                        $fx = $tk + $fixAdd;
++                        $ctx = (int) $mi['ctx'];
++                        $this->line(sprintf('      %-18s 初回 %9s %s ／ 訂正 %9s %s',
++                            $mid, number_format($tk),
++                            ($tk <= $ctx ? '○' : '×'),
++                            number_format($fx),
++                            ($fx <= $ctx ? '○' : '×')));
+                     }
+-                    $tk = (int) $cp['tokens'];
+-                    $this->line(sprintf('    直近%d走  %9s バイト → %9s トークン  %s（上限まで %+d）',
+-                        $pm, number_format(strlen((string) $ap['user']) + strlen($spBody)),
+-                        number_format($tk),
+-                        ($tk <= $LIMIT ? '○ 収まる' : '× 超える'), $LIMIT - $tk));
+                 }
+             } finally {
+                 if ($keep[0] === false) { putenv('BAGANRIKI_PAST_RUNS_MAX'); }
+@@ -18885,66 +19197,65 @@
+         }
+         $this->line('');
+ 
+-        // ── ③ 訂正の入力（固定入力＋初回応答＋依頼文）──────────────────
+-        $this->info('── ③ 訂正の入力（3つの合計）──');
+-        $this->line('  訂正の本文は fix_request ＋ first_response ＋ input の3つです。');
+-        $this->line('  input は初回と同じ固定入力なので、初回の入力トークンに');
+-        $this->line('  「初回応答のトークン」と「依頼文のトークン」を足した値になります。');
+-        if ($rows !== [] && $outTok !== []) {
+-            $vals = array_values($outTok); sort($vals);
+-            $midOut = $vals[intdiv(count($vals), 2)];
+-            $fixReq = $count('', (string) json_encode([
+-                'fix_request' => [
+-                    'race_id' => '20261018-4-04-2-7', 'ai_role' => '1st',
+-                    'snapshot_hash' => str_repeat('0', 64),
+-                    'attempt_no' => 1, 'max_attempts' => 1,
+-                    'repair_scope' => ['horses' => [1, 2, 3],
+-                                       'summary_horses' => [], 'rank_bands' => ['A']],
+-                    'errors' => [['target' => 1, 'code' => 'HORSE_MISSING',
+-                                  'reason' => '凍結集合にいるのに評価行がありません']],
+-                    'missing' => [1], 'duplicated' => [], 'unknown' => [],
+-                    'isolated_horses' => [1],
+-                ],
+-            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+-            $reqTok = ($fixReq['ok'] ?? false) ? (int) $fixReq['tokens'] : 0;
+-            $this->line(sprintf('  依頼文（fix_request の見本） : %s トークン',
+-                number_format($reqTok)));
+-            $this->line(sprintf('  初回応答（中央値）           : %s トークン',
+-                number_format($midOut)));
+-            foreach ($rows as $w) {
+-                $this->line(sprintf('    %-22s %-4s 訂正の入力 ≒ %s トークン',
+-                    $w['race'], $w['role'],
+-                    number_format($w['tokens'] + $midOut + $reqTok)));
++        // ── ③④ 12レースの見積もり（初回のみ／訂正込み）────────────────
++        $this->info('── ③ 12レースの見積もり（モデル別・初回のみ／訂正込み）──');
++        $this->line('  訂正の入力 ＝ 初回の入力 ＋ 初回応答 ＋ 依頼文165トークン');
++        $this->line('  キャッシュは使っていません（cache_control を付けていません）');
++        $this->line('  出力は「配布された正常出力14本で観測した中央値」です。');
++        $this->warn('  ※ これから生成される出力の保証上限ではありません');
++        $this->line('');
++        $outMid = [];
++        foreach ($MODELS as $mid => $mi) {
++            $vals = [];
++            foreach (glob($vDir . '/*_output.json') as $f) {
++                $c = $count('', \App\Http\Controllers\Api\BaganrikiResponse::BEGIN
++                     . trim((string) file_get_contents($f))
++                     . \App\Http\Controllers\Api\BaganrikiResponse::END, $mid);
++                if ($c['ok'] ?? false) { $vals[] = (int) $c['tokens']; }
+             }
++            sort($vals);
++            $outMid[$mid] = $vals === [] ? 0 : $vals[intdiv(count($vals), 2)];
+         }
+-        $this->line('');
+-
+-        // ── ④ 24回／48回の見積もり ───────────────────────────────────
+-        $this->info('── ④ 12レースの見積もり（Anthropic 側の実測から）──');
+-        $this->line('  単価は提出前に公式ページで再確認します。');
+-        $this->line('  ここでは claude-haiku-4-5 を 入力 $1.00 ／ 出力 $5.00（100万トークン）'
+-                  . 'として計算します。');
+-        $this->line('  キャッシュは使っていません（cache_control を付けていません）。');
+-        $byRole = ['1st' => [], '2nd' => []];
+-        foreach ($rows as $w) { $byRole[$w['role']][] = $w['tokens']; }
+-        if ($byRole['1st'] !== [] && $outTok !== []) {
+-            $vals = array_values($outTok); sort($vals);
+-            $midOut = $vals[intdiv(count($vals), 2)];
+-            $avg1 = (int) round(array_sum($byRole['1st']) / count($byRole['1st']));
+-            $max1 = max($byRole['1st']);
+-            foreach ([['平均', $avg1], ['最大（18頭）', $max1]] as $pair) {
++        $priceOf = static function (array $mi, int $inTok): array {
++            $p = $mi['price'];
++            if ($p[0] !== null && $inTok > (int) $p[0]) {
++                return [(float) $p[3], (float) $p[4], '長文側'];
++            }
++            return [(float) $p[1], (float) $p[2], '通常'];
++        };
++        foreach ($MODELS as $mid => $mi) {
++            $ins = [];
++            foreach ($rows as $w) {
++                if ($w['role'] !== '1st') { continue; }
++                if (isset($w['tok'][$mid])) { $ins[] = $w['tok'][$mid]; }
++            }
++            if ($ins === []) { continue; }
++            $om  = (int) $outMid[$mid];
++            $ctx = (int) $mi['ctx'];
++            $this->info('  ' . $mid . '（' . $mi['name'] . '）');
++            $this->line(sprintf('    出力の中央値 %s トークン／上限 %s トークン',
++                number_format($om), number_format($ctx)));
++            foreach ([['平均', (int) round(array_sum($ins) / count($ins))],
++                      ['最大（18頭）', max($ins)]] as $pair) {
+                 [$lbl, $in1] = $pair;
+-                $in12  = $in1 * 12;
+-                $out12 = $midOut * 12;
+-                $usd1  = $in12 / 1000000 * 1.00 + $out12 / 1000000 * 5.00;
+-                $this->line(sprintf('  1st %-12s 入力 %s トークン × 12 ＝ %s'
+-                                  . '／出力 %s × 12 ＝ %s  → $%.2f（初回12回）',
+-                    $lbl, number_format($in1), number_format($in12),
+-                    number_format($midOut), number_format($out12), $usd1));
++                $inFix = $in1 + $om + 165;
++                [$pi1, $po1, $t1] = $priceOf($mi, $in1);
++                [$pi2, $po2, $t2] = $priceOf($mi, $inFix);
++                $usdFirst = $in1 * 12 / 1e6 * $pi1 + $om * 12 / 1e6 * $po1;
++                $usdFix   = $inFix * 12 / 1e6 * $pi2 + $om * 12 / 1e6 * $po2;
++                $this->line(sprintf('    %-14s 初回 入力%s(%s) → $%.2f'
++                                  . '／訂正 入力%s(%s) → $%.2f／合計 $%.2f',
++                    $lbl, number_format($in1), $t1, $usdFirst,
++                    number_format($inFix), $t2, $usdFix, $usdFirst + $usdFix));
++                $this->line(sprintf('    %-14s 上限 : 初回 %s ／ 訂正 %s',
++                    '', ($in1 <= $ctx ? '○' : '× 超える'),
++                    ($inFix <= $ctx ? '○' : '× 超える')));
+             }
+-            $this->line('  ※ 2nd（DeepSeek）はここでは計算しません。'
+-                      . '公開トークナイザで数えた値と公式単価で別に出します。');
++            $this->line('');
+         }
++        $this->warn('  ※ これは 1st（Anthropic）だけの金額です。'
++                  . '2nd（DeepSeek）は別に出します');
++        $this->warn('  ※ 既存運用の呼び出し・10月25日・別日の事前試験は別枠です');
+         $this->line('');
+         if ($outDir !== '') {
+             $this->info('  本文を書き出しました: ' . $outDir);
+@@ -18956,4 +19267,1445 @@
+         $this->info('════════════════════════════════════════════════════════');
+     }
+ 
++    /**
++     * ═══════════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-JOBTEST  Job構成の通し試験（010の2章）
++     * ═══════════════════════════════════════════════════════════════════════
++     * 10月21日010（なる）の第2章に対する試験です。
++     *
++     * ■ worker を立てずに確かめます
++     *   dispatch すると jobs 表に1行入ります。<b>その行を読みます。</b>
++     *   worker を動かすと実際にAIへ送るので、試験では動かしません。
++     *   行の payload から、どのJobがどの待ち行列へ、どの引数で積まれたかを
++     *   読み出して突き合わせます。
++     *
++     * ■ 全部ロールバックします
++     *   jobs 表への行も含めて、最後に必ず戻します。DBへ残る書き込みは0件です。
++     *
++     * ■ 実AIは1回も呼びません
++     *   このJobは1本も実行しません。積まれたことだけを見ます。
++     */
++    private function runR122JobTest(): void
++    {
++        self::r122Autoload();
++        $A = \App\Http\Controllers\Api\AiController::class;
++        $W = \App\Http\Controllers\Api\BaganrikiWorker::class;
++
++        $this->info('════════════════════════════════════════════════════════');
++        $this->info(' r12.2 Job構成の通し試験（010の2章）');
++        $this->info('════════════════════════════════════════════════════════');
++        $this->line('  実行時刻 : ' . date('c'));
++        $this->warn('  ※ worker は立てません。jobs 表へ積まれた行を読みます');
++        $this->warn('  ※ 実AIは1回も呼びません（Jobを1本も実行しません）');
++        $this->warn('  ※ 全部ロールバックします。DBへ残る書き込みは0件です');
++        $this->line('');
++
++        $pass = 0; $fail = 0;
++        $check = function (string $id, string $what, $got, $want) use (&$pass, &$fail) {
++            $okk = ($got === $want);
++            if ($okk) { $pass++; } else { $fail++; }
++            $this->line(sprintf('  %s %-10s %-54s %s',
++                $okk ? '○' : '×', $id, $what,
++                $okk ? '' : ('得=' . var_export($got, true)
++                           . ' 期待=' . var_export($want, true))));
++        };
++
++        // ── ① 置かれているか ───────────────────────────────────────
++        $this->info('── ① 置かれているか ──');
++        $classes = ['\App\Jobs\R122Job', '\App\Jobs\R122FreezeRaceJob',
++                    '\App\Jobs\R122RunRoleJob', '\App\Jobs\R122AggregateRaceJob',
++                    '\App\Jobs\R122UpdateRaceLiveJob'];
++        $missing = [];
++        foreach ($classes as $c) {
++            if (!class_exists($c)) { $missing[] = $c; }
++        }
++        $check('J-01', 'Job 5本（土台1＋4本）が置かれている', $missing, []);
++        if ($missing !== []) {
++            $this->error('  app/Jobs が置かれていないので、ここで止めます');
++            return;
++        }
++
++        $check('J-02', 'jobs 表がある', \Schema::hasTable('jobs'), true);
++        $check('J-03', 'failed_jobs 表がある', \Schema::hasTable('failed_jobs'), true);
++        $conn = config('queue.connections.' . \App\Jobs\R122Job::CONN);
++        $check('J-04', 'r122 の接続が config/queue.php にある',
++               is_array($conn), true);
++        if (!is_array($conn) || !\Schema::hasTable('jobs')) {
++            $this->error('  待ち行列の受け皿がそろっていないので、ここで止めます');
++            $this->line('');
++            $this->line('  判定件数 : ' . ($pass + $fail) . ' 件／不合格 ' . $fail . ' 件');
++            return;
++        }
++        $check('J-05', 'r122 の接続は database', (string) ($conn['driver'] ?? ''),
++               'database');
++
++        // ── ② 秒数の整合（010の2-1 末尾）────────────────────────────
++        $this->info('── ② 秒数の整合（Jobの上限・retry_after）──');
++        $retry = (int) ($conn['retry_after'] ?? 0);
++        $runJob = new \App\Jobs\R122RunRoleJob(1, '1st');
++        $aggJob = new \App\Jobs\R122AggregateRaceJob(1, 'RECEIVED');
++        $frzJob = new \App\Jobs\R122FreezeRaceJob('2026-10-24', '5', '05', '1', 1);
++        // AnthropicService::TIMEOUT は private const なので、
++        // リフレクションで<b>実際の値</b>を読みます（書き写しません）。
++        $httpTimeout = null;
++        try {
++            $rcA = new \ReflectionClass(\App\Services\AnthropicService::class);
++            $cs  = $rcA->getConstants();
++            if (array_key_exists('TIMEOUT', $cs)) { $httpTimeout = (int) $cs['TIMEOUT']; }
++        } catch (\Throwable $e) {
++            $httpTimeout = null;
++        }
++        $this->line('      RunRoleJob の上限   : ' . (int) $runJob->timeout . ' 秒');
++        $this->line('      retry_after         : ' . $retry . ' 秒');
++        $this->line('      AnthropicService    : '
++                  . ($httpTimeout === null ? '（読めません）'
++                                           : $httpTimeout . ' 秒'));
++        $check('J-06', 'RunRoleJob の上限は 180秒の窓の内側',
++               ((int) $runJob->timeout) < 180, true);
++        $check('J-07', 'RunRoleJob の上限は HTTP の上限より長い',
++               ($httpTimeout !== null)
++                   && (((int) $runJob->timeout) > $httpTimeout), true);
++        $check('J-08', 'retry_after は Jobの上限より十分長い（+100秒以上）',
++               $retry >= ((int) $runJob->timeout) + 100, true);
++        $check('J-09', 'RunRoleJob はやり直さない（外部APIへ二度送らない）',
++               (int) $runJob->tries, 1);
++        $check('J-10', '集計Jobはやり直してよい', ((int) $aggJob->tries) > 1, true);
++        $check('J-11', '集計JobはAIを待たないので上限が短い',
++               ((int) $aggJob->timeout) <= 60, true);
++        $check('J-12', 'AIの待ち行列と期限・統合の待ち行列は別',
++               [$runJob->queue, $aggJob->queue],
++               [\App\Jobs\R122Job::Q_AI_1ST, \App\Jobs\R122Job::Q_AGG]);
++        $check('J-13', '2nd は1st と別の待ち行列',
++               (new \App\Jobs\R122RunRoleJob(1, '2nd'))->queue,
++               \App\Jobs\R122Job::Q_AI_2ND);
++        $check('J-14', '凍結も別の待ち行列', $frzJob->queue,
++               \App\Jobs\R122Job::Q_FREEZE);
++        $check('J-15', '未commitを読ませない設定（after_commit）',
++               (bool) ($conn['after_commit'] ?? false), true);
++
++        // ── ③ 旗（段）───────────────────────────────────────────────
++        $this->info('── ③ 旗（段）──');
++        $this->line('      本文の段 : ' . \App\Http\Controllers\Api\BaganrikiPrompt::mode()
++                  . '／枠の段 : ' . $W::mode()
++                  . '／Jobの段 : ' . ($W::jobs() ? 'on' : 'off'));
++        $check('J-16', '枠の段が on でなければ Job の段も上がらない',
++               ($W::mode() === 'on') || !$W::jobs(), true);
++
++        // ── ④ 対象レースの限定（010の2-5）──────────────────────────
++        $this->info('── ④ 対象レースの限定 ──');
++        $tgs = $A::r122Targets();
++        $this->line('      対象レース : ' . count($tgs) . ' 件'
++                  . ($tgs === [] ? '（BAGANRIKI_R122_TARGETS が空です）'
++                                 : '：' . implode('・', array_slice($tgs, 0, 3))
++                                   . (count($tgs) > 3 ? ' …' : '')));
++        $check('J-17', '限定を効かせるかは段で決まる',
++               is_bool($W::targetsEnforced()), true);
++        if ($W::targetsEnforced()) {
++            $check('J-18', '対象に入っていない race_id は断る',
++                   $A::r122TargetCheck('20261024-9-99-9-9')['ok'], false);
++            if ($tgs !== []) {
++                $check('J-19', '対象に入っている race_id は通す',
++                       $A::r122TargetCheck((string) $tgs[0])['ok'], true);
++            } else {
++                $check('J-19', '対象が空なら1レースも送らない',
++                       $A::r122TargetCheck('20261024-5-05-1-1')['code'],
++                       'NO_TARGETS');
++            }
++        } else {
++            $check('J-18', '限定を効かせていないので素通りする',
++                   $A::r122TargetCheck('20261024-9-99-9-9')['code'], 'NOT_ENFORCED');
++            $check('J-19', '限定を効かせていないので素通りする（対象側も）',
++                   $A::r122TargetCheck('20261024-5-05-1-1')['ok'], true);
++        }
++
++        // ── ⑤ ここから先はDBを使います（必ずロールバックします）──────
++        $ok = true;
++        \DB::beginTransaction();
++        try {
++            $ctrl = app($A);
++            $now  = $W::nowUs();
++            $raceId = '20261024-9-99-9-7';   // 場コード99は実在しません
++
++            // 仮の凍結入力（generation=0）を作ります
++            $post  = $now + 600 * 1000000;            // 発走は10分後
++            $sales = $post - 60 * 1000000;            // 投票締切は発走の60秒前
++            $sid = (int) \DB::table('baganriki_snapshots')->insertGetId([
++                'race_id' => $raceId, 'generation' => 0,
++                'run_id' => 'JT-' . $now, 'release_version' => 'r12.2',
++                'common_json' => '{}', 'input_json_1st' => '{}',
++                'input_json_2nd' => '{}',
++                'snapshot_hash' => hash('sha256', 'jobtest' . $now),
++                'frozen_nums' => '[1,2,3,4]', 'frozen_rank' => '[1,2,3,4]',
++                'mode' => 'MIXED', 'mode_status' => 'FIXED',
++                'anchor_at' => $W::toDb($post),
++                'cutoff_at' => $W::toDb($post - 360 * 1000000),
++                'input_freeze_at' => $W::toDb($post - 330 * 1000000),
++                'frozen_at' => $W::toDb($now),
++                'sales_close_at' => $W::toDb($sales),
++                'created_at' => $W::toDb($now),
++            ]);
++            $W::ensureLive($sid, $now);
++
++            // ── 経路の固定（010の2-5）──────────────────────────────
++            $this->info('── ⑤ 経路の固定 ──');
++            $check('J-20', '固定する前は、どちらでもない',
++                   $A::r122PathOf($sid), null);
++            $f1 = $A::r122FixPath($sid, 'JOB');
++            $check('J-21', 'Job に固定できる',
++                   [$f1['fixed'], $f1['path']], [true, 'JOB']);
++            $f2 = $A::r122FixPath($sid, 'SYNC');
++            $check('J-22', '後から旧経路へ変えられない（先に決めたほうが残る）',
++                   [$f2['already'], $f2['path']], [true, 'JOB']);
++            $check('J-23', '読み出しても Job のまま', $A::r122PathOf($sid), 'JOB');
++
++            // ── 積まれること ───────────────────────────────────────
++            $this->info('── ⑥ 積まれること（worker は動かしません）──');
++
++            // ══════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-AFTERCOMMIT  未commitを読ませない
++            // ══════════════════════════════════════════════════════════
++            //   ご指摘（010の2-2 FreezeRaceJob）：
++            //     「トランザクション内で投入する場合は、未commitの
++            //       snapshotをworkerが先に読まないようにします。」
++            //   r122 の接続は after_commit = true なので、
++            //   トランザクションの中で dispatch しても、<b>commit まで
++            //   jobs 表には入りません。</b>まずそれを確かめます。
++            //   （この試験は最後にロールバックするので、ここで積んだ
++            //     ぶんはそのまま消えます）
++            $q0 = (int) \DB::table('jobs')->count();
++            \App\Jobs\R122RunRoleJob::dispatch($sid, '2nd');
++            $check('J-24a', 'commit前は jobs 表に入らない（after_commit）',
++                   ((int) \DB::table('jobs')->count()) - $q0, 0);
++
++            //   以降は beforeCommit() で、その場で積ませて中身を見ます。
++            //   <b>試験のためだけ</b>です。本番の経路では付けません
++            //   （付けると未commitのsnapshotを読まれるおそれがあります）。
++            \App\Jobs\R122RunRoleJob::dispatch($sid, '1st')->beforeCommit();
++            $q1 = (int) \DB::table('jobs')->count();
++            $check('J-24', 'beforeCommit なら その場で1行増える', $q1 - $q0, 1);
++
++            $row = \DB::table('jobs')->orderByDesc('id')->first();
++            $check('J-25', '積まれた待ち行列は 1st 用',
++                   (string) ($row->queue ?? ''), \App\Jobs\R122Job::Q_AI_1ST);
++            $pl = json_decode((string) ($row->payload ?? '{}'), true);
++            $check('J-26', '積まれたのは RunRoleJob',
++                   (string) ($pl['displayName'] ?? ''),
++                   'App\Jobs\R122RunRoleJob');
++            // 引数（snapshot_id と role）が payload に入っていること
++            $cmd = (string) ($pl['data']['command'] ?? '');
++            $check('J-27', '積んだ引数に snapshot_id が入っている',
++                   strpos($cmd, (string) $sid) !== false, true);
++            $check('J-28', '積んだ引数に role が入っている',
++                   strpos($cmd, '1st') !== false, true);
++            $check('J-29', '積んだだけでは1本も実行されていない',
++                   (int) \DB::table('baganriki_ai_attempts')
++                       ->where('snapshot_id', $sid)->count(), 0);
++
++            \App\Jobs\R122AggregateRaceJob::dispatch($sid, 'DEADLINE')
++                ->delay(now()->addSeconds(30))->beforeCommit();
++            $row2 = \DB::table('jobs')->orderByDesc('id')->first();
++            $check('J-30', '遅らせて積んだ集計は、まだ取り出せない時刻',
++                   ((int) ($row2->available_at ?? 0)) > time() + 20, true);
++            $check('J-31', '集計は期限・統合の待ち行列',
++                   (string) ($row2->queue ?? ''), \App\Jobs\R122Job::Q_AGG);
++
++            // ── 入口から積む（010の2-3）────────────────────────────
++            $this->info('── ⑦ 入口から積む ──');
++            //   入口は本番の経路なので beforeCommit は付きません。
++            //   そのため jobs 表の行数では数えられません（commit前です）。
++            //   <b>何を積んだか</b>を戻り値で見ます。
++            $dp = $ctrl->r122DispatchForRace('2026-10-24', '9', '99', '9', 7);
++            if (!$W::jobs()) {
++                $check('J-32', 'Jobの段が下りていれば積まない',
++                       [(string) $dp['code'], (array) $dp['dispatched']],
++                       ['JOBS_OFF', []]);
++                $check('J-33', 'Jobの段が下りていれば何も走らせない',
++                       (bool) $dp['ran'], false);
++            } else {
++                $check('J-32', '不足している role と集計を積む',
++                       (string) $dp['code'], 'DISPATCHED');
++                $check('J-33', '積んだのは role2本＋集計1本',
++                       (array) $dp['dispatched'],
++                       ['role:1st', 'role:2nd', 'aggregate']);
++            }
++
++            // ── 旧経路のレースには積まない ──────────────────────────
++            $sid2 = (int) \DB::table('baganriki_snapshots')->insertGetId([
++                'race_id' => '20261024-9-99-9-8', 'generation' => 0,
++                'run_id' => 'JT2-' . $now, 'release_version' => 'r12.2',
++                'common_json' => '{}', 'input_json_1st' => '{}',
++                'input_json_2nd' => '{}',
++                'snapshot_hash' => hash('sha256', 'jobtest2' . $now),
++                'frozen_nums' => '[1,2]', 'frozen_rank' => '[1,2]',
++                'mode' => 'MIXED', 'mode_status' => 'FIXED',
++                'anchor_at' => $W::toDb($post),
++                'cutoff_at' => $W::toDb($post - 360 * 1000000),
++                'input_freeze_at' => $W::toDb($post - 330 * 1000000),
++                'frozen_at' => $W::toDb($now),
++                'sales_close_at' => $W::toDb($sales),
++                'created_at' => $W::toDb($now),
++            ]);
++            $W::ensureLive($sid2, $now);
++            $A::r122FixPath($sid2, 'SYNC');
++            $dp2 = $ctrl->r122DispatchForRace('2026-10-24', '9', '99', '9', 8);
++            if ($W::jobs()) {
++                $check('J-34', '旧経路で始まったレースには積まない',
++                       [(string) $dp2['code'], (array) $dp2['dispatched']],
++                       ['PATH_IS_SYNC', []]);
++            } else {
++                $check('J-34', 'Jobの段が下りていれば、やはり積まない',
++                       (array) $dp2['dispatched'], []);
++            }
++
++            // ── ⑧ 実状態の変更（010の2-2 UpdateRaceLiveJob）──────────
++            $this->info('── ⑧ 実状態の変更（取消は足すだけ・締切は前倒しだけ）──');
++            $before = \DB::table('baganriki_live_states')
++                        ->where('snapshot_id', $sid)->first();
++            $rev0 = (int) $before->state_revision;
++
++            $a1 = $ctrl->r122ApplyLive($sid, ['cancellations' => [3]]);
++            $check('J-35', '取消を入れられる',
++                   [(string) $a1['code'], (array) $a1['cancellations']],
++                   ['APPLIED', [3]]);
++            $check('J-36', '版が1つ増える', (int) $a1['state_revision'], $rev0 + 1);
++
++            $a2 = $ctrl->r122ApplyLive($sid, ['cancellations' => [1]]);
++            $check('J-37', '取消は足すだけ（前のものが残る）',
++                   (array) $a2['cancellations'], [1, 3]);
++
++            $a3 = $ctrl->r122ApplyLive($sid, ['cancellations' => [3]]);
++            $check('J-38', '同じ取消をもう一度入れても版は増えない',
++                   [(string) $a3['code'], (int) $a3['state_revision']],
++                   ['NO_CHANGE', $rev0 + 2]);
++
++            $early = $sales - 120 * 1000000;     // 投票締切の2分前へ前倒し
++            $a4 = $ctrl->r122ApplyLive($sid, ['live_close_us' => $early]);
++            $check('J-39', '締切を前倒しできる',
++                   (int) $a4['live_close_us'], $early);
++
++            $late = $sales - 10 * 1000000;       // さっきより後ろ（延長）
++            $a5 = $ctrl->r122ApplyLive($sid, ['live_close_us' => $late]);
++            $check('J-40', '延長は受け付けない',
++                   [(string) $a5['code'], (int) $a5['live_close_us']],
++                   ['NO_CHANGE', $early]);
++
++            $after = $sales + 60 * 1000000;      // 正本より後ろ
++            $a6 = $ctrl->r122ApplyLive($sid, ['live_close_us' => $after]);
++            $check('J-41', '正本の投票締切より後ろも受け付けない',
++                   (string) $a6['code'], 'NO_CHANGE');
++
++            // 凍結済み本文を触っていないこと
++            $snapNow = \DB::table('baganriki_snapshots')->where('id', $sid)->first();
++            $check('J-42', '凍結済み本文は1バイトも変わっていない',
++                   [(string) $snapNow->input_json_1st,
++                    (string) $snapNow->input_json_2nd,
++                    (string) $snapNow->sales_close_at],
++                   ['{}', '{}', (string) $W::toDb($sales)]);
++            $check('J-43', '実状態の変更でAIへは1回も送っていない',
++                   (int) \DB::table('baganriki_ai_attempts')
++                       ->where('snapshot_id', $sid)->count(), 0);
++
++            // 前倒しで期限が動いたこと
++            $liveNow = \DB::table('baganriki_live_states')
++                         ->where('snapshot_id', $sid)->first();
++            $dlNow = $W::deadlines($snapNow, $liveNow);
++            $dlOrig = $W::deadlines($snapNow, $before);
++            $check('J-44', '前倒しのぶん応答期限も早くなる',
++                   ((int) $dlNow['reply']) < ((int) $dlOrig['reply']), true);
++            $this->line('      応答期限 : ' . \App\Http\Controllers\Api\BaganrikiTime
++                            ::toJst((int) $dlOrig['reply'])
++                      . ' → ' . \App\Http\Controllers\Api\BaganrikiTime
++                            ::toJst((int) $dlNow['reply']));
++
++            // ── ⑨ 監査に残っていること ─────────────────────────────
++            $this->info('── ⑨ 監査に残っていること ──');
++            $check('J-45', '経路の固定が監査に残る',
++                   (int) \DB::table('baganriki_audit_events')
++                       ->where('snapshot_id', $sid)
++                       ->where('kind', $A::R122_PATH_KIND)->count(), 1);
++            $check('J-46', '実状態の変更が監査に残る（変わった回数ぶん）',
++                   (int) \DB::table('baganriki_audit_events')
++                       ->where('snapshot_id', $sid)
++                       ->where('kind', 'R122_LIVE_APPLIED')->count(), 3);
++
++            // ── ⑩ 対象レースを「全入口」で見ていること（010の2-5）────
++            // ══════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-TARGET12  入口を名指しで確かめます
++            // ══════════════════════════════════════════════════════════
++            //   ご指摘：
++            //     「通常アクセス・キャッシュ後・巡回・訂正の全入口で
++            //       対象race_idを確認し、送信許可の直前でも確認します。
++            //       1レースの最大4回という制約だけでは、対象レース総数12を
++            //       保証できません。」
++            //   関数の行範囲を取って、その中に判定の呼び出しがあるかを
++            //   見ます。判定を書き写していないこと（同じ関数を呼んで
++            //   いること）も、これで分かります。
++            $this->info('── ⑩ 対象レースを全入口で見ていること ──');
++            $rcT  = new \ReflectionClass($A);
++            $fileT = (array) file((string) $rcT->getFileName());
++            $sliceT = static function (string $m) use ($rcT, $fileT): string {
++                if (!$rcT->hasMethod($m)) { return ''; }
++                $r = $rcT->getMethod($m);
++                return implode('', array_slice($fileT, $r->getStartLine() - 1,
++                    $r->getEndLine() - $r->getStartLine() + 1));
++            };
++            foreach ([
++                'J-47' => ['r122SendFirst',      '初回の送信許可の直前'],
++                'J-48' => ['r122SendFix',        '訂正の送信許可の直前'],
++                'J-49' => ['r122SweepPending',   '巡回'],
++                'J-50' => ['r122AfterCached',    'キャッシュ後'],
++                'J-51' => ['r122DispatchForRace', 'Jobを積む入口'],
++            ] as $idT => $pairT) {
++                [$mT, $labelT] = $pairT;
++                $bodyT = $sliceT($mT);
++                $check($idT, $labelT . 'で対象レースを見ている',
++                    (strpos($bodyT, 'r122TargetCheck(') !== false), true);
++            }
++            $bodyRJ = (string) @file_get_contents(
++                base_path('app/Jobs/R122RunRoleJob.php'));
++            $check('J-52', '待ち行列から出たときも見ている',
++                (strpos($bodyRJ, 'r122TargetCheck(') !== false), true);
++
++            // ── ⑪ 実モデルと使用量が残ること（010の7章⑤）──────────────
++            $this->info('── ⑪ 実モデルと使用量（010の7章⑤）──');
++            $A::r122RecordUsage($sid, '1st', $W::FIRST, [
++                'ok' => true, 'code' => 'OK', 'complete' => true,
++                'raw' => str_repeat('x', 1234),
++                'model' => 'claude-haiku-4-5',
++                'stop'  => 'end_turn',
++                'usage' => ['input_tokens' => 160207, 'output_tokens' => 12200],
++            ]);
++            $A::r122RecordUsage($sid, '2nd', $W::FIRST, [
++                'ok' => true, 'code' => 'OK', 'complete' => true,
++                'raw' => str_repeat('y', 555),
++                'model' => 'deepseek-chat',
++                'stop'  => 'stop',
++                'usage' => ['prompt_tokens' => 90000, 'completion_tokens' => 4000],
++            ]);
++            $uz = $A::r122UsageOf($sid);
++            $check('J-53', '使用量が2件残る', count((array) $uz['rows']), 2);
++            $check('J-54', '応答が名乗ったモデル名で集計される',
++                array_keys((array) $uz['by_model']),
++                ['claude-haiku-4-5', 'deepseek-chat']);
++            $check('J-55', 'Anthropic の数え方（input/output）を読める',
++                [(int) $uz['by_model']['claude-haiku-4-5']['in'],
++                 (int) $uz['by_model']['claude-haiku-4-5']['out']],
++                [160207, 12200]);
++            $check('J-56', 'DeepSeek の数え方（prompt/completion）も読める',
++                [(int) $uz['by_model']['deepseek-chat']['in'],
++                 (int) $uz['by_model']['deepseek-chat']['out']],
++                [90000, 4000]);
++            $check('J-57', 'finish_reason（stop_reason）も残る',
++                [(string) $uz['rows'][0]['stop'], (string) $uz['rows'][1]['stop']],
++                ['end_turn', 'stop']);
++            $this->line('      内訳 : '
++                . json_encode($uz['by_model'], JSON_UNESCAPED_UNICODE));
++        } catch (\Throwable $e) {
++            $ok = false;
++            $this->error('  × 例外 : ' . $e->getMessage());
++            $this->error('    ' . $e->getFile() . ':' . $e->getLine());
++        } finally {
++            \DB::rollBack();
++        }
++
++        $n1 = (int) \DB::table('baganriki_snapshots')
++                ->where('race_id', 'like', '20261024-9-99-9-%')->count();
++        $n2 = (int) \DB::table('jobs')->count();
++        $this->line('');
++        $this->line(sprintf('  ロールバック後  仮snapshot %d 件／jobs 表 %d 行',
++            $n1, $n2));
++        $this->line('');
++        $this->line('  判定件数 : ' . ($pass + $fail) . ' 件');
++        $this->line('  合格     : ' . $pass . ' 件');
++        $this->line('  不合格   : ' . $fail . ' 件');
++        $this->line('');
++        $this->info('════════════════════════════════════════════════════════');
++        if ($fail === 0 && $ok) {
++            $this->info(' Job構成は契約どおりに積まれました（DBへ残る書き込み0件）');
++        } else {
++            $this->error(' 通らなかった箇所があります。上の × をご確認ください');
++        }
++        $this->info('════════════════════════════════════════════════════════');
++    }
++
++    /**
++     * ═══════════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-TYPETEST  型保持の通し試験（010の3章）
++     * ═══════════════════════════════════════════════════════════════════════
++     * 10月21日010（なる）の第3章ぜんぶに対する試験です。
++     *
++     * ご指摘（3-5 最低限確認する例）：
++     *   「・数値1.99999999999999999999と、同じ内容の文字列。
++     *     ・整数1、小数1.0、指数1e0と、整数必須フィールドの判定。
++     *     ・[]、{}、数値キーを持つオブジェクト。
++     *     ・馬行の並べ替え、値を変更した後の保存。
++     *     ・5,001個目の長い数値。
++     *     ・同じ値の別インスタンスを使った正常な訂正。
++     *     これらをextractだけで終わらせず、診断→訂正比較→保存→読戻しまで
++     *     通します。」
++     *
++     * ■ 2段に分けています
++     *   ①（T群）  読み・書き・比べの単体。6例そのものをここで通します。
++     *   ②（P群）  <b>本番の関数で</b>診断→訂正比較→保存→読戻しまで通します。
++     *             r122InspectResponse ／ r122AcceptedHorses ／
++     *             r122SaveValidation ／ r122NormalPart を実際に呼びます。
++     *
++     * ■ 「地図なし」との対比を出します
++     *   型の地図を渡さないと何を見逃すかを、同じ材料で並べて出します。
++     *   PHPの === では
++     *     ・2e0 と 2.0        どちらも float(2.0) なので<b>同じ</b>に見えます
++     *     ・{} と []          どちらも空配列なので<b>同じ</b>に見えます
++     *     ・1.999…（数値）と "1.999…"（文字列）
++     *                         どちらもPHP文字列なので<b>同じ</b>に見えます
++     *   地図を渡すと、どれも別物として見ます。
++     *
++     * ■ 実AIは1回も呼びません。全部ロールバックします。
++     */
++    private function runR122TypeTest(string $root): void
++    {
++        self::r122Autoload();
++        $A = \App\Http\Controllers\Api\AiController::class;
++        $W = \App\Http\Controllers\Api\BaganrikiWorker::class;
++        $R = \App\Http\Controllers\Api\BaganrikiResponse::class;
++        $J = \App\Http\Controllers\Api\BaganrikiJson::class;
++        $BEGIN = \App\Http\Controllers\Api\BaganrikiResponse::BEGIN;
++        $END   = \App\Http\Controllers\Api\BaganrikiResponse::END;
++
++        $vDir = rtrim($root, '/') . '/validation/normal';
++        $this->info('════════════════════════════════════════════════════════');
++        $this->info(' r12.2 型保持の通し試験（010の3章）');
++        $this->info('════════════════════════════════════════════════════════');
++        $this->line('  実行時刻 : ' . date('c'));
++        $this->line('  資料     : ' . $vDir);
++        $this->warn('  ※ 実AIは1回も呼びません');
++        $this->warn('  ※ 全部ロールバックします。DBへ残る書き込みは0件です');
++        $this->line('');
++
++        foreach (['MIXED_N16_1st_input.json', 'MIXED_N16_1st_output.json',
++                  'MIXED_N16_2nd_input.json', 'MIXED_N16_2nd_output.json'] as $fN) {
++            if (!is_file($vDir . '/' . $fN)) {
++                $this->error('  資料がありません: ' . $vDir . '/' . $fN);
++                return;
++            }
++        }
++
++        $pass = 0; $fail = 0;
++        $check = function (string $id, string $what, $got, $want) use (&$pass, &$fail) {
++            $okk = ($got === $want);
++            if ($okk) { $pass++; } else { $fail++; }
++            $this->line(sprintf('  %s %-10s %-54s %s',
++                $okk ? '○' : '×', $id, $what,
++                $okk ? '' : ('得=' . var_export($got, true)
++                           . ' 期待=' . var_export($want, true))));
++        };
++
++        // ═══════════════════════════════════════════════════════════════
++        // ① 読み・書き・比べの単体（3-5 の6例）
++        // ═══════════════════════════════════════════════════════════════
++        $this->info('── ① 3-5 の6例（読み・書き・比べ）──');
++
++        // 例1 数値 1.99999999999999999999 と、同じ内容の文字列
++        $aTxt = '{"x":1.99999999999999999999}';
++        $bTxt = '{"x":"1.99999999999999999999"}';
++        $da = $J::decode($aTxt); $db = $J::decode($bTxt);
++        $check('T-01', 'どちらも走査を通る', [$da['ok'], $db['ok']], [true, true]);
++        $check('T-02', '数値と数値文字列を別物と見る',
++            $J::same($da['value'], $da['map'], $db['value'], $db['map'])['same'], false);
++        $check('T-03', '数値の側は引用符なしで書き戻る',
++            $J::encode($da['value'], $da['map']), '{"x":1.99999999999999999999}');
++        $check('T-04', '文字列の側は文字列のまま',
++            $J::encode($db['value'], $db['map']), '{"x":"1.99999999999999999999"}');
++        $check('T-05', '往復しても型も値も残る',
++            $J::sameJson($aTxt, $J::encode($da['value'], $da['map']))['same'], true);
++        $check('T-06', '【参考】PHPの === では見分けられない',
++            ($da['value'] === $db['value']), true);
++
++        // 例2 整数1・小数1.0・指数1e0 と、整数必須の判定
++        $i1 = $J::decode('{"v":1}'); $d1 = $J::decode('{"v":1.0}');
++        $e1 = $J::decode('{"v":1e0}');
++        $check('T-07', '1 と 1.0 は別物',
++            $J::same($i1['value'], $i1['map'], $d1['value'], $d1['map'])['same'], false);
++        $check('T-08', '1 と 1e0 も別物',
++            $J::same($i1['value'], $i1['map'], $e1['value'], $e1['map'])['same'], false);
++        $check('T-09', '1.0 と 1e0 も別物（表記が違う）',
++            $J::same($d1['value'], $d1['map'], $e1['value'], $e1['map'])['same'], false);
++        $check('T-10', '表記を無視すれば同じ値と見られる',
++            $J::same($i1['value'], $i1['map'], $d1['value'], $d1['map'], false)['same'],
++            true);
++        $check('T-11', '1.0 を書き戻すと 1.0（1 に丸めない）',
++            $J::encode($d1['value'], $d1['map']), '{"v":1.0}');
++        $check('T-12', '1e0 を書き戻すと 1e0',
++            $J::encode($e1['value'], $e1['map']), '{"v":1e0}');
++        $check('T-13', '整数は PHP の int のまま（is_int が通る）',
++            is_int($i1['value']['v']), true);
++        $check('T-14', '1.0 は PHP の float（整数必須の検査が落とせる）',
++            is_float($d1['value']['v']), true);
++        $check('T-15', '1e0 も PHP の float', is_float($e1['value']['v']), true);
++        $check('T-16', '【参考】1.0 と 1e0 は === では同じ',
++            ($d1['value'] === $e1['value']), true);
++
++        // 例3 []・{}・数値キーを持つオブジェクト
++        $ar = $J::decode('{"a":[]}'); $ob = $J::decode('{"a":{}}');
++        $check('T-17', '[] と {} を別物と見る',
++            $J::same($ar['value'], $ar['map'], $ob['value'], $ob['map'])['same'], false);
++        $check('T-18', '[] は [] のまま書き戻る',
++            $J::encode($ar['value'], $ar['map']), '{"a":[]}');
++        $check('T-19', '{} は {} のまま書き戻る',
++            $J::encode($ob['value'], $ob['map']), '{"a":{}}');
++        $check('T-20', '【参考】PHPでは空配列どちらも同じ',
++            ($ar['value'] === $ob['value']), true);
++        $nk = $J::decode('{"a":{"0":"x","1":"y"}}');
++        $ls = $J::decode('{"a":["x","y"]}');
++        $check('T-21', '数値キーのオブジェクトと配列を別物と見る',
++            $J::same($nk['value'], $nk['map'], $ls['value'], $ls['map'])['same'], false);
++        $check('T-22', '数値キーのオブジェクトは {} のまま書き戻る',
++            $J::encode($nk['value'], $nk['map']), '{"a":{"0":"x","1":"y"}}');
++        $check('T-23', '配列は [] のまま', $J::encode($ls['value'], $ls['map']),
++            '{"a":["x","y"]}');
++        $check('T-24', '【参考】PHPでは数値キーのオブジェクトと配列が同じ',
++            ($nk['value'] === $ls['value']), true);
++
++        // 例4 馬行の並べ替えと、値を変更した後の保存
++        $srcT = '{"horses":[{"horse_no":3,"s":1.0},{"horse_no":1,"s":2e0},'
++              . '{"horse_no":2,"s":3}]}';
++        $dT = $J::decode($srcT);
++        $vT = $dT['value'];
++        $ordT = array_column($vT['horses'], 'horse_no');
++        asort($ordT);
++        $newH = []; $newM = $J::mapWithKind($J::emptyMap(), [], 'obj');
++        $newM = $J::mapWithKind($newM, ['horses'], 'arr');
++        $ixT = 0;
++        foreach (array_keys($ordT) as $fromT) {
++            $newH[] = $vT['horses'][$fromT];
++            $newM = $J::mapMerge($newM,
++                $J::mapMove($dT['map'], ['horses', (int) $fromT], ['horses', $ixT]));
++            $ixT++;
++        }
++        $sortedT = ['horses' => $newH];
++        $encT = $J::encode($sortedT, $newM);
++        $check('T-25', '並べ替えても表記が付いてくる', $encT,
++            '{"horses":[{"horse_no":1,"s":2e0},{"horse_no":2,"s":3},'
++            . '{"horse_no":3,"s":1.0}]}');
++        $check('T-26', '並べ替えた本文も走査を通る', $J::decode($encT)['ok'], true);
++        $sortedT['horses'][1]['s'] = 9.5;
++        $check('T-27', '値を変えたら、その値が数値として入る',
++            $J::encode($sortedT, $newM),
++            '{"horses":[{"horse_no":1,"s":2e0},{"horse_no":2,"s":9.5},'
++            . '{"horse_no":3,"s":1.0}]}');
++        $check('T-28', '変えていない位置の表記は残る',
++            (strpos($J::encode($sortedT, $newM), '"s":2e0') !== false)
++            && (strpos($J::encode($sortedT, $newM), '"s":1.0') !== false), true);
++
++        // 例5 5,001個目の長い数値
++        $bigT = '1.' . str_repeat('9', 40);
++        $rowsT = [];
++        for ($iT = 0; $iT < 5002; $iT++) { $rowsT[] = '{"n":' . $bigT . '}'; }
++        $manyT = '{"rows":[' . implode(',', $rowsT) . ']}';
++        $dmT = $J::decode($manyT);
++        $check('T-29', '5,002件でも走査を通る', $dmT['ok'], true);
++        $check('T-30', '型の地図は監査の5,000件で切れない（010の3-1）',
++            (int) $dmT['stats']['number_paths'], 5002);
++        $check('T-31', '監査に残す一覧は5,000件のまま',
++            (int) $dmT['stats']['numbers'], 5000);
++        $encM = $J::encode($dmT['value'], $dmT['map']);
++        $check('T-32', '5,001個目も数値として書き戻る（文字列へ化けない）',
++            substr_count($encM, '"n":"'), 0);
++        $dm2T = $J::decode($encM);
++        $check('T-33', '往復しても全件が同じ',
++            $J::same($dmT['value'], $dmT['map'], $dm2T['value'], $dm2T['map'])['same'],
++            true);
++        $lastT = $dmT['value']['rows'][5001]['n'];
++        $check('T-34', '5,001個目も丸まっていない',
++            is_string($lastT) ? $lastT : 'not-string', $bigT);
++
++        // 例6 同じ値の別インスタンスを使った正常な訂正
++        $r1T = $J::decode('{"v":1.50}'); $r2T = $J::decode('{"v":1.50}');
++        $check('T-35', '別に読んだ同じ本文は同じと見る（別インスタンス問題なし）',
++            $J::same($r1T['value'], $r1T['map'], $r2T['value'], $r2T['map'])['same'],
++            true);
++        $check('T-36', '1.50 と 1 は別物（整数と小数の区別は残る）',
++            $J::same($r1T['value'], $r1T['map'],
++                     $J::decode('{"v":1}')['value'],
++                     $J::decode('{"v":1}')['map'])['same'], false);
++        $check('T-37', '1.50 は 1.50 のまま保存される（丸めない）',
++            $J::encode($r1T['value'], $r1T['map']), '{"v":1.50}');
++
++        // 比べ方の細かいところ
++        $k1T = $J::decode('{"a":1,"b":2}'); $k2T = $J::decode('{"b":2,"a":1}');
++        $check('T-38', 'オブジェクトのキー順は無視する',
++            $J::same($k1T['value'], $k1T['map'], $k2T['value'], $k2T['map'])['same'],
++            true);
++        $l1T = $J::decode('{"a":[1,2]}'); $l2T = $J::decode('{"a":[2,1]}');
++        $check('T-39', '配列の順序は保持する（違えば別物）',
++            $J::same($l1T['value'], $l1T['map'], $l2T['value'], $l2T['map'])['same'],
++            false);
++        $check('T-40', '食い違った経路を返す',
++            (string) $J::same($l1T['value'], $l1T['map'],
++                              $l2T['value'], $l2T['map'])['where'], '["a",0]');
++        $n1T = $J::decode('{"a":null}'); $s1T = $J::decode('{"a":"null"}');
++        $check('T-41', 'null と "null" を別物と見る',
++            $J::same($n1T['value'], $n1T['map'], $s1T['value'], $s1T['map'])['same'],
++            false);
++        $b1T = $J::decode('{"a":true}'); $t1T = $J::decode('{"a":1}');
++        $check('T-42', 'true と 1 を別物と見る',
++            $J::same($b1T['value'], $b1T['map'], $t1T['value'], $t1T['map'])['same'],
++            false);
++
++        // ═══════════════════════════════════════════════════════════════
++        // ② 本番の関数で 診断→訂正比較→保存→読戻し まで通します
++        // ═══════════════════════════════════════════════════════════════
++        $this->info('');
++        $this->info('── ② 本番の関数で 診断→訂正比較→保存→読戻し ──');
++
++        $rd = static fn(string $fN) => (string) file_get_contents($vDir . '/' . $fN);
++        $in1  = json_decode($rd('MIXED_N16_1st_input.json'), true);
++        $in2  = json_decode($rd('MIXED_N16_2nd_input.json'), true);
++        $out2 = json_decode($rd('MIXED_N16_2nd_output.json'), true);
++        $baseTxt = $rd('MIXED_N16_1st_output.json');
++        $jj = static fn($v) => (string) json_encode($v,
++            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
++
++        $this->line('      資料の value の書き方 : '
++            . (string) (preg_match('/"value":[^,}]*/', $baseTxt, $mTmp) ? $mTmp[0] : '（無し）'));
++
++        $ok = true;
++        \DB::beginTransaction();
++        try {
++            $ctrl = app($A);
++            $seqT = 0;
++            // 凍結入力と枠を本番の3段（reserve→allowSend→receive）で作ります
++            $mk = function (string $raw1, ?string $raw2 = null)
++                  use ($in1, $in2, $jj, $BEGIN, $END, &$seqT, $W): array {
++                $seqT++;
++                $now   = $W::nowUs();
++                $sales = $now + 3600 * 1000000;
++                $nums  = [];
++                foreach ((array) $in1['runners'] as $rr) { $nums[] = (int) $rr['horse_no']; }
++                $sid = \DB::table('baganriki_snapshots')->insertGetId([
++                    'race_id' => '20261018-9-98-9-' . $seqT,   // 場98は実在しません
++                    'generation' => 900,
++                    'run_id' => 'TT',
++                    'snapshot_hash'   => (string) $in1['snapshot_hash'],
++                    'input_json_1st'  => $jj($in1), 'input_json_2nd' => $jj($in2),
++                    'frozen_nums'     => $jj($nums),
++                    'allocation_mode' => (string) $in1['allocation_mode'],
++                    'mode'            => (string) $in1['mode'],
++                    'mode_status'     => (string) $in1['mode_status'],
++                    'target_count'    => (int) $in1['target_count'],
++                    'quota_1st'       => $jj($in1['quota']),
++                    'sales_close_at'  => $W::toDb($sales),
++                    'created_at'      => $W::toDb($now),
++                ]);
++                \DB::table('baganriki_live_states')->insert([
++                    'snapshot_id' => $sid, 'cancellations' => $jj([]),
++                    'active_count' => count($nums),
++                    'live_target_count' => (int) $in1['target_count'],
++                    'live_quota' => $jj($in1['quota']), 'live_close' => null,
++                    'state_revision' => 0, 'response_revision' => 0,
++                    'publication_revision' => 0, 'latest_publication_id' => null,
++                    'updated_at' => $W::toDb($now),
++                ]);
++                $put = function (string $role, int $no, string $body)
++                       use ($sid, $BEGIN, $END, $W): void {
++                    $r = $W::reserve((int) $sid, $role, $no, $W::nowUs());
++                    if (!$r['ok']) { return; }
++                    $W::allowSend((string) $r['token'], $W::nowUs());
++                    $W::receive((string) $r['token'], $BEGIN . $body . $END,
++                                true, $W::nowUs());
++                };
++                $put('1st', $W::FIRST, $raw1);
++                if ($raw2 !== null) { $put('1st', $W::FIX, $raw2); }
++                return ['sid' => (int) $sid, 'nums' => $nums];
++            };
++
++            // ── 初回：1頭落とし、1頭目の value を指数（2e0）にします ──
++            //   指数は「値は同じで表記だけ違う」ので、PHPの === では
++            //   小数（2.0）と見分けが付きません。
++            $fa = json_decode($baseTxt, true);
++            $goneNo = (int) $fa['horses'][2]['horse_no'];
++            array_splice($fa['horses'], 2, 1);
++            $firstTxt = preg_replace('/"value":2\.0/', '"value":2e0', $jj($fa), 1);
++            $check('P-01', '初回の本文に指数の表記が入っている',
++                strpos((string) $firstTxt, '"value":2e0') !== false, true);
++
++            // ── 訂正：全頭そろえ、1頭目の value は小数（2.0）のまま ──
++            $fixTxt = $jj(json_decode($baseTxt, true));
++            $m1 = $mk((string) $firstTxt, (string) $fixTxt);
++
++            $i1R = $ctrl->r122InspectResponse($m1['sid'], '1st', $W::FIRST);
++            $check('P-02', '初回を診断できた', (bool) $i1R['ok'], true);
++            $check('P-03', '直すところがある', (bool) $i1R['needs_fix'], true);
++            $check('P-04', '型の地図が返っている',
++                is_array($i1R['normal_map'] ?? null), true);
++            $kP = $J::pathKey(['1', 'evidence', 0, 'facts', 0, 'value']);
++            $check('P-05', '1頭目の value は指数の表記で控えられている',
++                (string) ((($i1R['normal_map']['num'][$kP] ?? [])['form']) ?? ''), 'exp');
++
++            $i2R = $ctrl->r122InspectResponse($m1['sid'], '1st', $W::FIX);
++            $check('P-06', '訂正を診断できた', (bool) $i2R['ok'], true);
++            $check('P-07', '訂正側の value は小数の表記',
++                (string) ((($i2R['normal_map']['num'][$kP] ?? [])['form']) ?? ''), 'dec');
++
++            // 地図なし＝これまでの比べ方では見逃します
++            $accOld = $R::acceptCorrection($i1R['normal'], $i2R['normal'], null, null,
++                $m1['nums'], $i1R['repair_scope'], $i2R['row_valid']);
++            $check('P-08', '【地図なし】表記だけの差を見逃して採用してしまう',
++                (bool) $accOld['ok'], true);
++            // 地図あり＝型まで見ます
++            $accNew = $R::acceptCorrection($i1R['normal'], $i2R['normal'], null, null,
++                $m1['nums'], $i1R['repair_scope'], $i2R['row_valid'],
++                (array) $i1R['normal_map'], (array) $i2R['normal_map']);
++            $check('P-09', '【地図あり】範囲外を変えているので採用しない',
++                (bool) $accNew['ok'], false);
++            $check('P-10', '理由に「対象外」が出る',
++                strpos((string) ($accNew['reason'] ?? ''), '対象外') !== false, true);
++
++            // 本番の採否（r122AcceptedHorses）も同じ判断になること
++            $accR = $ctrl->r122AcceptedHorses($m1['sid'], '1st');
++            $check('P-11', '本番の採否でも訂正を採用しない',
++                (string) ($accR['code'] ?? ''), 'FIX_REJECTED');
++            $check('P-12', '初回の正常部分は残る（15頭）',
++                count((array) ($accR['merged'] ?? [])), 15);
++
++            // ── ② {} と [] の違い ────────────────────────────────────
++            $this->info('   ── {} と [] の違い（PHPでは同じ空配列）──');
++            $fc = json_decode($baseTxt, true);
++            array_splice($fc['horses'], 2, 1);
++            $t3 = preg_replace('/"counterevidence":\[\]/', '"counterevidence":{}',
++                               $jj($fc), 1);
++            $check('P-13', '初回の本文に {} が入っている',
++                strpos((string) $t3, '"counterevidence":{}') !== false, true);
++            $m2 = $mk((string) $t3, (string) $jj(json_decode($baseTxt, true)));
++            $j1R = $ctrl->r122InspectResponse($m2['sid'], '1st', $W::FIRST);
++            $j2R = $ctrl->r122InspectResponse($m2['sid'], '1st', $W::FIX);
++            $kK = $J::pathKey(['1', 'counterevidence']);
++            $check('P-14', '1頭目の counterevidence は obj と控えられている',
++                (string) (($j1R['normal_map']['kind'][$kK]) ?? ''), 'obj');
++            $check('P-15', '訂正側は arr',
++                (string) (($j2R['normal_map']['kind'][$kK]) ?? ''), 'arr');
++            $a2Old = $R::acceptCorrection($j1R['normal'], $j2R['normal'], null, null,
++                $m2['nums'], $j1R['repair_scope'], $j2R['row_valid']);
++            $check('P-16', '【地図なし】{} と [] の差を見逃して採用してしまう',
++                (bool) $a2Old['ok'], true);
++            $a2New = $R::acceptCorrection($j1R['normal'], $j2R['normal'], null, null,
++                $m2['nums'], $j1R['repair_scope'], $j2R['row_valid'],
++                (array) $j1R['normal_map'], (array) $j2R['normal_map']);
++            $check('P-17', '【地図あり】採用しない', (bool) $a2New['ok'], false);
++
++            // ── ③ 正しい全頭訂正は、型を見ても通ること ───────────────
++            $this->info('   ── 正しい全頭訂正は通ること ──');
++            $fixSame = preg_replace('/"value":2\.0/', '"value":2e0',
++                                    $jj(json_decode($baseTxt, true)), 1);
++            $m3 = $mk((string) $firstTxt, (string) $fixSame);
++            $accG = $ctrl->r122AcceptedHorses($m3['sid'], '1st');
++            $check('P-18', '正しい全頭訂正は採用する',
++                (string) ($accG['code'] ?? ''), 'FIX_APPLIED');
++            $check('P-19', '欠けていた馬が救済される',
++                in_array($goneNo, array_map('intval',
++                    (array) ($accG['rescued'] ?? [])), true), true);
++            $check('P-20', '全16頭そろう',
++                count((array) ($accG['merged'] ?? [])), 16);
++            $check('P-21', '当てた行の地図も返ってくる',
++                is_array($accG['merged_map'] ?? null), true);
++
++            // ── ④ 保存 → 読戻し ─────────────────────────────────────
++            $this->info('   ── 保存 → 読戻し（専用シリアライザと専用パーサ）──');
++            $aid = (int) \DB::table('baganriki_ai_attempts')
++                     ->where('snapshot_id', $m3['sid'])->where('role', '1st')
++                     ->where('attempt_no', $W::FIRST)->value('id');
++            $rdN = $ctrl->r122NormalPart($aid);
++            $check('P-22', '保存した正常部分を専用パーサで読み戻せる',
++                (bool) $rdN['ok'], true);
++            $check('P-23', '保存本文に指数の表記が残っている',
++                strpos((string) ($rdN['raw'] ?? ''), '"value":2e0') !== false, true);
++            $i3R = $ctrl->r122InspectResponse($m3['sid'], '1st', $W::FIRST);
++            $rt = $ctrl->r122NormalRoundTrip($aid, (array) $i3R['normal'],
++                                             (array) $i3R['normal_map']);
++            $check('P-24', '読み戻した値と型が、保存前と一致する',
++                [(bool) $rt['ok'], (bool) $rt['same']], [true, true]);
++            $check('P-25', '【参考】通常の json_encode では表記が落ちる',
++                strpos((string) json_encode($i3R['normal']), '"value":2e0') !== false,
++                false);
++
++            // 40桁の数値が、引用符なしで保存されること
++            $bigTxt = preg_replace('/"value":2\.0/',
++                '"value":1.' . str_repeat('9', 40), $jj(json_decode($baseTxt, true)), 1);
++            $m4 = $mk((string) $bigTxt);
++            $i4R = $ctrl->r122InspectResponse($m4['sid'], '1st', $W::FIRST);
++            $check('P-26', '40桁の数値でも診断できた', (bool) $i4R['ok'], true);
++            $aid4 = (int) \DB::table('baganriki_ai_attempts')
++                      ->where('snapshot_id', $m4['sid'])->where('role', '1st')
++                      ->where('attempt_no', $W::FIRST)->value('id');
++            $rd4 = $ctrl->r122NormalPart($aid4);
++            $check('P-27', '40桁の数値は引用符なしで保存されている',
++                strpos((string) ($rd4['raw'] ?? ''),
++                       '"value":1.' . str_repeat('9', 40)) !== false, true);
++            $check('P-28', '【参考】通常の json_encode では引用符が付く',
++                strpos((string) json_encode($i4R['normal']),
++                       '"value":"1.' . str_repeat('9', 40) . '"') !== false, true);
++            $rt4 = $ctrl->r122NormalRoundTrip($aid4, (array) $i4R['normal'],
++                                              (array) $i4R['normal_map']);
++            $check('P-29', '40桁でも読み戻して一致する',
++                [(bool) $rt4['ok'], (bool) $rt4['same']], [true, true]);
++            $check('P-30', '読み戻した値は丸まっていない',
++                (string) (($rd4['value'][1]['evidence'][0]['facts'][0]['value']) ?? ''),
++                '1.' . str_repeat('9', 40));
++        } catch (\Throwable $e) {
++            $ok = false;
++            $this->error('  × 例外 : ' . $e->getMessage());
++            $this->error('    ' . $e->getFile() . ':' . $e->getLine());
++        } finally {
++            \DB::rollBack();
++        }
++
++        $left = (int) \DB::table('baganriki_snapshots')
++                  ->where('race_id', 'like', '20261018-9-98-9-%')->count();
++        $this->line('');
++        $this->line('  ロールバック後  仮snapshot ' . $left . ' 件');
++        $this->line('');
++        $this->line('  判定件数 : ' . ($pass + $fail) . ' 件');
++        $this->line('  合格     : ' . $pass . ' 件');
++        $this->line('  不合格   : ' . $fail . ' 件');
++        $this->line('');
++        $this->info('════════════════════════════════════════════════════════');
++        if ($fail === 0 && $ok) {
++            $this->info(' 型保持は診断→訂正比較→保存→読戻しまで通りました'
++                      . '（DBへ残る書き込み0件）');
++        } else {
++            $this->error(' 通らなかった箇所があります。上の × をご確認ください');
++        }
++        $this->info('════════════════════════════════════════════════════════');
++    }
++
++    /**
++     * ═══════════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-E2E  実凍結から一続きの通し試験（010の5章末尾）
++     * ═══════════════════════════════════════════════════════════════════════
++     * ご指摘（010の5章 末尾）：
++     *   「通し試験の$mkはsnapshotを直接INSERTし、締切を既定3,600秒後に置く
++     *     形のままです（18242行付近）。出馬表・監査行からの実凍結、
++     *     キャッシュ入口、実際の期限幅、Jobの実起動を一続きにした試験は
++     *     別途必要です。」
++     * ご指摘（009の③）：
++     *   「snapshot未作成から通す試験」
++     *
++     * ■ 何を変えたか
++     *   これまでの通し試験は snapshot を手で INSERT し、投票締切を
++     *   <b>いまから3,600秒後</b>に置いていました。
++     *   期限の幅（応答期限・公開期限・情報上限・入力凍結）は締切から
++     *   導出されるので幅そのものは契約どおりでしたが、
++     *   「出馬表と監査行から実際に凍結する」経路は通っていませんでした。
++     *
++     *   いまは
++     *     ① 実在のレース（出馬表・オッズのあるもの）を選びます
++     *     ② <b>その出馬表とオッズを、まるごと「今日・いまから5分後」へ
++     *        写します。</b>値は1つも変えません。日付・場コード・発走時刻
++     *        だけを変えます（場98は実在しないので本番と混ざりません）。
++     *        ロールバックするので、写しも元の行も残りません。
++     *        <b>発走時刻だけ動かしても足りませんでした。</b>
++     *        情報上限や応答期限は「日付＋発走時刻」から出すので、
++     *        日付が3日前のままだと期限も3日前になり、
++     *        監査行の自己申告した予定時刻と合わなくなります。
++     *     ③ 監査行を、写した発走時刻から出した予定時刻で作ります
++     *     ④ <b>締切は渡しません。</b>発走時刻から導出させます
++     *        （BAGANRIKI_SALES_CLOSE_DERIVE／OFFSET_SEC のとおり）
++     *     ⑤ r122ResumeFreeze（キャッシュ後の入口が呼ぶもの）で凍結します
++     *     ⑥ 期限の幅が契約どおりか、保存された値で1つずつ確かめます
++     *     ⑦ 送信口を偽応答に差し替えて、初回→検証→訂正→採否→公開まで
++     *        <b>r122SendFirst</b>（本番の関数）で通します
++     *
++     *   時刻を寄せているのは、過去の開催では残り時間が足りず
++     *   「応答期限まで○秒しかないので送りません」で正しく止まるためです。
++     *   <b>期限の幅は1つも決め打ちしていません。</b>
++     *
++     * ■ 実AIは1回も呼びません。全部ロールバックします。
++     */
++    private function runR122E2eTest(string $root): void
++    {
++        self::r122Autoload();
++        $A = \App\Http\Controllers\Api\AiController::class;
++        $W = \App\Http\Controllers\Api\BaganrikiWorker::class;
++        $T = \App\Http\Controllers\Api\BaganrikiTime::class;
++        $BEGIN = \App\Http\Controllers\Api\BaganrikiResponse::BEGIN;
++        $END   = \App\Http\Controllers\Api\BaganrikiResponse::END;
++        $HTTP  = \Illuminate\Support\Facades\Http::class;
++
++        $date = (string) ($this->option('date') ?: '2026-10-18');
++        $this->info('════════════════════════════════════════════════════════');
++        $this->info(' r12.2 実凍結から一続きの通し試験（010の5章末尾・009の③）');
++        $this->info('════════════════════════════════════════════════════════');
++        $this->line('  実行時刻 : ' . date('c'));
++        $this->warn('  ※ 実在のレースの出馬表とオッズを、値を変えずに写します');
++        $this->warn('  ※ 日付・場コード・発走時刻だけを「今日・いまから5分後・場98」'
++                  . 'へ寄せます（期限の幅は1つも決め打ちしません）');
++        $this->warn('  ※ 実AIは1回も呼びません（送信口を偽応答に差し替えます）');
++        $this->warn('  ※ 全部ロールバックします。DBへ残る書き込みは0件です');
++        $this->line('');
++
++        // ── 偽の送信口（1回だけ登録します。積み重なるためです）──────────
++        $calls = []; $doc1 = []; $doc2 = []; $fixDoc = []; $nth = [];
++        $HTTP::fake(function ($request) use (&$calls, &$doc1, &$doc2, &$fixDoc,
++                                             &$nth, $BEGIN, $END) {
++            $url = (string) $request->url();
++            $calls[] = $url;
++            $isDs = (strpos($url, 'api.deepseek.com') !== false);
++            $role = $isDs ? '2nd' : '1st';
++            $nth[$role] = (int) ($nth[$role] ?? 0) + 1;
++            // 1回目は初回、2回目は訂正の本文を返します
++            $body = ($nth[$role] === 1)
++                  ? ($isDs ? $doc2 : $doc1)
++                  : ($isDs ? $doc2 : $fixDoc);
++            $txt = $BEGIN . (string) json_encode($body,
++                       JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
++                       | JSON_PRESERVE_ZERO_FRACTION) . $END;
++            if ($isDs) {
++                return \Illuminate\Support\Facades\Http::response([
++                    'model' => 'deepseek-chat',
++                    'choices' => [['message' => ['content' => $txt],
++                                   'finish_reason' => 'stop']],
++                    'usage' => ['prompt_tokens' => 1234, 'completion_tokens' => 567],
++                ], 200);
++            }
++            return \Illuminate\Support\Facades\Http::response([
++                'model' => 'claude-haiku-4-5',
++                'content' => [['type' => 'text', 'text' => $txt]],
++                'stop_reason' => 'end_turn',
++                'usage' => ['input_tokens' => 2345, 'output_tokens' => 678],
++            ], 200);
++        });
++
++        $pass = 0; $fail = 0;
++        //   第5引数に true を渡すと「$want と<b>違う</b>こと」を見ます
++        $check = function (string $id, string $what, $got, $want,
++                           bool $not = false) use (&$pass, &$fail) {
++            $okk = $not ? ($got !== $want) : ($got === $want);
++            if ($okk) { $pass++; } else { $fail++; }
++            $this->line(sprintf('  %s %-10s %-52s %s',
++                $okk ? '○' : '×', $id, $what,
++                $okk ? '' : ('得=' . var_export($got, true)
++                           . ($not ? ' 期待=これ以外' : ' 期待=')
++                           . ($not ? '' : var_export($want, true)))));
++        };
++
++        // ── ① 実在のレースを選びます ────────────────────────────────
++        $race = null;
++        foreach (\DB::table('t_horse_odds_finder_races')->where('date', $date)
++                    ->orderBy('basho')->orderBy('race')->get() as $r) {
++            $n6 = (int) \DB::table('t_horse_odds_finder_odds')
++                    ->where('date', $r->date)->where('kaisuu', $r->kaisuu)
++                    ->where('basho', $r->basho)->where('day', $r->day)
++                    ->where('race', (int) $r->race)
++                    ->where('minutes_before_start', 6)->count();
++            $nh = (int) \DB::table('t_horse_odds_finder_horses')
++                    ->where('date', $r->date)->where('kaisuu', $r->kaisuu)
++                    ->where('basho', $r->basho)->where('day', $r->day)
++                    ->where('race', (int) $r->race)->count();
++            if ($n6 >= 4 && $nh >= 4) { $race = $r; break; }
++        }
++        if ($race === null) {
++            $this->error('  × 出馬表とオッズのそろったレースがありません: ' . $date);
++            return;
++        }
++        $raceId = $A::r122RaceId($race->date, $race->kaisuu, $race->basho,
++                                 $race->day, $race->race);
++        $this->line('  対象レース : ' . $raceId
++                  . '（実在の出馬表・オッズを使います）');
++
++        $ok = true;
++        \DB::beginTransaction();
++        try {
++            $ctrl = app($A);
++
++            // ── ② 出馬表とオッズを「今日・いまから5分後・場98」へ写します ──
++            // ══════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-E2EDATE  発走時刻だけでは足りません
++            // ══════════════════════════════════════════════════════════
++            //   情報上限・入力凍結・応答期限・公開期限は、すべて
++            //   「日付＋発走時刻」から出します。発走時刻だけを動かしても、
++            //   日付が3日前のままなら期限も3日前になります。
++            //   そうすると監査行が自己申告した予定時刻と、正本から出した
++            //   予定時刻が合わず、バッチが1つも採用されません
++            //   （最初に書いたときはここで SOURCE_REGISTRY_EMPTY に
++            //     なりました）。
++            //   実データを<b>値を変えずに</b>今日へ写します。
++            //   場コードは98（実在しません）にして、本番の行と混ざらない
++            //   ようにします。ロールバックするので写しも残りません。
++            // ══════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-E2EWINDOW  寄せ先は「いまから5分後」
++            // ══════════════════════════════════════════════════════════
++            //   10分後にすると、情報上限（発走の360秒前＝いまから240秒後）が
++            //   <b>まだ来ていない</b>ので、凍結が TOO_EARLY で正しく止まります。
++            //   凍結できて、かつ初回を送れる窓は次の条件です。
++            //     情報上限が過ぎている   発走 − 360 ≦ いま
++            //       → 発走 ≦ いま + 360秒
++            //     応答期限まで余裕がある 発走 − 150 ≧ いま + 45秒
++            //       → 発走 ≧ いま + 195秒
++            //   あいだを採って <b>いまから300秒後</b>にします。
++            //     情報上限   いま − 60秒（過ぎています）
++            //     入力凍結   いま − 30秒（過ぎています）
++            //     応答期限   いま + 150秒（間に合います）
++            //     公開期限   いま + 180秒
++            //     投票締切   いま + 240秒
++            //   期限の幅は1つも決め打ちしていません。
++            //   いちばん遅い6分前の取得も、入力凍結より前に収まります
++            //   （予定 いま−60秒、利用可能 いま−57.5秒 ≦ 入力凍結 いま−30秒）。
++            $nowUs   = $W::nowUs();
++            $anchorUs = ($nowUs - ($nowUs % 1000000)) + 300 * 1000000;  // 秒に丸めます
++            $anchorDt = (new \DateTimeImmutable('@' . intdiv($anchorUs, 1000000)))
++                            ->setTimezone(new \DateTimeZone('Asia/Tokyo'));
++            $newDate  = $anchorDt->format('Y-m-d');
++            $newBasho = '98';
++            $newStart = $anchorDt->format('H:i:s');
++
++            // 日付が変わるとき（発走が翌日0時台になるとき）も、
++            // 日付と時刻は同じ瞬間から作るのでずれません。
++            $copyErr = [];
++            $copy = function (string $table, array $set)
++                    use ($race, $newDate, $newBasho, &$copyErr) {
++                $n = 0;
++                foreach (\DB::table($table)
++                            ->where('date', $race->date)->where('kaisuu', $race->kaisuu)
++                            ->where('basho', $race->basho)->where('day', $race->day)
++                            ->where('race', (int) $race->race)->get() as $row) {
++                    $a = (array) $row;
++                    // 自動連番の列は外します（名前が id でない表もあるので、
++                    //   1行目で失敗したらその列名を外してもう一度だけ試します）
++                    unset($a['id']);
++                    $a['date']  = $newDate;
++                    $a['basho'] = $newBasho;
++                    foreach ($set as $k => $v) { $a[$k] = $v; }
++                    try {
++                        \DB::table($table)->insert($a);
++                        $n++;
++                    } catch (\Throwable $e) {
++                        if ($copyErr === []) {
++                            $copyErr[] = $table . ': ' . $e->getMessage();
++                        }
++                        break;
++                    }
++                }
++                return $n;
++            };
++            $nRace  = $copy('t_horse_odds_finder_races',  ['start_time' => $newStart]);
++            $nHorse = $copy('t_horse_odds_finder_horses', []);
++            $nOdds  = $copy('t_horse_odds_finder_odds',   []);
++            $this->line('  写した行 : レース ' . $nRace . ' 件／出馬表 ' . $nHorse
++                      . ' 件／オッズ ' . $nOdds . ' 件（値は変えていません）');
++            if ($copyErr !== []) {
++                $this->error('  × 写しで失敗しました : ' . implode('／', $copyErr));
++            }
++            $check('G-00a', 'レースの行を写せた', $nRace, 1);
++            $check('G-00b', '出馬表を写せた', $nHorse > 0, true);
++            $check('G-00c', 'オッズを写せた', $nOdds > 0, true);
++            $this->line('  写し先 : ' . $newDate . ' 場' . $newBasho
++                      . ' 発走 ' . $newStart . '（いまから5分後）');
++
++            // 以降は写し先のレースを対象にします
++            $raceId = $A::r122RaceId($newDate, $race->kaisuu, $newBasho,
++                                     $race->day, (int) $race->race);
++            $this->line('  写し先の race_id : ' . $raceId);
++
++            // ── ③ 監査行を、寄せた発走時刻から出した予定時刻で作ります ──
++            $toDb = static function (int $us): string {
++                return (new \DateTimeImmutable('@' . intdiv($us, 1000000)))
++                    ->setTimezone(new \DateTimeZone('Asia/Tokyo'))
++                    ->format('Y-m-d H:i:s') . sprintf('.%06d', $us % 1000000);
++            };
++            $rowsA = [];
++            foreach ($T::INPUT_SLOTS as $slot) {
++                $pl = [];
++                foreach (\DB::table('t_horse_odds_finder_odds')
++                            ->where('date', $newDate)->where('kaisuu', $race->kaisuu)
++                            ->where('basho', $newBasho)->where('day', $race->day)
++                            ->where('race', (int) $race->race)
++                            ->where('minutes_before_start', $slot)
++                            ->orderBy('num')
++                            ->get(['num', 'odds', 'fuku_min', 'fuku_max']) as $o) {
++                    $pl[] = ['num' => (int) $o->num, 'tan' => (string) $o->odds,
++                             'fuku_min' => (string) $o->fuku_min,
++                             'fuku_max' => (string) $o->fuku_max];
++                }
++                if ($pl === []) { continue; }
++                $raw = (string) json_encode($pl, JSON_UNESCAPED_UNICODE);
++                $sch = $T::slotScheduled($anchorUs, $slot);
++                $rowsA[] = [
++                    'race_id' => $raceId, 'slot' => $slot,
++                    'batch_id' => 'E2E-' . $raceId . '-' . $slot . '-'
++                                . substr(bin2hex(random_bytes(3)), 0, 6),
++                    'slot_scheduled_at'    => $toDb($sch),
++                    'source_updated_at'    => null,
++                    'request_started_at'   => $toDb($sch + 500000),
++                    'response_received_at' => $toDb($sch + 1500000),
++                    'available_at'         => $toDb($sch + 2500000),
++                    'raw_payload'          => $raw,
++                    'payload_hash'         => hash('sha256', $raw),
++                    'validation_result'    => 'ADOPTED',
++                    'rejection_reason'     => null,
++                    'committed'            => 1,
++                    'created_at'           => $toDb($sch + 2500000),
++                ];
++            }
++            $check('G-01', '監査行を6時点ぶん作れた', count($rowsA), 6);
++            \DB::table('baganriki_acquisition_batches')->insert($rowsA);
++
++            // ── ④ キャッシュ後の入口が呼ぶ関数で、実凍結します ──────────
++            //   <b>締切は渡しません。</b>発走時刻から導出させます。
++            $check('G-02', '凍結の前は snapshot が無い',
++                (int) \DB::table('baganriki_snapshots')
++                    ->where('race_id', $raceId)->where('generation', 0)->count(), 0);
++            $rf = $ctrl->r122ResumeFreeze($newDate, $race->kaisuu, $newBasho,
++                                          $race->day, (int) $race->race);
++            $this->line('      凍結 : ' . (string) ($rf['code'] ?? '')
++                      . '／' . mb_strimwidth((string) ($rf['reason'] ?? ''), 0, 70, '…'));
++            $check('G-03', '出馬表と監査行から実際に凍結できた',
++                (string) ($rf['code'] ?? ''), 'OK');
++            $snap = \DB::table('baganriki_snapshots')
++                      ->where('race_id', $raceId)->where('generation', 0)->first();
++            $check('G-04', '本番の世代（0）に1件できた', $snap !== null, true);
++            if ($snap === null) { throw new \RuntimeException('凍結できていません'); }
++            $sid = (int) $snap->id;
++
++            // ── ⑤ 期限の幅が契約どおりか（決め打ちしていないこと）────────
++            $this->info('── 期限の幅（正本の発走時刻から導出されたもの）──');
++            $aU = $W::dbUs($snap->anchor_at ?? null);
++            $cU = $W::dbUs($snap->cutoff_at ?? null);
++            $fU = $W::dbUs($snap->input_freeze_at ?? null);
++            $sU = $W::dbUs($snap->sales_close_at ?? null);
++            $check('G-05', '発走時刻が、寄せた時刻として保存されている',
++                (int) $aU, $anchorUs);
++            $check('G-06', '投票締切は発走の60秒前（導出。渡していません）',
++                (int) ($aU - $sU) / 1000000, 60);
++            $check('G-07', '情報上限は発走の360秒前',
++                (int) ($aU - $cU) / 1000000, 360);
++            $check('G-08', '入力凍結は発走の330秒前',
++                (int) ($aU - $fU) / 1000000, 330);
++            $live = \DB::table('baganriki_live_states')
++                      ->where('snapshot_id', $sid)->first();
++            $dl = $W::deadlines($snap, $live);
++            $check('G-09', '応答期限は発走の150秒前',
++                (int) ($aU - (int) $dl['reply']) / 1000000, 150);
++            $check('G-10', '公開期限は発走の120秒前',
++                (int) ($aU - (int) $dl['publish']) / 1000000, 120);
++            $this->line('      発走 ' . \App\Http\Controllers\Api\BaganrikiTime::toJst($aU));
++            $this->line('      情報上限 −360s ／ 入力凍結 −330s ／ 応答期限 −150s');
++            $this->line('      公開期限 −120s ／ 投票締切 −60s');
++            $this->line('      ※ 3,600秒の決め打ちはありません');
++
++            // ── ⑥ 偽の応答を、この凍結入力に合わせて作ります ─────────────
++            //   封筒（prompt_version・race_id・snapshot_hash など）は
++            //   保存された本文からそのまま写します。
++            $in1 = json_decode((string) $snap->input_json_1st, true);
++            $in2 = json_decode((string) $snap->input_json_2nd, true);
++            $check('G-11', '1st の本文が保存されている', is_array($in1), true);
++            $mkDoc = function (array $in, string $role) use ($root) {
++                // 送付資料の正常出力を雛形にし、封筒と馬をこの凍結に合わせます
++                $f = rtrim($root, '/') . '/validation/normal/MIXED_N16_'
++                   . $role . '_output.json';
++                $tpl = is_file($f)
++                     ? (array) json_decode((string) file_get_contents($f), true)
++                     : [];
++                $doc = $tpl;
++                foreach (['prompt_version', 'schema_version', 'race_id', 'ai_role',
++                          'snapshot_hash', 'mode', 'mode_status', 'allocation_mode',
++                          'mode_policy_id', 'role_cap', 'role_quota',
++                          'target_count'] as $k) {
++                    if (array_key_exists($k, $in)) { $doc[$k] = $in[$k]; }
++                }
++                $doc['quota'] = $in['quota'] ?? ($doc['quota'] ?? null);
++                // 馬は、この凍結の runner にそろえます（雛形の1頭目を使い回します）
++                $proto = (array) (($tpl['horses'][0]) ?? []);
++                // ══════════════════════════════════════════════════════
++                // @ANCHOR-20261021-R122-E2EEVID  根拠の参照は馬ごとに直します
++                // ══════════════════════════════════════════════════════
++                //   雛形の1頭目をそのまま使い回すと、全頭が
++                //   <b>1番の根拠（h1_…）を指します。</b>診断は
++                //   「自分のSIGNALが1系統も無い馬」を外すので、
++                //   2番以降が全部落ちます。
++                //   この凍結入力に実際に在る参照（h{馬番}_win_odds_6）へ
++                //   書き替えます。文字列として差し替えるので、入れ子の
++                //   どこに在っても追いつきます。
++                $reg = (array) ($in['source_registry'] ?? []);
++                $rows = []; $bands = ['A' => [], 'B' => [], 'D' => []];
++                foreach ((array) ($in['runners'] ?? []) as $rr) {
++                    $no = (int) ($rr['horse_no'] ?? 0);
++                    $bd = (string) ($rr['band'] ?? 'A');
++                    if ($no <= 0) { continue; }
++                    // この馬について、凍結入力に在る参照をひとつ選びます
++                    $myRef = null;
++                    foreach ([6, 9, 12, 15, 18, 21] as $sl) {
++                        $cand = 'h' . $no . '_win_odds_' . $sl;
++                        if (isset($reg[$cand])) { $myRef = $cand; break; }
++                    }
++                    $txt = (string) json_encode($proto,
++                               JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
++                               | JSON_PRESERVE_ZERO_FRACTION);
++                    if ($myRef !== null) {
++                        // 雛形が指している参照を、この馬の参照へ置き替えます
++                        $txt = str_replace('h1_past_performance_None', $myRef, $txt);
++                        $txt = str_replace('"h1_', '"h' . $no . '_', $txt);
++                    }
++                    $h = (array) json_decode($txt, true);
++                    $h['horse_no'] = $no;
++                    $h['band'] = $bd;
++                    $h['public_candidate'] = false;
++                    $h['nonselect_reason'] = 'NOT_SELECTED';
++                    $rows[] = $h;
++                    if (isset($bands[$bd])) { $bands[$bd][] = $no; }
++                }
++                $doc['horses'] = $rows;
++                foreach ($bands as $b => $v) { sort($v); $bands[$b] = $v; }
++                $doc['band_ranks'] = $bands;
++                $doc['evidence_band_ranks'] = $bands;
++                $doc['public_candidates'] = [];
++                $doc['shortfalls'] = [];
++                $doc['validation_issues'] = [];
++                $doc['selection_enabled'] = false;
++                return $doc;
++            };
++            $doc1 = $mkDoc((array) $in1, '1st');
++            $doc2 = $mkDoc((array) $in2, '2nd');
++            $fixDoc = $doc1;
++
++            // ── ⑦ 初回→検証→訂正→採否→公開まで、本番の関数で通します ───
++            $this->info('── 初回送信から公開まで（本番の関数）──');
++            $check('G-12', '送信の前は枠が1つも無い',
++                (int) \DB::table('baganriki_ai_attempts')
++                    ->where('snapshot_id', $sid)->count(), 0);
++            $f1 = $ctrl->r122SendFirst($sid, '1st', ['test_ignore_flags' => true]);
++            $this->line('      1st : sent=' . var_export($f1['sent'], true)
++                      . ' ok=' . var_export($f1['ok'], true)
++                      . ' code=' . (string) $f1['code']
++                      . '／' . mb_strimwidth((string) $f1['reason'], 0, 60, '…'));
++            $check('G-13', '1st の初回を実際に送った', (bool) $f1['sent'], true);
++            $check('G-14', '1st の初回を受け取れた', (bool) $f1['ok'], true);
++            $check('G-15', '1st の枠が RECEIVED になった',
++                (string) \DB::table('baganriki_ai_attempts')
++                    ->where('snapshot_id', $sid)->where('role', '1st')
++                    ->where('attempt_no', $W::FIRST)->value('status'), $W::RECEIVED);
++            $f2 = $ctrl->r122SendFirst($sid, '2nd', ['test_ignore_flags' => true]);
++            $this->line('      2nd : sent=' . var_export($f2['sent'], true)
++                      . ' ok=' . var_export($f2['ok'], true)
++                      . ' code=' . (string) $f2['code']);
++            $check('G-16', '2nd の初回も送った', (bool) $f2['sent'], true);
++            $check('G-17', '2nd の枠も RECEIVED',
++                (string) \DB::table('baganriki_ai_attempts')
++                    ->where('snapshot_id', $sid)->where('role', '2nd')
++                    ->where('attempt_no', $W::FIRST)->value('status'), $W::RECEIVED);
++
++            // ── ⑧ 実モデルと使用量が残っていること（010の7章⑤）───────────
++            $uz = $A::r122UsageOf($sid);
++            // 初回に直すところがあったので、両roleで訂正も飛びます。
++            //   role ごとに 初回1件＋訂正1件 ＝ 合計4件になります。
++            //   （最初に書いたときは2件と見込んでいました。訂正のぶんを
++            //     数えていませんでした）
++            $this->line('      使用量 : '
++                . json_encode($uz['by_model'], JSON_UNESCAPED_UNICODE));
++            $byRole = [];
++            foreach ((array) $uz['rows'] as $ur) {
++                $byRole[(string) ($ur['role'] ?? '')][] = (int) ($ur['attempt_no'] ?? -1);
++            }
++            foreach ($byRole as $kR => $vR) { sort($vR); $byRole[$kR] = $vR; }
++            ksort($byRole);
++            $check('G-18', '使用量は role ごとに初回と訂正の2件ずつ残る',
++                $byRole, ['1st' => [0, 1], '2nd' => [0, 1]]);
++            $check('G-18b', '合計4件', count((array) $uz['rows']), 4);
++            $check('G-19', '応答が名乗ったモデル名で残っている',
++                array_keys((array) $uz['by_model']),
++                ['claude-haiku-4-5', 'deepseek-chat']);
++
++            // ── ⑨ 採否と公開 ───────────────────────────────────────────
++            foreach (['1st', '2nd'] as $role) {
++                $sv = $A::r122RoleSettled($sid, $role);
++                $check('G-2' . ($role === '1st' ? '0' : '1'),
++                    $role . ' の採否が確定している', (bool) $sv['settled'], true);
++            }
++            $pb = $ctrl->r122PublishWhenReady($sid);
++            $this->line('      公開 : ' . (string) ($pb['code'] ?? '')
++                      . '／' . mb_strimwidth((string) ($pb['reason'] ?? ''), 0, 70, '…'));
++            // ══════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-E2ESCOPE  この試験が示す範囲
++            // ══════════════════════════════════════════════════════════
++            //   この試験の目的は、010の5章末尾でご指摘いただいた
++            //     出馬表・監査行からの実凍結／キャッシュ入口／
++            //     実際の期限幅／初回送信から採否確定まで
++            //   を<b>一続きに通すこと</b>です。
++            //
++            //   <b>公開の中身（候補の選定・加点・帯順位）は、この試験では
++            //   確かめません。</b>偽の応答は、実在のレースの凍結入力に
++            //   合わせて組み立てたものなので、送付資料の正常出力のように
++            //   採点・根拠・5系統まで整合しているわけではありません。
++            //   候補の選定は、資料の正常出力を使う試験
++            //   （公開 67件・実経路 E群・応答検証 76件）で確認しています。
++            //
++            //   ここで確かめるのは
++            //     ・公開判定が<b>起動して、待ちではない</b>こと
++            //       （両roleの採否が確定しているので待ちにはなりません）
++            //     ・採用できた馬の数が出ること（数は判定しません）
++            //   です。
++            $check('G-22', '公開判定が起動し、待ちにはならない',
++                (string) ($pb['code'] ?? ''), 'WAITING', true);
++            $okCodes = ['PUBLISHED', 'ALREADY', 'NO_RESPONSE',
++                        'ALL_CANCELLED', 'PAST_PUBLISH_DEADLINE'];
++            $check('G-23', '公開判定が定義どおりの結果を返した',
++                in_array((string) ($pb['code'] ?? ''), $okCodes, true), true);
++            $n1v = count((array) ($ctrl->r122AcceptedHorses($sid, '1st')['merged'] ?? []));
++            $n2v = count((array) ($ctrl->r122AcceptedHorses($sid, '2nd')['merged'] ?? []));
++            $this->line('      この偽応答で採用できた馬 : 1st ' . $n1v
++                      . ' 頭／2nd ' . $n2v . ' 頭');
++            $this->line('      ※ 候補の選定は、資料の正常出力を使う'
++                      . '「公開 67件」「実経路 E群」で確認しています');
++            if ((string) ($pb['code'] ?? '') === 'PUBLISHED'
++                || (string) ($pb['code'] ?? '') === 'ALREADY') {
++                $check('G-23b', '公開が1件できている',
++                    ((string) \DB::table('baganriki_live_states')
++                        ->where('snapshot_id', $sid)
++                        ->value('latest_publication_id')) !== '', true);
++            }
++            $check('G-24', '実AIへは1回も送っていない（偽の送信口だけ）',
++                count(array_filter($calls, static fn($u) =>
++                    strpos((string) $u, 'api.anthropic.com') === false
++                    && strpos((string) $u, 'api.deepseek.com') === false)), 0);
++            $this->line('      送信口が呼ばれた回数 : ' . count($calls) . ' 回');
++        } catch (\Throwable $e) {
++            $ok = false;
++            $this->error('  × 例外 : ' . $e->getMessage());
++            $this->error('    ' . $e->getFile() . ':' . $e->getLine());
++        } finally {
++            \DB::rollBack();
++        }
++
++        // ロールバックできていることの確認
++        $left1 = (int) \DB::table('baganriki_snapshots')
++                   ->where('race_id', $raceId)->where('generation', 0)->count();
++        $left2 = (int) \DB::table('baganriki_acquisition_batches')
++                   ->where('batch_id', 'like', 'E2E-%')->count();
++        $st = (string) \DB::table('t_horse_odds_finder_races')
++                ->where('date', $race->date)->where('kaisuu', $race->kaisuu)
++                ->where('basho', $race->basho)->where('day', $race->day)
++                ->where('race', (int) $race->race)->value('start_time');
++        $left3 = (int) \DB::table('t_horse_odds_finder_races')
++                   ->where('basho', '98')->count();
++        $left4 = (int) \DB::table('t_horse_odds_finder_odds')
++                   ->where('basho', '98')->count();
++        $this->line('');
++        $this->line(sprintf('  ロールバック後  snapshot %d 件／監査行(E2E-) %d 件',
++            $left1, $left2));
++        $this->line(sprintf('  写した行も消えています  場98のレース %d 件／オッズ %d 件',
++            $left3, $left4));
++        $this->line('  元のレースの発走時刻は触っていません : ' . $st);
++        $this->line('');
++        $this->line('  判定件数 : ' . ($pass + $fail) . ' 件');
++        $this->line('  合格     : ' . $pass . ' 件');
++        $this->line('  不合格   : ' . $fail . ' 件');
++        $this->line('');
++        $this->info('════════════════════════════════════════════════════════');
++        if ($fail === 0 && $ok) {
++            $this->info(' 出馬表・監査行からの実凍結から公開まで、一続きに通りました'
++                      . '（DBへ残る書き込み0件）');
++        } else {
++            $this->error(' 通らなかった箇所があります。上の × をご確認ください');
++        }
++        $this->info('════════════════════════════════════════════════════════');
++    }
++
+ }

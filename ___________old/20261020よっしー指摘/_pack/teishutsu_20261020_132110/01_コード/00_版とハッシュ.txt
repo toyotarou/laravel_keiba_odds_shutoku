@@ -1,0 +1,17 @@
+# 本番で動いているファイル（2026-10-20 13:21:10 JST）
+
+2c4afa402796c8329e7650ce51cdc7da  app/Http/Controllers/Api/AiController.php
+558440371e29bf63e6c440d0a732c637  app/Console/Commands/SummaryAiAnalysisCompensate.php
+a863f54c06c90dce8a39080282a468c7  app/Console/Commands/ImportKeibaOdds.php
+d6d7437ba60063fd256b64bc8b35aa09  routes/api.php
+
+0f5fd227d6676b6578359ea68788fa61907f83000a5a9e18d4adb570abd6f6a8  app/Http/Controllers/Api/AiController.php
+901baab3377864935443f8422005d936b9888d8ae6e126ef4c5ae23a36117ced  app/Console/Commands/SummaryAiAnalysisCompensate.php
+58381752b7dea46687a46247e605a0e16103d6c6c42b182858bbcedb1635fd22  app/Console/Commands/ImportKeibaOdds.php
+529adf20d1cdd45af322e1256779fceb3bff3ef0c6626b5ed42de2784d92a537  routes/api.php
+
+  21466 app/Http/Controllers/Api/AiController.php
+  13677 app/Console/Commands/SummaryAiAnalysisCompensate.php
+    533 app/Console/Commands/ImportKeibaOdds.php
+    193 routes/api.php
+  35869 total

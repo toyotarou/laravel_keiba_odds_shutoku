@@ -1,0 +1,11 @@
+test_common_body_identical (__main__.ContractTests.test_common_body_identical) ... ok
+test_fixture_keys (__main__.ContractTests.test_fixture_keys) ... ok
+test_fixture_semantics (__main__.ContractTests.test_fixture_semantics) ... ok
+test_predeployment_flags_are_not_claimed (__main__.ContractTests.test_predeployment_flags_are_not_claimed) ... ok
+test_prompt_required_fields (__main__.ContractTests.test_prompt_required_fields) ... ok
+test_versions_and_caps (__main__.ContractTests.test_versions_and_caps) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.002s
+
+OK

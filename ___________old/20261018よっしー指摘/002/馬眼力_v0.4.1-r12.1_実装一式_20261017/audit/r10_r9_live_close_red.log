@@ -1,0 +1,49 @@
+FFFFF
+======================================================================
+FAIL: test_live_close_rejects_false_values_and_accepts_same_instant (test_r10_regressions.R10Tests.test_live_close_rejects_false_values_and_accepts_same_instant) (value='')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 59, in test_live_close_rejects_false_values_and_accepts_same_instant
+    with self.assertRaises(ValueError):self.s.update_live('race',0,[],value)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_live_close_rejects_false_values_and_accepts_same_instant (test_r10_regressions.R10Tests.test_live_close_rejects_false_values_and_accepts_same_instant) (value=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 59, in test_live_close_rejects_false_values_and_accepts_same_instant
+    with self.assertRaises(ValueError):self.s.update_live('race',0,[],value)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_live_close_rejects_false_values_and_accepts_same_instant (test_r10_regressions.R10Tests.test_live_close_rejects_false_values_and_accepts_same_instant) (value=0)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 59, in test_live_close_rejects_false_values_and_accepts_same_instant
+    with self.assertRaises(ValueError):self.s.update_live('race',0,[],value)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_live_close_rejects_false_values_and_accepts_same_instant (test_r10_regressions.R10Tests.test_live_close_rejects_false_values_and_accepts_same_instant) (value=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 59, in test_live_close_rejects_false_values_and_accepts_same_instant
+    with self.assertRaises(ValueError):self.s.update_live('race',0,[],value)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_live_close_rejects_false_values_and_accepts_same_instant (test_r10_regressions.R10Tests.test_live_close_rejects_false_values_and_accepts_same_instant)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 63, in test_live_close_rejects_false_values_and_accepts_same_instant
+    self.assertEqual(self.s.update_live('race',0,[],alias)['state_revision'],0)
+AssertionError: 1 != 0
+
+----------------------------------------------------------------------
+Ran 1 test in 0.299s
+
+FAILED (failures=5)

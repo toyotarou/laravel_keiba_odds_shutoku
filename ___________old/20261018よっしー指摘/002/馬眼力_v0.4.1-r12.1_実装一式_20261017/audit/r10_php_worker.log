@@ -1,0 +1,3 @@
+(node:5) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+{"php_version":"8.5.10","runtime":"PHP-WASM","provider":"mock","correction_calls":2,"worker_publish_idempotency_cancel_read":"PASSED","coverage_roundtrip":"PASSED","r8_corrections":{"unrelated_correction":"PASSED","public_flag_correction":"PASSED","summary_correction":"PASSED","review_correction":"PASSED","counter_correction":"PASSED"},"production_db_and_live_ai_tested":false}

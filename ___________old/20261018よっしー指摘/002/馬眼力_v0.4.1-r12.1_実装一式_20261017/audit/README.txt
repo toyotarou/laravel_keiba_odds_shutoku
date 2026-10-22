@@ -1,0 +1,4 @@
+比較用r11_subject.zipを運用へ再配置しない。以前の比較用ZIPはこの旧ZIP内に保存。r12_が今回の監査/試験、他は過去の履歴。
+修正前の再現：BAGANRIKI_SUBJECTへr11展開先の絶対パスを指定し、test_r12_regressions.pyを実行する。
+initial_php_control_failureは配布前に検出し修正した初期案の失敗ログ。php_*.logが最終版の結果。
+本番PHP/実AIの結果ではない。

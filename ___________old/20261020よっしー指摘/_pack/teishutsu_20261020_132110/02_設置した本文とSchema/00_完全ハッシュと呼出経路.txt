@@ -1,0 +1,28 @@
+# 実際に設置し、実際に system へ載せる本文の完全なSHA-256
+
+e63ee2ec84868420fbc24a247966116d5a8f891ba6696bc98650497c39e4ced8  /var/www/horse_odds_finder/storage/app/baganriki/prompts/r12_2/common_prompt.txt
+0f3d3c95d332b744105b89a488de610dec0fa28f1cffeeb93788ba0016eadfd3  /var/www/horse_odds_finder/storage/app/baganriki/prompts/r12_2/prompt_1st.txt
+90f40945f64bbbc991b8781edf3b4688a231b6616545e0ff636fb8c2c8982d3d  /var/www/horse_odds_finder/storage/app/baganriki/prompts/r12_2/prompt_2nd.txt
+
+# 同梱Schema
+6badaedbbc593a2e55daefd0022d68981cbbd9df866213fb9af2c5a342014d9d  /home/centos/r122_v23/mat/schemas/input_schema.json
+a2d4d5e15c9da052fdf21a5f078cf7208873bec569603d85e7040eb69845776b  /home/centos/r122_v23/mat/schemas/output_schema.json
+5d7641dcf7d2b536f9738ab56d31bf6ad7cc9259ec7fb69a49b13f6df33a100f  /home/centos/r122_v23/mat/schemas/source_registry_schema.json
+
+# 配布ファイルとの一致（BOM無し・全バイト）
+  一致 prompt_1st.txt  0f3d3c95d332b744105b89a488de610dec0fa28f1cffeeb93788ba0016eadfd3
+  一致 prompt_2nd.txt  90f40945f64bbbc991b8781edf3b4688a231b6616545e0ff636fb8c2c8982d3d
+  一致 common_prompt.txt  e63ee2ec84868420fbc24a247966116d5a8f891ba6696bc98650497c39e4ced8
+
+# 呼び出し経路
+1378:        //   BAGANRIKI_R122_PROMPT=1 のときだけ、
+1387:            $r122 = $this->r122AssembleSend($date, $kaisuu, $basho, $day, $race, '1st');
+9205:            $r122b = $this->r122AssembleSend($date, $kaisuu, $basho, $day, $race, '2nd');
+15302:    public function r122AssembleSend($date, $kaisuu, $basho, $day, $race,
+15313:        $asm = BaganrikiPrompt::assemble($g['ctx'], $role);
+15379:            $a1 = BaganrikiPrompt::assemble($g['ctx'], '1st');
+15380:            $a2 = BaganrikiPrompt::assemble($g['ctx'], '2nd');
+20669: *   .env の BAGANRIKI_R122_PROMPT_DIR で変えられます。
+20673: *   .env の BAGANRIKI_R122_PROMPT=1 のときだけ新しい送信文に切り替わります。
+20754:        $v = env('BAGANRIKI_R122_PROMPT', '0');
+20761:        $d = (string) env('BAGANRIKI_R122_PROMPT_DIR', '');

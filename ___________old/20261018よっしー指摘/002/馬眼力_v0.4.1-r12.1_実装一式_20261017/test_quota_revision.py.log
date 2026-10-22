@@ -1,0 +1,17 @@
+test_b_shortfall_fills_from_d_not_a (__main__.QuotaRevisionTests.test_b_shortfall_fills_from_d_not_a) ... ok
+test_c7_mixed_all_sizes_roles_and_final_publication (__main__.QuotaRevisionTests.test_c7_mixed_all_sizes_roles_and_final_publication) ... ok
+test_cancellation_crosses_c7_to_c6_with_frozen_ranks (__main__.QuotaRevisionTests.test_cancellation_crosses_c7_to_c6_with_frozen_ranks) ... ok
+test_cancellation_retaining_c7_keeps_four_holes (__main__.QuotaRevisionTests.test_cancellation_retaining_c7_keeps_four_holes) ... ok
+test_d_shortfall_fills_from_b_not_a (__main__.QuotaRevisionTests.test_d_shortfall_fills_from_b_not_a) ... ok
+test_hole_shortage_does_not_add_fourth_popular_horse (__main__.QuotaRevisionTests.test_hole_shortage_does_not_add_fourth_popular_horse) ... ok
+test_old_c7_quota_rejected_even_after_hash_recalculation (__main__.QuotaRevisionTests.test_old_c7_quota_rejected_even_after_hash_recalculation) ... ok
+test_old_prompt_response_rejected (__main__.QuotaRevisionTests.test_old_prompt_response_rejected) ... ok
+test_one_ai_failure_keeps_hole_allocation (__main__.QuotaRevisionTests.test_one_ai_failure_keeps_hole_allocation) ... ok
+test_other_base_allocations_unchanged (__main__.QuotaRevisionTests.test_other_base_allocations_unchanged) ... ok
+test_partial_scores_and_single_evidence_keep_four_holes (__main__.QuotaRevisionTests.test_partial_scores_and_single_evidence_keep_four_holes) ... ok
+test_release_and_prompts_identify_quota_revision (__main__.QuotaRevisionTests.test_release_and_prompts_identify_quota_revision) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 7.803s
+
+OK

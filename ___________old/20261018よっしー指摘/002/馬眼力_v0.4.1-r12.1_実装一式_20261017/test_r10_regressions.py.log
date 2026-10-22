@@ -1,0 +1,23 @@
+test_all_cancelled_does_not_dispatch (__main__.R10Tests.test_all_cancelled_does_not_dispatch) ... ok
+test_bad_attempt_cannot_discard_prior_valid_holes (__main__.R10Tests.test_bad_attempt_cannot_discard_prior_valid_holes) ... ok
+test_bad_attempt_entries_preserve_other_role (__main__.R10Tests.test_bad_attempt_entries_preserve_other_role) ... ok
+test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) ... ok
+test_concurrent_corrections_get_one_grant (__main__.R10Tests.test_concurrent_corrections_get_one_grant) ... ok
+test_concurrent_different_publication_intents_one_wins (__main__.R10Tests.test_concurrent_different_publication_intents_one_wins) ... ok
+test_concurrent_same_publication_intent_commits_once (__main__.R10Tests.test_concurrent_same_publication_intent_commits_once) ... ok
+test_correction_diagnostics_crossing_deadline_cannot_reserve (__main__.R10Tests.test_correction_diagnostics_crossing_deadline_cannot_reserve) ... ok
+test_direct_oversized_snapshot_rejected_before_install (__main__.R10Tests.test_direct_oversized_snapshot_rejected_before_install) ... ok
+test_exact_input_limit_can_save_and_read_without_truncation (__main__.R10Tests.test_exact_input_limit_can_save_and_read_without_truncation) ... ok
+test_generated_input_over_limit_rejected_during_prepare (__main__.R10Tests.test_generated_input_over_limit_rejected_during_prepare) ... ok
+test_live_close_rejects_false_values_and_accepts_same_instant (__main__.R10Tests.test_live_close_rejects_false_values_and_accepts_same_instant) ... ok
+test_live_count_reflects_cancel_without_republishing (__main__.R10Tests.test_live_count_reflects_cancel_without_republishing) ... ok
+test_slow_claim_honours_new_all_cancelled_state (__main__.R10Tests.test_slow_claim_honours_new_all_cancelled_state) ... ok
+test_slow_correction_does_not_block_other_role_save (__main__.R10Tests.test_slow_correction_does_not_block_other_role_save) ... ok
+test_slow_publication_allows_cancellation_and_rejects_stale_result (__main__.R10Tests.test_slow_publication_allows_cancellation_and_rejects_stale_result) ... ok
+test_slow_publication_allows_response_save_and_rejects_stale_result (__main__.R10Tests.test_slow_publication_allows_response_save_and_rejects_stale_result) ... ok
+test_slow_publication_honours_new_earlier_close (__main__.R10Tests.test_slow_publication_honours_new_earlier_close) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 10.352s
+
+OK

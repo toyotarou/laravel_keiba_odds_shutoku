@@ -1,0 +1,44 @@
+馬眼力 r12.1 配分修正・検証報告
+2026年10月17日
+
+変更した配分
+7頭選出の混戦（C7 MIXED）をA/B/D=4/2/1から3/3/1へ修正。
+A=凍結6分前単勝1～6番人気、B=7～10番人気、D=11番人気以下。
+構造調整のない1stは3/3/1、2ndは最大5頭の中で1/3/1。
+最終統合の目標は人気側3頭＋穴側4頭。両AIとも全N頭を独立評価する。
+C7 VOLATILE=3/3/1、C6 MIXED/VOLATILE=3/2/1、その他の基本配分は維持。
+
+今回更新したもの
+config.jsonとreference.pyの配分表、common_promptと両AI本文、server_contract、INSTALL、README、仕様書を統一。
+prompt_versionとimplementation_versionをbaganriki-v041-r12-1-quota-20261017へ更新。
+input/output_schema.jsonのprompt_version定数と合成fixture、デモの応答識別子・hashを整合。
+schema_version、marker、hashアルゴリズム、PHP互換クラス名BaganrikiR12Bridgeは維持。
+旧版の応答を新しいsnapshotの応答として受理しない。
+
+維持する選出規則
+確認済みの個別SIGNALが1系統あれば適格。部分欠損だけで削除しない。
+評価後の穴枠不足はB/D間で補い、人気側Aへ渡さない。根拠不足なら頭数不足を表示する。
+実在頭数の構造不足と評価後の根拠不足を区別する。
+取消後も凍結人気帯を保持し、有効頭数に応じた既存の目標数・構造配分を使用する。
+
+今回実行した検証
+verify.pyの全13系列が合格。単体試験213件（追加の配分回帰12件を含む）、失敗0・例外0。
+異常応答304条件、標準Schema3種、正常fixture11件・不正fixture9件も合格。
+配分回帰：16/17/18頭のMIXED、1st/2nd、全頭評価、最終統合、1系統根拠と部分採点、B/D相互補充、穴不足時A補充禁止、片側AI失敗、取消でC7→C6、C7維持時取消、旧配分・旧版応答拒否、本文/設定の版整合。
+合成データと模擬応答を使用。高配当を出した実レースでの捕捉率や回収率を測定した試験ではない。
+
+PHP検証記録の区別
+php_bridge_results.jsonとaudit内のr12以前のログは旧版の検証記録として保持する。
+旧r12のPHP-WASM7系列を今回再実行したとは扱わない。導入先の実PHPでINSTALLに記載した7本を実行すること。
+今回PHPクラス本体は変更していない。配分処理はPython参照実装とconfigが正本。
+
+導入・未実施範囲
+新規レースからr12.1一式と専用DBへ切り替える。旧r12の進行中snapshotと原応答は旧版で完了させる。
+本番反映、実DB・実AI・本番キュー・既存API/Flutterへの接続確認は未実施。
+COLLECT_ONLY、未検証X6=UNKNOWN、購入推奨false、runtime_contractの本番未確認欄falseを維持。
+この配分修正だけで高配当捕捉率や回収率の改善を確認済みとはしない。
+
+証跡
+verification_results.json、quota_revision_results.json、各test_*.py.log、schema_standard_results.json。
+audit/quota_revision_source_changes.diff：旧r12との主な変更差分。
+audit/r12_before_quota_report.txt：配分変更前のr12報告。旧配分記載は歴史資料である。

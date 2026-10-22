@@ -1,0 +1,171 @@
+{
+  "schema_version": "baganriki-v041-r8-1",
+  "prompt_version": "baganriki-v041-r12-1-quota-20261017",
+  "ai_role": "1st",
+  "race_id": "race",
+  "snapshot_hash": "fixture-not-a-real-snapshot",
+  "selection_enabled": true,
+  "mode": "FIRM",
+  "target_count": 1,
+  "role_cap": 1,
+  "quota": {
+    "A": 1,
+    "B": 0,
+    "D": 0
+  },
+  "role_quota": {
+    "A": 1,
+    "B": 0,
+    "D": 0
+  },
+  "learning_stage": "COLLECT_ONLY",
+  "horses": [
+    {
+      "horse_no": 1,
+      "band": "A",
+      "tier": "B",
+      "eligibility": "ELIGIBLE",
+      "family_review": {
+        "market": {
+          "status": "DATA_MISSING",
+          "source_refs": [],
+          "evidence_ids": [],
+          "reason": "fixtureでは情報なし"
+        },
+        "ability": {
+          "status": "SUPPORTED",
+          "source_refs": [
+            "h1"
+          ],
+          "evidence_ids": [
+            "ability1"
+          ],
+          "reason": "事前材料を確認"
+        },
+        "gap": {
+          "status": "DATA_MISSING",
+          "source_refs": [],
+          "evidence_ids": [],
+          "reason": "fixtureでは情報なし"
+        },
+        "win_place": {
+          "status": "DATA_MISSING",
+          "source_refs": [],
+          "evidence_ids": [],
+          "reason": "fixtureでは情報なし"
+        },
+        "similar_value": {
+          "status": "DATA_MISSING",
+          "source_refs": [],
+          "evidence_ids": [],
+          "reason": "fixtureでは情報なし"
+        }
+      },
+      "evidence": [
+        {
+          "evidence_id": "ability1",
+          "family": "ability",
+          "dependency_group": "ability1",
+          "source_refs": [
+            "h1"
+          ],
+          "facts": [
+            {
+              "source_ref": "h1",
+              "value": 2.0
+            }
+          ],
+          "observation": "過去成績指数2.0",
+          "interpretation": "能力を比較する事前材料"
+        }
+      ],
+      "counterevidence": [],
+      "scores": {
+        "H1": null,
+        "H2": null,
+        "H3": null,
+        "H4": null,
+        "H5": null,
+        "V1": null,
+        "V2": null,
+        "V3": null,
+        "V4": null,
+        "V5": null
+      },
+      "score_evidence": {
+        "H1": {
+          "source_refs": [],
+          "reason": "fixtureでは採点材料不足"
+        },
+        "H2": {
+          "source_refs": [],
+          "reason": "fixtureでは採点材料不足"
+        },
+        "H3": {
+          "source_refs": [],
+          "reason": "fixtureでは採点材料不足"
+        },
+        "H4": {
+          "source_refs": [],
+          "reason": "fixtureでは採点材料不足"
+        },
+        "H5": {
+          "source_refs": [],
+          "reason": "fixtureでは採点材料不足"
+        },
+        "V1": {
+          "source_refs": [],
+          "reason": "fixtureでは採点材料不足"
+        },
+        "V2": {
+          "source_refs": [],
+          "reason": "fixtureでは採点材料不足"
+        },
+        "V3": {
+          "source_refs": [],
+          "reason": "fixtureでは採点材料不足"
+        },
+        "V4": {
+          "source_refs": [],
+          "reason": "fixtureでは採点材料不足"
+        },
+        "V5": {
+          "source_refs": [],
+          "reason": "fixtureでは採点材料不足"
+        }
+      },
+      "score_status": "partial",
+      "total_score": null,
+      "observed_sum": 0,
+      "observed_cap": 0,
+      "rank_basis": "EVIDENCE",
+      "rank_reason": "確認済み根拠から比較",
+      "evidence_rank_evidence_ids": [
+        "ability1"
+      ],
+      "evidence_rank_reason": "点数に依存しない比較",
+      "public_candidate": true,
+      "nonselect_reason": null,
+      "explanation": "検証用の架空例"
+    }
+  ],
+  "band_ranks": {
+    "A": [
+      1
+    ],
+    "B": [],
+    "D": []
+  },
+  "evidence_band_ranks": {
+    "A": [
+      1
+    ],
+    "B": [],
+    "D": []
+  },
+  "public_candidates": [
+    1
+  ],
+  "shortfalls": [],
+  "validation_issues": []
+}

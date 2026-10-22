@@ -1,0 +1,966 @@
+══════════════════════════════════════════════════════════
+ 受入試験の全項目（読み取りだけ・AI呼び出し0回）
+══════════════════════════════════════════════════════════
+  config_version : v04-x-unified-20261013
+  判定件数       : 477 合格 / 0 不合格
+
+    1. [OK] E-T01          mode
+        得た値="VOLATILE"　期待値="VOLATILE"
+    2. [OK] E-T01          S
+        得た値=4　期待値=4
+    3. [OK] E-T01          S_min
+        得た値=4　期待値=4
+    4. [OK] E-T01          S_max
+        得た値=4　期待値=4
+    5. [OK] E-T01          unknown_features
+        得た値=[]　期待値=[]
+    6. [OK] E-T01          mode_has_unknown
+        得た値=false　期待値=false
+    7. [OK] E-T01          allocation_mode
+        得た値="VOLATILE"　期待値="VOLATILE"
+    8. [OK] E-T01          target_count
+        得た値=7　期待値=7
+    9. [OK] E-T01          quota
+        得た値={"A":3,"B":3,"D":1}　期待値={"A":3,"B":3,"D":1}
+   10. [OK] E-T02          mode
+        得た値="VOLATILE"　期待値="VOLATILE"
+   11. [OK] E-T02          S
+        得た値=4　期待値=4
+   12. [OK] E-T02          S_min
+        得た値=4　期待値=4
+   13. [OK] E-T02          S_max
+        得た値=4　期待値=4
+   14. [OK] E-T02          unknown_features
+        得た値=[]　期待値=[]
+   15. [OK] E-T02          mode_has_unknown
+        得た値=false　期待値=false
+   16. [OK] E-T02          allocation_mode
+        得た値="VOLATILE"　期待値="VOLATILE"
+   17. [OK] E-T02          target_count
+        得た値=6　期待値=6
+   18. [OK] E-T02          quota
+        得た値={"A":3,"B":2,"D":1}　期待値={"A":3,"B":2,"D":1}
+   19. [OK] E-T03          mode
+        得た値="VOLATILE"　期待値="VOLATILE"
+   20. [OK] E-T03          S
+        得た値=4　期待値=4
+   21. [OK] E-T03          S_min
+        得た値=4　期待値=4
+   22. [OK] E-T03          S_max
+        得た値=4　期待値=4
+   23. [OK] E-T03          unknown_features
+        得た値=[]　期待値=[]
+   24. [OK] E-T03          mode_has_unknown
+        得た値=false　期待値=false
+   25. [OK] E-T03          allocation_mode
+        得た値="VOLATILE"　期待値="VOLATILE"
+   26. [OK] E-T03          target_count
+        得た値=5　期待値=5
+   27. [OK] E-T03          quota
+        得た値={"A":2,"B":2,"D":1}　期待値={"A":2,"B":2,"D":1}
+   28. [OK] E-T04          mode
+        得た値="VOLATILE"　期待値="VOLATILE"
+   29. [OK] E-T04          S
+        得た値=4　期待値=4
+   30. [OK] E-T04          S_min
+        得た値=4　期待値=4
+   31. [OK] E-T04          S_max
+        得た値=4　期待値=4
+   32. [OK] E-T04          unknown_features
+        得た値=[]　期待値=[]
+   33. [OK] E-T04          mode_has_unknown
+        得た値=false　期待値=false
+   34. [OK] E-T04          allocation_mode
+        得た値="VOLATILE"　期待値="VOLATILE"
+   35. [OK] E-T04          target_count
+        得た値=4　期待値=4
+   36. [OK] E-T04          quota
+        得た値={"A":2,"B":2,"D":0}　期待値={"A":2,"B":2,"D":0}
+   37. [OK] E-T05          mode
+        得た値="FIRM"　期待値="FIRM"
+   38. [OK] E-T05          S
+        得た値=null　期待値=null
+   39. [OK] E-T05          S_min
+        得た値=0　期待値=0
+   40. [OK] E-T05          S_max
+        得た値=1　期待値=1
+   41. [OK] E-T05          unknown_features
+        得た値=["X6"]　期待値=["X6"]
+   42. [OK] E-T05          mode_has_unknown
+        得た値=true　期待値=true
+   43. [OK] E-T05          allocation_mode
+        得た値="FIRM"　期待値="FIRM"
+   44. [OK] E-T05          target_count
+        得た値=7　期待値=7
+   45. [OK] E-T05          quota
+        得た値={"A":5,"B":2,"D":0}　期待値={"A":5,"B":2,"D":0}
+   46. [OK] E-T06          mode
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+   47. [OK] E-T06          S
+        得た値=null　期待値=null
+   48. [OK] E-T06          S_min
+        得た値=1　期待値=1
+   49. [OK] E-T06          S_max
+        得た値=3　期待値=3
+   50. [OK] E-T06          unknown_features
+        得た値=["X1"]　期待値=["X1"]
+   51. [OK] E-T06          mode_has_unknown
+        得た値=true　期待値=true
+   52. [OK] E-T06          allocation_mode
+        得た値=null　期待値=null
+   53. [OK] E-T06          target_count
+        得た値=7　期待値=7
+   54. [OK] E-T06          quota
+        得た値=null　期待値=null
+   55. [OK] E-T07          mode
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+   56. [OK] E-T07          S
+        得た値=null　期待値=null
+   57. [OK] E-T07          S_min
+        得た値=0　期待値=0
+   58. [OK] E-T07          S_max
+        得た値=3　期待値=3
+   59. [OK] E-T07          unknown_features
+        得た値=["X4","X5","X6"]　期待値=["X4","X5","X6"]
+   60. [OK] E-T07          mode_has_unknown
+        得た値=true　期待値=true
+   61. [OK] E-T07          allocation_mode
+        得た値=null　期待値=null
+   62. [OK] E-T07          target_count
+        得た値=7　期待値=7
+   63. [OK] E-T07          quota
+        得た値=null　期待値=null
+   64. [OK] E-T08          mode
+        得た値="FIRM"　期待値="FIRM"
+   65. [OK] E-T08          S
+        得た値=null　期待値=null
+   66. [OK] E-T08          S_min
+        得た値=-2　期待値=-2
+   67. [OK] E-T08          S_max
+        得た値=0　期待値=0
+   68. [OK] E-T08          unknown_features
+        得た値=["Z"]　期待値=["Z"]
+   69. [OK] E-T08          mode_has_unknown
+        得た値=true　期待値=true
+   70. [OK] E-T08          allocation_mode
+        得た値="FIRM"　期待値="FIRM"
+   71. [OK] E-T08          target_count
+        得た値=7　期待値=7
+   72. [OK] E-T08          quota
+        得た値={"A":5,"B":2,"D":0}　期待値={"A":5,"B":2,"D":0}
+   73. [OK] E-T09          mode
+        得た値="FIRM"　期待値="FIRM"
+   74. [OK] E-T09          S
+        得た値=-2　期待値=-2
+   75. [OK] E-T09          S_min
+        得た値=-2　期待値=-2
+   76. [OK] E-T09          S_max
+        得た値=-2　期待値=-2
+   77. [OK] E-T09          unknown_features
+        得た値=[]　期待値=[]
+   78. [OK] E-T09          mode_has_unknown
+        得た値=false　期待値=false
+   79. [OK] E-T09          allocation_mode
+        得た値="FIRM"　期待値="FIRM"
+   80. [OK] E-T09          target_count
+        得た値=7　期待値=7
+   81. [OK] E-T09          quota
+        得た値={"A":5,"B":2,"D":0}　期待値={"A":5,"B":2,"D":0}
+   82. [OK] E-T10          mode
+        得た値="MIXED"　期待値="MIXED"
+   83. [OK] E-T10          S
+        得た値=3　期待値=3
+   84. [OK] E-T10          S_min
+        得た値=3　期待値=3
+   85. [OK] E-T10          S_max
+        得た値=3　期待値=3
+   86. [OK] E-T10          unknown_features
+        得た値=[]　期待値=[]
+   87. [OK] E-T10          mode_has_unknown
+        得た値=false　期待値=false
+   88. [OK] E-T10          allocation_mode
+        得た値="MIXED"　期待値="MIXED"
+   89. [OK] E-T10          target_count
+        得た値=7　期待値=7
+   90. [OK] E-T10          quota
+        得た値={"A":3,"B":3,"D":1}　期待値={"A":3,"B":3,"D":1}
+   91. [OK] E-T11          mode
+        得た値="MIXED"　期待値="MIXED"
+   92. [OK] E-T11          S
+        得た値=2　期待値=2
+   93. [OK] E-T11          S_min
+        得た値=2　期待値=2
+   94. [OK] E-T11          S_max
+        得た値=2　期待値=2
+   95. [OK] E-T11          unknown_features
+        得た値=[]　期待値=[]
+   96. [OK] E-T11          mode_has_unknown
+        得た値=false　期待値=false
+   97. [OK] E-T11          allocation_mode
+        得た値="MIXED"　期待値="MIXED"
+   98. [OK] E-T11          target_count
+        得た値=7　期待値=7
+   99. [OK] E-T11          quota
+        得た値={"A":3,"B":3,"D":1}　期待値={"A":3,"B":3,"D":1}
+  100. [OK] E-T12          mode
+        得た値="FIRM"　期待値="FIRM"
+  101. [OK] E-T12          S
+        得た値=0　期待値=0
+  102. [OK] E-T12          S_min
+        得た値=0　期待値=0
+  103. [OK] E-T12          S_max
+        得た値=0　期待値=0
+  104. [OK] E-T12          unknown_features
+        得た値=[]　期待値=[]
+  105. [OK] E-T12          mode_has_unknown
+        得た値=false　期待値=false
+  106. [OK] E-T12          allocation_mode
+        得た値="FIRM"　期待値="FIRM"
+  107. [OK] E-T12          target_count
+        得た値=3　期待値=3
+  108. [OK] E-T12          quota
+        得た値={"A":3,"B":0,"D":0}　期待値={"A":3,"B":0,"D":0}
+  109. [OK] R122-01        mode_status
+        得た値="PROVISIONAL"　期待値="PROVISIONAL"
+  110. [OK] R122-01        allocation_mode
+        得た値="MIXED"　期待値="MIXED"
+  111. [OK] R122-01        S0
+        得た値=1　期待値=1
+  112. [OK] R122-01        display_rating
+        得た値=null　期待値=null
+  113. [OK] R122-01        quota
+        得た値={"A":3,"B":3,"D":1}　期待値={"A":3,"B":3,"D":1}
+  114. [OK] R122-01        quota_2nd
+        得た値={"A":1,"B":3,"D":1}　期待値={"A":1,"B":3,"D":1}
+  115. [OK] R122-01        mode=UNKNOWNのまま
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  116. [OK] R122-01        mode_policy_id
+        得た値="X6_ONLY_UPPER_MODE_V1"　期待値="X6_ONLY_UPPER_MODE_V1"
+  117. [OK] R122-01        selection_enabled
+        得た値=true　期待値=true
+  118. [OK] R122-02        mode_status
+        得た値="PROVISIONAL"　期待値="PROVISIONAL"
+  119. [OK] R122-02        allocation_mode
+        得た値="VOLATILE"　期待値="VOLATILE"
+  120. [OK] R122-02        S0
+        得た値=3　期待値=3
+  121. [OK] R122-02        display_rating
+        得た値=null　期待値=null
+  122. [OK] R122-02        quota
+        得た値={"A":3,"B":3,"D":1}　期待値={"A":3,"B":3,"D":1}
+  123. [OK] R122-02        quota_2nd
+        得た値={"A":1,"B":3,"D":1}　期待値={"A":1,"B":3,"D":1}
+  124. [OK] R122-02        mode=UNKNOWNのまま
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  125. [OK] R122-02        mode_policy_id
+        得た値="X6_ONLY_UPPER_MODE_V1"　期待値="X6_ONLY_UPPER_MODE_V1"
+  126. [OK] R122-02        selection_enabled
+        得た値=true　期待値=true
+  127. [OK] R122-03        mode_status
+        得た値="CONFIRMED"　期待値="CONFIRMED"
+  128. [OK] R122-03        allocation_mode
+        得た値="FIRM"　期待値="FIRM"
+  129. [OK] R122-03        S0
+        得た値=0　期待値=0
+  130. [OK] R122-03        display_rating
+        得た値=null　期待値=null
+  131. [OK] R122-03        quota
+        得た値={"A":5,"B":2,"D":0}　期待値={"A":5,"B":2,"D":0}
+  132. [OK] R122-03        quota_2nd
+        得た値={"A":3,"B":2,"D":0}　期待値={"A":3,"B":2,"D":0}
+  133. [OK] R122-04        mode_status
+        得た値="UNRESOLVED"　期待値="UNRESOLVED"
+  134. [OK] R122-04        allocation_mode
+        得た値=null　期待値=null
+  135. [OK] R122-04        S0
+        得た値=null　期待値=null
+  136. [OK] R122-04        display_rating
+        得た値=null　期待値=null
+  137. [OK] R122-04        quota
+        得た値=null　期待値=null
+  138. [OK] R122-04        quota_2nd
+        得た値=null　期待値=null
+  139. [OK] R122-04        selection_enabled
+        得た値=false　期待値=false
+  140. [OK] R122-05        mode_status
+        得た値="PROVISIONAL"　期待値="PROVISIONAL"
+  141. [OK] R122-05        allocation_mode
+        得た値="VOLATILE"　期待値="VOLATILE"
+  142. [OK] R122-05        S0
+        得た値=3　期待値=3
+  143. [OK] R122-05        display_rating
+        得た値=null　期待値=null
+  144. [OK] R122-05        quota
+        得た値={"A":2,"B":3,"D":0}　期待値={"A":2,"B":3,"D":0}
+  145. [OK] R122-05        quota_2nd
+        得た値={"A":2,"B":3,"D":0}　期待値={"A":2,"B":3,"D":0}
+  146. [OK] R122-05        mode=UNKNOWNのまま
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  147. [OK] R122-05        mode_policy_id
+        得た値="X6_ONLY_UPPER_MODE_V1"　期待値="X6_ONLY_UPPER_MODE_V1"
+  148. [OK] R122-05        selection_enabled
+        得た値=true　期待値=true
+  149. [OK] R122-06        mode_status
+        得た値="CONFIRMED"　期待値="CONFIRMED"
+  150. [OK] R122-06        allocation_mode
+        得た値="FIRM"　期待値="FIRM"
+  151. [OK] R122-06        S0
+        得た値=0　期待値=0
+  152. [OK] R122-06        display_rating
+        得た値=1　期待値=1
+  153. [OK] R122-06        quota
+        得た値={"A":5,"B":2,"D":0}　期待値={"A":5,"B":2,"D":0}
+  154. [OK] R122-06        quota_2nd
+        得た値={"A":3,"B":2,"D":0}　期待値={"A":3,"B":2,"D":0}
+  155. [OK] R122-07        移動記録の件数
+        得た値=1　期待値=1
+  156. [OK] R122-07        移動記録のreason
+        得た値="BAND_CAPACITY"　期待値="BAND_CAPACITY"
+  157. [OK] R122-07        移動元
+        得た値="D"　期待値="D"
+  158. [OK] R122-07        移動先
+        得た値="B"　期待値="B"
+  159. [OK] R122-T00       cutoff_at = T−360秒
+        得た値="2026-10-17T14:54:00.000000+09:00"　期待値="2026-10-17T14:54:00.000000+09:00"
+  160. [OK] R122-T00       input_freeze_at = T−330秒
+        得た値="2026-10-17T14:54:30.000000+09:00"　期待値="2026-10-17T14:54:30.000000+09:00"
+  161. [OK] R122-T00       6分前の予定
+        得た値="2026-10-17T14:54:00.000000+09:00"　期待値="2026-10-17T14:54:00.000000+09:00"
+  162. [OK] R122-T00       6分前の期限（+30秒）
+        得た値="2026-10-17T14:54:30.000000+09:00"　期待値="2026-10-17T14:54:30.000000+09:00"
+  163. [OK] R122-T00       9分前の期限（+120秒）
+        得た値="2026-10-17T14:53:00.000000+09:00"　期待値="2026-10-17T14:53:00.000000+09:00"
+  164. [OK] R122-T00       30分前は予想入力スロットでない
+        得た値=null　期待値=null
+  165. [OK] R122-T00       publish_deadline = 締切−60秒
+        得た値="2026-10-17T14:58:00.000000+09:00"　期待値="2026-10-17T14:58:00.000000+09:00"
+  166. [OK] R122-T00       reply_deadline = 公開期限−30秒
+        得た値="2026-10-17T14:57:30.000000+09:00"　期待値="2026-10-17T14:57:30.000000+09:00"
+  167. [OK] R122-T00       締切前倒しは即反映
+        得た値="2026-10-17T14:57:00.000000+09:00"　期待値="2026-10-17T14:57:00.000000+09:00"
+  168. [OK] R122-T00       延長で猶予を増やさない
+        得た値="2026-10-17T14:58:00.000000+09:00"　期待値="2026-10-17T14:58:00.000000+09:00"
+  169. [OK] R122-T00       小数秒7桁は拒否
+        得た値=null　期待値=null
+  170. [OK] R122-T00       タイムゾーン無しは拒否
+        得た値=null　期待値=null
+  171. [OK] R122-T00       小文字のt/zは許容
+        得た値=true　期待値=true
+  172. [OK] R122-T01       6分前 +30秒ちょうどは採用
+        得た値=true　期待値=true
+  173. [OK] R122-T01       1マイクロ秒後は不採用
+        得た値=false　期待値=false
+  174. [OK] R122-T01       その理由コード
+        得た値="ACQUISITION_DEADLINE_EXCEEDED"　期待値="ACQUISITION_DEADLINE_EXCEEDED"
+  175. [OK] R122-T02       9分前 +120秒ちょうどは採用
+        得た値=true　期待値=true
+  176. [OK] R122-T02       9分前 その1マイクロ秒後は不採用
+        得た値=false　期待値=false
+  177. [OK] R122-T03       受信は期限内だが利用可能が期限後 → 不採用
+        得た値=false　期待値=false
+  178. [OK] R122-T04       要求開始が予定より前 → 不採用
+        得た値="REQUEST_BEFORE_SCHEDULE"　期待値="REQUEST_BEFORE_SCHEDULE"
+  179. [OK] R122-T04       時計逆行 → 不採用
+        得た値="CLOCK_REVERSED"　期待値="CLOCK_REVERSED"
+  180. [OK] R122-T05       情報上限を超えた到着 → 不採用
+        得た値=false　期待値=false
+  181. [OK] R122-A01       available_at の早い方を採用
+        得た値="a"　期待値="a"
+  182. [OK] R122-A01       同時刻は batch_id のバイト順
+        得た値="a"　期待値="a"
+  183. [OK] R122-A01       未確定の監査行は採用しない
+        得た値="y"　期待値="y"
+  184. [OK] R122-A02       6分前に1頭欠けたら採用しない
+        得た値="UNAVAILABLE"　期待値="UNAVAILABLE"
+  185. [OK] R122-A02       その理由コード
+        得た値="FREEZE_ODDS_MISSING"　期待値="FREEZE_ODDS_MISSING"
+  186. [OK] R122-A02       揃っていれば採用
+        得た値="ADOPTED"　期待値="ADOPTED"
+  187. [OK] R122-A02       「取消」は使える値にしない
+        得た値=false　期待値=false
+  188. [OK] R122-A02       0 は使える値にしない
+        得た値=false　期待値=false
+  189. [OK] R122-A03       採用スロットは ADOPTED
+        得た値="ADOPTED"　期待値="ADOPTED"
+  190. [OK] R122-A03       欠損スロットは UNAVAILABLE
+        得た値="UNAVAILABLE"　期待値="UNAVAILABLE"
+  191. [OK] R122-A03       欠損の理由は空にしない
+        得た値=true　期待値=true
+  192. [OK] R122-D01       出馬表欠損で停止
+        得た値="ENTRY_MISSING"　期待値="ENTRY_MISSING"
+  193. [OK] R122-D01       9頭立てとして進まない
+        得た値=null　期待値=null
+  194. [OK] R122-D01       宣言頭数が合わない
+        得た値="ENTRY_SET_MISMATCH"　期待値="ENTRY_SET_MISMATCH"
+  195. [OK] R122-D01       出馬表に無い馬番
+        得た値="ENTRY_SET_MISMATCH"　期待値="ENTRY_SET_MISMATCH"
+  196. [OK] R122-D04       取消矛盾は CANCEL_CONFLICT
+        得た値="CANCEL_CONFLICT"　期待値="CANCEL_CONFLICT"
+  197. [OK] R122-D04       active_count は null
+        得た値=null　期待値=null
+  198. [OK] R122-D03       凍結後の取消は N に残す
+        得た値=8　期待値=8
+  199. [OK] R122-D03       active_count だけ減る
+        得た値=7　期待値=7
+  200. [OK] R122-D03       凍結前の取消は N から外す
+        得た値=8　期待値=8
+  201. [OK] R122-F01       単勝の昇順
+        得た値=1　期待値=1
+  202. [OK] R122-F01       同値は馬番の小さい順
+        得た値=2　期待値=2
+  203. [OK] R122-F01       同値の後ろ
+        得た値=3　期待値=3
+  204. [OK] R122-F01       読めない値は停止
+        得た値="FREEZE_ODDS_MISSING"　期待値="FREEZE_ODDS_MISSING"
+  205. [OK] R122-F01       十進数は1万倍の整数
+        得た値=21000　期待値=21000
+  206. [OK] R122-F01       5桁の小数は受け取らない
+        得た値=null　期待値=null
+  207. [OK] R122-H01       両roleで共通JSONが一致
+        得た値="{\"race_id\":\"R1\",\"mode\":\"UNKNOWN\",\"x\":{\"a\":\"1.0…　期待値="{\"race_id\":\"R1\",\"mode\":\"UNKNOWN\",\"x\":{\"a\":\"1.0…
+  208. [OK] R122-H01       hashも一致
+        得た値="bddc218592f40ba861065e9325d12b1b01a59092655989f8462ec5501d5…　期待値="bddc218592f40ba861065e9325d12b1b01a59092655989f8462ec5501d5…
+  209. [OK] R122-H01       hash方式
+        得た値="exact-common-payload-sha256-r8"　期待値="exact-common-payload-sha256-r8"
+  210. [OK] R122-H01       role情報が混ざっていない
+        得た値=false　期待値=false
+  211. [OK] R122-R01       順位点 K=8 r=1
+        得た値=100　期待値=100
+  212. [OK] R122-R01       順位点 K=8 r=8
+        得た値=12.5　期待値=12.5
+  213. [OK] R122-R02       全頭completeならSCORE
+        得た値="SCORE"　期待値="SCORE"
+  214. [OK] R122-R02       partialが混ざればEVIDENCE
+        得た値="EVIDENCE"　期待値="EVIDENCE"
+  215. [OK] R122-R02       EVIDENCEでは点数を順位キーにしない
+        得た値=1　期待値=1
+  216. [OK] R122-R02       SCOREでは点数順
+        得た値=1　期待値=1
+  217. [OK] R122-R03       両AIの原公開一致で+5
+        得た値=5　期待値=5
+  218. [OK] R122-R03       統合点は両roleの最大＋加点
+        得た値=105　期待値=105
+  219. [OK] R122-R03       片側だけなら加点しない
+        得た値=0　期待値=0
+  220. [OK] R122-Q03       D不足はBだけから補う
+        得た値=4　期待値=4
+  221. [OK] R122-Q03       Aへ流さない
+        得た値=3　期待値=3
+  222. [OK] R122-Q03       Dは0になる
+        得た値=0　期待値=0
+  223. [OK] R122-Q03       B不足はDだけから補う
+        得た値=3　期待値=3
+  224. [OK] R122-Q03       このときもAは増えない
+        得た値=3　期待値=3
+  225. [OK] R122-P03       取消で active_count が減る
+        得た値=10　期待値=10
+  226. [OK] R122-P03       D枠はBへ移る
+        得た値=4　期待値=4
+  227. [OK] R122-P03       人気を詰め直さない（Aは変わらない）
+        得た値=3　期待値=3
+  228. [OK] R122-V01       一致すれば採用
+        得た値=true　期待値=true
+  229. [OK] R122-V01       allocation_mode 不一致は応答ごと不採用
+        得た値=false　期待値=false
+  230. [OK] R122-V01       AIが暫定を確定へ書き換えたら不採用
+        得た値=false　期待値=false
+  231. [OK] R122-V02       正常な馬は残る
+        得た値=2　期待値=2
+  232. [OK] R122-V02       重複は隔離
+        得た値=true　期待値=true
+  233. [OK] R122-V02       未知馬は隔離
+        得た値=true　期待値=true
+  234. [OK] R122-V02       欠落は不足として返す
+        得た値=[3]　期待値=[3]
+  235. [OK] R122-V03       根拠を全部消す訂正は採用しない
+        得た値=false　期待値=false
+  236. [OK] R122-V03       completeをpartialへ悪化させる訂正は採用しない
+        得た値=false　期待値=false
+  237. [OK] R122-V03       初回に無い馬番を足す訂正は採用しない
+        得た値=false　期待値=false
+  238. [OK] R122-V03       受領時刻が初回より前なら採用しない
+        得た値=false　期待値=false
+  239. [OK] R122-V03       同一時刻は許容
+        得た値=true　期待値=true
+  240. [OK] R122-V03       対象外の正常行は初回のまま
+        得た値=2　期待値=2
+  241. [OK] R122-V03       訂正した行は差し替わる
+        得た値="complete"　期待値="complete"
+  242. [OK] R122-V04       BEGIN/ENDが無ければ不採用
+        得た値=false　期待値=false
+  243. [OK] R122-V04       挟まれたJSONを読む
+        得た値=1　期待値=1
+  244. [OK] R122-U01       全頭取消は CANCELLED
+        得た値="CANCELLED"　期待値="CANCELLED"
+  245. [OK] R122-U01       公開済みは PUBLISHED
+        得た値="PUBLISHED"　期待値="PUBLISHED"
+  246. [OK] R122-U01       入力不正は期限前でも UNAVAILABLE
+        得た値="UNAVAILABLE"　期待値="UNAVAILABLE"
+  247. [OK] R122-U01       未公開で期限超過は UNAVAILABLE
+        得た値="UNAVAILABLE"　期待値="UNAVAILABLE"
+  248. [OK] R122-U01       処理中で期限内は PENDING
+        得た値="PENDING"　期待値="PENDING"
+  249. [OK] R122-U01       暫定MIXEDの表示
+        得た値="混戦として暫定選出"　期待値="混戦として暫定選出"
+  250. [OK] R122-U01       暫定VOLATILEの表示
+        得た値="波乱として暫定選出"　期待値="波乱として暫定選出"
+  251. [OK] R122-U01       暫定では星を出さない
+        得た値=null　期待値=null
+  252. [OK] R122-U01       購入推奨は常にfalse
+        得た値=false　期待値=false
+  253. [OK] R122-U01       学習段階は COLLECT_ONLY
+        得た値="COLLECT_ONLY"　期待値="COLLECT_ONLY"
+  254. [OK] R122-U01       model_version は null
+        得た値=null　期待値=null
+  255. [OK] R122-E01       4.0/2.0 は 2 以上
+        得た値=true　期待値=true
+  256. [OK] R122-E01       3.9/2.0 は 2 未満
+        得た値=false　期待値=false
+  257. [OK] R122-E01       4.00001/2 は 2 以上
+        得た値=true　期待値=true
+  258. [OK] R122-E01       3.99999/2 は 2 未満
+        得た値=false　期待値=false
+  259. [OK] R122-E02       2.9/2.0 は 1.50 未満
+        得た値=true　期待値=true
+  260. [OK] R122-E02       3.0/2.0 は 1.50 未満でない
+        得た値=false　期待値=false
+  261. [OK] R122-E03       縮小ちょうど20%は成立
+        得た値=true　期待値=true
+  262. [OK] R122-E03       縮小19%は不成立
+        得た値=false　期待値=false
+  263. [OK] R122-E04       複勝ちょうど5%は成立
+        得た値=true　期待値=true
+  264. [OK] R122-E04       複勝4.9%は不成立
+        得た値=false　期待値=false
+  265. [OK] R122-E05       小数第5位を拒否しない
+        得た値=true　期待値=true
+  266. [OK] R122-E05       小数第5位を切り捨てない
+        得た値=true　期待値=true
+  267. [OK] R122-E05       129桁は制御されたエラー
+        得た値=null　期待値=null
+  268. [OK] R122-E05       「取消」は数値にしない
+        得た値=null　期待値=null
+  269. [OK] R122-E05       0 は有効なオッズにしない
+        得た値=false　期待値=false
+  270. [OK] R122-E06       30桁×30桁は60桁
+        得た値=60　期待値=60
+  271. [OK] R122-E06       巨大な値でも大小が壊れない
+        得た値=true　期待値=true
+  272. [OK] R122-S01       K=3 r=2 は分数のまま
+        得た値={"n":200,"d":3}　期待値={"n":200,"d":3}
+  273. [OK] R122-S01       K=7 r=3 は分数のまま
+        得た値={"n":500,"d":7}　期待値={"n":500,"d":7}
+  274. [OK] R122-S01       500/7 > 200/3
+        得た値=true　期待値=true
+  275. [OK] R122-S01       +5 を分数で足す
+        得た値={"n":215,"d":3}　期待値={"n":215,"d":3}
+  276. [OK] R122-S01       200/3 と 600/9 は同値
+        得た値=0　期待値=0
+  277. [OK] R122-S01       1100/16 > 200/3
+        得た値=true　期待値=true
+  278. [OK] R122-S02       W=1.9999999999 が 2.00 以上か
+        得た値=false　期待値=false
+  279. [OK] R122-S02       W=2 が 2.00 以上か
+        得た値=true　期待値=true
+  280. [OK] R122-S02       W=2.0000000001 が 2.00 以上か
+        得た値=true　期待値=true
+  281. [OK] R122-S02       P=1.4999999999 が 1.50 未満か
+        得た値=true　期待値=true
+  282. [OK] R122-S02       P=1.5 が 1.50 未満か
+        得た値=false　期待値=false
+  283. [OK] R122-S02       P=1.5000000001 が 1.50 未満か
+        得た値=false　期待値=false
+  284. [OK] R122-S02       W=1.4999999999 が 1.50 未満か
+        得た値=true　期待値=true
+  285. [OK] R122-S02       W=1.5 が 1.50 未満か
+        得た値=false　期待値=false
+  286. [OK] R122-S02       W21=5 W6=4 で縮小20%以上か
+        得た値=true　期待値=true
+  287. [OK] R122-S02       W21=5 W6=4.0000000001 で縮小20%以上か
+        得た値=false　期待値=false
+  288. [OK] R122-S02       W21=5 W6=3.9999999999 で縮小20%以上か
+        得た値=true　期待値=true
+  289. [OK] R122-S02       複勝 21=2.0 6=1.9 で5%以上か
+        得た値=true　期待値=true
+  290. [OK] R122-S02       複勝 21=2.0 6=1.9000000001 で5%以上か
+        得た値=false　期待値=false
+  291. [OK] R122-S02       複勝 21=2.0 6=1.8999999999 で5%以上か
+        得た値=true　期待値=true
+  292. [OK] R122-S02       複勝 9=1.0 6=0.97 で3%以上か
+        得た値=true　期待値=true
+  293. [OK] R122-S02       複勝 9=1.0 6=0.9700000001 で3%以上か
+        得た値=false　期待値=false
+  294. [OK] R122-S03       X1 が元値の経路と手組みで一致
+        得た値="TRUE"　期待値="TRUE"
+  295. [OK] R122-S03       X2 が元値の経路と手組みで一致
+        得た値="TRUE"　期待値="TRUE"
+  296. [OK] R122-S03       X3 が元値の経路と手組みで一致
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  297. [OK] R122-S03       X4 が元値の経路と手組みで一致
+        得た値="FALSE"　期待値="FALSE"
+  298. [OK] R122-S03       X5 が元値の経路と手組みで一致
+        得た値="FALSE"　期待値="FALSE"
+  299. [OK] R122-S03       Z が元値の経路と手組みで一致
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  300. [OK] R122-S04       小数部128桁は読める
+        得た値=true　期待値=true
+  301. [OK] R122-S04       有効桁129桁は拒否
+        得た値=null　期待値=null
+  302. [OK] R122-S04       整数部128桁は読める
+        得た値=true　期待値=true
+  303. [OK] R122-S04       指数表記は切り捨てず拒否
+        得た値=null　期待値=null
+  304. [OK] R122-S04       符号つきは拒否（オッズは正のみ）
+        得た値=null　期待値=null
+  305. [OK] R122-S04       128桁どうしでも大小がつく
+        得た値=true　期待値=true
+  306. [OK] F-tri          tri_at_least([T,U],2)
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  307. [OK] F-tri          tri_at_least([T,F,U],2)
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  308. [OK] F-tri          tri_at_least([T,T,U],2)
+        得た値="TRUE"　期待値="TRUE"
+  309. [OK] F-tri          tri_at_least([F,U],2)
+        得た値="FALSE"　期待値="FALSE"
+  310. [OK] F-tri          tri_any([])（構造的非該当）
+        得た値="FALSE"　期待値="FALSE"
+  311. [OK] F-tri          tri_any([F,U])
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  312. [OK] F-cap          target_count(3)
+        得た値=3　期待値=3
+  313. [OK] F-cap          target_count(8)
+        得た値=4　期待値=4
+  314. [OK] F-cap          target_count(9)
+        得た値=5　期待値=5
+  315. [OK] F-cap          target_count(13)
+        得た値=5　期待値=5
+  316. [OK] F-cap          target_count(14)
+        得た値=6　期待値=6
+  317. [OK] F-cap          target_count(16)
+        得た値=7　期待値=7
+  318. [OK] F-cap          target_count(0)
+        得た値=0　期待値=0
+  319. [OK] F-derive       X1
+        得た値="TRUE"　期待値="TRUE"
+  320. [OK] F-derive       X2
+        得た値="TRUE"　期待値="TRUE"
+  321. [OK] F-derive       X3（N<7は構造的非該当）
+        得た値="FALSE"　期待値="FALSE"
+  322. [OK] F-derive       X5（対象境界なし）
+        得た値="FALSE"　期待値="FALSE"
+  323. [OK] F-derive       X6（基準率未定義）
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  324. [OK] B-T09          X1=TRUE（21分2.5→6分1.8、k<=6）
+        得た値="TRUE"　期待値="TRUE"
+  325. [OK] B-T10          X2=TRUE（W6>=2かつP6<1.5）
+        得た値="TRUE"　期待値="TRUE"
+  326. [OK] B-T11          X4=TRUE（2頭以上が5%以上短縮）
+        得た値="TRUE"　期待値="TRUE"
+  327. [OK] B-T11          X4=FALSE（成立1頭・不明0件では2件に届かない）
+        得た値="FALSE"　期待値="FALSE"
+  328. [OK] B-T11          X4=UNKNOWN（成立1頭＋不明1頭）
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  329. [OK] B-T21          X6=UNKNOWN
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  330. [OK] B-T21          X6=FALSE（母数49件は最低条件未達）
+        得た値="FALSE"　期待値="FALSE"
+  331. [OK] B-T21          X6=TRUE（母数50件・差10pp）
+        得た値="TRUE"　期待値="TRUE"
+  332. [OK] B-T12          Tier=A（ability＋gapの2独立群）
+        得た値="A"　期待値="A"
+  333. [OK] B-T12          独立群数
+        得た値=2　期待値=2
+  334. [OK] ability        出所と分量がそろえば採用
+        得た値=true　期待値=true
+  335. [OK] ability        採用1件
+        得た値=1　期待値=1
+  336. [OK] ability        source_refsが空なら却下
+        得た値=false　期待値=false
+  337. [OK] ability        却下理由を残す
+        得た値=["source_refsが空"]　期待値=["source_refsが空"]
+  338. [OK] ability        descriptionが短ければ却下
+        得た値=false　期待値=false
+  339. [OK] ability        H1がnullなら却下
+        得た値=false　期待値=false
+  340. [OK] ability        過去走0走なら却下
+        得た値=false　期待値=false
+  341. [OK] ability        却下後は独立群が市場系だけ
+        得た値=[]　期待値=[]
+  342. [OK] ability        根拠なしはTier C
+        得た値="C"　期待値="C"
+  343. [OK] B-T13          上位人気だけで埋めず帯別に確保
+        得た値={"A":4,"B":2,"D":1}　期待値={"A":4,"B":2,"D":1}
+  344. [OK] B-T13          人気薄（11番人気）が残っている
+        得た値=true　期待値=true
+  345. [OK] B-T13          B帯の不足1をA帯から補充
+        得た値=1　期待値=1
+  346. [OK] B-T14          Tier Cを採用していない
+        得た値=[]　期待値=[]
+  347. [OK] B-T14          PARTIAL_COUNTが出る
+        得た値=true　期待値=true
+  348. [OK] B-T14          採用はA帯の実在6頭まで
+        得た値=6　期待値=6
+  349. [OK] valid-only     厳密選出は採点なしで0頭
+        得た値=0　期待値=0
+  350. [OK] valid-only     厳密選出はPARTIAL_COUNTを出す
+        得た値=true　期待値=true
+  351. [OK] valid-only     非選出理由に順位捏造の禁止を書く
+        得た値=true　期待値=true
+  352. [OK] valid-only     basis=VALID_SCORE_ONLY
+        得た値="VALID_SCORE_ONLY"　期待値="VALID_SCORE_ONLY"
+  353. [OK] valid-only     参考選出は別名で採用される
+        得た値=6　期待値=6
+  354. [OK] valid-only     basis=EVIDENCE_ONLY_NO_HV_SCORE
+        得た値="EVIDENCE_ONLY_NO_HV_SCORE"　期待値="EVIDENCE_ONLY_NO_HV_SCORE"
+  355. [OK] B-T04          D帯不存在を別帯で補充して4頭
+        得た値=4　期待値=4
+  356. [OK] B-T04          PARTIAL_COUNTは出ない
+        得た値=null　期待値=null
+  357. [OK] B-T04          CROSS_BAND_FILLに記録
+        得た値=1　期待値=1
+  358. [OK] B-T15          全頭JSONは読める
+        得た値=true　期待値=true
+  359. [OK] B-T15          公開候補0でも採点が届く
+        得た値=1　期待値=1
+  360. [OK] B-T15          マーカー欠落は別状態
+        得た値=false　期待値=false
+  361. [OK] B-T16          内部点が無ければ不一致にしない
+        得た値=false　期待値=false
+  362. [OK] B-T16          1回目は訂正要求
+        得た値=true　期待値=true
+  363. [OK] B-T16          2回目は内部未検証扱い
+        得た値="UNVERIFIED_SCORE"　期待値="UNVERIFIED_SCORE"
+  364. [OK] B-T17          公開一致のみ加点
+        得た値=[2]　期待値=[2]
+  365. [OK] B-T17          内部採点のみ一致は加点しない
+        得た値=[4]　期待値=[4]
+  366. [OK] B-T18          UNDETERMINED
+        得た値="UNDETERMINED"　期待値="UNDETERMINED"
+  367. [OK] B-T22          混入馬番を検出
+        得た値=[1]　期待値=[1]
+  368. [OK] B-T22          欠落馬番を検出
+        得た値=[2,3]　期待値=[2,3]
+  369. [OK] hv-fix         不備なしなら指摘0件
+        得た値=[]　期待値=[]
+  370. [OK] hv-fix         上限超過を拾う
+        得た値=1　期待値=1
+  371. [OK] hv-fix         上限超過の文面
+        得た値=true　期待値=true
+  372. [OK] hv-fix         項目欠落を拾う
+        得た値=true　期待値=true
+  373. [OK] hv-fix         実在しない馬番と欠落の両方を拾う
+        得た値=2　期待値=2
+  374. [OK] hv-dup         重複した馬番を記録する
+        得た値=[1]　期待値=[1]
+  375. [OK] hv-dup         重複があれば未検証扱い
+        得た値=false　期待値=false
+  376. [OK] hv-dup         2回目は採用しない（1頭のまま）
+        得た値=1　期待値=1
+  377. [OK] hv-dup         最初の行を残す（tier=C）
+        得た値="C"　期待値="C"
+  378. [OK] hv-dup         契約検証でUNDETERMINED
+        得た値="UNDETERMINED"　期待値="UNDETERMINED"
+  379. [OK] id-echo        race_id一致なら通る
+        得た値="OK"　期待値="OK"
+  380. [OK] id-echo        race_id不一致はUNDETERMINED
+        得た値="UNDETERMINED"　期待値="UNDETERMINED"
+  381. [OK] id-echo        race_idが無ければ照合できないと記録
+        得た値=true　期待値=true
+  382. [OK] count          頭数不一致はPARTIAL
+        得た値="PARTIAL"　期待値="PARTIAL"
+  383. [OK] count          頭数不一致を文面に出す
+        得た値=true　期待値=true
+  384. [OK] count          出走頭数の不一致はDATA_INVALID
+        得た値="DATA_INVALID"　期待値="DATA_INVALID"
+  385. [OK] count          理由に不一致を書く
+        得た値=true　期待値=true
+  386. [OK] race-guard     1st回答の控えを捨てる
+        得た値=null　期待値=null
+  387. [OK] race-guard     2nd回答の控えを捨てる
+        得た値=null　期待値=null
+  388. [OK] race-guard     過去走件数の控えを捨てる
+        得た値=[]　期待値=[]
+  389. [OK] race-guard     構造判定の控えを捨てる
+        得た値=[]　期待値=[]
+  390. [OK] race-guard     同じレースなら捨てない
+        得た値="同じレースの2nd回答"　期待値="同じレースの2nd回答"
+  391. [OK] B-T20          信号キーはX1〜X6とZだけ
+        得た値=["X1","X2","X3","X4","X5","X6","Z"]　期待値=["X1","X2","X3","X4","X5","X6","Z"]
+  392. [OK] B-T20          EXTREMEは通常の配分表に無い
+        得た値=false　期待値=false
+  393. [OK] score          全項目あり→valid
+        得た値="valid"　期待値="valid"
+  394. [OK] score          1項目欠損→partial
+        得た値="partial"　期待値="partial"
+  395. [OK] score          partialのtotal_scoreはnull
+        得た値=null　期待値=null
+  396. [OK] score          上限超過→invalid
+        得た値="invalid"　期待値="invalid"
+  397. [OK] score          満点は100
+        得た値=100　期待値=100
+  398. [OK] score          信頼度小計は60
+        得た値=60　期待値=60
+  399. [OK] score          妙味代理小計は40
+        得た値=40　期待値=40
+  400. [OK] DATA_INVALID   馬番重複でDATA_INVALID
+        得た値="DATA_INVALID"　期待値="DATA_INVALID"
+  401. [OK] DATA_INVALID   allocation_mode=NONE
+        得た値="NONE"　期待値="NONE"
+  402. [OK] quota          合計 target_count=7 mode=FIRM
+        得た値=7　期待値=7
+  403. [OK] quota          合計 target_count=7 mode=MIXED
+        得た値=7　期待値=7
+  404. [OK] quota          合計 target_count=7 mode=VOLATILE
+        得た値=7　期待値=7
+  405. [OK] quota          合計 target_count=6 mode=FIRM
+        得た値=6　期待値=6
+  406. [OK] quota          合計 target_count=6 mode=MIXED
+        得た値=6　期待値=6
+  407. [OK] quota          合計 target_count=6 mode=VOLATILE
+        得た値=6　期待値=6
+  408. [OK] quota          合計 target_count=5 mode=FIRM
+        得た値=5　期待値=5
+  409. [OK] quota          合計 target_count=5 mode=MIXED
+        得た値=5　期待値=5
+  410. [OK] quota          合計 target_count=5 mode=VOLATILE
+        得た値=5　期待値=5
+  411. [OK] quota          合計 target_count=4 mode=FIRM
+        得た値=4　期待値=4
+  412. [OK] quota          合計 target_count=4 mode=MIXED
+        得た値=4　期待値=4
+  413. [OK] quota          合計 target_count=4 mode=VOLATILE
+        得た値=4　期待値=4
+  414. [OK] F-T01          不足数 need
+        得た値=1　期待値=1
+  415. [OK] F-T02          B方式は統合点の高い順に補充
+        得た値=[16]　期待値=[16]
+  416. [OK] F-T03          独立根拠の記録が無ければC方式はnull
+        得た値=null　期待値=null
+  417. [OK] F-T04          充足していれば need=0
+        得た値=0　期待値=0
+  418. [OK] F-T05          充足していれば補充0頭
+        得た値=[]　期待値=[]
+  419. [OK] F-T06          統合点が無い馬は補充しない
+        得た値=[]　期待値=[]
+  420. [OK] F-T07          取消・除外の馬は補充しない
+        得た値=[]　期待値=[]
+  421. [OK] F-T08          着順データが無い日は着順で落とさない
+        得た値=[2]　期待値=[2]
+  422. [OK] F-T09          同点は馬番の小さい順
+        得た値=[3]　期待値=[3]
+  423. [OK] F-T10          C方式は独立根拠2系統以上だけ
+        得た値=[3]　期待値=[3]
+  424. [OK] F-T11          B方式は根拠を問わず点数順
+        得た値=[2,3]　期待値=[2,3]
+  425. [OK] F-T12          独立根拠の記録ありを検出
+        得た値=true　期待値=true
+  426. [OK] F-T13          C方式は不足しても弱い根拠で埋めない
+        得た値=[3]　期待値=[3]
+  427. [OK] F-T14          そのときB方式は点数順で埋める
+        得た値=[2,3,4]　期待値=[2,3,4]
+  428. [OK] FM-T01         A方式は補充しない
+        得た値=false　期待値=false
+  429. [OK] FM-T02         A方式の理由文
+        得た値="資格未達の7番人気以下（数合わせには使わない）"　期待値="資格未達の7番人気以下（数合わせには使わない）"
+  430. [OK] FM-T03         B方式は記録が無くても補充する
+        得た値=true　期待値=true
+  431. [OK] FM-T04         B方式は独立根拠0でも補充する
+        得た値=true　期待値=true
+  432. [OK] FM-T05         C方式は記録が無ければ補充しない
+        得た値=false　期待値=false
+  433. [OK] FM-T06         C方式は独立根拠1系統なら補充しない
+        得た値=false　期待値=false
+  434. [OK] FM-T07         C方式は独立根拠2系統なら補充する
+        得た値=true　期待値=true
+  435. [OK] FM-T08         C方式は独立根拠3系統なら補充する
+        得た値=true　期待値=true
+  436. [OK] FM-T09         補充枠の馬は購入推奨にしない
+        得た値=false　期待値=false
+  437. [OK] FM-T10         購入回避フラグが立つ馬は購入推奨にしない
+        得た値=[false,false,false,false]　期待値=[false,false,false,false]
+  438. [OK] FM-T11         どれも立っていなければ購入推奨
+        得た値=true　期待値=true
+  439. [OK] FM-T12         補充方式の既定はA
+        得た値="A"　期待値="A"
+  440. [OK] AB-T01         信号が空でも落ちず不明扱い
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  441. [OK] AB-T02         知らない文字列は不明として扱う
+        得た値="UNKNOWN"　期待値="UNKNOWN"
+  442. [OK] AB-T03         不明があればSはnull
+        得た値=null　期待値=null
+  443. [OK] AB-T04         出走頭数0の目標数は0
+        得た値=0　期待値=0
+  444. [OK] AB-T05         負の出走頭数も0
+        得た値=0　期待値=0
+  445. [OK] AB-T06         極端に多い頭数は上限7
+        得た値=7　期待値=7
+  446. [OK] AB-T07         出走頭数0の配分はnull
+        得た値=null　期待値=null
+  447. [OK] AB-T08         全項目nullはpartial
+        得た値="partial"　期待値="partial"
+  448. [OK] AB-T09         全項目nullの合計はnull
+        得た値=null　期待値=null
+  449. [OK] AB-T10         採点が空でも落ちずpartial
+        得た値="partial"　期待値="partial"
+  450. [OK] AB-T11         負の点数はinvalid
+        得た値="invalid"　期待値="invalid"
+  451. [OK] AB-T12         文字列の点数は採点にしない
+        得た値=null　期待値=null
+  452. [OK] AB-T13         空文字の回答でも落ちない
+        得た値=true　期待値=true
+  453. [OK] AB-T14         空文字はマーカーなし扱い
+        得た値=false　期待値=false
+  454. [OK] AB-T15         壊れたJSONでも落ちない
+        得た値=true　期待値=true
+  455. [OK] AB-T16         壊れたJSONは採用しない
+        得た値=false　期待値=false
+  456. [OK] AB-T17         0頭のJSONでも落ちない
+        得た値=true　期待値=true
+  457. [OK] AB-T18         出走馬0頭でも落ちず選出0頭
+        得た値=[]　期待値=[]
+  458. [OK] AB-T19         馬番0や負の馬は選出しない
+        得た値=[]　期待値=[]
+  459. [OK] AB-T20         全頭が空でも落ちず補充0頭
+        得た値=[]　期待値=[]
+  460. [OK] AB-T21         全頭が空でもCはnull
+        得た値=null　期待値=null
+  461. [OK] AB-T22         配列でない行は飛ばす
+        得た値=[3]　期待値=[3]
+  462. [OK] AB-T23         目標数が負でも不足は0
+        得た値=0　期待値=0
+  463. [OK] AB-T24         公開候補に重複があっても補充は1頭だけ
+        得た値=[2]　期待値=[2]
+  464. [OK] AB-T25         知らない方式はB相当にしない（既定Aの扱い）
+        得た値=true　期待値=true
+  465. [OK] AB-T26         小文字のcはC扱いにしない
+        得た値=true　期待値=true
+  466. [OK] AB-T27         採点が1頭も無ければ採用しない
+        得た値="UNDETERMINED"　期待値="UNDETERMINED"
+  467. [OK] AB-T28         欠けている馬番を記録する
+        得た値=[1,2,3]　期待値=[1,2,3]
+  468. [OK] AS-T01         全頭採点を受け取れる
+        得た値=true　期待値=true
+  469. [OK] AS-T02         馬番は昇順で返す
+        得た値=[1,2,3]　期待値=[1,2,3]
+  470. [OK] AS-T03         総合点を馬番ごとに返す
+        得た値=55　期待値=55
+  471. [OK] AS-T04         点数の降順で1位を決める
+        得た値=1　期待値=1
+  472. [OK] AS-T05         同点は馬番の小さい順で2位
+        得た値=2　期待値=2
+  473. [OK] AS-T06         点の低い馬は3位
+        得た値=3　期待値=3
+  474. [OK] AS-T07         総合点が無い馬は点をnullで返す
+        得た値=null　期待値=null
+  475. [OK] AS-T08         総合点が無い馬は順位の後ろへ
+        得た値=2　期待値=2
+  476. [OK] AS-T09         マーカーが無ければ未受領で返す
+        得た値=false　期待値=false
+  477. [OK] AS-T10         未受領でも点数の欄は空配列で返す
+        得た値=[]　期待値=[]
+
+  合計 477 項目を表示しました。
+
+※この試験は構造判定・配分・Tier・採点・AI契約チェック・補充方式の検算です。
+  予想性能を示すものではありません。
+全項目を書き出しました: /var/www/horse_odds_finder/storage/logs/v04_selftest_detail_2026-10-20_114018.json

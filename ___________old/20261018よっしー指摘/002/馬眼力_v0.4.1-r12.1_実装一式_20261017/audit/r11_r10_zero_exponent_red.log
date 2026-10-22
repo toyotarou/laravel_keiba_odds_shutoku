@@ -1,0 +1,32 @@
+FFF
+======================================================================
+FAIL: test_zero_exponent_obeys_same_range (test_r11_regressions.R11Tests.test_zero_exponent_obeys_same_range) (value='0E309')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 95, in test_zero_exponent_obeys_same_range
+    with self.assertRaises(ValueError):r.strict_loads(value)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_zero_exponent_obeys_same_range (test_r11_regressions.R11Tests.test_zero_exponent_obeys_same_range) (value='0E-309')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 95, in test_zero_exponent_obeys_same_range
+    with self.assertRaises(ValueError):r.strict_loads(value)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_zero_exponent_obeys_same_range (test_r11_regressions.R11Tests.test_zero_exponent_obeys_same_range) (value='-0E999999')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 95, in test_zero_exponent_obeys_same_range
+    with self.assertRaises(ValueError):r.strict_loads(value)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.207s
+
+FAILED (failures=3)

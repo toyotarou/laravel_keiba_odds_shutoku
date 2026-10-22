@@ -1,0 +1,1 @@
+{"php_version":"8.5.10","public_view":{"deadline_exact_pending":"PASSED","expired_is_unavailable":"FAILED","cancelled_before_publication":"FAILED","current_active_count":"FAILED","current_actual_quota":"FAILED","immutable_prediction_counts":"FAILED","late_cancel_never_refills":"FAILED","shortage_visible":"FAILED","input_unchanged":"PASSED"}}

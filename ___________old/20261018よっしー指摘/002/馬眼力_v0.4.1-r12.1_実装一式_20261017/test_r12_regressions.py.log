@@ -1,0 +1,17 @@
+test_bad_cancellation_update_keeps_previous_state (__main__.R12Tests.test_bad_cancellation_update_keeps_previous_state) ... ok
+test_clock_rollback_cannot_reserve_correction (__main__.R12Tests.test_clock_rollback_cannot_reserve_correction) ... ok
+test_commit_clock_rollback_is_not_published (__main__.R12Tests.test_commit_clock_rollback_is_not_published) ... ok
+test_deadline_overflow_is_controlled (__main__.R12Tests.test_deadline_overflow_is_controlled) ... ok
+test_earlier_past_close_still_valid_and_stops_calls (__main__.R12Tests.test_earlier_past_close_still_valid_and_stops_calls) ... ok
+test_forward_clock_and_identical_time_can_publish (__main__.R12Tests.test_forward_clock_and_identical_time_can_publish) ... ok
+test_large_and_precise_fact_values_roundtrip_through_store (__main__.R12Tests.test_large_and_precise_fact_values_roundtrip_through_store) ... ok
+test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) ... ok
+test_text_numeric_and_boolean_fact_types_remain_distinct (__main__.R12Tests.test_text_numeric_and_boolean_fact_types_remain_distinct) ... ok
+test_unrepresentable_live_deadline_does_not_poison_state (__main__.R12Tests.test_unrepresentable_live_deadline_does_not_poison_state) ... ok
+test_valid_cancellation_keeps_frozen_bands_and_holes (__main__.R12Tests.test_valid_cancellation_keeps_frozen_bands_and_holes) ... ok
+test_verification_clock_rollback_is_not_published (__main__.R12Tests.test_verification_clock_rollback_is_not_published) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 4.209s
+
+OK

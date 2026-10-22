@@ -1,0 +1,141 @@
+{
+  "schema_version": "baganriki-v041-r8-1",
+  "prompt_version": "baganriki-v041-r12-1-quota-20261017",
+  "race_id": "race",
+  "snapshot_hash": "fixture-not-a-real-snapshot",
+  "snapshot_hash_version": "exact-common-payload-sha256-r8",
+  "time_contract": {
+    "version": "fixture-only",
+    "anchor_kind": "SALES_CLOSE_TIME",
+    "anchor_at": "2026-10-17T15:00:00+09:00",
+    "snapshot_offsets": [
+      21,
+      18,
+      15,
+      12,
+      9,
+      6
+    ],
+    "sampling_policy_id": "fixture-only",
+    "reply_deadline": "2026-10-17T14:58:00+09:00",
+    "publish_deadline": "2026-10-17T14:59:00+09:00",
+    "sales_close_at": "2026-10-17T15:00:00+09:00",
+    "safety_margin_ms": 1000
+  },
+  "cutoff_at": "2026-10-17T14:54:00+09:00",
+  "N": 1,
+  "runners": [
+    {
+      "horse_no": 1,
+      "win_rank": 1,
+      "band": "A"
+    }
+  ],
+  "source_registry": {
+    "h1": {
+      "source_ref": "h1",
+      "race_id": "race",
+      "value": 2.0,
+      "observed_at": "2026-10-17T14:50:00+09:00",
+      "available_at": "2026-10-17T14:50:01+09:00",
+      "scope": "HORSE",
+      "horse_nos": [
+        1
+      ],
+      "applicable_horse_nos": [],
+      "field": "past_performance",
+      "unit": "index",
+      "slot_offset": null,
+      "source_kind": "OBSERVED",
+      "parents": [],
+      "formula_id": null,
+      "formula_version": null,
+      "computed_at": null,
+      "dependency_key": "root1",
+      "dependency_role": "SIGNAL"
+    }
+  },
+  "field_catalog": {
+    "past_performance": {
+      "unit": "index",
+      "scope": "HORSE",
+      "display_label": "過去成績指数",
+      "value_type": "number",
+      "missing_allowed": true,
+      "minimum": 0,
+      "maximum": null
+    }
+  },
+  "input_indices": {
+    "horse/1/past_runs": [
+      "h1"
+    ]
+  },
+  "legacy_gap_type": null,
+  "signals": {
+    "X1": false,
+    "X2": false,
+    "X3": false,
+    "X4": false,
+    "X5": false,
+    "X6": false,
+    "Z": false
+  },
+  "S": 0,
+  "S_min": 0,
+  "S_max": 0,
+  "mode": "FIRM",
+  "target_count": 1,
+  "base_quota": {
+    "A": 1,
+    "B": 0,
+    "D": 0
+  },
+  "quota": {
+    "A": 1,
+    "B": 0,
+    "D": 0
+  },
+  "quota_adjustments": [],
+  "selection_enabled": true,
+  "display_rating": 1,
+  "learning_stage": "COLLECT_ONLY",
+  "model_version": null,
+  "ai_role": "1st",
+  "role_cap": 1,
+  "role_quota": {
+    "A": 1,
+    "B": 0,
+    "D": 0
+  },
+  "coverage": {
+    "past_runs": {
+      "status": "UNAVAILABLE",
+      "reason": "合成試験ではこのカテゴリの実データを供給していない"
+    },
+    "OPI": {
+      "status": "UNAVAILABLE",
+      "reason": "合成試験ではこのカテゴリの実データを供給していない"
+    },
+    "estimated_odds": {
+      "status": "UNAVAILABLE",
+      "reason": "合成試験ではこのカテゴリの実データを供給していない"
+    },
+    "recovery_statistics": {
+      "status": "UNAVAILABLE",
+      "reason": "合成試験ではこのカテゴリの実データを供給していない"
+    },
+    "similar_statistics": {
+      "status": "UNAVAILABLE",
+      "reason": "合成試験ではこのカテゴリの実データを供給していない"
+    },
+    "legacy_qualifications": {
+      "status": "UNAVAILABLE",
+      "reason": "合成試験ではこのカテゴリの実データを供給していない"
+    },
+    "gap_history": {
+      "status": "UNAVAILABLE",
+      "reason": "合成試験ではこのカテゴリの実データを供給していない"
+    }
+  }
+}

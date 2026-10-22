@@ -1,0 +1,425 @@
+--- r7/reference.py
++++ r8/reference.py
+@@ -1,4 +1,4 @@
+-"""r7 reference model. Not a drop-in production PHP adapter or predictor."""
++"""r8 reference model. Not a drop-in production PHP adapter or predictor."""
+ from __future__ import annotations
+ import copy
+ import hashlib
+@@ -60,16 +60,70 @@
+         if len(value.as_tuple().digits)>128 or (value and not -308<=value.adjusted()<=308):
+             raise ValueError('decimal precision/range')
+         return value
+-    try: result=json.loads(text,object_pairs_hook=pairs,parse_constant=invalid,parse_float=decimal)
++    def integer(token):
++        if len(token.lstrip('-'))>128: raise ValueError('integer precision/range')
++        return int(token)
++    # Bound container depth before parsing, copying or formatting an error. Brackets
++    # in strings (including escaped quotes) do not count as containers.
++    depth=0;quoted=False;escaped=False
++    for char in text:
++        if quoted:
++            if escaped: escaped=False
++            elif char=='\\': escaped=True
++            elif char=='"': quoted=False
++        elif char=='"': quoted=True
++        elif char in '[{':
++            depth+=1
++            if depth>64: raise ValueError('JSON nesting limit: 64')
++        elif char in ']}': depth-=1
++    try: result=json.loads(text,object_pairs_hook=pairs,parse_constant=invalid,parse_float=decimal,parse_int=integer)
+     except RecursionError as exc: raise ValueError('JSON nesting') from exc
+     def check(v):
+         if isinstance(v,float) and not math.isfinite(v): raise ValueError('nonfinite number')
++        if isinstance(v,str):v.encode('utf-8')  # reject isolated UTF-16 surrogates before persistence
+         if isinstance(v,dict):
+-            for x in v.values(): check(x)
++            for k,x in v.items(): k.encode('utf-8');check(x)
+         if isinstance(v,list):
+             for x in v: check(x)
+     check(result)
+     return result
++
++def applicable_ref(ref,registry,horse_no):
++    if not isinstance(ref,str) or ref not in registry: return False
++    s=registry[ref]
++    return ((s['scope'] not in ('HORSE','PAIR') or horse_no in s['horse_nos'])
++        and (s['scope']!='COHORT' or horse_no in s['applicable_horse_nos']))
++
++def verified_counterevidence(items,horse_no,registry):
++    valid=[];issues=[]
++    if not isinstance(items,list): return [],['counterevidence_not_array']
++    for item in items:
++        refs=item.get('source_refs') if isinstance(item,dict) else None
++        if (not isinstance(refs,list) or not refs or any(not applicable_ref(x,registry,horse_no) for x in refs)
++                or len(set(refs))!=len(refs) or not isinstance(item.get('reason'),str) or not item['reason'].strip()
++                or not any(registry[x]['value'] is not None for x in refs)):
++            issues.append('invalid counterevidence reference/reason');continue
++        valid.append(copy.deepcopy(item))
++    return valid,issues
++
++def review_issues(review,evidence,horse_no,registry):
++    issues=[]
++    if not isinstance(review,dict) or set(review)!=set(FAMILIES): return ['family_review fields']
++    for family in FAMILIES:
++        item=review[family];ev=[x for x in evidence if x['family']==family]
++        if not isinstance(item,dict): issues.append(family);continue
++        refs=item.get('source_refs');ids=item.get('evidence_ids');status=item.get('status')
++        valid=(isinstance(refs,list) and all(applicable_ref(x,registry,horse_no) for x in refs)
++            and len(refs)==len(set(refs)) and isinstance(ids,list) and all(isinstance(x,str) for x in ids)
++            and len(ids)==len(set(ids)) and isinstance(item.get('reason'),str) and bool(item['reason'].strip()))
++        if valid and ev:
++            valid=(status=='SUPPORTED' and set(ids)=={x['evidence_id'] for x in ev}
++                and {ref for x in ev for ref in x['source_refs']}<=set(refs))
++        elif valid:
++            valid=(not ids and status in ('NO_SUPPORT','DATA_MISSING'))
++            if status=='NO_SUPPORT': valid=valid and bool(refs) and any(registry[x]['value'] is not None for x in refs)
++        if not valid: issues.append(family)
++    return issues
+ 
+ def json_dumps(value):
+     """Exact finite decimal JSON, also used for PHP interchange. No float coercion."""
+--- r7/engine.py
++++ r8/engine.py
+@@ -1,8 +1,9 @@
+-"""r7 executable boundary: prepared input -> validated AI views -> publication plan.
++"""r8 executable boundary: prepared input -> validated AI views -> publication plan.
+ No model calls, no odds rewriting, no legacy filters. Keep original bytes outside this module.
+ """
+ from __future__ import annotations
+ import copy,json,hashlib,re
++from collections import Counter
+ from pathlib import Path
+ from decimal import Decimal,localcontext,ROUND_HALF_UP
+ from fractions import Fraction
+@@ -21,7 +22,8 @@
+ EVIDENCE=Draft202012Validator(SCHEMAS['output']['properties']['horses']['items']['properties']['evidence']['items'])
+ TOP_KEYS=('schema_version','prompt_version','ai_role','race_id','snapshot_hash','selection_enabled','mode','target_count','role_cap','quota','role_quota','learning_stage')
+ ROLE_KEYS=('ai_role','role_cap','role_quota')
+-BEGIN='<<<BAGANRIKI_V041_R7_BEGIN>>>';END='<<<BAGANRIKI_V041_R7_END>>>'
++SUMMARY_FIELDS=('band','tier','eligibility','score_status','total_score','observed_sum','observed_cap','family_review')
++BEGIN='<<<BAGANRIKI_V041_R8_BEGIN>>>';END='<<<BAGANRIKI_V041_R8_END>>>'
+ 
+ class ContractError(ValueError): pass
+ 
+@@ -80,6 +82,8 @@
+                 require(vals['place_min']<=vals['place_max'],'place min exceeds max')
+             odds[no][t]=vals
+         horses.append(dict(win_rank=h['win_rank'],**{f'P{t}':odds[no][t]['place_min'] for t in (21,9,6)}))
++    known_win_odds=[odds[h['horse_no']][6]['win_odds'] for h in ordered if odds[h['horse_no']][6]['win_odds'] is not None]
++    require(all(a<=b for a,b in zip(known_win_odds,known_win_odds[1:])),'frozen win_rank contradicts 6-minute win odds')
+     def ratio(a,b):
+         return None if a is None or b is None else Fraction(str(b))/Fraction(str(a))
+     for a,b in zip(ordered,ordered[1:]):
+@@ -87,14 +91,14 @@
+         pairs[a['win_rank']]={f'W{t}':ratio(oa[t]['win_odds'],ob[t]['win_odds']) for t in (21,6)}
+         pairs[a['win_rank']]['P6']=ratio(oa[6]['place_min'],ob[6]['place_min'])
+     # X6 is unknown until its historical-data adapter and definition are supplied.
+-    # r7 deliberately does not trust a generic "definition_valid=true" in an input JSON.
++    # r8 deliberately does not trust a generic "definition_valid=true" in an input JSON.
+     return r.extract_signals(len(ordered),pairs,horses,None)
+ 
+ def common_payload(inp):return {k:v for k,v in inp.items() if k not in (*ROLE_KEYS,'snapshot_hash')}
+ 
+ def validate_input(inp,request_at):
+     VALIDATORS['input'].validate(inp)
+-    require(inp['learning_stage']=='COLLECT_ONLY' and inp['model_version'] is None,'r7 supports COLLECT_ONLY only')
++    require(inp['learning_stage']=='COLLECT_ONLY' and inp['model_version'] is None,'r8 supports COLLECT_ONLY only')
+     r.validate_runners(inp['runners']);require(r.exact_int(inp['N']) and inp['N']==len(inp['runners']),'N mismatch')
+     tc=inp['time_contract'];cutoff=r.timestamp(inp['cutoff_at']);request=r.timestamp(request_at)
+     require(cutoff==r.timestamp(tc['anchor_at'])-timedelta(minutes=6),'cutoff anchor')
+@@ -126,7 +130,7 @@
+     require(seed.get('learning_stage','COLLECT_ONLY')=='COLLECT_ONLY','unsupported learning stage')
+     inp={k:copy.deepcopy(seed[k]) for k in required}
+     inp.update(schema_version=CONFIG['schema_version'],prompt_version=CONFIG['prompt_version'],
+-        snapshot_hash_version='exact-common-payload-sha256-r7',N=len(inp['runners']),
++        snapshot_hash_version='exact-common-payload-sha256-r8',N=len(inp['runners']),
+         legacy_gap_type=seed.get('legacy_gap_type'),learning_stage='COLLECT_ONLY',model_version=None)
+     r.validate_runners(inp['runners'])
+     # Validate identity/time metadata before calculating any signs.
+@@ -161,14 +165,21 @@
+         typed=[e for e in raw_ev if not list(EVIDENCE.iter_errors(e))]
+         ev,ev_issues=r.verified_evidence(typed,no,inp['source_registry'])
+         # Keep duplicate-id rejection across the whole original list, including malformed duplicates.
+-        counts={e.get('evidence_id'):sum(isinstance(q,dict) and q.get('evidence_id')==e.get('evidence_id') for q in raw_ev) for e in typed}
++        counts=Counter(q.get('evidence_id') for q in raw_ev if isinstance(q,dict) and isinstance(q.get('evidence_id'),str))
+         ev=[e for e in ev if counts[e['evidence_id']]==1]
++        counter,counter_issues=r.verified_counterevidence(raw.get('counterevidence'),no,inp['source_registry'])
++        review_errors=r.review_issues(raw.get('family_review'),ev,no,inp['source_registry'])
++        no_support=(not ev and not review_errors and all(x['status']=='NO_SUPPORT' for x in raw['family_review'].values()))
+         score,score_issues=r.recover_scores(raw.get('scores'),raw.get('score_evidence'),inp['source_registry'],no)
+         errors=list(HORSE.iter_errors(raw))
++        evaluation_errors=[x for x in errors if not x.absolute_path or x.absolute_path[0] not in SUMMARY_FIELDS]
+         views[no]=dict(raw,**score)
+-        views[no].update(horse_no=no,band=horse_map[no]['band'],evidence=ev,response_hash=digest,
+-            row_valid=not errors,eligibility='ELIGIBLE' if ev else 'UNVERIFIED',tier='A' if r.independent_count(ev)>=2 else 'B' if ev else 'UNVERIFIED')
+-        if errors or ev_issues or score_issues or len(typed)!=len(raw_ev):issues.append(dict(horse_no=no,code='LOCAL_RECOVERY'))
++        views[no].update(horse_no=no,band=horse_map[no]['band'],evidence=ev,counterevidence=counter,response_hash=digest,
++            rank_inputs_valid=not counter_issues and len(ev)==len(raw_ev),
++            row_valid=not errors,eligibility='ELIGIBLE' if ev else 'NO_EVIDENCE' if no_support else 'UNVERIFIED',
++            tier='A' if r.independent_count(ev)>=2 else 'B' if ev else 'C' if no_support else 'UNVERIFIED')
++        if evaluation_errors or ev_issues or score_issues or len(typed)!=len(raw_ev):issues.append(dict(horse_no=no,code='LOCAL_RECOVERY'))
++        if counter_issues:issues.append(dict(horse_no=no,code='COUNTEREVIDENCE_INVALID'))
+     return dict(raw=obj,views=views,missing=missing,issues=issues,hash=digest,full_schema_valid=not list(VALIDATORS['output'].iter_errors(obj)))
+ 
+ # Response rows, band rank claims and public declarations retain separate provenance.
+@@ -176,7 +187,7 @@
+ PRESENTATION_FIELDS=('public_candidate','nonselect_reason')
+ 
+ def row_payload(row):
+-    return {k:v for k,v in row.items() if k not in ('response_hash','row_valid','field_sources')}
++    return {k:v for k,v in row.items() if k not in ('response_hash','row_valid','field_sources','rank_inputs_valid')}
+ 
+ def band_payload(views,b):
+     # Backup evidence order must be independent of scores and non-eligible rows.
+@@ -198,6 +209,7 @@
+         data=raw.get(key)
+         return copy.deepcopy(data.get(b,[])) if isinstance(data,dict) else []
+     return dict(source_hash=view['hash'],primary=order('band_ranks'),backup=order('evidence_band_ranks'),
++        invalid_horses=[no for no,h in view['views'].items() if h['band']==b and not h.get('rank_inputs_valid',True)],
+         rows=band_payload(view['views'],b),proofs={no:{k:copy.deepcopy(h.get(k)) for k in RANK_FIELDS}
+             for no,h in view['views'].items() if h['band']==b})
+ 
+@@ -215,7 +227,7 @@
+         proof=claim['proofs'].get(no,{})
+         ids=proof.get('evidence_rank_evidence_ids');reason=proof.get('evidence_rank_reason')
+         actual={ev['evidence_id'] for ev in views[no]['evidence']}
+-        valid=valid and isinstance(ids,list) and bool(ids) and all(isinstance(x,str) for x in ids)
++        valid=valid and no not in claim.get('invalid_horses',[]) and isinstance(ids,list) and bool(ids) and all(isinstance(x,str) for x in ids)
+         if valid:valid=len(ids)==len(set(ids)) and set(ids)<=actual and isinstance(reason,str) and bool(reason.strip())
+     # The server's recovered score status decides the mode. A model declaration never overrides it.
+     order,method=r.recover_rank(rows,primary,backup,valid,'SCORE')
+@@ -227,7 +239,7 @@
+ 
+ def diagnose(view,inp,orders,methods):
+     raw=view['raw'];views=view['views'];errors=[]
+-    horses=set(view['missing']);bands=set();presentation=set();top=set();public_repair=False
++    horses=set(view['missing']);bands=set();presentation=set();summary=set();top=set();public_repair=False
+     def issue(code,**fields):errors.append(dict(code=code,**fields))
+     for no in view['missing']:issue('MISSING_OR_DUPLICATE_HORSE',horse_no=no)
+     for old in view['issues']:
+@@ -237,8 +249,22 @@
+         elif isinstance(old,(list,tuple)) and len(old)==2:
+             issue(str(old[0]),horse_no=old[1]);horses.add(old[1])
+         else:issue(str(old));top.add('horses')
++    declared={x['horse_no']:x for x in raw['horses'] if isinstance(x,dict) and r.exact_int(x.get('horse_no'))}
+     for no,h in views.items():
+-        if not h['row_valid']:horses.add(no);issue('ROW_SCHEMA_INVALID',horse_no=no)
++        original=declared.get(no,{})
++        row_errors=list(HORSE.iter_errors(original))
++        if row_errors:
++            issue('ROW_SCHEMA_INVALID',horse_no=no)
++            if any(not x.absolute_path or x.absolute_path[0] not in SUMMARY_FIELDS for x in row_errors):horses.add(no)
++            else:summary.add(no)
++        for key in ('band','tier','eligibility','score_status','total_score','observed_sum','observed_cap'):
++            if key not in original or r.json_dumps(original[key])!=r.json_dumps(h[key]):
++                summary.add(no);issue('DERIVED_FIELD_MISMATCH',horse_no=no,field=key,expected=h[key])
++        review_errors=r.review_issues(h.get('family_review'),h['evidence'],no,inp['source_registry'])
++        if review_errors:
++            summary.add(no);issue('FAMILY_REVIEW_MISMATCH',horse_no=no,families=review_errors)
++        if not h['evidence'] and (h.get('rank_basis')!='NOT_RANKED' or h.get('evidence_rank_evidence_ids')!=[]):
++            summary.add(no);issue('UNRANKED_METADATA_MISMATCH',horse_no=no)
+     for b in r.BANDS:
+         rows=[h for h in views.values() if h['band']==b and h['evidence']]
+         basis='SCORE' if rows and all(h['score_status']=='complete' for h in rows) else 'EVIDENCE'
+@@ -261,7 +287,7 @@
+         reason=h.get('nonselect_reason')
+         if chosen:reason_ok=reason is None
+         else:
+-            allowed={'SELECTION_DISABLED'} if not inp['selection_enabled'] else {'BAND_QUOTA'} if h['evidence'] else {'NO_EVIDENCE','UNVERIFIED'}
++            allowed={'SELECTION_DISABLED'} if not inp['selection_enabled'] else {'BAND_QUOTA'} if h['evidence'] else {h['eligibility']}
+             reason_ok=(isinstance(reason,dict) and reason.get('code') in allowed
+                 and isinstance(reason.get('reason'),str) and bool(reason['reason'].strip()))
+         if not reason_ok:presentation.add(no);issue('NONSELECT_REASON_MISMATCH',horse_no=no)
+@@ -272,10 +298,27 @@
+         top.add(field);issue('OUTPUT_SCHEMA_INVALID',field=field,reason=err.message[:200])
+         if field in ('band_ranks','evidence_band_ranks'):bands.update(r.BANDS)
+         if field=='public_candidates':public_repair=True
++    expected_shortfalls=[]
++    if inp['role_quota'] is not None:
++        for b in r.BANDS:
++            requested=inp['role_quota'][b];eligible=len(orders[b])
++            if eligible<requested:expected_shortfalls.append(dict(band=b,requested=requested,eligible=eligible,missing=requested-eligible))
++    supplied_shortfalls=raw.get('shortfalls')
++    valid_shortfalls=(isinstance(supplied_shortfalls,list) and len(supplied_shortfalls)==len(expected_shortfalls))
++    if valid_shortfalls:
++        expected_map={x['band']:x for x in expected_shortfalls};seen=set()
++        for item in supplied_shortfalls:
++            if (not isinstance(item,dict) or not isinstance(item.get('band'),str) or item['band'] in seen
++                    or item['band'] not in expected_map or not isinstance(item.get('reason'),str) or not item['reason'].strip()
++                    or any(r.json_dumps(item.get(k))!=r.json_dumps(v) for k,v in expected_map[item['band']].items())):
++                valid_shortfalls=False;break
++            seen.add(item['band'])
++    if not valid_shortfalls:
++        top.add('shortfalls');issue('SHORTFALL_MISMATCH',expected=expected_shortfalls)
+     # Stable diagnostics: the same defect can be reached by the schema and local validators.
+     unique={r.json_dumps(x):x for x in errors}
+     scope=dict(horses=sorted(horses),rank_bands=[b for b in r.BANDS if b in bands],
+-        presentation_horses=sorted(presentation),public_candidates=public_repair,top_fields=sorted(top))
++        presentation_horses=sorted(presentation),summary_horses=sorted(summary),public_candidates=public_repair,top_fields=sorted(top))
+     return list(unique.values()),scope
+ 
+ def effective_orders(view,inp):
+@@ -311,6 +354,9 @@
+     for no,new in corrected['views'].items():
+         if no not in kept or not new['row_valid']:continue
+         fields=list(RANK_FIELDS) if kept[no]['band'] in rank_bands else []
++        if no in scope.get('summary_horses',[]) and not r.review_issues(new.get('family_review'),kept[no]['evidence'],no,inp['source_registry']):
++            fields+=['family_review']
++        if no in scope.get('summary_horses',[]) and not kept[no]['evidence']:fields+=list(RANK_FIELDS)
+         if presentation_all or no in scope['presentation_horses']:fields+=list(PRESENTATION_FIELDS)
+         adopted=[]
+         for key in fields:
+@@ -319,6 +365,12 @@
+         if adopted:
+             kept[no].setdefault('field_sources',{}).update({key:corrected['hash'] for key in adopted})
+             events.append(dict(horse_no=no,action='METADATA_CORRECTION_ADOPTED',fields=adopted,source=corrected['hash']))
++        if not kept[no]['evidence'] and 'family_review' in adopted:
++            reviewed=kept[no]['family_review']
++            no_support=(not r.review_issues(reviewed,[],no,inp['source_registry'])
++                and all(x['status']=='NO_SUPPORT' for x in reviewed.values()))
++            kept[no]['tier']='C' if no_support else 'UNVERIFIED'
++            kept[no]['eligibility']='NO_EVIDENCE' if no_support else 'UNVERIFIED'
+     old_claims=initial.get('rank_claims') or {b:rank_claim(initial,b) for b in r.BANDS}
+     claims={}
+     for b in r.BANDS:
+@@ -346,11 +398,13 @@
+     for role in ('1st','2nd'):
+         x=copy.deepcopy(inp);x['ai_role']=role;x['role_cap'],x['role_quota']=r.role_quota(x['quota'],x['target_count'],role)
+         attempts=responses.get(role,[]);require(isinstance(attempts,list) and len(attempts)<=2,'at most one correction per role')
+-        current=None;repair={};log=[]
++        current=None;repair={};log=[];previous_receipt=None
+         for i,a in enumerate(attempts):
+             try:
+                 at=r.timestamp(a['received_at'])
+                 require(r.timestamp(inp['cutoff_at'])<=at<=r.timestamp(inp['time_contract']['reply_deadline']) and at<=r.timestamp(now),'late/invalid receipt')
++                require(previous_receipt is None or at>=previous_receipt,'correction received before initial response')
++                previous_receipt=at
+                 v=response_view(a['text'],x);received.append(a['received_at'])
+                 if i==0:
+                     current=v
+@@ -401,7 +455,7 @@
+         plan=correction_plan(response_view(text,inp),inp)
+     except (ValueError,KeyError,TypeError) as exc:
+         plan=dict(needs_correction=True,repair_scope=dict(horses=[h['horse_no'] for h in inp['runners']],
+-            rank_bands=list(r.BANDS),presentation_horses=[],public_candidates=True,top_fields=['$']),
++            rank_bands=list(r.BANDS),presentation_horses=[],summary_horses=[],public_candidates=True,top_fields=['$']),
+             errors=[dict(code='ENVELOPE_INVALID',reason=str(exc))])
+-    plan['request']='同一snapshotの訂正。horsesは評価修正、rank_bandsは順位関連項目、presentation_horsesは公開フラグと非選出理由。指定外の根拠・採点を変えず、完全なJSONを返す。\n'+r.json_dumps(dict(repair_scope=plan['repair_scope'],errors=plan['errors']))
++    plan['request']='同一snapshotの訂正。horsesは評価修正、rank_bandsは順位関連項目、presentation_horsesは公開フラグと非選出理由、summary_horsesはband/tier/eligibility/採点集計/family_reviewの整合修正。指定外の根拠・採点を変えず、完全なJSONを返す。\n'+r.json_dumps(dict(repair_scope=plan['repair_scope'],errors=plan['errors']))
+     return plan
+--- r7/common_prompt.txt
++++ r8/common_prompt.txt
+@@ -37,8 +37,8 @@
+ 同じデータから作った根拠を別名にして水増ししない。同じ系統または同じ元信号に依存する根拠は独立扱いしない。最終的な依存関係数はPHPが参照元までたどって検証する。
+ Tier Aは独立扱いできる2系統以上、Bは1系統、Cは全5系統を検討しても有効根拠なし、UNVERIFIEDは有効根拠がなく必要情報が不足する場合。1系統あれば、他の欠損だけでC/UNVERIFIEDへ落とさない。
+ family_reviewは5系統すべてを持ち、各値はstatus、source_refs、evidence_ids、reason。
+-SUPPORTEDは同馬・同系統の実在evidence_idを全件列挙する。NO_SUPPORTは支持を確認できなかった参照と理由を記す。DATA_MISSINGは不足内容を記す。SUPPORTED以外のevidence_idsは[]。旧資格falseだけでNO_SUPPORTにしない。
+-counterevidenceは{source_refs,reason}の配列。存在しない反証を数合わせで作らない。
++SUPPORTEDは同馬・同系統の実在evidence_idを全件列挙し、対応するsource_refsも含める。NO_SUPPORTは対象馬に適用できる非欠損の参照と具体的な理由を記す。DATA_MISSINGは不足内容を記す。SUPPORTED以外のevidence_idsは[]。旧資格falseだけでNO_SUPPORTにしない。
++counterevidenceは{source_refs,reason}の配列。参照は実在し、対象馬に適用でき、少なくとも1件は欠損でない値とし、理由を空欄にしない。存在しない反証・別馬の反証を数合わせで作らない。不正な反証で肯定根拠まで削除しない。
+ 
+ 【H/V採点】
+ H1能力適性18、H2時系列15、H3断層12、H4類似統計9、H5単複差6。H最大60。
+@@ -63,23 +63,23 @@
+ 【説明と訂正】
+ 各馬のexplanationは肯定材料と主要反証を短く記した監査用原文。PHPはこれを無検証で画面表示しない。採用理由の画面表示は検証済み事実の定型表示から作る。
+ 訂正要求は当該AIの初回応答、同一snapshot、repair_scope、具体的なエラー一覧とともに最大1回だけ届く。
+-repair_scope.horsesは評価行の修正対象、rank_bandsは順位とrank_basis/rank_reason/evidence_rank_evidence_ids/evidence_rank_reasonの修正対象、presentation_horsesはpublic_candidate/nonselect_reasonの修正対象。public_candidates=trueは公開リスト、top_fieldsは指定された最上位項目の修正を表す。
++repair_scope.horsesは評価行の修正対象、rank_bandsは順位とrank_basis/rank_reason/evidence_rank_evidence_ids/evidence_rank_reasonの修正対象、presentation_horsesはpublic_candidate/nonselect_reasonの修正対象。summary_horsesはband/tier/eligibility/score_status/total_score/observed_sum/observed_cap/family_reviewの整合修正。非適格馬の順位関連欄もsummary_horsesで訂正する。public_candidates=trueは公開リスト、top_fieldsは指定された最上位項目の修正を表す。集計やレビューの誤記だけで正常なevidence・scores・他馬の順位を変更しない。
+ 評価を訂正した帯は、その評価に関係する順位・公開表示を整合させる。順位を訂正した場合も関係する公開表示を整合させる。公開フラグやリストだけの誤記で、正常な馬の根拠・採点を変更しない。EVIDENCE帯の点数欄だけの訂正や、非適格馬の得点修正で、正常な適格馬の相対順位を変えない。
+ 指定外の評価や正常な別帯の相対順位を変えない。変更が必要な場合はvalidation_issuesへ理由を記すが、その記載だけで対象外変更が承認されるわけではない。
+ 常に全頭を含む完全なJSONを返し、他AIの出力を見ない。サーバーは馬の根拠と帯の順位を別々の出典で検証し、未変更の正常な順位を保持する。変更履歴なしの部分合成を指示しない。
+ 
+ 【断層学習】
+ 初期COLLECT_ONLYでは記録だけを行い、学習結果を採点や選出へ入れない。SHADOW_EVALは別経路の比較で、本番入力・mode・quota・採点・購入を変えない。
+-r7実装はCOLLECT_ONLY専用。SHADOW_EVAL/LIVE_VALIDATEDは別の検証済み実装が用意されるまで入力で拒否する。学習で推奨と説明しない。結果を見て事前理由を書き換えない。
++r8実装はCOLLECT_ONLY専用。SHADOW_EVAL/LIVE_VALIDATEDは別の検証済み実装が用意されるまで入力で拒否する。学習で推奨と説明しない。結果を見て事前理由を書き換えない。
+ 
+ 【出力形式】
+ 次のBEGIN1行、JSONオブジェクト1個、END1行だけを返す。
+-<<<BAGANRIKI_V041_R7_BEGIN>>>
++<<<BAGANRIKI_V041_R8_BEGIN>>>
+ {JSON}
+-<<<BAGANRIKI_V041_R7_END>>>
+-schema_version="baganriki-v041-r7-1"。
+-prompt_version="baganriki-v041-r7-local-recovery-20261017"。
+-追加キー、Markdown、旧候補行、旧11項目JSON、重複キー、NaN/Infinity、数値文字列、末尾カンマは禁止。
++<<<BAGANRIKI_V041_R8_END>>>
++schema_version="baganriki-v041-r8-1"。
++prompt_version="baganriki-v041-r8-local-recovery-20261017"。
++追加キー、Markdown、旧候補行、旧11項目JSON、重複キー、NaN/Infinity、数値文字列、末尾カンマ、単独のサロゲート文字は禁止。JSONの入れ子は最大64階層、整数・小数は最大128桁。
+ トップレベル必須キー：schema_version,prompt_version,ai_role,race_id,snapshot_hash,selection_enabled,mode,target_count,role_cap,quota,role_quota,learning_stage,horses,band_ranks,evidence_band_ranks,public_candidates,shortfalls,validation_issues。
+ horsesの必須キー：horse_no,band,tier,eligibility,family_review,evidence,counterevidence,scores,score_evidence,score_status,total_score,observed_sum,observed_cap,rank_basis,rank_reason,evidence_rank_evidence_ids,evidence_rank_reason,public_candidate,nonselect_reason,explanation。
+ eligibilityはELIGIBLE/NO_EVIDENCE/UNVERIFIED。tierはA/B/C/UNVERIFIED。rank_basisはSCORE/EVIDENCE/NOT_RANKED。
+--- r7/server_contract.txt
++++ r8/server_contract.txt
+@@ -1,17 +1,17 @@
+-第3部 r7 実装契約（r6の追加監査6件を修正）
++第3部 r8 実装契約（追加の異常応答・整合性検証を反映）
+ 
+ 1. 構成と責務
+ engine.pyが入力作成・検証、原応答の局所回復、訂正、順位、両AI統合、取消後の候補を処理する。
+ reference.pyはその共通演算。store.pyは単一ホストのSQLiteで凍結入力、ライブ取消、原応答、公開履歴、比較更新を保存する。
+-cli.pyは内部ワーカー用。php/BaganrikiR7Bridge.phpとRoleWorker.phpが既存PHPと接続する。
++cli.pyは内部ワーカー用。php/BaganrikiR8Bridge.phpとRoleWorker.phpが既存PHPと接続する。
+ 本番Laravel全体・DB・AIクライアントの置換版ではない。プロンプトだけを旧経路へ貼り付けない。
+ 元のAiController.phpは変更しない。新経路へ接続する具体的な場所と禁止する旧処理はINSTALL.txtに記載。
+ 
+ 2. 不変の入力と正確な数値
+-r7はJSON小数をDecimalで読む。JSON→PHP float→JSONの往復は禁止。
++r8はJSON小数をDecimalで読む。JSON→PHP float→JSONの往復は禁止。
+ PHP側はinput_json/seed_json/export_jsonを文字列のまま渡す。元のDB DECIMAL列は文字列としてadapter.pyへ渡す。
+ アダプタ境界だけで、明示したDB数値文字列をDecimalへ変換する。AIが出した数値文字列を自動変換しない。
+-数値は有限、最大128桁、調整後指数−308～308。受信JSON最大4MiB、registry最大20,000参照。超過は制御されたエラーにする。
++数値は有限、最大128桁、調整後指数−308～308。受信JSON最大4MiB、JSONコンテナ最大64階層、registry最大20,000参照。整数にも128桁上限を適用し、単独サロゲートを拒否する。超過は制御されたエラーにする。
+ 共通入力からsnapshot_hash自身とai_role/role_cap/role_quotaを除いたJSONを一度生成し、そのUTF-8本文SHA-256を両AIで使う。prepareのcommon_jsonがその本文。
+ request_atと取消ライブ状態は共通hashに混ぜない。AIへの役割別INPUT_JSONはprepare.input_jsonをそのまま使う。
+ 
+@@ -20,7 +20,7 @@
+ 実観測時刻observed_atと利用可能時刻available_atは、既存DB/取得ログの実値を呼出側で対応づける。スロット時刻を実観測時刻と偽って補わない。
+ 同一馬・スロット複数行は、承認したsampling_policyで呼出側が1観測へ確定する。重複は拒否。
+ 欠けたスロットは欠損として扱う。未発売等の特殊値は、現行データ定義を確認したアダプタでnullへ対応づける。
+-past_runs、OPI、estimated_odds、recovery_statistics、similar_statistics、legacy_qualifications、gap_historyはcoverageでINCLUDEDまたは理由付きUNAVAILABLEを必須記録。利用できるデータを黙って捨てない。coverage-v1-r7は入力Schemaで必須。adapterからprepare、snapshot_hash、SQLite凍結入力、read.input_auditまで同じ状態・参照・理由を保持する。参照は非空・重複なしの配列、UNAVAILABLEの理由は非空文字列。
++past_runs、OPI、estimated_odds、recovery_statistics、similar_statistics、legacy_qualifications、gap_historyはcoverageでINCLUDEDまたは理由付きUNAVAILABLEを必須記録。利用できるデータを黙って捨てない。coverage-v1-r8は入力Schemaで必須。adapterからprepare、snapshot_hash、SQLite凍結入力、read.input_auditまで同じ状態・参照・理由を保持する。参照は非空・重複なしの配列、UNAVAILABLEの理由は非空文字列。
+ 追加の数値・過去走・統計はextra_sources/extra_field_catalog/extra_indicesで渡す。元値を改変せず出典と時刻を付ける。
+ 
+ 4. 参照検証と派生値
+@@ -33,6 +33,7 @@
+ 上流で算出済みの正本OPI等はOBSERVEDとして受領し、その算出版・取得時刻を元システムで監査保存する。算出式の予測性能までこの検証が保証するわけではない。
+ 
+ 5. 波乱度と配分
++凍結win_rank順の既知6分前単勝オッズが非減少であることを確認し、矛盾は入力不正として拒否する。同値の正本順位は保持し、欠損を補完・順位再生成しない。
+ X1～X5/Zは凍結6分前の馬順を使い、元の単複オッズの分数から比較する。丸めた比率を判定に使わない。
+ 必要indexはhorse/{馬番}/win_odds/{21|18|15|12|9|6}、place_min、place_max。同じ項目・所有馬・slotの参照を1件、欠損なら[]またはキーなし。
+ X6は今回、定義どおりの過去レース集計を実DBで確認できていないためN>=7でUNKNOWN、N<7でFALSE。汎用統計や任意のdefinition_valid=trueで代用しない。
+@@ -55,14 +56,14 @@
+ 6. 原応答、局所回復、訂正
+ BEGIN/END間のJSON一つを厳密に読む。識別・版・role・hash・quota等の不一致は応答全体を不採用。
+ 馬番欠落、重複、未知馬、局所フィールド不正はその範囲だけ隔離し、正常な他馬を残す。
+-根拠はSchema形状、参照実在、値、所有馬、独立性を検査する。RACEだけの根拠は個別馬の適格票にしない。
++根拠はSchema形状、参照実在、値、所有馬、独立性を検査する。反証も参照の実在・適用馬・非欠損値・非空理由を確認し、不正な反証を実効根拠へ採用しない。不正反証や破棄した肯定根拠を含む順位の証明は無効とし、正しい旧証明または明示縮退を用いる。正常な肯定根拠は保持する。RACEだけの根拠は個別馬の適格票にしない。
+ HORSE/PAIR/適用COHORTの確認済み1系統があれば残す。複数系統を必須資格に戻さない。
+ 根拠の事実確認と、好走・収益につながるという予測的妥当性は別。後者は実レースで評価する。
+-得点は不正項目だけnull、合計等を再計算。表示は検証済み参照事実のみ。原explanationは監査用。
+-訂正最大1回。inspectとresolveは同じ診断関数を使い、repair_scopeを返す。horsesは評価行、rank_bandsは順位関連項目、presentation_horsesは公開フラグ/非選出理由、public_candidatesは公開リスト、top_fieldsは最上位項目。
++得点は不正項目だけnull、合計等を再計算。宣言された帯・Tier・資格・採点状態・合計と再計算値の不一致を診断する。family_reviewの全系統、参照と対象馬、根拠ID集合、理由を検査する。全5系統のNO_SUPPORTが検証できた根拠なし馬はC/NO_EVIDENCE、情報不足はUNVERIFIEDと区別する。shortfallsの帯・要求数・適格数・不足数も実効順位から照合する。表示は検証済み参照事実のみ。原explanationは監査用。
++訂正最大1回。inspectとresolveは同じ診断関数を使い、repair_scopeを返す。horsesは評価行、rank_bandsは順位関連項目、presentation_horsesは公開フラグ/非選出理由、summary_horsesは帯/資格/Tier/採点集計/5系統レビューと非適格馬の順位欄の整合、public_candidatesは公開リスト、top_fieldsは最上位項目。
+ 公開リストやフラグの不一致だけでは、無関係な評価行を訂正対象へ広げない。欠落馬は凍結runner集合に存在しhorses対象内なら新規救済する。
+ row_valid is Trueのみ訂正承認。初回正常根拠を全部失う、正常completeをpartialへ悪化させる等は初回を保持。未知馬・対象外変更は採用しない。
+-訂正失敗・遅着でも初回の正常部分と他AIを保持。新たな3回目の呼出しはしない。
++訂正受領は初回受領以上の時刻を必須とし、逆順は拒否する。同一記録時刻は許容。訂正失敗・遅着・深いJSON・不正Unicodeでも初回の正常部分と他AIを保持。新たな3回目の呼出しはしない。
+ 馬の事実出典response_hashと、帯順位のsource_hashを分けて保存する。対象外の正常な帯は初回順位と出典を保持。順位に使う根拠・反証・適格集合が変わった帯、SCORE帯の得点や方式が変わった帯、指定された順位だけを再検証する。予備順位は実効根拠との一致を確認して採用する。EVIDENCE帯の点数欄だけの修正や非適格馬の得点修正では、正常な適格馬の相対順位を変えない。互換性を証明できない新順位では、利用できる旧順位を保持し、それも不適合なら明示的に縮退する。
+ 順位関連項目・公開表示だけの採用はfield_sourcesと変更ログに記録する。正常行の事実出典hashを新応答へ偽装しない。
+ 
+--- r7/verify.py
++++ r8/verify.py
+@@ -2,7 +2,7 @@
+ import subprocess,sys,json
+ from pathlib import Path
+ root=Path(__file__).resolve().parent;results=[]
+-for script in ('test_reference.py','test_contract.py','test_engine.py','test_audit_regressions.py','test_r7_integration.py','schema_standard_check.py'):
++for script in ('test_reference.py','test_contract.py','test_engine.py','test_audit_regressions.py','test_r7_integration.py','test_r8_regressions.py','test_malformed_responses.py','schema_standard_check.py'):
+  p=subprocess.run([sys.executable,str(root/script)],cwd=root,capture_output=True,text=True)
+  (root/(script+'.log')).write_text(p.stdout+p.stderr,encoding='utf-8')
+  results.append(dict(script=script,exit_code=p.returncode))

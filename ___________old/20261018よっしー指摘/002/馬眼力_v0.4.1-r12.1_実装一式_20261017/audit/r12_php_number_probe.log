@@ -1,0 +1,4 @@
+float:INF
+float:1.2345678901234568E+38
+float:1.0
+JsonException:Inf and NaN cannot be JSON encoded

@@ -1,0 +1,105 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>r12.2 確認結果への回答</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:0 16px 56px;font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+ line-height:1.8;color:#1b1b1b;font-size:16px;max-width:560px;margin:0 auto;background:#fff;
+ -webkit-text-size-adjust:100%}
+h1{font-size:21px;line-height:1.5;margin:22px 0 4px;padding-bottom:10px;border-bottom:3px solid #1b1b1b}
+h2{font-size:17px;margin:34px -16px 12px;padding:9px 16px;background:#1b1b1b;color:#fff}
+h3{font-size:15.5px;margin:22px 0 8px;padding-left:9px;border-left:5px solid #888}
+p{margin:10px 0}
+.meta{font-size:12.5px;color:#555;margin:6px 0 18px}
+.box{border:2px solid #1b1b1b;border-radius:8px;padding:13px;margin:16px 0}
+.ok{border-color:#1a6b1a;background:#f3fbf3}
+.warn{border-color:#8a5a00;background:#fffdf3}
+.stop{border-color:#b00;background:#fff5f5}
+.big{font-size:18px;font-weight:bold;line-height:1.6}
+.k{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #e3e3e3;align-items:baseline}
+.k:last-child{border-bottom:none}
+.k b{flex:0 0 42%;font-weight:600;font-size:14px;color:#333}
+.k span{flex:1;font-size:14.5px}
+.card{border:1px solid #ccc;border-radius:8px;padding:11px 13px;margin:11px 0;background:#fafafa}
+.card h4{margin:0 0 6px;font-size:15px}
+.card p{margin:5px 0;font-size:14.5px}
+.pass{color:#1a6b1a;font-weight:bold}
+.miss{color:#b00;font-weight:bold}
+code{background:#eee;padding:1px 5px;border-radius:4px;font-size:13px;
+ word-break:break-all;font-family:ui-monospace,Menlo,monospace}
+pre{background:#f4f4f4;border-radius:6px;padding:10px;overflow-x:auto;font-size:12.5px;line-height:1.6}
+ul,ol{padding-left:1.25em;margin:9px 0}
+li{margin:7px 0;font-size:15px}
+.small{font-size:13px;color:#555}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0}
+th,td{border:1px solid #ccc;padding:5px 7px;text-align:left}
+th{background:#efefef;font-weight:600}
+hr{border:none;border-top:1px solid #ddd;margin:26px 0}
+</style>
+</head><body>
+<h1>確認結果への回答<br>馬眼力 r12.2</h1>
+<div class="meta">2026年10月20日（JST）／ 実装担当より<br>対象：「馬眼力 r12.2 実装報告の確認結果」（確認者：なる様）<br>版 <code>baganriki-v041-r12-2-20261020</code></div>
+<div class="box ok"><div class="big">ご指摘2件、どちらも対応しました。</div><p><b>R122-01</b> は、こちらの<b>報告書の書き落とし</b>でした。コードは正しく動いています。ご指名のM002・M369を含む該当48件の実行結果を第1章に載せます。</p><p><b>R122-02</b> は、<b>本物の不具合</b>でした。ご指摘のとおり、固定の小数4桁では契約を満たしていませんでした。桁数の上限を決めない方式へ直し、本番側と検証側が<b>72レース全部で一致</b>することを確かめました。第2章です。</p></div>
+<h2>1. R122-01 ─ 停止条件</h2>
+<div class="box warn"><p><b>ご指摘のとおりです。報告書の文に条件が抜けていました。</b></p><p class="small">「X6以外の不明が混ざったときはUNRESOLVED」と書きましたが、正しくは「<b>複数modeにまたがる場合で</b>、X6以外の不明が混ざったとき」です。申し訳ありません。</p></div>
+<p>実装は、いただいた順序のとおりに書いてあります。</p>
+<pre>可能なmodeが1つ          → CONFIRMED（他に不明があっても選出可）
+複数mode・不明がX6だけ    → PROVISIONAL（S0=1→MIXED／S0=3→VOLATILE）
+それ以外の複数mode       → UNRESOLVED（選出しない）</pre>
+<h3>ご指名のケース（本体のコードで実行）</h3>
+<div class="card"><h4>M369</h4><p class="small">X1=true、X2=true、X3=true、X4=null、X5=false、X6=null、Z=false</p><div class="k"><b>期待</b><span>mode=VOLATILE／CONFIRMED／alloc=VOLATILE／selection_enabled=true／S=4〜6</span></div><div class="k"><b>実際</b><span class="pass">同じ（不明=X4・X6）</span></div></div>
+<div class="card"><h4>M002</h4><p class="small">X1〜X5=false、X6=null、Z=null</p><div class="k"><b>期待</b><span>mode=FIRM／CONFIRMED／alloc=FIRM／selection_enabled=true／S=−2〜1</span></div><div class="k"><b>実際</b><span class="pass">同じ（不明=X6・Z）</span></div></div>
+<h3>該当48件</h3>
+<p>「X6以外にも不明があるのにCONFIRMED」になるケースを本体のコードで数えました。</p>
+<table><tr><th>mode</th><th>件数</th><th>結果</th></tr><tr><td>FIRM</td><td>24件</td><td class="pass">全件一致</td></tr><tr><td>VOLATILE</td><td>24件</td><td class="pass">全件一致</td></tr><tr><td><b>合計</b></td><td><b>48件</b></td><td class="pass"><b>不一致 0</b></td></tr></table>
+<p class="small">いただいた件数・内訳と同じです。一律停止にはなっていません。報告の省略表現だけの問題でした。</p>
+<h2>2. R122-02 ─ 正確な数値の範囲</h2>
+<div class="box stop"><p><b>これは本物の不具合でした。見つけていただいて助かりました。</b></p><p class="small">報告書に「1万倍の整数で保持」と書きましたが、それは<b>検証コマンド側だけ</b>の話でした。<b>本番側（AiControllerのv0.4判定）は、float で割り算して小数4桁に丸めた比を2.00 や 1.50 と比べていました。</b>全体の話のように書いたのは誤りです。</p></div>
+<h3>直した内容</h3>
+<p><b>桁数の上限を決めるのをやめました。</b>割り算も float も使いません。十進数の文字列のまま、たすき掛け（分子×相手の分母）を多倍長整数で比べます。</p>
+<pre>W>=2.00      ⇔ 下側 >= 2×上側
+W<1.50       ⇔ 2×下側 &lt; 3×上側
+P>=1.50      ⇔ 2×下側 >= 3×上側
+縮小率>=0.20 ⇔ 4×下21×上6 >= 5×下6×上21
+複勝短縮>=0.05 ⇔ 19×前 >= 20×後
+複勝短縮>=0.03 ⇔ 97×前 >= 100×後</pre>
+<h3>いただいた確認項目へ</h3>
+<div class="card"><h4>どの入力項目・桁範囲に限定されているか</h4><p><b>限定をやめました。</b>単勝・複勝最小の元値、そこから作るW・P・短縮率のすべてを、同じ方式で扱います。受け付ける形は「整数部1〜128桁」と「小数部1〜128桁」、有効桁の合計128桁までです。</p></div>
+<div class="card"><h4>小数第5位を切り捨て・丸め・拒否していないか</h4><p><b>していません。</b><code>1.00001</code> と <code>1.00000</code> の大小がつくことを試験にしました。読めない形（「取消」など）は数値へ変換せず、欠損として扱います。128桁を超えたら制御されたエラーにします（黙って丸めません）。</p></div>
+<div class="card"><h4>大きな積・比でも整数上限やfloatへ落ちないか</h4><p><b>落ちません。</b>掛け算は数字の文字列どうしで筆算と同じやり方をします。30桁×30桁が60桁になること、30桁どうしの大小が正しくつくことを試験にしました。PHPの整数上限にも float にも触れません。</p></div>
+<div class="card"><h4>信号・順位点・派生値・原文保存まで正確か</h4><p>信号（X1〜X5・Z）は上のとおりです。W・Pの<b>数値</b>は画面と監査のために残していますが、<b>判定には一切使っていません</b>。順位点は <code>100×(K−r+1)÷K</code> で、K・r は整数です。原JSONは <code>LONGTEXT</code> で原文のまま保存します。</p></div>
+<h3>いちばん大事な確認</h3>
+<div class="box ok"><p><b>本番側と検証側に同じ入力を通し、X1〜X5・Zが一致するか全レースで突き合わせました。</b></p><div class="k"><b>突き合わせたレース</b><span>72</span></div><div class="k"><b>食い違ったレース</b><span class="pass">0</span></div><p class="small">食い違えば、どちらかに丸めが残っている証拠になります。0件なので、本番側・検証側とも元値のたすき掛けで比べています。<code>--mode-check --r122-exact-check</code> でいつでも再現できます。</p></div>
+<h3>受入試験</h3>
+<table><tr><th>試験</th><th>件数</th><th>結果</th></tr><tr><td>本体の受入試験（厳密比較の検算17件を追加）</td><td>443件</td><td class="pass">不合格 0</td></tr><tr><td><code>mode_cases.json</code></td><td>729件</td><td class="pass">不一致 0</td></tr><tr><td><code>acquisition_boundary_cases.json</code></td><td>4件</td><td class="pass">不一致 0</td></tr><tr><td>付録A の33レース配分</td><td>33件</td><td class="pass">不一致 0</td></tr></table>
+<p class="small">72レースの集計（確定39／暫定33／UNRESOLVED 0／計算不能0）とCSVの内容は、直す前後で1行も変わりませんでした。今回の実データでは、丸めの有無で結果が変わる境界には当たっていません。<b>当たっていないことと、丸めてよいことは別です。</b>直して正解でした。</p>
+<h2>3. 途中で2つ壊しました</h2>
+<p>経過を隠さず書きます。上の修正を入れた最初の版で、2つ壊していました。</p>
+<div class="card"><h4>① 受入試験4件が不合格になった</h4><p>厳密判定の結果を内部の項目に持たせたところ、<b>試験が手で組み立てて渡す入力にはその項目が無く</b>、TRUEのはずが「不明」になっていました。手組みのときは渡された比の値をそのまま十進数として扱うようにして直しました。ここでも float では比べていません。</p></div>
+<div class="card"><h4>② コマンドからクラスが見つからなかった</h4><p>切り出したクラスを同じファイルの中に置いているため、クラス名からファイルを探す仕組みでは見つかりませんでした。画面の経路では先に読まれるので起きませんが、コマンドから直接呼ぶと落ちます。先に読ませる一手間を入れて直しました。</p><p class="small">ファイル数を増やさない形の副作用です。外から名前で呼ぶ箇所が増えるなら、別ファイルへ分ける方が素直だと考えています。切り出し方の是非は、接続が終わったあとに改めてご相談させてください。</p></div>
+<p class="small">どちらも直したうえで、443件・729件・4件・72レース突き合わせを通し直しています。上の数字は修正後のものです。</p>
+<h2>4. 第2項の継続条件</h2>
+<div class="card"><h4>X6停止を「類似情報の全廃」と取り違えていないか</h4><p><b>取り違えていません。</b>止めたのは<b>X6という信号の判定だけ</b>です。過去走・能力・利用可能な類似統計を個別馬の評価から外してはいません。7区分のcoverageも <code>INCLUDED</code> か理由つき <code>UNAVAILABLE</code> を必須のまま持ちます。</p></div>
+<div class="card"><h4>有効な馬が足りるときに枠を満たすか</h4><p><b>満たします。</b>構造上その帯に馬がいない場合だけ枠を移し（<code>reason=BAND_CAPACITY</code> を省略しません）、評価後の不足はDはBのみ・BはDのみで、B・DをAで埋めません。根拠の無い馬で数合わせはしません。</p></div>
+<h2>5. お願い2件への対応</h2>
+<div class="card"><h4>お願い② 取得時刻の記録 ─ A で進めます</h4><p>ご推奨のAで着手します。既存の列・元値は変更せず、専用テーブルへ記録を足します。</p><p>ご指摘の「<b>保存先テーブルの作成だけでは適合にならない</b>」はそのとおりです。要求開始・受信完了・commit後の利用可能時刻・<code>batch_id</code>・原ペイロードを実測し、<b>記録に失敗した場合や未確定の監査行は採用しない</b>ことまでを実装して、証跡を出します。</p></div>
+<div class="card"><h4>お願い① 投票締切 ─ 理解が広すぎました</h4><p>「一定秒数を引くことは全面禁止」と書きましたが、仕様は「<b>根拠なく</b>引かない」でした。訂正します。この確認で特定の秒数や取得元が承認されたとも受け取っていません。</p><p>ご推奨のとおり、<b>こちらから具体案を出します。</b>現行の取得元と対象の投票経路を調べ、締切の取得候補、更新・前倒しの反映方法、必要工数を揃えてお出しします。既存の取得で確保できなければ新規経路を検討します。<b>正本を確認するまで公開は開始しません。</b></p><p class="small">Cの非公開検証についても、凍結保存・Queue・実AIが未接続なのでそれだけで全経路が動かないことは承知しました。試験用の時刻は別IDでREPLAYへ隔離し、本番の正本へ混ぜません。実取得の監査記録はAI試験と分けて先行します。</p></div>
+<h2>6. 既存の元値が変わっていないこと</h2>
+<p>「行数が同じ」では証明にならない、というご指摘はそのとおりです。<b>中身の指紋</b>を取りました。元値の列を連結してSHA/MD5を取ったものです。</p>
+<table><tr><th>テーブル</th><th>行数</th><th>中身の指紋(md5)</th></tr><tr><td>odds</td><td>8,283</td><td><code>bcba698ed03855c2853df74839b542f8</code></td></tr><tr><td>horses</td><td>922</td><td><code>16f97810a2bdb18838166a005b50add5</code></td></tr><tr><td>races</td><td>72</td><td><code>8e8e8ee3b9ff9df5e9b3740a9e68d028</code></td></tr><tr><td>race_results</td><td>916</td><td><code>8bb127a8b6bb6d46e48d08f5a56c1be6</code></td></tr></table>
+<p class="small">今後の作業の前後でこれを取り直せば、元値が動いていないことを1行単位で言えます。あわせて、r12.2の新しいコードから既存テーブルへの<b>書き込み（INSERT／UPDATE／DELETE）が1か所も無い</b>ことも確認しました。書くのは <code>baganriki_*</code> の新規9本だけです。</p>
+<p class="small">もうひとつの傍証として、各馬CSV（922行・元値そのまま）のmd5 <code>909c416342f4a91489d326d647103799</code> は、10月19日のv6から今日の版まで<b>1バイトも変わっていません</b>。</p>
+<h2>7. 次回提出物（第7項）の状況</h2>
+<table><tr><th>ご依頼</th><th>状況</th></tr><tr><td>① 変更コード／差分と版・hash</td><td>出せます（第9章）</td></tr><tr><td>② 729件・4件・33件・426件（現443件）の入力／期待値／実測／実行方法／対象コードhash</td><td>出せます</td></tr><tr><td>③ 更新した基本設計書／詳細設計書のMarkdown（対応表つき）</td><td><b>未着手</b></td></tr><tr><td>④ 33レースの同じ全頭評価による候補比較（配分一致6件も含む）</td><td><b>未着手</b>（保存済み全頭評価の有無から確認します）</td></tr><tr><td>⑤ 接続後の実DB・Queue・実AI18頭・Flutter・取消・競合・再起動の証跡と切戻し手順</td><td><b>接続がこれから</b></td></tr></table>
+<p class="small">③は、実クラス・テーブル・呼出経路・正本・未完了項目・担当と必要時間を対応表へ記入する形で作ります。「責務の対応と、新経路が旧フィルターへ戻らない呼出関係を示す」というご指摘もそこで示します。</p>
+<h2>8. 日程（第8項）</h2>
+<p>木曜・金曜に時間が取れないのは変わりません。完了済み・残作業・工数を出し直します。</p>
+<table><tr><th>区分</th><th>状況</th></tr><tr><td>判定・配分・暫定規則</td><td class="pass">完了・検証済み</td></tr><tr><td>時刻契約・取得判定の規則</td><td class="pass">完了・検証済み</td></tr><tr><td>正確な数値（R122-02）</td><td class="pass">完了・検証済み</td></tr><tr><td>新規テーブル9本</td><td class="pass">作成済み（中身はこれから）</td></tr><tr><td>読取API</td><td>ルートのみ。中身は保存が入ってから</td></tr><tr><td>取得時刻の記録</td><td class="miss">これから（お願い②）</td></tr><tr><td>凍結保存・Queue・実AI・Flutter</td><td class="miss">これから</td></tr><tr><td>投票締切の正本</td><td class="miss">調査してご提案（お願い①）</td></tr></table>
+<div class="box warn"><p><b>こちらから「間に合う」とは申しません。</b></p><p class="small">公開開始の条件を緩める提案もしません。日程のために穴枠・1系統根拠の保持・正確な元値・取消と期限の検査を緩めることはしません。範囲を削るか、日程をずらすか、非公開の検証に絞るかは、この状況を見てご判断ください。</p></div>
+<h2>9. 版とハッシュ</h2>
+<table><tr><th>ファイル</th><th>行数</th><th>md5</th></tr><tr><td><code>AiController.php</code></td><td>19,814</td><td><code>6f6c7ad4fb029f79acea312262747d31</code></td></tr><tr><td><code>SummaryAiAnalysisCompensate.php</code></td><td>12,171</td><td><code>14d8a802714f50f6465e58065489c737</code></td></tr><tr><td><code>routes/api.php</code></td><td>193</td><td><code>d6d7437ba60063fd256b64bc8b35aa09</code></td></tr></table>
+<p class="small">本番サーバへ反映済み・構文検査OK。受入試験443件すべて合格。<code>BAGANRIKI_V04_ENABLED</code> は既定の無効のままで、現行の本番選出・表示・DBは変わっていません。</p>
+<hr>
+<div class="box"><p><b>今回こちらで確かめられたこと／確かめられないこと。</b></p><p class="small"><b>確かめられたこと：</b>停止条件の解釈が一致していること（48件）。丸めが判定から消えたこと（本番側と検証側が72レース一致）。既存の元値が変わっていないこと（中身の指紋）。</p><p class="small"><b>確かめられないこと：</b>実DB・Queue・実AI・Flutterの受入、新しい開催で取得時刻が間に合うこと、本番稼働、予測精度の向上。これは契約14章のとおりです。</p></div>
+<p class="small">ほかに取り違えがありましたら、該当箇所をお知らせください。直します。</p>
+</body></html>

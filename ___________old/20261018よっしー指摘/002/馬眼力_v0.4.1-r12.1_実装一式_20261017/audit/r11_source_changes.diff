@@ -1,0 +1,248 @@
+--- r10/reference.py
++++ r11/reference.py
+@@ -5,6 +5,7 @@
+ import itertools
+ import json
+ import math
++import re
+ from decimal import Decimal
+ from collections import deque
+ from datetime import datetime, timedelta
+@@ -57,7 +58,7 @@
+     if not isinstance(text,str) or len(text.encode('utf-8'))>max_bytes: raise ValueError('JSON size/type')
+     def decimal(token):
+         value=Decimal(token)
+-        if len(value.as_tuple().digits)>128 or (value and not -308<=value.adjusted()<=308):
++        if len(value.as_tuple().digits)>128 or not -308<=value.adjusted()<=308:
+             raise ValueError('decimal precision/range')
+         return value
+     def integer(token):
+@@ -257,10 +258,23 @@
+     return [x1,x2,x3,x4,x5,x6,z]
+ 
+ def timestamp(text):
+-    if not isinstance(text,str): raise ValueError('timestamp not string')
+-    t=datetime.fromisoformat(text.replace('Z','+00:00'))
+-    if t.tzinfo is None: raise ValueError('timezone missing')
+-    return t
++    # datetime.fromisoformat silently truncates fractions beyond microseconds
++    # and accepts forms that our RFC3339 input schema does not accept.
++    if not isinstance(text,str) or re.fullmatch(
++            r'[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}'
++            r'(?:\.[0-9]{1,6})?(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])',text) is None:
++        raise ValueError('timestamp: RFC3339 with timezone and at most 6 fractional digits required')
++    return datetime.fromisoformat(text.upper().replace('Z','+00:00'))
++
++def checked_json(value,max_bytes=4*1024*1024):
++    """Validate native DTOs against the same bounds as persisted/transport JSON.
++
++    Check a serialization, but keep the original object and exact numeric values.
++    """
++    try:encoded=json_dumps(value)
++    except RecursionError as exc:raise ValueError('JSON nesting') from exc
++    strict_loads(encoded,max_bytes=max_bytes)
++    return encoded
+ 
+ def same_scalar(a,b):
+     # Boolean is never a number. JSON numeric 2 and 2.0 compare as numbers.
+@@ -352,6 +366,9 @@
+ 
+ def source_roots(ref,registry):
+     if ref not in registry: raise ValueError('unknown source')
++    # A derived CONTEXT reference does not become a SIGNAL merely because
++    # its ancestors include signals. SIGNAL derivations retain their lineage.
++    if registry[ref]['dependency_role']!='SIGNAL': return set()
+     roots=set();seen=set();stack=[ref]
+     # registry graph is validated once before evidence processing.
+     while stack:
+--- r10/engine.py
++++ r11/engine.py
+@@ -97,7 +97,8 @@
+ def common_payload(inp):return {k:v for k,v in inp.items() if k not in (*ROLE_KEYS,'snapshot_hash')}
+ 
+ def validate_input(inp,request_at):
+-    require(len(r.json_dumps(inp).encode('utf-8'))<=4*1024*1024,'input size limit: 4 MiB')
++    try:r.checked_json(inp)
++    except ValueError as exc:raise ContractError('input validation: '+str(exc)) from exc
+     VALIDATORS['input'].validate(inp)
+     require(inp['learning_stage']=='COLLECT_ONLY' and inp['model_version'] is None,'r8 supports COLLECT_ONLY only')
+     r.validate_runners(inp['runners']);require(r.exact_int(inp['N']) and inp['N']==len(inp['runners']),'N mismatch')
+@@ -128,6 +129,7 @@
+     """Seed is a server-authored DTO; computed fields in it are ignored and regenerated."""
+     required=('race_id','cutoff_at','time_contract','runners','source_registry','field_catalog','input_indices','coverage')
+     require(isinstance(seed,dict) and all(k in seed for k in required),'snapshot seed fields')
++    r.checked_json(seed)  # native callers must obey the transport contract too
+     require(seed.get('learning_stage','COLLECT_ONLY')=='COLLECT_ONLY','unsupported learning stage')
+     inp={k:copy.deepcopy(seed[k]) for k in required}
+     inp.update(schema_version=CONFIG['schema_version'],prompt_version=CONFIG['prompt_version'],
+@@ -173,7 +175,7 @@
+         no_support=(not ev and not review_errors and all(x['status']=='NO_SUPPORT' for x in raw['family_review'].values()))
+         score,score_issues=r.recover_scores(raw.get('scores'),raw.get('score_evidence'),inp['source_registry'],no)
+         errors=list(HORSE.iter_errors(raw))
+-        evaluation_errors=[x for x in errors if not x.absolute_path or x.absolute_path[0] not in SUMMARY_FIELDS]
++        evaluation_errors=[x for x in errors if not x.absolute_path or x.absolute_path[0] not in (*SUMMARY_FIELDS,*PRESENTATION_FIELDS)]
+         views[no]=dict(raw,**score)
+         views[no].update(horse_no=no,band=horse_map[no]['band'],evidence=ev,counterevidence=counter,response_hash=digest,
+             rank_inputs_valid=not counter_issues and len(ev)==len(raw_ev),
+@@ -256,8 +258,11 @@
+         row_errors=list(HORSE.iter_errors(original))
+         if row_errors:
+             issue('ROW_SCHEMA_INVALID',horse_no=no)
+-            if any(not x.absolute_path or x.absolute_path[0] not in SUMMARY_FIELDS for x in row_errors):horses.add(no)
+-            else:summary.add(no)
++            for error in row_errors:
++                field=error.absolute_path[0] if error.absolute_path else None
++                if field in PRESENTATION_FIELDS:presentation.add(no)
++                elif field in SUMMARY_FIELDS:summary.add(no)
++                else:horses.add(no)
+         for key in ('band','tier','eligibility','score_status','total_score','observed_sum','observed_cap'):
+             if key not in original or r.json_dumps(original[key])!=r.json_dumps(h[key]):
+                 summary.add(no);issue('DERIVED_FIELD_MISMATCH',horse_no=no,field=key,expected=h[key])
+@@ -289,7 +294,7 @@
+         if chosen:reason_ok=reason is None
+         else:
+             allowed={'SELECTION_DISABLED'} if not inp['selection_enabled'] else {'BAND_QUOTA'} if h['evidence'] else {h['eligibility']}
+-            reason_ok=(isinstance(reason,dict) and reason.get('code') in allowed
++            reason_ok=(isinstance(reason,dict) and isinstance(reason.get('code'),str) and reason['code'] in allowed
+                 and isinstance(reason.get('reason'),str) and bool(reason['reason'].strip()))
+         if not reason_ok:presentation.add(no);issue('NONSELECT_REASON_MISMATCH',horse_no=no)
+     for err in VALIDATORS['output'].iter_errors(raw):
+--- r10/store.py
++++ r11/store.py
+@@ -115,7 +115,7 @@
+             result['effective_publish_deadline']=r.publication_deadline(inp['time_contract']['publish_deadline'],st['live_close'],margin).isoformat()
+             rev=publication_revision+1
+             result.update(generation=generation,state_revision=state_revision,publication_revision=rev,
+-                implementation_version='baganriki-v041-r10-concurrent-publication-20261017')
++                implementation_version='baganriki-v041-r11-strict-boundaries-20261017')
+             if response_revision is not None:result['response_revision']=response_revision
+             cur=self.db.execute('INSERT INTO publications(race_id,snapshot_hash,generation,state_revision,publication_revision,job_id,request_hash,result_json,responses_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                 (race_id,st['snapshot_hash'],generation,state_revision,rev,job_id,request_hash,'{}',r.json_dumps(responses),now))
+--- r10/verify.py
++++ r11/verify.py
+@@ -2,7 +2,7 @@
+ import subprocess,sys,json
+ from pathlib import Path
+ root=Path(__file__).resolve().parent;results=[]
+-for script in ('test_reference.py','test_contract.py','test_engine.py','test_audit_regressions.py','test_r7_integration.py','test_r8_regressions.py','test_journal.py','test_r10_regressions.py','test_malformed_responses.py','schema_standard_check.py'):
++for script in ('test_reference.py','test_contract.py','test_engine.py','test_audit_regressions.py','test_r7_integration.py','test_r8_regressions.py','test_journal.py','test_r10_regressions.py','test_r11_regressions.py','test_malformed_responses.py','schema_standard_check.py'):
+  p=subprocess.run([sys.executable,str(root/script)],cwd=root,capture_output=True,text=True)
+  (root/(script+'.log')).write_text(p.stdout+p.stderr,encoding='utf-8')
+  results.append(dict(script=script,exit_code=p.returncode))
+--- r10/test_malformed_responses.py
++++ r11/test_malformed_responses.py
+@@ -11,6 +11,9 @@
+         paths += [('horses',6,'family_review','ability'),('horses',6,'family_review','ability','source_refs'),
+             ('horses',6,'evidence',0,'facts'),('horses',6,'evidence',0,'source_refs'),
+             ('horses',6,'score_evidence','V4'),('horses',6,'scores','V4')]
++        paths += [('horses',2,'nonselect_reason','code'),('horses',2,'nonselect_reason','reason'),
++            ('horses',6,'evidence',0,'facts',0,'source_ref'),('horses',6,'evidence',0,'facts',0,'value'),
++            ('horses',6,'family_review','ability','status'),('horses',6,'family_review','ability','evidence_ids')]
+         values=(None,True,0,'',[],{},[{}],{'unknown':None})
+         count=0
+         for path in paths:
+--- r10/php/RoleWorker.php
++++ r11/php/RoleWorker.php
+@@ -1,22 +1,24 @@
+ <?php
+ declare(strict_types=1);
+ namespace Baganriki;
++require_once __DIR__.'/Timestamp.php';
+ /** One durable journal per race/generation/role; all workers share the same DB. */
+ final class RoleWorker
+ {
+-    public function __construct(private BaganrikiR10Bridge $bridge) {}
++    public function __construct(private BaganrikiR11Bridge $bridge) {}
+     /** Provider must disable its own retries. Each granted slot invokes it at most once. */
+     public function run(string $system, string $inputJson, string $replyDeadline, callable $callAI, int $generation = 1): array
+     {
+         // Decode only for comparison; never send re-encoded numeric input to the AI.
+         $meta = json_decode($inputJson, true, 512, JSON_THROW_ON_ERROR);
+-        $deadline = (float)(new \DateTimeImmutable($replyDeadline))->format('U.u');
+-        $frozenDeadline = (float)(new \DateTimeImmutable($meta['time_contract']['reply_deadline']))->format('U.u');
+-        if ($deadline !== $frozenDeadline) throw new \InvalidArgumentException('Reply deadline differs from frozen input');
++        $deadlineTime = Timestamp::parse($replyDeadline);
++        $frozenDeadline = Timestamp::parse($meta['time_contract']['reply_deadline']);
++        if ($deadlineTime != $frozenDeadline) throw new \InvalidArgumentException('Reply deadline differs from frozen input');
++        $deadline = (float)$deadlineTime->format('U.u');
+         for ($i = 0; $i < 2; ++$i) {
+             $grant = $this->bridge->claim($inputJson, $generation, $system);
+             if (!$grant['granted']) return $grant['attempts'];
+-            $callDeadline = (float)(new \DateTimeImmutable($grant['call_deadline']))->format('U.u');
++            $callDeadline = (float)Timestamp::parse($grant['call_deadline'])->format('U.u');
+             $remaining = min($deadline, $callDeadline) - microtime(true) - 1.0;
+             if ($remaining <= 0) {
+                 $this->bridge->fail($grant['token'], 'DEADLINE_BEFORE_CALL');
+--- r10/php/PublicView.php
++++ r11/php/PublicView.php
+@@ -1,6 +1,7 @@
+ <?php
+ declare(strict_types=1);
+ namespace Baganriki;
++require_once __DIR__.'/Timestamp.php';
+ /** Explicit new API DTO. No conversion to legacy "おすすめ度" candidate rows. */
+ final class PublicView
+ {
+@@ -9,7 +10,8 @@
+         $pub=$stored['publication'];$live=$stored['live_state'];
+         if ($pub===null) {
+             $allCancelled=($live['active_count'] ?? null)===0;
+-            $expired=(new \DateTimeImmutable($now ?? 'now',new \DateTimeZone('UTC'))) > new \DateTimeImmutable($live['effective_publish_deadline']);
++            $current=$now===null ? new \DateTimeImmutable('now',new \DateTimeZone('UTC')) : Timestamp::parse($now);
++            $expired=$current > Timestamp::parse($live['effective_publish_deadline']);
+             return ['status'=>$allCancelled ? 'CANCELLED' : ($expired ? 'UNAVAILABLE' : 'PENDING'),
+                 'status_flags'=>$allCancelled ? ['ALL_CANCELLED'] : ($expired ? ['PUBLICATION_DEADLINE_PASSED'] : []),
+                 'candidates'=>[],'live_state'=>$live];
+--- r10/php/BaganrikiR10Bridge.php
++++ r11/php/BaganrikiR11Bridge.php
+@@ -3,7 +3,7 @@
+ namespace Baganriki;
+ 
+ /** PHP 8.0+. Preserve nested decimal JSON as strings; do not decode/re-encode it in PHP. */
+-final class BaganrikiR10Bridge
++final class BaganrikiR11Bridge
+ {
+     public function __construct(private string $python, private string $engineDir, private string $database, private float $timeoutSeconds = 30.0)
+     {
+@@ -69,7 +69,7 @@
+         // Nested input_json strings remain exact. Decoded output facts are presentation-only.
+         $response = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+         if (($response['ok'] ?? null) !== true) {
+-            throw new \RuntimeException('r10 validation failed: ' . ($response['message'] ?? 'unknown error'));
++            throw new \RuntimeException('r11 validation failed: ' . ($response['message'] ?? 'unknown error'));
+         }
+         return $response['result'];
+     }
+@@ -82,7 +82,7 @@
+         }, $json);
+         if ($ascii === null || strlen($ascii) > 64 * 1024 * 1024) throw new \InvalidArgumentException('UTF-8/transport size');
+         $json = $ascii;
+-        $inputPath = tempnam(sys_get_temp_dir(), 'bgr10_');
++        $inputPath = tempnam(sys_get_temp_dir(), 'bgr11_');
+         if ($inputPath === false) throw new \RuntimeException('Cannot create private input path');
+         chmod($inputPath, 0600);
+         $input = fopen($inputPath, 'w+b');
+--- r10/php/Timestamp.php
++++ r11/php/Timestamp.php
+@@ -0,0 +1,21 @@
++<?php
++declare(strict_types=1);
++namespace Baganriki;
++/** Same supported RFC3339 subset as Python: no silent submicrosecond truncation. */
++final class Timestamp
++{
++    public static function parse(string $text): \DateTimeImmutable
++    {
++        if (!preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])\z/', $text)
++            || substr($text,0,4)==='0000') {
++            throw new \InvalidArgumentException('Timestamp requires RFC3339, timezone and at most 6 fractional digits');
++        }
++        try {$value=new \DateTimeImmutable(strtoupper($text));}
++        catch (\Exception $ex) {throw new \InvalidArgumentException('Invalid timestamp',0,$ex);}
++        $errors=\DateTimeImmutable::getLastErrors();
++        if ($errors!==false && ($errors['warning_count']>0 || $errors['error_count']>0)) {
++            throw new \InvalidArgumentException('Invalid timestamp calendar or clock');
++        }
++        return $value;
++    }
++}

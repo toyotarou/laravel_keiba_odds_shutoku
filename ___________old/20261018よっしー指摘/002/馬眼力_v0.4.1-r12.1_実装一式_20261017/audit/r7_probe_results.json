@@ -1,0 +1,153 @@
+[
+  {
+    "name": "wrong_total",
+    "correction": true,
+    "errors": [
+      {
+        "horse_no": 7,
+        "code": "LOCAL_RECOVERY"
+      },
+      {
+        "code": "ROW_SCHEMA_INVALID",
+        "horse_no": 7
+      }
+    ],
+    "candidates": [
+      1,
+      2,
+      7,
+      8,
+      11
+    ],
+    "proof": null
+  },
+  {
+    "name": "wrong_sum",
+    "correction": false,
+    "errors": [],
+    "candidates": [
+      1,
+      2,
+      7,
+      8,
+      11
+    ],
+    "proof": "ea5c7f4a90060dacf2c200853fb05401e8adaa0d0c6c245a4e1e9a94d16eb497"
+  },
+  {
+    "name": "wrong_tier",
+    "correction": false,
+    "errors": [],
+    "candidates": [
+      1,
+      2,
+      7,
+      8,
+      11
+    ],
+    "proof": "49d3d51b7696b0472f06aad6dcd2775c930dbd1372a76a1abdd3c5c6e5abedec"
+  },
+  {
+    "name": "wrong_band",
+    "correction": false,
+    "errors": [],
+    "candidates": [
+      1,
+      2,
+      7,
+      8,
+      11
+    ],
+    "proof": "24e577f04d5b2cd1f7ba612edab5fe7140566d2011467a553fb318ea093b8779"
+  },
+  {
+    "name": "unknown_counter",
+    "correction": false,
+    "errors": [],
+    "candidates": [
+      1,
+      2,
+      7,
+      8,
+      11
+    ],
+    "proof": "30c1f9c0d52054c668b93d224f9611f1e9ccb6f659e6fe8368db2b7c029c61b2"
+  },
+  {
+    "name": "other_horse_counter",
+    "correction": false,
+    "errors": [],
+    "candidates": [
+      1,
+      2,
+      7,
+      8,
+      11
+    ],
+    "proof": "476e834b8d1f2e3a746696cf96b2644de416a1c165ce9f51a2fe5372b03c6a5f"
+  },
+  {
+    "name": "wrong_family_review",
+    "correction": false,
+    "errors": [],
+    "candidates": [
+      1,
+      2,
+      7,
+      8,
+      11
+    ],
+    "proof": "23cb2a889b34594cb43874dd11450ccbbb2ac601fa499d6f446ce3bf959479a4"
+  },
+  {
+    "name": "false_shortfalls",
+    "correction": false,
+    "errors": [],
+    "candidates": [
+      1,
+      2,
+      7,
+      8,
+      11
+    ],
+    "proof": "30ed7f969b6927b9c427c248cae108f37ce58d29f0551bb6c860d5d9c6152c31"
+  },
+  {
+    "name": "depth100",
+    "accepted": true,
+    "candidates": [
+      1,
+      2,
+      7,
+      8,
+      11
+    ],
+    "first_status": null
+  },
+  {
+    "name": "depth300",
+    "accepted": true,
+    "candidates": [
+      1,
+      2,
+      7,
+      8,
+      11
+    ],
+    "first_status": null
+  },
+  {
+    "name": "depth600",
+    "error": "RecursionError",
+    "message": "maximum recursion depth exceeded"
+  },
+  {
+    "name": "depth900",
+    "error": "RecursionError",
+    "message": "maximum recursion depth exceeded"
+  },
+  {
+    "name": "129digit",
+    "accepted": true
+  }
+]

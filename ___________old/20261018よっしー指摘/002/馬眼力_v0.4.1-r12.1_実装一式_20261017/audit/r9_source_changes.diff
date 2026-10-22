@@ -1,0 +1,477 @@
+--- r8/journal.py
++++ r9/journal.py
+@@ -0,0 +1,133 @@
++"""Durable, single-host AI call grants. No lease expiry can regrant a call.
++
++A committed RESERVED slot with an unknown provider outcome stays uncertain.
++This bounds dispatches; it does not claim exactly-once delivery to a provider.
++"""
++import secrets
++import engine as e
++import reference as r
++
++MAX_RESPONSE_BYTES = 4 * 1024 * 1024
++
++class Journal:
++    def init_journal(self):
++        self.db.executescript('''
++        CREATE TABLE IF NOT EXISTS ai_attempts(
++          race_id TEXT NOT NULL,generation INTEGER NOT NULL,ai_role TEXT NOT NULL,
++          attempt_no INTEGER NOT NULL CHECK(attempt_no IN (0,1)),
++          snapshot_hash TEXT NOT NULL,token TEXT NOT NULL UNIQUE,
++          status TEXT NOT NULL CHECK(status IN ('RESERVED','RECEIVED','FAILED')),
++          claimed_at TEXT NOT NULL,call_deadline TEXT NOT NULL,
++          received_at TEXT,response_text TEXT,complete INTEGER,payload_hash TEXT,error_code TEXT,
++          PRIMARY KEY(race_id,generation,ai_role,attempt_no),
++          FOREIGN KEY(race_id) REFERENCES race_state(race_id));
++        ''')
++
++    def response_revision(self, race_id, generation):
++        # Every grant and every terminal transition changes this revision.
++        return self.db.execute("SELECT COALESCE(SUM(1 + (status != 'RESERVED')),0) FROM ai_attempts WHERE race_id=? AND generation=?",(race_id,generation)).fetchone()[0]
++
++    def _rows(self, race_id, generation, role=None):
++        query='SELECT * FROM ai_attempts WHERE race_id=? AND generation=?'
++        args=[race_id,generation]
++        if role is not None:query+=' AND ai_role=?';args.append(role)
++        return [dict(x) for x in self.db.execute(query+' ORDER BY ai_role,attempt_no',args)]
++
++    def _input(self, inp, generation):
++        e.require(type(generation) is int and generation>=1,'generation')
++        e.validate_input(inp,min(self.clock(),inp['time_contract']['reply_deadline'],key=r.timestamp))
++        st=self.state(inp['race_id'])
++        e.require((generation,inp['snapshot_hash'])==(st['generation'],st['snapshot_hash']),'stale worker snapshot')
++        frozen=r.strict_loads(st['snapshot_json']);role=inp['ai_role']
++        frozen['ai_role']=role
++        frozen['role_cap'],frozen['role_quota']=r.role_quota(frozen['quota'],frozen['target_count'],role)
++        e.require(r.canonical_hash(frozen)==r.canonical_hash(inp),'worker input differs from frozen snapshot')
++        return st
++
++    @staticmethod
++    def _attempts(rows):
++        return [dict(text=x['response_text'],received_at=x['received_at'],complete=bool(x['complete']))
++                for x in rows if x['status']=='RECEIVED']
++
++    def _summary(self, rows):
++        now=r.timestamp(self.clock()) if any(x['status']=='RESERVED' for x in rows) else None
++        return [dict(ai_role=x['ai_role'],attempt_no=x['attempt_no'],status=x['status'],
++                     outcome_unknown=x['status']=='RESERVED' and now>=r.timestamp(x['call_deadline']),
++                     claimed_at=x['claimed_at'],call_deadline=x['call_deadline'],received_at=x['received_at'],
++                     complete=None if x['complete'] is None else bool(x['complete']),error_code=x['error_code']) for x in rows]
++
++    def worker_state(self, inp, generation):
++        self.db.execute('BEGIN')
++        try:
++            self._input(inp,generation);rows=self._rows(inp['race_id'],generation,inp['ai_role'])
++            out=dict(attempts=self._attempts(rows),slots=self._summary(rows))
++            self.db.execute('COMMIT');return out
++        except Exception:self.db.execute('ROLLBACK');raise
++
++    def claim(self, inp, generation, system):
++        e.require(inp.get('ai_role') in ('1st','2nd'),'AI role')
++        e.require(system==(e.ROOT/f"prompt_{inp['ai_role']}.txt").read_text(),'system prompt differs from installed protocol')
++        self.db.execute('BEGIN IMMEDIATE')
++        try:
++            st=self._input(inp,generation);race=inp['race_id'];role=inp['ai_role']
++            rows=self._rows(race,generation,role);tc=inp['time_contract']
++            deadline=min(r.timestamp(tc['reply_deadline']),r.publication_deadline(tc['publish_deadline'],st['live_close'],tc['safety_margin_ms']))
++            now=self.clock();reason=None;user='INPUT_JSON\n'+r.json_dumps(inp)
++            if r.timestamp(now)>=deadline:reason='DEADLINE'
++            elif len(rows)>=2:reason='BUDGET_EXHAUSTED'
++            elif rows:
++                first=rows[0]
++                if first['status']!='RECEIVED':reason='INITIAL_OUTCOME_PENDING_OR_FAILED'
++                elif r.timestamp(first['received_at'])>r.timestamp(tc['reply_deadline']):reason='LATE_INITIAL'
++                else:
++                    # Incomplete raw bytes remain untouched in the journal.
++                    inspect_text=first['response_text'] if first['complete'] else 'INCOMPLETE_MODEL_RESPONSE'
++                    check=e.inspect_for_correction(inp,inspect_text,first['received_at'])
++                    if not check['needs_correction']:reason='COMPLETE'
++                    else:user+='\nINITIAL_RESPONSE\n'+first['response_text']+'\n'+check['request']
++            if reason:
++                out=dict(granted=False,reason=reason,attempts=self._attempts(rows),slots=self._summary(rows))
++            else:
++                token=secrets.token_hex(32);index=len(rows)
++                self.db.execute('INSERT INTO ai_attempts(race_id,generation,ai_role,attempt_no,snapshot_hash,token,status,claimed_at,call_deadline) VALUES(?,?,?,?,?,?,\'RESERVED\',?,?)',
++                    (race,generation,role,index,st['snapshot_hash'],token,now,deadline.isoformat()))
++                out=dict(granted=True,token=token,attempt_no=index,user=user,call_deadline=deadline.isoformat())
++            self.db.execute('COMMIT');return out
++        except Exception:self.db.execute('ROLLBACK');raise
++
++    def complete(self, token, text, received_at, complete):
++        e.require(isinstance(text,str) and len(text.encode('utf-8'))<=MAX_RESPONSE_BYTES,'response size/UTF-8/type')
++        e.require(type(complete) is bool,'completion flag must be boolean')
++        payload_hash=r.canonical_hash(dict(text=text,received_at=received_at,complete=complete))
++        self.db.execute('BEGIN IMMEDIATE')
++        try:
++            row=self.db.execute('SELECT * FROM ai_attempts WHERE token=?',(token,)).fetchone()
++            e.require(row is not None,'unknown call token')
++            if row['status']=='RECEIVED':
++                e.require(row['payload_hash']==payload_hash,'conflicting response for completed call')
++            else:
++                e.require(row['status']=='RESERVED','call already failed')
++                e.require(r.timestamp(row['claimed_at'])<=r.timestamp(received_at)<=r.timestamp(self.clock()),'receipt outside dispatch/current time')
++                # Keep even late replies for audit; resolve enforces reply/publication deadlines.
++                self.db.execute("UPDATE ai_attempts SET status='RECEIVED',response_text=?,received_at=?,complete=?,payload_hash=? WHERE token=?",
++                    (text,received_at,int(complete),payload_hash,token))
++            rev=self.response_revision(row['race_id'],row['generation'])
++            self.db.execute('COMMIT');return dict(saved=True,response_revision=rev)
++        except Exception:self.db.execute('ROLLBACK');raise
++
++    def fail(self, token, error_code):
++        e.require(error_code in ('PROVIDER_ERROR','DEADLINE_BEFORE_CALL','INVALID_PROVIDER_REPLY'),'failure code')
++        self.db.execute('BEGIN IMMEDIATE')
++        try:
++            row=self.db.execute('SELECT * FROM ai_attempts WHERE token=?',(token,)).fetchone()
++            e.require(row is not None,'unknown call token')
++            if row['status']=='FAILED':e.require(row['error_code']==error_code,'conflicting failure')
++            else:
++                e.require(row['status']=='RESERVED','cannot fail a completed response')
++                self.db.execute("UPDATE ai_attempts SET status='FAILED',error_code=? WHERE token=?",(error_code,token))
++            self.db.execute('COMMIT');return dict(saved=True)
++        except Exception:self.db.execute('ROLLBACK');raise
++
++    def saved_responses(self, race_id, generation):
++        return {role:self._attempts(self._rows(race_id,generation,role)) for role in ('1st','2nd')}
++
+--- r8/store.py
++++ r9/store.py
+@@ -5,12 +5,13 @@
+ from datetime import datetime,timezone
+ import engine as e
+ import reference as r
++from journal import Journal
+ 
+-class Store:
++class Store(Journal):
+     def __init__(self,path,clock=None):
+         self.db=sqlite3.connect(path,timeout=15,isolation_level=None)
+         self.db.row_factory=sqlite3.Row;self.clock=clock or (lambda:datetime.now(timezone.utc).isoformat())
+-        self.db.execute('PRAGMA journal_mode=WAL');self.db.execute('PRAGMA foreign_keys=ON')
++        self.db.execute('PRAGMA journal_mode=WAL');self.db.execute('PRAGMA synchronous=FULL');self.db.execute('PRAGMA foreign_keys=ON')
+         self.db.executescript('''
+         CREATE TABLE IF NOT EXISTS race_state(
+           race_id TEXT PRIMARY KEY,snapshot_hash TEXT NOT NULL,generation INTEGER NOT NULL,
+@@ -24,6 +25,7 @@
+         CREATE TABLE IF NOT EXISTS events(
+           id INTEGER PRIMARY KEY AUTOINCREMENT,race_id TEXT NOT NULL,event_json TEXT NOT NULL,created_at TEXT NOT NULL);
+         ''')
++        self.init_journal()
+     def close(self):self.db.close()
+     def state(self,race_id):
+         row=self.db.execute('SELECT * FROM race_state WHERE race_id=?',(race_id,)).fetchone()
+@@ -57,18 +59,30 @@
+             self.db.execute('COMMIT');return self.state(race_id)
+         except Exception:self.db.execute('ROLLBACK');raise
+     def publish(self,race_id,generation,state_revision,publication_revision,job_id,responses):
++        return self._publish(race_id,generation,state_revision,publication_revision,job_id,responses,None)
++    def publish_saved(self,race_id,generation,state_revision,publication_revision,response_revision,job_id):
++        e.require(type(response_revision) is int and response_revision>=0,'response revision')
++        return self._publish(race_id,generation,state_revision,publication_revision,job_id,None,response_revision)
++    def _publish(self,race_id,generation,state_revision,publication_revision,job_id,responses,response_revision):
+         e.require(isinstance(job_id,str) and 0<len(job_id)<=128,'job id')
+         require_ints=(generation,state_revision,publication_revision)
+         e.require(all(r.exact_int(v) and v>=0 for v in require_ints),'revision types')
+-        request_hash=r.canonical_hash(dict(generation=generation,state_revision=state_revision,publication_revision=publication_revision,responses=responses))
++        intent=dict(generation=generation,state_revision=state_revision,publication_revision=publication_revision)
++        intent.update(dict(source='saved',response_revision=response_revision) if response_revision is not None else dict(responses=responses))
++        request_hash=r.canonical_hash(intent)
+         self.db.execute('BEGIN IMMEDIATE')
+         try:
+             previous=self.db.execute('SELECT * FROM publications WHERE race_id=? AND generation=? AND job_id=?',(race_id,generation,job_id)).fetchone()
+             if previous:
+                 e.require(previous['request_hash']==request_hash,'job id reused with different input')
+-                self.db.execute('COMMIT');return r.strict_loads(previous['result_json'])
++                self.db.execute('COMMIT');return r.strict_loads(previous['result_json'],max_bytes=64*1024*1024)
+             st=self.state(race_id)
+             e.require((generation,state_revision,publication_revision)==(st['generation'],st['state_revision'],st['publication_revision']),'stale publication job')
++            if response_revision is not None:
++                e.require(response_revision==self.response_revision(race_id,generation),'stale response revision')
++                responses=self.saved_responses(race_id,generation)
++            else:
++                e.require(not self._rows(race_id,generation),'journal-backed race requires publish_saved')
+             inp=r.strict_loads(st['snapshot_json']);now=self.clock()
+             result=e.resolve(inp,responses,r.strict_loads(st['cancelled_json']),now)
+             now=self.clock();result['verified_at']=now
+@@ -80,6 +94,7 @@
+             result['effective_publish_deadline']=r.publication_deadline(inp['time_contract']['publish_deadline'],st['live_close'],margin).isoformat()
+             rev=publication_revision+1
+             result.update(generation=generation,state_revision=state_revision,publication_revision=rev)
++            if response_revision is not None:result['response_revision']=response_revision
+             cur=self.db.execute('INSERT INTO publications(race_id,snapshot_hash,generation,state_revision,publication_revision,job_id,request_hash,result_json,responses_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                 (race_id,st['snapshot_hash'],generation,state_revision,rev,job_id,request_hash,'{}',r.json_dumps(responses),now))
+             result['publication_id']=cur.lastrowid
+@@ -95,10 +110,11 @@
+         try:
+             st=self.state(race_id)
+             row=self.db.execute('SELECT result_json FROM publications WHERE race_id=? AND generation=? ORDER BY publication_revision DESC LIMIT 1',(race_id,st['generation'])).fetchone()
+-            result=r.strict_loads(row['result_json']) if row else None
++            result=r.strict_loads(row['result_json'],max_bytes=64*1024*1024) if row else None
+             inp=r.strict_loads(st['snapshot_json'])
+             view=dict(publication=result,input_audit=dict(snapshot_hash=st['snapshot_hash'],coverage=inp['coverage']),
+-                live_state=dict(state_revision=st['state_revision'],cancelled=r.strict_loads(st['cancelled_json']),live_close=st['live_close'],
++                worker_state=dict(response_revision=self.response_revision(race_id,st['generation']),slots=self._summary(self._rows(race_id,st['generation']))),
++                live_state=dict(generation=st['generation'],publication_revision=st['publication_revision'],state_revision=st['state_revision'],cancelled=r.strict_loads(st['cancelled_json']),live_close=st['live_close'],
+                     effective_publish_deadline=r.publication_deadline(inp['time_contract']['publish_deadline'],st['live_close'],inp['time_contract']['safety_margin_ms']).isoformat()))
+             self.db.execute('COMMIT');return view
+         except Exception:self.db.execute('ROLLBACK');raise
+--- r8/cli.py
++++ r9/cli.py
+@@ -7,8 +7,11 @@
+ 
+ def main():
+     p=argparse.ArgumentParser();p.add_argument('--db');p.add_argument('--request-file');args=p.parse_args()
+-    raw=__import__('pathlib').Path(args.request_file).read_text(encoding='utf-8') if args.request_file else sys.stdin.read(4*1024*1024+1)
+-    req=r.strict_loads(raw);action=req['action']
++    limit=64*1024*1024
++    if args.request_file:
++        with open(args.request_file,encoding='utf-8') as stream:raw=stream.read(limit+1)
++    else:raw=sys.stdin.read(limit+1)
++    req=r.strict_loads(raw,max_bytes=limit);action=req['action']
+     now=datetime.now(timezone.utc).isoformat()
+     if 'input_json' in req:req['input']=r.strict_loads(req['input_json'])
+     if 'seed_json' in req:req['seed']=r.strict_loads(req['seed_json'])
+@@ -28,6 +31,11 @@
+         if action=='install':
+             st=store.install(req['input'],req['generation']);return {k:st[k] for k in ('race_id','snapshot_hash','generation','state_revision','publication_revision')}
+         if action=='publish':return store.publish(req['race_id'],req['generation'],req['state_revision'],req['publication_revision'],req['job_id'],req['responses'])
++        if action=='publish_saved':return store.publish_saved(req['race_id'],req['generation'],req['state_revision'],req['publication_revision'],req['response_revision'],req['job_id'])
++        if action=='claim':return store.claim(req['input'],req['generation'],req['system'])
++        if action=='complete':return store.complete(req['token'],req['text'],req['received_at'],req['complete'])
++        if action=='fail':return store.fail(req['token'],req['error_code'])
++        if action=='worker_state':return store.worker_state(req['input'],req['generation'])
+         if action=='live':
+             st=store.update_live(req['race_id'],req['expected_revision'],req['cancelled'],req.get('live_close'))
+             return {k:st[k] for k in ('race_id','state_revision','publication_revision','live_close')}
+--- r8/engine.py
++++ r9/engine.py
+@@ -405,6 +405,7 @@
+                 require(r.timestamp(inp['cutoff_at'])<=at<=r.timestamp(inp['time_contract']['reply_deadline']) and at<=r.timestamp(now),'late/invalid receipt')
+                 require(previous_receipt is None or at>=previous_receipt,'correction received before initial response')
+                 previous_receipt=at
++                require(a.get('complete',True) is True,'incomplete model response')
+                 v=response_view(a['text'],x);received.append(a['received_at'])
+                 if i==0:
+                     current=v
+--- r8/reference.py
++++ r9/reference.py
+@@ -46,7 +46,7 @@
+ def finite_number(x):
+     return type(x) is int or (type(x) is float and math.isfinite(x)) or (type(x) is Decimal and x.is_finite())
+ 
+-def strict_loads(text):
++def strict_loads(text, max_bytes=4*1024*1024):
+     def pairs(items):
+         out={}
+         for k,v in items:
+@@ -54,7 +54,7 @@
+             out[k]=v
+         return out
+     def invalid(x): raise ValueError('nonfinite JSON constant')
+-    if not isinstance(text,str) or len(text.encode('utf-8'))>4*1024*1024: raise ValueError('JSON size/type')
++    if not isinstance(text,str) or len(text.encode('utf-8'))>max_bytes: raise ValueError('JSON size/type')
+     def decimal(token):
+         value=Decimal(token)
+         if len(value.as_tuple().digits)>128 or (value and not -308<=value.adjusted()<=308):
+--- r8/verify.py
++++ r9/verify.py
+@@ -2,7 +2,7 @@
+ import subprocess,sys,json
+ from pathlib import Path
+ root=Path(__file__).resolve().parent;results=[]
+-for script in ('test_reference.py','test_contract.py','test_engine.py','test_audit_regressions.py','test_r7_integration.py','test_r8_regressions.py','test_malformed_responses.py','schema_standard_check.py'):
++for script in ('test_reference.py','test_contract.py','test_engine.py','test_audit_regressions.py','test_r7_integration.py','test_r8_regressions.py','test_journal.py','test_malformed_responses.py','schema_standard_check.py'):
+  p=subprocess.run([sys.executable,str(root/script)],cwd=root,capture_output=True,text=True)
+  (root/(script+'.log')).write_text(p.stdout+p.stderr,encoding='utf-8')
+  results.append(dict(script=script,exit_code=p.returncode))
+--- r8/php/RoleWorker.php
++++ r9/php/RoleWorker.php
+@@ -1,34 +1,43 @@
+ <?php
+ declare(strict_types=1);
+ namespace Baganriki;
+-/** Dispatch one worker for each role on your queue. Never run the old second-AI dependency check. */
++/** One durable journal per race/generation/role; all workers share the same DB. */
+ final class RoleWorker
+ {
+-    public function __construct(private BaganrikiR8Bridge $bridge) {}
+-    /** $callAI(system, user, timeoutSeconds) returns ['text'=>string,'complete'=>bool]. */
+-    public function run(string $system, string $inputJson, string $replyDeadline, callable $callAI): array
++    public function __construct(private BaganrikiR9Bridge $bridge) {}
++    /** Provider must disable its own retries. Each granted slot invokes it at most once. */
++    public function run(string $system, string $inputJson, string $replyDeadline, callable $callAI, int $generation = 1): array
+     {
+-        $deadline = (new \DateTimeImmutable($replyDeadline))->getTimestamp();
+-        $attempts = []; $user = "INPUT_JSON\n" . $inputJson;
+-        for ($attempt = 0; $attempt < 2; ++$attempt) {
+-            $remaining = $deadline - microtime(true) - 1.0;
+-            if ($remaining <= 0) break;
+-            try {
+-                $reply = $callAI($system, $user, $remaining);
+-                $received = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d\TH:i:s.uP');
+-                $text = is_string($reply['text'] ?? null) ? $reply['text'] : '';
+-                // Preserve incomplete output for audit; the core rejects malformed/truncated JSON.
+-                if (($reply['complete'] ?? null) !== true) $text = "INCOMPLETE_MODEL_RESPONSE\n" . $text;
+-                $attempts[] = ['text' => $text, 'received_at' => $received];
+-                if ($attempt !== 0 || microtime(true) >= $deadline) break;
+-                $check = $this->bridge->inspect($inputJson, $text, $received);
+-                if (!$check['needs_correction']) break;
+-                $user = "INPUT_JSON\n" . $inputJson . "\nINITIAL_RESPONSE\n" . $text . "\n" . $check['request'];
+-            } catch (\Throwable $ex) {
+-                // Keep prior valid output on a retry transport error. No unbounded retry.
++        // Decode only for comparison; never send re-encoded numeric input to the AI.
++        $meta = json_decode($inputJson, true, 512, JSON_THROW_ON_ERROR);
++        $deadline = (float)(new \DateTimeImmutable($replyDeadline))->format('U.u');
++        $frozenDeadline = (float)(new \DateTimeImmutable($meta['time_contract']['reply_deadline']))->format('U.u');
++        if ($deadline !== $frozenDeadline) throw new \InvalidArgumentException('Reply deadline differs from frozen input');
++        for ($i = 0; $i < 2; ++$i) {
++            $grant = $this->bridge->claim($inputJson, $generation, $system);
++            if (!$grant['granted']) return $grant['attempts'];
++            $callDeadline = (float)(new \DateTimeImmutable($grant['call_deadline']))->format('U.u');
++            $remaining = min($deadline, $callDeadline) - microtime(true) - 1.0;
++            if ($remaining <= 0) {
++                $this->bridge->fail($grant['token'], 'DEADLINE_BEFORE_CALL');
+                 break;
+             }
++            try {
++                $reply = $callAI($system, $grant['user'], $remaining);
++                $received = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d\TH:i:s.uP');
++            } catch (\Throwable $ex) {
++                // A transport error can mean the provider did execute. Never dispatch this slot again.
++                $this->bridge->fail($grant['token'], 'PROVIDER_ERROR');
++                break;
++            }
++            if (!is_array($reply) || !is_string($reply['text'] ?? null) || !is_bool($reply['complete'] ?? null)) {
++                $this->bridge->fail($grant['token'], 'INVALID_PROVIDER_REPLY');
++                break;
++            }
++            // Commit original reply BEFORE diagnosing or starting correction.
++            // An unknown save acknowledgement must never trigger another provider call.
++            $this->bridge->complete($grant['token'], $reply['text'], $received, $reply['complete']);
+         }
+-        return $attempts;
++        return $this->bridge->workerState($inputJson, $generation)['attempts'];
+     }
+ }
+--- r8/php/BaganrikiR8Bridge.php
++++ r9/php/BaganrikiR9Bridge.php
+@@ -3,7 +3,7 @@
+ namespace Baganriki;
+ 
+ /** PHP 8.0+. Preserve nested decimal JSON as strings; do not decode/re-encode it in PHP. */
+-final class BaganrikiR8Bridge
++final class BaganrikiR9Bridge
+ {
+     public function __construct(private string $python, private string $engineDir, private string $database, private float $timeoutSeconds = 30.0)
+     {
+@@ -40,6 +40,27 @@
+         return $this->call(['action' => 'live', 'race_id' => $raceId, 'expected_revision' => $revision, 'cancelled' => $cancelled, 'live_close' => $close]);
+     }
+     public function read(string $raceId): array { return $this->call(['action' => 'read', 'race_id' => $raceId]); }
++    public function claim(string $inputJson, int $generation, string $system): array
++    {
++        return $this->call(['action'=>'claim','input_json'=>$inputJson,'generation'=>$generation,'system'=>$system]);
++    }
++    public function complete(string $token, string $text, string $receivedAt, bool $complete): array
++    {
++        return $this->call(['action'=>'complete','token'=>$token,'text'=>$text,'received_at'=>$receivedAt,'complete'=>$complete]);
++    }
++    public function fail(string $token, string $code): array
++    {
++        return $this->call(['action'=>'fail','token'=>$token,'error_code'=>$code]);
++    }
++    public function workerState(string $inputJson, int $generation): array
++    {
++        return $this->call(['action'=>'worker_state','input_json'=>$inputJson,'generation'=>$generation]);
++    }
++    public function publishSaved(string $raceId, int $generation, int $stateRevision, int $publicationRevision, int $responseRevision, string $jobId): array
++    {
++        return $this->call(['action'=>'publish_saved','race_id'=>$raceId,'generation'=>$generation,
++            'state_revision'=>$stateRevision,'publication_revision'=>$publicationRevision,'response_revision'=>$responseRevision,'job_id'=>$jobId]);
++    }
+ 
+     private function call(array $request): array
+     {
+@@ -48,20 +69,20 @@
+         // Nested input_json strings remain exact. Decoded output facts are presentation-only.
+         $response = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+         if (($response['ok'] ?? null) !== true) {
+-            throw new \RuntimeException('r8 validation failed: ' . ($response['message'] ?? 'unknown error'));
++            throw new \RuntimeException('r9 validation failed: ' . ($response['message'] ?? 'unknown error'));
+         }
+         return $response['result'];
+     }
+     public function callRaw(string $json): string
+     {
+-        if (strlen($json) > 4 * 1024 * 1024) throw new \InvalidArgumentException('Request too large');
++        if (strlen($json) > 64 * 1024 * 1024) throw new \InvalidArgumentException('Request too large');
+         // Escape Unicode code points without decoding numeric JSON tokens.
+         $ascii = preg_replace_callback('/[\x{80}-\x{10ffff}]/u', static function (array $m): string {
+             return substr(json_encode($m[0], JSON_THROW_ON_ERROR), 1, -1);
+         }, $json);
+-        if ($ascii === null || strlen($ascii) > 4 * 1024 * 1024) throw new \InvalidArgumentException('UTF-8/transport size');
++        if ($ascii === null || strlen($ascii) > 64 * 1024 * 1024) throw new \InvalidArgumentException('UTF-8/transport size');
+         $json = $ascii;
+-        $inputPath = tempnam(sys_get_temp_dir(), 'bgr8_');
++        $inputPath = tempnam(sys_get_temp_dir(), 'bgr9_');
+         if ($inputPath === false) throw new \RuntimeException('Cannot create private input path');
+         chmod($inputPath, 0600);
+         $input = fopen($inputPath, 'w+b');
+@@ -83,7 +104,7 @@
+             $deadline = microtime(true) + $this->timeoutSeconds;
+             while (true) {
+                 $output .= stream_get_contents($pipes[1]); $error .= stream_get_contents($pipes[2]);
+-                if (strlen($output) + strlen($error) > 8 * 1024 * 1024) throw new \RuntimeException('Worker output too large');
++                if (strlen($output) + strlen($error) > 64 * 1024 * 1024) throw new \RuntimeException('Worker output too large');
+                 $status = proc_get_status($proc);
+                 if (!$status['running']) { $exit = $status['exitcode']; break; }
+                 if (microtime(true) >= $deadline) throw new \RuntimeException('Worker timeout');
+@@ -91,6 +112,7 @@
+                 stream_select($read, $write, $except, 0, 100000);
+             }
+             $output .= stream_get_contents($pipes[1]); $error .= stream_get_contents($pipes[2]);
++            if (strlen($output) + strlen($error) > 64 * 1024 * 1024) throw new \RuntimeException('Worker output too large');
+             if ($output === '') throw new \RuntimeException('Worker produced no response, exit=' . $exit);
+             return $output;
+         } finally {
+--- r8/php/LaravelIntegration.example.php
++++ r9/php/LaravelIntegration.example.php
+@@ -1,18 +1,33 @@
+ <?php
+ declare(strict_types=1);
+ /** Integration example for a Laravel queue job; adapt service binding to your application. */
+-use Baganriki\BaganrikiR8Bridge;
++use Baganriki\BaganrikiR9Bridge;
+ use Baganriki\RoleWorker;
+ 
+-function runBaganrikiRole(BaganrikiR8Bridge $bridge, array $prepared, string $role, string $replyDeadline, callable $provider): array
++function runBaganrikiRole(BaganrikiR9Bridge $bridge, array $prepared, string $role, string $replyDeadline, callable $provider, int $generation): array
+ {
+     if (!in_array($role, ['1st','2nd'], true)) throw new InvalidArgumentException('role');
+     // provider must use ONLY this system and this user message; no legacy brain/prompt append.
+-    return (new RoleWorker($bridge))->run($prepared['prompts'][$role], $prepared['input_json'][$role], $replyDeadline, $provider);
++    return (new RoleWorker($bridge))->run($prepared['prompts'][$role], $prepared['input_json'][$role], $replyDeadline, $provider, $generation);
++}
++function prepareBaganrikiPublication(BaganrikiR9Bridge $bridge, string $raceId, string $jobId): array
++{
++    $state = $bridge->read($raceId);
++    $live = $state['live_state'];
++    return ['race_id'=>$raceId, 'generation'=>$live['generation'], 'state_revision'=>$live['state_revision'],
++        'publication_revision'=>$live['publication_revision'], 'response_revision'=>$state['worker_state']['response_revision'], 'job_id'=>$jobId];
++}
++function commitBaganrikiPublication(BaganrikiR9Bridge $bridge, array $intent): array
++{
++    return $bridge->publishSaved($intent['race_id'],$intent['generation'],$intent['state_revision'],
++        $intent['publication_revision'],$intent['response_revision'],$intent['job_id']);
+ }
+ // Parent queue job: prepareExport($exportJson) -> install(input_json['1st'], generation).
+-// Dispatch 1st and 2nd independently. Each job persists its raw attempts on completion.
+-// Aggregation job reads both attempts currently available, then publish(... expected revisions ...).
++// Dispatch 1st and 2nd independently. RoleWorker persists every response immediately.
++// Aggregation uses publishSaved and a frozen tuple of revisions. Persist this intent with the queue job.
++// Retry with the SAME tuple/jobId. On stale revisions, enqueue a NEW job with a fresh tuple/jobId.
++// prepareBaganrikiPublication creates the intent ONCE, before dispatching the aggregation job.
++// Store this array in the job payload. handle() calls commitBaganrikiPublication with that SAME array.
+ // A later successful role may trigger another publish before publish_deadline using new publication_revision.
+ // HTTP read endpoint returns read($raceId). Render publication candidates with live_state.cancelled overlay.
+ // Never pass these candidates through _mergeAiResults / _trimAiCandidates / old candidate filters.

@@ -1,0 +1,10 @@
+(node:119) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Fatal error: Uncaught RuntimeException: Cannot decode exact JSON numbers in /workspace/scratch/80907d699186/baganriki_r12/php/ExactJson.php:16
+Stack trace:
+#0 /workspace/scratch/80907d699186/baganriki_r12/php/BaganrikiR12Bridge.php(72): Baganriki\ExactJson::decode('{"ok":true,"res...')
+#1 /workspace/scratch/80907d699186/baganriki_r12/php/BaganrikiR12Bridge.php(58): Baganriki\BaganrikiR12Bridge->call(Array)
+#2 /workspace/scratch/80907d699186/baganriki_r12/php/test_durability.php(49): Baganriki\BaganrikiR12Bridge->workerState('{"N":13,"S":nul...', 1)
+#3 {main}
+  thrown in /workspace/scratch/80907d699186/baganriki_r12/php/ExactJson.php on line 16

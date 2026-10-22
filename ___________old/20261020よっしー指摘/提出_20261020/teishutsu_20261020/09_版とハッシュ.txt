@@ -1,0 +1,24 @@
+# 提出物の版とハッシュ（2026-10-20 11:40:20 JST）
+
+## 本番コード
+2ae4f4427d4e5197b2e1eafca5e98fc2  /var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php
+14d8a802714f50f6465e58065489c737  /var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php
+d6d7437ba60063fd256b64bc8b35aa09  /var/www/horse_odds_finder/routes/api.php
+  AiController 行数: 19953
+  Command      行数: 12171
+  routes/api   行数: 193
+
+## 先方からお預かりした資材（変更していません）
+2be652f321e33a8e70b55b5421437db1  /tmp/r122_validation/acquisition_boundary_cases.json
+a954967b7de0f55834ebdd6228f5c95d  /tmp/r122_validation/mode_cases.json
+
+## 実行結果
+861f0520cde1fc07d8a84fac6d592f06  01_受入試験_全項目.txt
+3ef85e8193a5d740011fbdfa90eeb7b3  02_受入試験_要約.txt
+5b9621093cc3789a0df1942499086f45  03_合成試験.txt
+d30c45992dba245e4d42a53c2b386f41  04_72レース突き合わせ.txt
+37d9cca6f5b70fe4a3fd7a6a0aff120d  08_元値の指紋_結果.txt
+d4c709e4000a6945a7879222cc9bfd73  09_版とハッシュ.txt
+5beaf1d26fccafcedc9637073d68d585  05_レース別.csv
+909c416342f4a91489d326d647103799  06_各馬.csv
+f3f85d1eef54625d90327b942dcc57f5  07_元値の指紋.sql

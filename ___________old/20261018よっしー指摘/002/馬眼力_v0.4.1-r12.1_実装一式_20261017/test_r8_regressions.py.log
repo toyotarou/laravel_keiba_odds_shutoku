@@ -1,0 +1,31 @@
+test_corrected_holes_survive_cancellation (__main__.R8Regressions.test_corrected_holes_survive_cancellation) ... ok
+test_counter_correction_restores_holes_and_public_proof (__main__.R8Regressions.test_counter_correction_restores_holes_and_public_proof) ... ok
+test_deep_failed_correction_preserves_initial_holes (__main__.R8Regressions.test_deep_failed_correction_preserves_initial_holes) ... ok
+test_deep_invalid_role_preserves_other_ai (__main__.R8Regressions.test_deep_invalid_role_preserves_other_ai) ... ok
+test_derived_fields_are_diagnosed_without_regrading (__main__.R8Regressions.test_derived_fields_are_diagnosed_without_regrading) ... ok
+test_earlier_correction_receipt_is_rejected (__main__.R8Regressions.test_earlier_correction_receipt_is_rejected) ... ok
+test_equal_win_odds_keep_authoritative_frozen_tie_order (__main__.R8Regressions.test_equal_win_odds_keep_authoritative_frozen_tie_order) ... ok
+test_false_shortfalls_are_diagnosed (__main__.R8Regressions.test_false_shortfalls_are_diagnosed) ... ok
+test_faulty_role_can_be_published_with_other_ai (__main__.R8Regressions.test_faulty_role_can_be_published_with_other_ai) ... ok
+test_integer_precision_boundary (__main__.R8Regressions.test_integer_precision_boundary) ... ok
+test_inverted_frozen_popularity_is_rejected_without_rewriting (__main__.R8Regressions.test_inverted_frozen_popularity_is_rejected_without_rewriting) ... ok
+test_missing_shortfall_does_not_remove_supported_horses (__main__.R8Regressions.test_missing_shortfall_does_not_remove_supported_horses) ... ok
+test_missing_win_odds_do_not_hide_other_known_rank_inversion (__main__.R8Regressions.test_missing_win_odds_do_not_hide_other_known_rank_inversion) ... ok
+test_no_support_classification_is_not_missing_data (__main__.R8Regressions.test_no_support_classification_is_not_missing_data) ... ok
+test_noneligible_rank_metadata_repair_keeps_eligible_order (__main__.R8Regressions.test_noneligible_rank_metadata_repair_keeps_eligible_order) ... ok
+test_other_horse_counterevidence_is_rejected (__main__.R8Regressions.test_other_horse_counterevidence_is_rejected) ... ok
+test_parser_depth_boundary_and_quoted_brackets (__main__.R8Regressions.test_parser_depth_boundary_and_quoted_brackets) ... ok
+test_review_correction_keeps_rank_and_facts_provenance (__main__.R8Regressions.test_review_correction_keeps_rank_and_facts_provenance) ... ok
+test_same_receipt_timestamp_allows_correction (__main__.R8Regressions.test_same_receipt_timestamp_allows_correction) ... ok
+test_summary_correction_cannot_regrade_or_reorder_normal_holes (__main__.R8Regressions.test_summary_correction_cannot_regrade_or_reorder_normal_holes) ... ok
+test_summary_correction_restores_consensus_proof (__main__.R8Regressions.test_summary_correction_restores_consensus_proof) ... ok
+test_unknown_counterevidence_is_local_and_not_rank_proof (__main__.R8Regressions.test_unknown_counterevidence_is_local_and_not_rank_proof) ... ok
+test_unpaired_unicode_cannot_abort_other_ai_publication (__main__.R8Regressions.test_unpaired_unicode_cannot_abort_other_ai_publication) ... ok
+test_valid_counterevidence_is_preserved (__main__.R8Regressions.test_valid_counterevidence_is_preserved) ... ok
+test_valid_supplementary_unicode_roundtrips (__main__.R8Regressions.test_valid_supplementary_unicode_roundtrips) ... ok
+test_wrong_review_id_and_owner_request_local_metadata_repair (__main__.R8Regressions.test_wrong_review_id_and_owner_request_local_metadata_repair) ... ok
+
+----------------------------------------------------------------------
+Ran 26 tests in 12.598s
+
+OK

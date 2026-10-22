@@ -1,0 +1,27 @@
+test_cancellation_after_correction_preserves_remaining_hole_order (__main__.R7IntegrationTests.test_cancellation_after_correction_preserves_remaining_hole_order) ... ok
+test_changed_evidence_can_use_new_proof_with_retained_other_rows (__main__.R7IntegrationTests.test_changed_evidence_can_use_new_proof_with_retained_other_rows) ... ok
+test_commit_crossing_live_margin_rolls_back (__main__.R7IntegrationTests.test_commit_crossing_live_margin_rolls_back) ... ok
+test_coverage_included_refs_survive_save_and_read (__main__.R7IntegrationTests.test_coverage_included_refs_survive_save_and_read) ... ok
+test_coverage_missing_is_rejected_without_invented_reason (__main__.R7IntegrationTests.test_coverage_missing_is_rejected_without_invented_reason) ... ok
+test_coverage_reason_roundtrips_and_changes_hash (__main__.R7IntegrationTests.test_coverage_reason_roundtrips_and_changes_hash) ... ok
+test_coverage_rejects_wrong_containers_and_duplicate_refs (__main__.R7IntegrationTests.test_coverage_rejects_wrong_containers_and_duplicate_refs) ... ok
+test_ignored_correction_keeps_initial_consensus_bonus (__main__.R7IntegrationTests.test_ignored_correction_keeps_initial_consensus_bonus) ... ok
+test_missing_top_field_is_correctable_without_regrading_horses (__main__.R7IntegrationTests.test_missing_top_field_is_correctable_without_regrading_horses) ... ok
+test_noneligible_score_repair_cannot_reorder_positive_horses (__main__.R7IntegrationTests.test_noneligible_score_repair_cannot_reorder_positive_horses) ... ok
+test_nonselect_reason_mismatch_is_diagnosed (__main__.R7IntegrationTests.test_nonselect_reason_mismatch_is_diagnosed) ... ok
+test_old_version_is_not_silently_installed (__main__.R7IntegrationTests.test_old_version_is_not_silently_installed) ... ok
+test_out_of_scope_rank_change_does_not_replace_other_band (__main__.R7IntegrationTests.test_out_of_scope_rank_change_does_not_replace_other_band) ... ok
+test_partial_score_only_correction_cannot_reorder_evidence_band (__main__.R7IntegrationTests.test_partial_score_only_correction_cannot_reorder_evidence_band) ... ok
+test_post_time_is_not_forced_equal_to_sales_close (__main__.R7IntegrationTests.test_post_time_is_not_forced_equal_to_sales_close) ... ok
+test_public_flag_correction_restores_dual_ai_candidates (__main__.R7IntegrationTests.test_public_flag_correction_restores_dual_ai_candidates) ... ok
+test_public_list_repair_does_not_authorize_evidence_changes (__main__.R7IntegrationTests.test_public_list_repair_does_not_authorize_evidence_changes) ... ok
+test_sales_close_anchor_accepts_timezone_alias (__main__.R7IntegrationTests.test_sales_close_anchor_accepts_timezone_alias) ... ok
+test_same_band_cosmetic_repair_keeps_order (__main__.R7IntegrationTests.test_same_band_cosmetic_repair_keeps_order) ... ok
+test_shortened_close_boundary_and_prior_publication (__main__.R7IntegrationTests.test_shortened_close_boundary_and_prior_publication) ... ok
+test_unrelated_correction_retains_actual_rank_provenance (__main__.R7IntegrationTests.test_unrelated_correction_retains_actual_rank_provenance) ... ok
+test_wrong_rank_basis_only_authorizes_rank_metadata (__main__.R7IntegrationTests.test_wrong_rank_basis_only_authorizes_rank_metadata) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 12.109s
+
+OK

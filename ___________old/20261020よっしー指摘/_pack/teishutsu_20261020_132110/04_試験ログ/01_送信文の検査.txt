@@ -1,0 +1,78 @@
+════════════════════════════════════════════════════════
+ r12.2 送信文の検査（AI呼び出し0回・費用0円・DB書込なし）
+════════════════════════════════════════════════════════
+  実行時刻 : 2026-10-20T13:21:11+09:00
+  資材      : /home/centos/r122_v23/mat
+  本文置き場: /var/www/horse_odds_finder/storage/app/baganriki/prompts/r12_2
+
+── §1 配布本文3本の確認 ──
+  ○ prompt_1st.txt     行 111 バイト  19588 配布と同一=はい
+  ○ prompt_2nd.txt     行 112 バイト  19797 配布と同一=はい
+  ○ common_prompt.txt  行 109 バイト  19353 配布と同一=はい
+  － 共通本文の冒頭が 1st に含まれる: はい
+  － 共通本文の冒頭が 2nd に含まれる: はい
+     → どちらも「はい」なので、common_prompt.txt を後ろへ連結しません（連結すると同じ規則が二重になります）
+
+── §2 snapshot_hash の作り方の照合（先方の参照入力） ──
+  一致 14 件 / 不一致 0 件（対象 14 件）
+  対象   INPUT_JSON から ai_role・role_cap・role_quota・snapshot_hash を外した残り
+  並び   全階層でキーを文字列として昇順
+  書式   区切りは "," と ":"（余白なし）／非ASCIIはエスケープしない
+  方式名 exact-common-payload-sha256-r8
+
+── §3 取得payloadから INPUT_JSON を組み立てて参照入力と照合 ──
+  【与えたもの】発走時刻・投票締切・batch_id・coverage の文面・
+                スロットなしの登録（past_performance）
+                … これらは payload から導けない入力です
+  【導いたもの】N・runners・帯・signals・S・S_min・S_max・mode・
+                mode_status・allocation_mode・mode_policy_id・
+                target_count・base_quota・quota・quota_adjustments・
+                role_cap・role_quota・selection_enabled・display_rating・
+                cutoff_at・input_freeze_at・時刻契約の期限・
+                field_catalog・input_indices・snapshot_hash・
+                取得監査の payload_hash と3つの実時刻
+
+  ○ FIRM_N4                    1st  全35キー一致  snapshot_hash=edad3164d4b1017c
+  ○ FIRM_N4                    2nd  全35キー一致  snapshot_hash=edad3164d4b1017c
+  ○ MIXED_N16                  1st  全35キー一致  snapshot_hash=3c45bd1b5486a62d
+  ○ MIXED_N16                  2nd  全35キー一致  snapshot_hash=3c45bd1b5486a62d
+  ○ PROVISIONAL_MIXED_N16      1st  全35キー一致  snapshot_hash=dff02c424db1e734
+  ○ PROVISIONAL_MIXED_N16      2nd  全35キー一致  snapshot_hash=dff02c424db1e734
+  ○ PROVISIONAL_VOLATILE_N16   1st  全35キー一致  snapshot_hash=d270aaed508ddd95
+  ○ PROVISIONAL_VOLATILE_N16   2nd  全35キー一致  snapshot_hash=d270aaed508ddd95
+  ○ UNRESOLVED_N16             1st  全35キー一致  snapshot_hash=7074638a6107cc41
+  ○ UNRESOLVED_N16             2nd  全35キー一致  snapshot_hash=7074638a6107cc41
+  ○ VOLATILE_N10               1st  全35キー一致  snapshot_hash=6dc74cba4627892e
+  ○ VOLATILE_N10               2nd  全35キー一致  snapshot_hash=6dc74cba4627892e
+  ○ VOLATILE_N16               1st  全35キー一致  snapshot_hash=c535c636027d811b
+  ○ VOLATILE_N16               2nd  全35キー一致  snapshot_hash=c535c636027d811b
+  一致 14 件 / 不一致 0 件
+
+── §4 同梱スキーマへの適合 ──
+  使うスキーマ: input_schema.json / source_registry_schema.json
+  （検査する語彙: type・const・enum・required・properties・items・additionalProperties・minItems・maxItems・uniqueItems・minimum・maximum・minLength・pattern・anyOf・oneOf・allOf・if/then）
+  自作した入力 14 件のうち 違反あり 0 件
+  先方の参照入力 14 件のうち 違反あり 0 件
+
+── §5 送信の一式（system＋INPUT_JSON）の自己点検 ──
+  ○ FIRM_N4                    1st  system  19588バイト／user  42277バイト／入れ子 5／自己点検 0件
+  ○ FIRM_N4                    2nd  system  19797バイト／user  42277バイト／入れ子 5／自己点検 0件
+  ○ MIXED_N16                  1st  system  19588バイト／user 155119バイト／入れ子 5／自己点検 0件
+  ○ MIXED_N16                  2nd  system  19797バイト／user 155119バイト／入れ子 5／自己点検 0件
+  ○ PROVISIONAL_MIXED_N16      1st  system  19588バイト／user 158863バイト／入れ子 5／自己点検 0件
+  ○ PROVISIONAL_MIXED_N16      2nd  system  19797バイト／user 158863バイト／入れ子 5／自己点検 0件
+  ○ PROVISIONAL_VOLATILE_N16   1st  system  19588バイト／user 159796バイト／入れ子 5／自己点検 0件
+  ○ PROVISIONAL_VOLATILE_N16   2nd  system  19797バイト／user 159796バイト／入れ子 5／自己点検 0件
+  ○ UNRESOLVED_N16             1st  system  19588バイト／user 156635バイト／入れ子 5／自己点検 0件
+  ○ UNRESOLVED_N16             2nd  system  19797バイト／user 156635バイト／入れ子 5／自己点検 0件
+  ○ VOLATILE_N10               1st  system  19588バイト／user  99112バイト／入れ子 5／自己点検 0件
+  ○ VOLATILE_N10               2nd  system  19797バイト／user  99112バイト／入れ子 5／自己点検 0件
+  ○ VOLATILE_N16               1st  system  19588バイト／user 156055バイト／入れ子 5／自己点検 0件
+  ○ VOLATILE_N16               2nd  system  19797バイト／user 156055バイト／入れ子 5／自己点検 0件
+  書き出し先: /home/centos/r122_v23/teishutsu_20261020_132110/03_生成した入力
+
+── §6 本番DBでの組み立ては --r122-prompt-real を付けたときだけ行います ──
+
+════════════════════════════════════════════════════════
+ すべて一致しました（不一致 0 件）
+════════════════════════════════════════════════════════

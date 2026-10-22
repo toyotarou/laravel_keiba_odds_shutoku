@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力 r12.2 006への回答</title>
+<style>
+:root{
+  --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --sub:#5b6673;
+  --line:#e3e7ec; --ok:#1f7a4d; --okbg:#eaf6ef;
+  --ng:#a8322b; --ngbg:#fdeceb; --warn:#8a5a00; --warnbg:#fff6e0;
+  --acc:#1f4e8c; --accbg:#eaf0f9;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:15px; line-height:1.75; padding:0 0 56px;
+  -webkit-text-size-adjust:100%;
+}
+header{
+  background:var(--acc); color:#fff; padding:20px 16px 18px;
+}
+header h1{margin:0 0 6px; font-size:19px; line-height:1.45}
+header p{margin:0; font-size:12.5px; opacity:.9}
+main{padding:0 12px}
+section{
+  background:var(--card); border:1px solid var(--line);
+  border-radius:12px; margin:14px 0; padding:14px 14px 16px;
+}
+h2{
+  margin:0 0 10px; font-size:16px; line-height:1.5;
+  padding-bottom:8px; border-bottom:2px solid var(--line);
+}
+h3{margin:18px 0 6px; font-size:14.5px; line-height:1.5}
+h3:first-of-type{margin-top:4px}
+p{margin:8px 0}
+.lead{font-size:14px; color:var(--sub)}
+.quote{
+  background:#f1f3f6; border-left:3px solid #b6c0cc;
+  margin:10px 0; padding:9px 11px; font-size:13.5px; color:#3b4653;
+  border-radius:0 6px 6px 0;
+}
+.quote b{color:var(--ink)}
+.tag{
+  display:inline-block; font-size:11.5px; font-weight:700;
+  padding:2px 8px; border-radius:999px; margin:0 6px 0 0;
+  vertical-align:2px; white-space:nowrap;
+}
+.t-ok{background:var(--okbg); color:var(--ok)}
+.t-ng{background:var(--ngbg); color:var(--ng)}
+.t-warn{background:var(--warnbg); color:var(--warn)}
+.t-acc{background:var(--accbg); color:var(--acc)}
+.kv{width:100%; border-collapse:collapse; margin:10px 0; font-size:13px}
+.kv th,.kv td{border:1px solid var(--line); padding:7px 8px; text-align:left; vertical-align:top}
+.kv th{background:#f3f5f8; font-weight:700; white-space:nowrap}
+.kv td code{font-size:12px}
+code{
+  background:#eef1f5; padding:1px 5px; border-radius:4px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  word-break:break-all;
+}
+pre{
+  background:#20242b; color:#e6e9ee; padding:11px 12px; border-radius:8px;
+  overflow-x:auto; font-size:12px; line-height:1.6; margin:10px 0;
+}
+pre code{background:none; color:inherit; padding:0; font-size:12px}
+ul{margin:8px 0; padding-left:1.25em}
+li{margin:5px 0}
+.item{border-top:1px solid var(--line); padding-top:14px; margin-top:16px}
+.item:first-of-type{border-top:0; padding-top:0; margin-top:4px}
+.itemhead{font-weight:700; font-size:14.5px; line-height:1.5; margin:0 0 6px}
+.tests{
+  background:var(--okbg); border:1px solid #cbe6d6; border-radius:8px;
+  padding:9px 11px; margin:10px 0; font-size:13px;
+}
+.tests b{color:var(--ok)}
+.notyet{
+  background:var(--warnbg); border:1px solid #efdca9; border-radius:8px;
+  padding:9px 11px; margin:10px 0; font-size:13px;
+}
+.ask{
+  background:var(--accbg); border:1px solid #c3d3ea; border-radius:8px;
+  padding:11px 12px; margin:12px 0;
+}
+.ask .q{font-weight:700; margin:0 0 8px; font-size:14.5px}
+.opt{background:#fff; border:1px solid var(--line); border-radius:7px; padding:9px 10px; margin:7px 0; font-size:13.5px}
+.opt b{display:block; margin-bottom:3px}
+.sum{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0}
+.sumbox{
+  flex:1 1 calc(50% - 4px); min-width:130px;
+  background:#f3f5f8; border:1px solid var(--line); border-radius:9px;
+  padding:9px 10px;
+}
+.sumbox .n{font-size:21px; font-weight:800; line-height:1.2}
+.sumbox .l{font-size:11.5px; color:var(--sub); margin-top:2px}
+footer{padding:16px; text-align:center; color:var(--sub); font-size:12px}
+.small{font-size:12.5px; color:var(--sub)}
+.scroll{overflow-x:auto; -webkit-overflow-scrolling:touch}
+.scroll table{min-width:460px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>馬眼力 r12.2<br>10月20日「006」確認結果への回答</h1>
+  <p>作成：2026年10月21日（JST）／実装担当<br>
+     対象：馬眼力_r12.2_是正と設計書_確認結果_20261020.txt（確認者：なる）</p>
+</header>
+
+<main>
+
+<section>
+  <h2>まず結論</h2>
+  <p><span class="tag t-ok">9項目すべて</span>ご指摘が正しかったです。</p>
+  <p>直す前にコードを読み直し、ご指摘の経路が実際に通ることを確かめてから
+     手を入れました。<b>「直したつもり」で報告しないよう、1件ずつアンカー注釈と
+     試験IDを付けています。</b></p>
+  <p>前回いただいた<b>「『本物の不具合9件を全部直した』という説明はそのまま
+     受け入れられません」</b>というご指摘のとおりでした。今回は件数を数える
+     書き方をやめて、どの関数のどの行がどう変わったかを書きます。</p>
+
+  <div class="sum">
+    <div class="sumbox"><div class="n">9 / 9</div><div class="l">ご指摘に手を入れた項目</div></div>
+    <div class="sumbox"><div class="n">0 件</div><div class="l">不合格の試験</div></div>
+    <div class="sumbox"><div class="n">0 回</div><div class="l">実AIの呼び出し（いまも）</div></div>
+    <div class="sumbox"><div class="n">0 件</div><div class="l">本番の凍結入力（いまも）</div></div>
+  </div>
+
+  <p class="lead"><b>本番公開・r12.2への切替が保留であることに異議はありません。</b>
+     10月24日・25日の非公開検証（shadow段）を提案します。</p>
+</section>
+
+<section>
+  <h2>いちばん大きかったご指摘</h2>
+  <div class="quote">
+    提出2本の範囲では、r122InspectResponse／r122ResolveCorrection／r122Publish を
+    通常のAI送信完了から起動する接続を確認できません。<br>
+    <b>「旗を1にすれば完成経路」という扱いにしないでください。</b>
+  </div>
+  <p><b>これがいちばん効きました。他ファイルにもありませんでした。</b>
+     原応答を保存したあと、誰も検証・訂正・公開を始めていませんでした。
+     試験コマンドからしか呼んでいませんでした。</p>
+  <p>繋ぎました。呼出経路は1本だけです。</p>
+  <pre><code>AiController.php（実ファイルはこれ1つ）
+
+getHorseOddsFinderAiAnalysis()        ← 1st の本番関数
+  └ 原応答を保存
+      └ app()->terminating()          ← 画面へ返したあとに動かす
+           └ r122AfterReceive(…,'1st')
+                ├ 検証   r122InspectResponse()
+                ├ 訂正   r122SendFix()        ← 必要なときだけ・1回だけ
+                ├ 解決   r122AcceptedHorses()
+                └ 公開   r122PublishWhenReady()
+
+getHorseOddsFinderSecondAiOpinion()   ← 2nd の本番関数
+  └ 原応答を保存
+      └ r122AfterReceive(…,'2nd')     ← その場で。公開まで行く</code></pre>
+  <p><b>Queue Job は作っていません。作らないことを選びました。</b>
+     応答期限（発走150秒前）から公開期限（発走120秒前）まで30秒しかなく、
+     別プロセスへ渡して結果を待つ余裕がないためです。
+     <span class="tag t-warn">正本との差</span>なので、ご判断をお願いします（下の「ご判断いただきたいこと」）。</p>
+  <p>ご指摘の<b>「PROMPT=1だけにしてQUEUE=0のまま」も、設定で作れないようにしました。</b>
+     この組み合わせでは <code>QUEUE_REQUIRED</code> を記録して1st AIを呼びません。</p>
+  <div class="tests">
+    <b>試験 X-01〜X-30（30項目）。</b>
+    うち X-24〜X-30 は <code>ReflectionClass</code> で本番関数の行範囲を取り、
+    その中に呼び出しがあるかを見る試験です。
+    「呼出経路を提出してください」に、文章ではなく試験で答えられるようにしました。
+    接続を外したり順序を変えたりすると、この試験が落ちます。
+  </div>
+  <div class="notyet">
+    <b>まだできていないこと。</b>実AIはいまも一度も呼んでいません。
+    訂正を実際に送る経路は書きましたが、通っていません。
+    試験で確かめたのは「送る手前で断る3経路」と「依頼本文の中身」までです。
+    実送信は10月24日・25日でしか測れません。
+  </div>
+</section>
+
+<section>
+  <h2>公開に使ってはいけない応答・馬が入る（2章）</h2>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">2-1</span>complete=false を公開候補から除いていない</p>
+    <p><code>status=RECEIVED</code> は見ていましたが <code>complete=1</code> を見ていませんでした。
+       <b>ご指摘のとおりです。</b></p>
+    <div class="scroll">
+    <table class="kv">
+      <tr><th>関数</th><th>変更</th></tr>
+      <tr><td><code>r122InspectResponse()</code></td>
+          <td>complete を返す。<code>normal</code> は complete のときだけ中身を入れ、本文は <code>normal_kept</code> に保持</td></tr>
+      <tr><td><code>r122Publish()</code></td>
+          <td>complete=false の role を飛ばす</td></tr>
+      <tr><td><code>r122ResponseUsed()</code></td>
+          <td>complete の検査を band_ranks を取る<b>前</b>に移した</td></tr>
+    </table>
+    </div>
+    <div class="tests"><b>試験 P-25〜P-29。</b>
+      ご指摘いただいた3つの形（1stだけなら選ばれない馬を2ndの上位へ置く／
+      候補・順位点・使用応答IDが1st単独時と一致／両側未完了なら候補0）を
+      そのまま作りました。</div>
+  </div>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">2-2</span>NO_EVIDENCE／UNVERIFIED も統合している</p>
+    <p>取消馬は除いていたのに、資格の検査がありませんでした。
+       ご指摘の16頭全頭NO_EVIDENCEの例（1・2・3・7・8・9・11 の7頭が取れてしまう）は、
+       <b>こちらの試験でも同じ経路で再現しました。</b></p>
+    <p><code>eligibility !== 'ELIGIBLE'</code> なら飛ばすようにしました。
+       非適格馬は<b>順位点・適格数・補充候補のどれにも入りません。</b></p>
+    <p>ご指摘の「個別SIGNAL1系統が検証できた馬は、採点がpartialでも保持する」は
+       守っています。点数の下限や複数系統の必須は足していません。</p>
+    <div class="tests"><b>試験 P-30・P-31・R-31・R-46。</b></div>
+  </div>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">2-3</span>訂正後の未検証順位も使える</p>
+    <p>band_ranks を先に採り、あとから <code>needs_fix</code> を見る構造でした。
+       <b>「+5が付かない」だけでは順位の正しさは担保できない、というご指摘もそのとおりです。</b></p>
+    <p>complete と needs_fix の検査を<b>band_ranks を取る前</b>に移しました。</p>
+    <div class="tests"><b>試験 P-34〜P-40（新規7項目）。</b>
+      ご指摘いただいた2つの例を候補生成まで通しました。
+      ①1頭の採点集計だけを壊し、同時に対象外のB帯の並びを入れ替える。
+      ②A帯に馬番999を混ぜる（順位集合不正）。
+      どちらも帯順位を採らず、幽霊馬も候補に入りません。</div>
+  </div>
+</section>
+
+<section>
+  <h2>取消情報・凍結時点・順位点（3章）</h2>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">3-1</span>通常オッズ表の取消が残る</p>
+    <p>数値は <code>$batchCells</code> へ入れ替えるのに、取消は初期化していませんでした。
+       実監査を読んだあと <b>通常オッズ表の取消を捨て</b>、
+       採用バッチ（ADOPTED）の取消履歴だけから作り直します。
+       名目スロットが6だから上限内、という扱いはしていません。</p>
+  </div>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">3-2</span>全候補バッチの取消を採用前に合算</p>
+    <p><code>acceptBatch</code> を通ったバッチの取消だけで活動集合を作るようにしました。
+       適格バッチの集合検査を先に終わらせてから数値を見ます。</p>
+  </div>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">3-3</span>input_freeze_at 到達前の保存を止めていない</p>
+    <p><code>now &lt; input_freeze_at</code> なら <code>TOO_EARLY</code> で<b>断ります</b>（REPLAYは除く）。
+       本番・shadow の両方の入口に効きます。外側のスケジューラには頼っていません。</p>
+  </div>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">3-4</span>取消後に凍結Kと帯内順位rを変えている</p>
+    <p>ご指摘の「凍結A帯6頭の2位＝83.333…点が、上位取消で5頭の1位＝100点に変わる」は、
+       <b>こちらでも同じ計算になりました。</b></p>
+    <p><code>K</code> は凍結帯の頭数のまま数え（取消で減らしません）、
+       順位配列からも取消馬を抜きません（rは凍結時の位置のまま）。
+       <b>取消で動かすのは公開枠だけです。</b></p>
+    <div class="tests"><b>試験 P-32・P-33。</b></div>
+  </div>
+</section>
+
+<section>
+  <h2>時刻A案「無い時刻は作らない」（4章）</h2>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">4-1</span>情報上限を読取時刻にしている</p>
+    <p><code>$readAt = $freezeAt ?? 現在時刻</code> は真正な取得時刻の記録ではありません。
+       <b>「無い時刻は作らない」と書きながら作っていました。</b></p>
+    <p><code>$readAt</code> を<b>廃止</b>しました。算出時刻の列が無い表は使いません。</p>
+    <p>これを厳密に当てると、過去平均2表に算出時刻が無いため OPI が永久に
+       載らなくなります。そこで集計コマンド2本に<b>算出した実時刻を記録する処理</b>を足し、
+       2表に <code>computed_at DATETIME(6) NULL</code> の列を追加しました。
+       <b>既存行には時刻を入れていません</b>（無い時刻は作らないため）。</p>
+    <pre><code>popavg   算出 列はあるが値なし（集計が1回まわれば入ります）
+fukuavg  算出 列はあるが値なし（集計が1回まわれば入ります）
+corr     算出 2026-10-19 21:20:02</code></pre>
+    <div class="notyet"><b>「時刻A案への対応は完了」という書き方はやめます。</b>
+      いまは「経路は直した。過去平均2表の算出時刻は<b>列を入れたが値はまだ入っていない</b>」
+      が正確な状態です。夜の集計が1回まわれば本物の時刻が入り、その翌日の開催から載ります。</div>
+    <div class="tests"><b>試験 M-06・M-07・M-10〜M-14。</b>
+      載らない側（算出時刻が無い）と載る側（算出時刻がある corr から作る推定確定オッズ）の
+      両方を通し、載った値は SQL から取り直して突き合わせています（2.85／1.18 が一致）。</div>
+  </div>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">4-2</span>派生値を親より過去の時刻に作ったことにしている</p>
+    <p>推定確定オッズの3つの時刻に、補正係数の <code>computed_at</code> を渡していました。
+       前夜算出の係数で今日の6分前オッズを使った派生値が、前夜に利用可能だったことになります。
+       <b>ご指摘のとおりです。</b></p>
+    <ul>
+      <li>観測・利用可能時刻 … <b>親のうち遅いほう</b>を採る（過去へ戻しません）</li>
+      <li>派生の <code>computed_at</code> … <b>いま実際に計算した時刻</b></li>
+    </ul>
+    <p>過去走の要約、増減率も同じ形に直しました。</p>
+  </div>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">4-3</span>日時変換がマイクロ秒を落としている</p>
+    <p>09:34:30.000001 が 09:34:30 へ切り捨てられて上限内として通りました。
+       マイクロ秒を保持し、タイムゾーンを <code>Asia/Tokyo</code> として明示し、
+       繰上がり（2026-02-30 など）を拒否する形に書き直しました。</p>
+  </div>
+</section>
+
+<section>
+  <h2>局所訂正で正常根拠を落とす（5章）</h2>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">5-1</span>正規キーと保護条件が一致していない</p>
+    <p><code>score_state</code>／<code>independent_groups</code> を見ていました。
+       正規応答のキーは <code>score_status</code> で、正常参照出力にも
+       <code>score_state</code> はありません。
+       <b>そのままでは採点状態が常に既定 partial、群数が既定0になり、保護条件が働きません。</b>
+       ご指摘のとおりです。</p>
+    <p>正規キー <code>score_status</code> を見るようにし、独立根拠の数は
+       <code>family_review</code> の SUPPORTED の数で数えるようにしました。</p>
+  </div>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">5-2</span>summary_horses の訂正を拒否する</p>
+    <p>ご指摘の「正常な馬番2の observed_sum だけを999へ変える」例を通すと、
+       診断が馬番2を初回 normal から落とし、訂正で正常な馬番2を返しても
+       <b>対象外として拒否</b>されました。そのとおりでした。</p>
+    <p>直したところは2つです。</p>
+    <ul>
+      <li><b>範囲ごとに直せる項目を決めた。</b>
+          summary_horses・presentation_horses・rank_bands・public_candidates・top_fields を
+          それぞれ許可された項目の範囲で訂正できるようにしました。
+          評価行全体を自由に書き換えることはできません。</li>
+      <li><b>採点欄だけの誤りで行を落とさない。</b>
+          採点まわりだけの指摘なら<b>採点欄だけ空にして行を残します。</b>
+          救済するコードは14個に限り、採点以外の指摘が1つでも混ざれば救済しません。
+          自分のSIGNALが0の馬も救済しません。</li>
+    </ul>
+    <p>正本の「不正得点項目だけをnull化し、正常根拠を保持する」に合わせました。</p>
+    <div class="tests"><b>試験 R-43〜R-51（9項目）。</b>
+      行は落とさず全頭そろう／採点は空になる／採点の状態は partial になる／
+      根拠はそのまま残る／採点以外の指摘が混ざれば残さない、を見ています。</div>
+  </div>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">5-3</span>rescued が row_valid=false を上書きできる</p>
+    <p>ご指摘の「applied=[]、rescued=[4]、skipped=[4] でも4が許可に入る」は
+       <b>関数単体でそのとおりでした。</b></p>
+    <p>skipped を rescued から外し、<code>row_valid</code> が<b>明示 true</b> のものだけを
+       承認します（未設定は通しません）。rescued は承認済み行の分類として扱います。</p>
+  </div>
+</section>
+
+<section>
+  <h2>数値・比較資料・指紋（6章）</h2>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">6-1</span>小数4桁制限と float 往復</p>
+    <div class="quote">
+      応答側だけが未実装なのではありません。<br>
+      <b>「文字列で保持した」だけでは、後段で登録から落とす処理の是正にはなりません。</b>
+    </div>
+    <p><b>ここがいちばん痛かったです。実際そうなっていました。</b>3つ直しました。</p>
+    <ul>
+      <li><b>凍結順位の4桁制限を外した。</b>最大128桁の十進数を文字列で受け、
+          文字として小数点をそろえて比べます（floatを通りません）。
+          <code>scale()</code>（小数1〜4桁）は<b>判定経路から消しました。</b></li>
+      <li><b>登録から落とすのをやめた。</b>PHPの数値で正確に持てない値を
+          source_registry から落としていたのを、<b>元の十進数の文字列のまま
+          value に入れる</b>形にしました。Schema の value は string も可なので、
+          <b>Schemaは変えていません。</b>信号の計算は文字列をそのまま
+          多倍長整数のたすき掛けで比べるので、桁は1つも落ちません。</li>
+      <li><b>十進数文字列への変換で桁を落とすのをやめた。</b>
+          小数13桁目から下を落としていたのを直しました。</li>
+    </ul>
+    <div class="tests"><b>試験 R122-E08（14項目）＋R122-J02（25項目）。</b>
+      20桁の小数 <code>1.99999999999999999999</code> を使い、
+      <b>floatを通すと 2.0 と見分けが付かなくなること</b>と、
+      <b>いまの経路なら 2未満と正しく比べられること</b>の両方を見ています。
+      <code>scale()</code> の呼び出しが判定経路から消えていることも、
+      ソースを数えて見張っています。</div>
+  </div>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">6-2</span>33レース比較が新契約どおりでない</p>
+    <p>実装上の資格が「groups&gt;=1 <b>かつ</b> 統合点がnullでない」で、
+       説明と合っていませんでした。枠移動もしていませんでした。
+       <b>ご指摘のとおりです。</b></p>
+    <p>資格を「1系統以上」だけにし、不足時の枠移動は<b>本体と同じ</b>
+       <code>fillShortfall</code> を通すようにしました。
+       数は 33／27／6 で変わっていません（両側が同じだけ動いたためです）。</p>
+    <div class="notyet"><b>「候補比較完了」という書き方はやめます。</b>
+      統合経路（両AIの局所回復・帯順位・原公開一致の加点）を通した比較は
+      <b>できていません。</b>両AIの応答が必要で、実AIを一度も呼んでいないためです。
+      プログラムの出力にも「言えること・言えないこと」を毎回出すようにしました。</div>
+  </div>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">6-3</span>京都9Rの取消の説明がコードと合わない</p>
+    <p><b>結論（サーバ側が正しい）は変わりませんが、理由の書き方がまちがっていました。</b>
+       しかも「最終スロット（6分前）だけ取消」という事実の書き方自体がまちがっていました。</p>
+    <p>DBを引きました。10月18日・4回京都7日目9Rの7番です。</p>
+    <div class="scroll">
+    <table class="kv">
+      <tr><th>時点</th><th>単勝</th></tr>
+      <tr><td>21分前</td><td>25.8</td></tr>
+      <tr><td>12分前</td><td>34.2</td></tr>
+      <tr><td><b>6分前</b></td><td><b>39.8</b></td></tr>
+      <tr><td>3分前</td><td>47.6</td></tr>
+      <tr><td><b>確定（−999）</b></td><td><b>取消</b></td></tr>
+    </table>
+    </div>
+    <p><b><code>取消</code> の文字は確定の行にしかありません。</b>
+       だから7番が凍結集合に残るのであって、6分前だから残るのではありません。
+       正本は「<code>input_freeze_at</code> までに利用可能な正式取消なら外す」で、
+       そのような取消が存在しなかった、というだけです。</p>
+    <p>N=8 は <code>races.num_horses = 8</code> かつ出馬表8頭で、
+       <b>取消による減少ではありません。</b></p>
+    <p><b>コードは最初から正本どおりでした。</b>間違っていたのは説明文だけです。
+       対象2日間の取消は3件だけなので、全部を実データの表として出力に出すようにしました。</p>
+    <div class="notyet"><b>正式取消の利用可能時刻は示せません。</b>
+      <code>t_horse_odds_finder_odds</code> には時刻の列が1つもありません。
+      だから時刻では示せず、契約どおり取得時点（スロット）の前後で判定しています。
+      <b>このことも出力に書きました。</b></div>
+    <p class="small">26／7 と 27／6 については、<b>27／6 が正本どおりです。</b>
+      ただし原監査行はお出しできません。実開催の取得監査は本番で1件も作っていないためです
+      （同梱ログの監査行は試験用に作ったものです）。</p>
+  </div>
+
+  <div class="item">
+    <p class="itemhead"><span class="tag t-ng">6-5</span>指紋が「全件不変の証明済み」ではない</p>
+    <p>表が無い場合や読取例外を失敗確定にせず、最後に「すべて一致」を出せる
+       経路がありました。<b>欠けと失敗を数え、1件でもあれば合格にしません。</b></p>
+    <div class="notyet"><b>「方式IDの提示は実DB不変の比較証跡の代わりにならない」も
+      そのとおりです。</b>いまお出しできるのは1回ぶんの指紋JSONだけで、
+      変更前後の対になっていません。次回、対でお出しします。</div>
+  </div>
+</section>
+
+<section>
+  <h2>設計書（7章）</h2>
+  <div class="quote">
+    「追記以外は1文字も変更していない」は厳密には、版表示や詳細設計書末尾の
+    対応表の差替えにも例外があります。<b>追記箇所と差替え箇所を分けた説明に
+    してください。</b>
+  </div>
+  <p><b>厳密には違いました。申し訳ありません。</b>
+     版表示と末尾の実装対応表には差替えがありました。</p>
+  <p>文書版1.2 では、印を3つに分けました。</p>
+  <div class="scroll">
+  <table class="kv">
+    <tr><th>印</th><th>意味</th></tr>
+    <tr><td>【実装追記 2026-10-20】</td><td>文書版1.1で足した段落。中身は変えていません</td></tr>
+    <tr><td>【実装追記 2026-10-21】</td><td>文書版1.2で新しく足した段落</td></tr>
+    <tr><td>【差替え 2026-10-21】</td><td>現物と合わなくなったので書き直した段落。<b>差替え前の文もその場に残しました</b></td></tr>
+  </table>
+  </div>
+  <p>差替えたのは<b>すべて実装担当が足した「実装追記」の段落だけ</b>です。
+     文書版1.0の本文（正本の仕様）は、版表示を除いて1文字も変えていません。
+     採用方針①〜③も再選択していません。</p>
+  <p>ご指摘の<b>「『応答局所回復・公開・時刻A案 完了』等を今回の現物に合う状態へ
+     直すこと」</b>に従い、「未実装」と書いていた3項目を実装済みへ、
+     「完了」と読める書き方を実際の状態へ差し替えました。
+     差替えの一覧は <code>06_設計書の差替え箇所と追記箇所.md</code> にあります。</p>
+</section>
+
+<section>
+  <h2>まだできていないこと</h2>
+  <p class="lead">件数を増やしても、ここが減らないと意味がないので、はっきり書きます。</p>
+  <div class="scroll">
+  <table class="kv">
+    <tr><th>項目</th><th>状態</th></tr>
+    <tr><td>実AIの呼び出し</td><td><b>一度もしていません。</b>受領時間・出力完了・サイズ・期限の実測は未実施</td></tr>
+    <tr><td>訂正の実送信</td><td>経路は書きましたが通っていません</td></tr>
+    <tr><td>直列で30秒に収まるか</td><td><b>未測定。</b>1st→2nd→公開が直列なので、実測しないと分かりません</td></tr>
+    <tr><td>本番の凍結入力</td><td><b>0件</b>（PROMPT=shadow／QUEUE=0）</td></tr>
+    <tr><td>過去平均2表の算出時刻</td><td>列は入れました。<b>値はまだ入っていません</b></td></tr>
+    <tr><td>元値の不変の証明</td><td>変更前後の指紋JSONの対がまだありません</td></tr>
+    <tr><td>Queue Job</td><td>作っていません（作らないことを選びました。正本との差です）</td></tr>
+    <tr><td>Flutterの実機表示</td><td>未実施</td></tr>
+    <tr><td>既存AC01〜AC14の新契約更新</td><td>未着手</td></tr>
+    <tr><td>的中率・回収率・人気薄捕捉率</td><td>未検証</td></tr>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>ご判断いただきたいこと</h2>
+
+  <div class="ask">
+    <p class="q">① Queue Job を作らない形でよいでしょうか</p>
+    <p class="small">正本（詳細設計書 第3章）は <code>FreezeRaceJob</code>／
+       role別の <code>RunRoleJob</code>／<code>AggregateRaceJob</code>／
+       <code>UpdateRaceLiveJob</code> を指定しています。実装はJobを作らず、
+       同じ順序をHTTPの中で同期に通す形にしました。</p>
+    <div class="opt"><b>A：いまの形（Jobなし・HTTPの中で同期）で進める</b>
+      応答期限から公開期限まで30秒しかないので、別プロセスへ渡さずに済みます。
+      順序と排他の約束は <code>BaganrikiWorker</code> が守ります（試験 Q-01〜Q-44）。
+      正本の第3章の指定とは違う形になります。</div>
+    <div class="opt"><b>B：正本どおり Job で書き直す</b>
+      設計書の指定に合います。ただしキューの取り出し待ち・worker のスリープ間隔が
+      30秒に乗るので、間に合うかを別に検証する必要があります。
+      10月24日・25日には間に合いません。</div>
+  </div>
+
+  <div class="ask">
+    <p class="q">② 10月24日・25日は shadow 段でよいでしょうか</p>
+    <p class="small">006で「shadowでも凍結・時刻の是正が必要」とのご指摘をいただき、
+       3-3（早すぎる凍結を断る）と4-1〜4-3（時刻）を直しました。</p>
+    <div class="opt"><b>A：shadow 段で動かす（推奨をいただいた形）</b>
+      商品の予想を落とさずに、入力の組み立て・凍結・coverage・取得監査の
+      紐づき・送信文の大きさ・後処理の秒数を実測できます。
+      実AIの応答時間は1レースだけ手で呼ぶ形で測ります。</div>
+    <div class="opt"><b>B：旗を1にして実送信する</b>
+      実経路をそのまま測れますが、初めて実地で動かす段で商品を落とす
+      側に賭けることになります。</div>
+  </div>
+
+  <p class="small">006でいただいた3つの推奨（①締切は T−60秒 ②過去走は5走を
+     維持して実測してから判断 ③24日はshadow段）は、そのまま採っています。
+     <code>.env</code> の現在値も同梱の資料に載せました。</p>
+</section>
+
+<section>
+  <h2>同梱した資料</h2>
+  <div class="scroll">
+  <table class="kv">
+    <tr><th>ファイル</th><th>中身</th></tr>
+    <tr><td><code>02_006のご指摘ごとの対応表.md</code></td><td>9項目それぞれの、関数・アンカー・試験ID</td></tr>
+    <tr><td><code>03_33レース候補比較.md</code></td><td>6-2・6-3。京都9Rの実データと cancel_slots</td></tr>
+    <tr><td><code>04_実送信の後への接続.md</code></td><td>6-4。呼出経路・Jobを作らない理由・訂正依頼の本文</td></tr>
+    <tr><td><code>06_設計書の差替え箇所と追記箇所.md</code></td><td>7章。追記と差替えの一覧</td></tr>
+    <tr><td><code>documents/</code></td><td>基本設計書・詳細設計書（文書版1.2）</td></tr>
+    <tr><td><code>code/</code> <code>diff/</code></td><td>PHP2本の現物と、前回からの差分</td></tr>
+    <tr><td><code>log/</code></td><td>サーバ実行のログ（33レースは全文）</td></tr>
+    <tr><td><code>01_版とハッシュ.txt</code></td><td>行数・MD5・SHA-256</td></tr>
+  </table>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  馬眼力 r12.2／10月20日006への回答／2026年10月21日 JST
+</footer>
+
+</body>
+</html>

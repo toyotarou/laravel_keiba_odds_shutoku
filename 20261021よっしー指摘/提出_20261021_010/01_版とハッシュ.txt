@@ -1,0 +1,117 @@
+馬眼力 r12.2 — 010への回答  版とハッシュ
+作成 2026年10月21日（日本時間）
+
+── 環境（010の6章への回答。ここが前提の訂正です）────────────────
+  Laravel Framework   8.83.29
+  PHP（artisan）      8.0.30 (cli)
+  MySQL               8.4.9
+  QUEUE_CONNECTION    sync（既定は触っていません）
+  jobs/job_batches/failed_jobs  この提出でDDLで作りました
+  app/Jobs            この提出で5本（土台1＋4本）作りました
+  supervisord         未導入（systemd を使います）
+  APP_ENV / APP_DEBUG local / true  ← 報告事項
+
+── 置き換え・追加したファイル ────────────────────────────────
+  app/Http/Controllers/Api/AiController.php
+      2c6460626989c78bf542db65ef1fb3a8
+  app/Console/Commands/SummaryAiAnalysisCompensate.php
+      e05ccaa64eda0225d3b24a25a32edd60
+  app/Console/Commands/SummaryPopularityRankAverage.php
+      5d9648d932b0b4bffd119a05650f90a1
+  app/Console/Commands/SummaryFukuPopularityRankAverage.php
+      ffe28f51db5f80c636bf342e4b2f29da
+
+  app/Jobs/R122Job.php                （新規）
+      b5427782fe211b55866e779b8d200c72
+  app/Jobs/R122FreezeRaceJob.php      （新規）
+      f72f0dc95dc30bfd9a2838afeb698e75
+  app/Jobs/R122RunRoleJob.php         （新規）
+      e6c61f1a5d316b5b58c2d887af14ba3e
+  app/Jobs/R122AggregateRaceJob.php   （新規）
+      319ce857b8c5b938c52d8adf9c3d8582
+  app/Jobs/R122UpdateRaceLiveJob.php  （新規）
+      872b4afb67e64f4438ee726156a37dd7
+
+  /usr/local/bin/r122-worker.sh           （新規・常駐の中身）
+  /etc/systemd/system/r122-worker@.service（新規・常駐の枠）
+      どちらも root 権限が必要なので、まだ置けていません。
+      code/systemd/ に現物を入れています。
+
+  config/queue.php
+      既存の節は1文字も変えず、connections に 'r122' の1節だけを
+      足しました（driver=database／retry_after=300／after_commit=true）。
+      差分は diff/ ではなく、この下に全文を載せます。
+
+── 差分の基準 ────────────────────────────────────────────────
+  010で確認いただいた「馬眼力_r12.2_なるさんへの依頼_20261021.tar.gz」
+  の code/ を基準にしています。
+
+  AiController.php                      c7f5ff8cf9d48725c39ea5580acaa08d
+  SummaryAiAnalysisCompensate.php       41bb1d99179ed8a7e4512006a29d5cd4
+  SummaryPopularityRankAverage.php      155ee0234ad1f339a1c500df865474ca
+  SummaryFukuPopularityRankAverage.php  3206a1e3500139bcac00b43be167f3b1
+
+── config/queue.php に足した1節（全文）──────────────────────
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-QUEUECONF  r12.2 専用の待ち行列（010の2章）
+        // ══════════════════════════════════════════════════════════════
+        //   既定の QUEUE_CONNECTION は sync のままです。
+        //   この接続は app/Jobs/R122*Job が名指しで使うだけなので、
+        //   アプリの他の場所の動きは変わりません。
+        //
+        //   retry_after は worker の上限より十分長くします。
+        //     RunRoleJob の上限  175秒
+        //     worker の --timeout 180秒
+        //     retry_after        300秒
+        //   短いと、まだ動いているJobを別のworkerが拾って二重に動きます。
+        //
+        //   after_commit は true です。トランザクションの中で dispatch
+        //   しても、commit まで実際には積まれません。未commitの
+        //   snapshot を worker が先に読むことを防ぎます（010の2-2）。
+        'r122' => [
+            'driver' => 'database',
+            'table' => 'jobs',
+            'queue' => 'r122-agg',
+            'retry_after' => 300,
+            'after_commit' => true,
+        ],
+
+── 待ち行列の表（DDL。php artisan migrate は打ちません）──────
+  このプロジェクトには database/migrations に baganriki 系の
+  migration が1本もありません。r12.2 の表も DDL で作っています。
+  migrate を打つと、関係のない未適用の migration まで走るので
+  打ちません。定義は Laravel 8 の queue:table ／
+  queue:batches-table ／ queue:failed-table が作るものと同じ形です。
+
+    jobs         (id, queue, payload, attempts, reserved_at,
+                  available_at, created_at, KEY jobs_queue_index)
+    job_batches  (id, name, total_jobs, pending_jobs, failed_jobs,
+                  failed_job_ids, options, cancelled_at, created_at,
+                  finished_at)
+    failed_jobs  (id, uuid UNIQUE, connection, queue, payload,
+                  exception, failed_at)
+
+── .env に足した行（どれも効いていません）────────────────────
+  BAGANRIKI_R122_JOBS=0              Job構成は動かさない
+  BAGANRIKI_R122_TARGETS=            空なので1レースも送らない
+  BAGANRIKI_R122_TARGETS_ENFORCE=0   限定を効かせない
+
+  既にあった行（変えていません）
+  BAGANRIKI_R122_PROMPT=shadow
+  BAGANRIKI_R122_QUEUE=0
+  BAGANRIKI_R122_AUDIT=1
+  BAGANRIKI_SALES_CLOSE_DERIVE=1
+  BAGANRIKI_SALES_CLOSE_OFFSET_SEC=60
+  BAGANRIKI_PAST_RUNS_MAX=5
+
+── 開発側で毎回通している検査 ────────────────────────────────
+  php -l                構文
+  qt/lint_php80.py      PHP 8.1〜8.4 の書き方が混じっていないか
+                        （開発側の php は 8.3 なので php -l では
+                          捕まりません。これで捕まえます）
+  qt/lint_ns.py         Command から別の名前空間のクラスを
+                        完全修飾で呼んでいるか
+  qt/lint_args.py       試験の判定関数の引数の数が定義どおりか
+
+  crontab は1文字も変えていません（読み出しだけです）。
+  実AIへの通信は、今回の試験で0回です。

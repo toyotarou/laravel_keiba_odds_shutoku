@@ -141,6 +141,15 @@ Route::get('getHorseOddsFinderAiRecoverySummary', [AiController::class, 'getHors
 
 
 
+// ─────────────────────────────────────────────────────────────────────
+// @ANCHOR-20261020-R122-API  r12.2 の読取API（詳細設計書12.2）
+//   正式公開（publication）と現在のライブ状態（live_state）を分けて返します。
+//   読み取りだけです。AI送信も再選出も起こしません。
+//   原AI応答・予約token・内部認証情報は返しません。
+// ─────────────────────────────────────────────────────────────────────
+Route::get('baganriki/r12-2/races/{race_id}', [AiController::class, 'getBaganrikiR122Race'])
+    ->where('race_id', '[A-Za-z0-9_\-]+');
+
 Route::get('getHorseOddsFinderAiAnalysisRecord', [AiController::class, 'getHorseOddsFinderAiAnalysisRecord']);
 Route::get('getHorseOddsFinderAiAnalysisRecord2', [AiController::class, 'getHorseOddsFinderAiAnalysisRecord2']);
 

@@ -1,0 +1,1944 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "baganriki-v041-r12-2"
+    },
+    "prompt_version": {
+      "const": "baganriki-v041-r12-2-20261020"
+    },
+    "race_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "snapshot_hash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "snapshot_hash_version": {
+      "const": "exact-common-payload-sha256-r8"
+    },
+    "time_contract": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": "baganriki-post-slot-grace-v1"
+        },
+        "anchor_kind": {
+          "const": "POST_TIME"
+        },
+        "anchor_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "snapshot_offsets": {
+          "const": [
+            21,
+            18,
+            15,
+            12,
+            9,
+            6
+          ]
+        },
+        "sampling_policy_id": {
+          "const": "SLOT_FIRST_VALID_COMMITTED_V1"
+        },
+        "reply_deadline": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "publish_deadline": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "sales_close_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "safety_margin_ms": {
+          "const": 60000
+        },
+        "acquisition_grace_ms": {
+          "type": "object",
+          "properties": {
+            "6": {
+              "const": 30000
+            },
+            "9": {
+              "const": 120000
+            },
+            "12": {
+              "const": 120000
+            },
+            "15": {
+              "const": 120000
+            },
+            "18": {
+              "const": 120000
+            },
+            "21": {
+              "const": 120000
+            }
+          },
+          "required": [
+            "6",
+            "9",
+            "12",
+            "15",
+            "18",
+            "21"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "version",
+        "anchor_kind",
+        "anchor_at",
+        "snapshot_offsets",
+        "sampling_policy_id",
+        "reply_deadline",
+        "publish_deadline",
+        "sales_close_at",
+        "safety_margin_ms",
+        "acquisition_grace_ms"
+      ],
+      "additionalProperties": false
+    },
+    "cutoff_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+    },
+    "N": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 18
+    },
+    "runners": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "horse_no": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "win_rank": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "band": {
+            "enum": [
+              "A",
+              "B",
+              "D"
+            ]
+          }
+        },
+        "required": [
+          "horse_no",
+          "win_rank",
+          "band"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 18
+    },
+    "source_registry": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "source_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "race_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "HORSE",
+              "PAIR",
+              "RACE",
+              "COHORT"
+            ]
+          },
+          "horse_nos": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "uniqueItems": true
+          },
+          "applicable_horse_nos": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "uniqueItems": true
+          },
+          "field": {
+            "type": "string",
+            "minLength": 1
+          },
+          "unit": {
+            "type": "string",
+            "minLength": 1
+          },
+          "slot_offset": {
+            "enum": [
+              21,
+              18,
+              15,
+              12,
+              9,
+              6,
+              null
+            ]
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+          },
+          "available_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+          },
+          "computed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+          },
+          "source_kind": {
+            "enum": [
+              "OBSERVED",
+              "DERIVED"
+            ]
+          },
+          "parents": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "formula_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "formula_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dependency_key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dependency_role": {
+            "enum": [
+              "SIGNAL",
+              "CONTEXT"
+            ]
+          }
+        },
+        "required": [
+          "source_ref",
+          "race_id",
+          "value",
+          "scope",
+          "horse_nos",
+          "applicable_horse_nos",
+          "field",
+          "unit",
+          "slot_offset",
+          "observed_at",
+          "available_at",
+          "computed_at",
+          "source_kind",
+          "parents",
+          "formula_id",
+          "formula_version",
+          "dependency_key",
+          "dependency_role"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "scope": {
+                  "const": "HORSE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "horse_nos": {
+                  "minItems": 1,
+                  "maxItems": 1
+                },
+                "applicable_horse_nos": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scope": {
+                  "const": "PAIR"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "horse_nos": {
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "applicable_horse_nos": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scope": {
+                  "const": "RACE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "horse_nos": {
+                  "maxItems": 0
+                },
+                "applicable_horse_nos": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scope": {
+                  "const": "COHORT"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "horse_nos": {
+                  "maxItems": 0
+                },
+                "applicable_horse_nos": {
+                  "minItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source_kind": {
+                  "const": "OBSERVED"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "parents": {
+                  "maxItems": 0
+                },
+                "formula_id": {
+                  "type": "null"
+                },
+                "formula_version": {
+                  "type": "null"
+                },
+                "computed_at": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source_kind": {
+                  "const": "DERIVED"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "parents": {
+                  "minItems": 1
+                },
+                "formula_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "formula_version": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "computed_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "field_catalog": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "unit": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "enum": [
+              "HORSE",
+              "PAIR",
+              "RACE",
+              "COHORT"
+            ]
+          },
+          "display_label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value_type": {
+            "enum": [
+              "number",
+              "string",
+              "boolean"
+            ]
+          },
+          "missing_allowed": {
+            "type": "boolean"
+          },
+          "minimum": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "unit",
+          "scope",
+          "display_label",
+          "value_type",
+          "missing_allowed",
+          "minimum",
+          "maximum"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "input_indices": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "legacy_gap_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "signals": {
+      "type": "object",
+      "properties": {
+        "X1": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "X2": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "X3": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "X4": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "X5": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "X6": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "Z": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "X1",
+        "X2",
+        "X3",
+        "X4",
+        "X5",
+        "X6",
+        "Z"
+      ],
+      "additionalProperties": false
+    },
+    "S": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "S_min": {
+      "type": "integer"
+    },
+    "S_max": {
+      "type": "integer"
+    },
+    "mode": {
+      "enum": [
+        "FIRM",
+        "MIXED",
+        "VOLATILE",
+        "UNKNOWN"
+      ]
+    },
+    "target_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 7
+    },
+    "base_quota": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "A": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "B": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "D": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            }
+          },
+          "required": [
+            "A",
+            "B",
+            "D"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "quota": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "A": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "B": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "D": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            }
+          },
+          "required": [
+            "A",
+            "B",
+            "D"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "quota_adjustments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "requested_band": {
+            "enum": [
+              "A",
+              "B",
+              "D"
+            ]
+          },
+          "actual_band": {
+            "enum": [
+              "A",
+              "B",
+              "D"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "const": "BAND_CAPACITY"
+          }
+        },
+        "required": [
+          "requested_band",
+          "actual_band",
+          "count",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "selection_enabled": {
+      "type": "boolean"
+    },
+    "display_rating": {
+      "enum": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        null
+      ]
+    },
+    "learning_stage": {
+      "const": "COLLECT_ONLY"
+    },
+    "model_version": {
+      "type": "null"
+    },
+    "ai_role": {
+      "enum": [
+        "1st",
+        "2nd"
+      ]
+    },
+    "role_cap": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 7
+    },
+    "role_quota": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "A": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "B": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "D": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            }
+          },
+          "required": [
+            "A",
+            "B",
+            "D"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "past_runs": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "OPI": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "estimated_odds": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "recovery_statistics": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "similar_statistics": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "legacy_qualifications": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "gap_history": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "past_runs",
+        "OPI",
+        "estimated_odds",
+        "recovery_statistics",
+        "similar_statistics",
+        "legacy_qualifications",
+        "gap_history"
+      ],
+      "additionalProperties": false
+    },
+    "mode_status": {
+      "enum": [
+        "CONFIRMED",
+        "PROVISIONAL",
+        "UNRESOLVED"
+      ]
+    },
+    "allocation_mode": {
+      "enum": [
+        "FIRM",
+        "MIXED",
+        "VOLATILE",
+        null
+      ]
+    },
+    "mode_policy_id": {
+      "enum": [
+        "BASE_TRI_STATE_V1",
+        "X6_ONLY_UPPER_MODE_V1"
+      ]
+    },
+    "input_freeze_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+    },
+    "collection_audit": {
+      "type": "object",
+      "properties": {
+        "6": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "ADOPTED"
+            },
+            "batch_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "payload_hash": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "slot_scheduled_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+            },
+            "source_updated_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "request_started_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+            },
+            "response_received_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+            },
+            "available_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "batch_id",
+            "payload_hash",
+            "slot_scheduled_at",
+            "source_updated_at",
+            "request_started_at",
+            "response_received_at",
+            "available_at"
+          ]
+        },
+        "9": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "ADOPTED"
+                },
+                "batch_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "payload_hash": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "slot_scheduled_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "source_updated_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "request_started_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "response_received_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "available_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "batch_id",
+                "payload_hash",
+                "slot_scheduled_at",
+                "source_updated_at",
+                "request_started_at",
+                "response_received_at",
+                "available_at"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "pattern": "\\S"
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "12": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "ADOPTED"
+                },
+                "batch_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "payload_hash": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "slot_scheduled_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "source_updated_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "request_started_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "response_received_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "available_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "batch_id",
+                "payload_hash",
+                "slot_scheduled_at",
+                "source_updated_at",
+                "request_started_at",
+                "response_received_at",
+                "available_at"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "pattern": "\\S"
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "15": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "ADOPTED"
+                },
+                "batch_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "payload_hash": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "slot_scheduled_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "source_updated_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "request_started_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "response_received_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "available_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "batch_id",
+                "payload_hash",
+                "slot_scheduled_at",
+                "source_updated_at",
+                "request_started_at",
+                "response_received_at",
+                "available_at"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "pattern": "\\S"
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "18": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "ADOPTED"
+                },
+                "batch_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "payload_hash": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "slot_scheduled_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "source_updated_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "request_started_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "response_received_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "available_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "batch_id",
+                "payload_hash",
+                "slot_scheduled_at",
+                "source_updated_at",
+                "request_started_at",
+                "response_received_at",
+                "available_at"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "pattern": "\\S"
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "21": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "ADOPTED"
+                },
+                "batch_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "payload_hash": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "slot_scheduled_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "source_updated_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "request_started_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "response_received_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                },
+                "available_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "batch_id",
+                "payload_hash",
+                "slot_scheduled_at",
+                "source_updated_at",
+                "request_started_at",
+                "response_received_at",
+                "available_at"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "pattern": "\\S"
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "6",
+        "9",
+        "12",
+        "15",
+        "18",
+        "21"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "prompt_version",
+    "race_id",
+    "snapshot_hash",
+    "snapshot_hash_version",
+    "time_contract",
+    "cutoff_at",
+    "N",
+    "runners",
+    "source_registry",
+    "field_catalog",
+    "input_indices",
+    "legacy_gap_type",
+    "signals",
+    "S",
+    "S_min",
+    "S_max",
+    "mode",
+    "target_count",
+    "base_quota",
+    "quota",
+    "quota_adjustments",
+    "selection_enabled",
+    "display_rating",
+    "learning_stage",
+    "model_version",
+    "ai_role",
+    "role_cap",
+    "role_quota",
+    "coverage",
+    "mode_status",
+    "allocation_mode",
+    "mode_policy_id",
+    "input_freeze_at",
+    "collection_audit"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "ai_role": {
+            "const": "2nd"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "role_cap": {
+            "maximum": 5
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "CONFIRMED"
+          }
+        },
+        "required": [
+          "mode_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "quota": {
+            "type": "object"
+          },
+          "role_quota": {
+            "type": "object"
+          },
+          "role_cap": {
+            "minimum": 1
+          },
+          "selection_enabled": {
+            "const": true
+          },
+          "base_quota": {
+            "type": "object"
+          },
+          "mode": {
+            "enum": [
+              "FIRM",
+              "MIXED",
+              "VOLATILE"
+            ]
+          },
+          "mode_policy_id": {
+            "const": "BASE_TRI_STATE_V1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "PROVISIONAL"
+          }
+        },
+        "required": [
+          "mode_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "quota": {
+            "type": "object"
+          },
+          "role_quota": {
+            "type": "object"
+          },
+          "role_cap": {
+            "minimum": 1
+          },
+          "selection_enabled": {
+            "const": true
+          },
+          "base_quota": {
+            "type": "object"
+          },
+          "mode": {
+            "const": "UNKNOWN"
+          },
+          "allocation_mode": {
+            "enum": [
+              "MIXED",
+              "VOLATILE"
+            ]
+          },
+          "mode_policy_id": {
+            "const": "X6_ONLY_UPPER_MODE_V1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "UNRESOLVED"
+          }
+        },
+        "required": [
+          "mode_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "mode": {
+            "const": "UNKNOWN"
+          },
+          "allocation_mode": {
+            "type": "null"
+          },
+          "mode_policy_id": {
+            "const": "BASE_TRI_STATE_V1"
+          },
+          "selection_enabled": {
+            "const": false
+          },
+          "quota": {
+            "type": "null"
+          },
+          "role_quota": {
+            "type": "null"
+          },
+          "role_cap": {
+            "const": 0
+          },
+          "base_quota": {
+            "type": "null"
+          },
+          "display_rating": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "CONFIRMED"
+          },
+          "mode": {
+            "const": "FIRM"
+          }
+        },
+        "required": [
+          "mode_status",
+          "mode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "allocation_mode": {
+            "const": "FIRM"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "CONFIRMED"
+          },
+          "mode": {
+            "const": "MIXED"
+          }
+        },
+        "required": [
+          "mode_status",
+          "mode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "allocation_mode": {
+            "const": "MIXED"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "CONFIRMED"
+          },
+          "mode": {
+            "const": "VOLATILE"
+          }
+        },
+        "required": [
+          "mode_status",
+          "mode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "allocation_mode": {
+            "const": "VOLATILE"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "N": {
+            "minimum": 7
+          }
+        },
+        "required": [
+          "N"
+        ]
+      },
+      "then": {
+        "properties": {
+          "signals": {
+            "properties": {
+              "X6": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "N": {
+            "maximum": 6
+          }
+        },
+        "required": [
+          "N"
+        ]
+      },
+      "then": {
+        "properties": {
+          "signals": {
+            "properties": {
+              "X6": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "PROVISIONAL"
+          }
+        },
+        "required": [
+          "mode_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "N": {
+            "minimum": 7
+          },
+          "S": {
+            "type": "null"
+          },
+          "display_rating": {
+            "type": "null"
+          },
+          "signals": {
+            "properties": {
+              "X1": {
+                "type": "boolean"
+              },
+              "X2": {
+                "type": "boolean"
+              },
+              "X3": {
+                "type": "boolean"
+              },
+              "X4": {
+                "type": "boolean"
+              },
+              "X5": {
+                "type": "boolean"
+              },
+              "Z": {
+                "type": "boolean"
+              },
+              "X6": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "allocation_mode": {
+                "const": "MIXED"
+              },
+              "S_min": {
+                "const": 1
+              },
+              "S_max": {
+                "const": 2
+              }
+            }
+          },
+          {
+            "properties": {
+              "allocation_mode": {
+                "const": "VOLATILE"
+              },
+              "S_min": {
+                "const": 3
+              },
+              "S_max": {
+                "const": 4
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "$id": "urn:baganriki:r12-2:input"
+}

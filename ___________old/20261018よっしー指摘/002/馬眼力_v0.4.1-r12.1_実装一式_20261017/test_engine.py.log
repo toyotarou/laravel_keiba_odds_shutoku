@@ -1,0 +1,29 @@
+test_N18_and_correction_budget (__main__.EngineTests.test_N18_and_correction_budget) ... ok
+test_all_cancelled (__main__.EngineTests.test_all_cancelled) ... ok
+test_atomic_store_idempotency_stale_and_postdeadline_overlay (__main__.EngineTests.test_atomic_store_idempotency_stale_and_postdeadline_overlay) ... ok
+test_bad_backup_uses_fallback (__main__.EngineTests.test_bad_backup_uses_fallback) ... ok
+test_cancellation_removes_before_selection (__main__.EngineTests.test_cancellation_removes_before_selection) ... ok
+test_commit_rechecks_clock (__main__.EngineTests.test_commit_rechecks_clock) ... ok
+test_decimal_input_survives_roundtrip (__main__.EngineTests.test_decimal_input_survives_roundtrip) ... ok
+test_distinct_connections_reject_old_revision (__main__.EngineTests.test_distinct_connections_reject_old_revision) ... ok
+test_export_adapter_decimal_and_duplicate (__main__.EngineTests.test_export_adapter_decimal_and_duplicate) ... ok
+test_full_pipeline_and_display (__main__.EngineTests.test_full_pipeline_and_display) ... ok
+test_inspection_agrees_with_correction_scope (__main__.EngineTests.test_inspection_agrees_with_correction_scope) ... ok
+test_invalid_correction_preserves_initial (__main__.EngineTests.test_invalid_correction_preserves_initial) ... ok
+test_late_and_extra_attempts (__main__.EngineTests.test_late_and_extra_attempts) ... ok
+test_live_blocked_and_input_mutation_blocked (__main__.EngineTests.test_live_blocked_and_input_mutation_blocked) ... ok
+test_long_graph_iterative (__main__.EngineTests.test_long_graph_iterative) ... ok
+test_missing_horse_corrected (__main__.EngineTests.test_missing_horse_corrected) ... ok
+test_other_ai_failure_preserves_longshots (__main__.EngineTests.test_other_ai_failure_preserves_longshots) ... ok
+test_partial_score_recovers_band (__main__.EngineTests.test_partial_score_recovers_band) ... ok
+test_prepare_exact_hash_and_roles (__main__.EngineTests.test_prepare_exact_hash_and_roles) ... ok
+test_r5_remaining_guards (__main__.EngineTests.test_r5_remaining_guards) ... ok
+test_race_only_evidence_does_not_select (__main__.EngineTests.test_race_only_evidence_does_not_select) ... ok
+test_unknown_mode_does_not_select (__main__.EngineTests.test_unknown_mode_does_not_select) ... ok
+test_wrong_snapshot_rejected_locally (__main__.EngineTests.test_wrong_snapshot_rejected_locally) ... ok
+test_wrong_source_index_and_formula (__main__.EngineTests.test_wrong_source_index_and_formula) ... ok
+
+----------------------------------------------------------------------
+Ran 24 tests in 11.014s
+
+OK

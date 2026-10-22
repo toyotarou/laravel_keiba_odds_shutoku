@@ -1,0 +1,225 @@
+--- r11/reference.py
++++ r12/reference.py
+@@ -576,6 +576,7 @@
+ 
+ def cancellation_view(runners,cancelled,mode):
+     validate_runners(runners)
++    if not isinstance(cancelled,list): raise ValueError('cancellation array required')
+     valid_numbers={r['horse_no'] for r in runners}
+     if any(not exact_int(no) for no in cancelled) or not set(cancelled)<=valid_numbers: raise ValueError('unknown cancellation')
+     active=[copy.deepcopy(h) for h in runners if h['horse_no'] not in cancelled]
+@@ -585,7 +586,8 @@
+ 
+ def publication_deadline(publish_deadline,live_close,safety_margin_ms):
+     if not exact_int(safety_margin_ms) or safety_margin_ms<0: raise ValueError('safety margin')
+-    return min(timestamp(publish_deadline),timestamp(live_close)-timedelta(milliseconds=safety_margin_ms))
++    try:return min(timestamp(publish_deadline),timestamp(live_close)-timedelta(milliseconds=safety_margin_ms))
++    except OverflowError as exc:raise ValueError('publication deadline outside supported datetime range') from exc
+ 
+ def can_publish(*,now,received_at,reply_deadline,publish_deadline,live_close,
+                 snapshot_hash,current_snapshot_hash,state_revision,current_state_revision,verified_at,
+@@ -604,12 +606,14 @@
+ 
+ def verified_explanation(row,registry,reason='VERIFIED_FACTS'):
+     # Fact-only template: do not display unchecked AI prose or causal interpretations.
++    def value_type(value):
++        return 'number' if finite_number(value) else 'null' if value is None else 'boolean' if type(value) is bool else 'string'
+     facts=[]; seen=set()
+     for e in row['evidence']:
+         for ref in e['source_refs']:
+             if ref in seen: continue
+             seen.add(ref); s=registry[ref]
+-            facts.append(dict(source_ref=ref,field=s['field'],value=s['value'],unit=s['unit'],
++            facts.append(dict(source_ref=ref,field=s['field'],value=s['value'],value_type=value_type(s['value']),unit=s['unit'],
+                               observed_at=s['observed_at'],horse_nos=s['horse_nos'],
+                               evidence_id=e['evidence_id'],family=e['family'],response_hash=row.get('response_hash')))
+     counterfacts=[]; seen_counter=set()
+@@ -621,7 +625,7 @@
+             if s['scope'] in ('HORSE','PAIR') and row['horse_no'] not in s['horse_nos']: continue
+             if s['scope']=='COHORT' and row['horse_no'] not in s['applicable_horse_nos']: continue
+             seen_counter.add(ref)
+-            counterfacts.append(dict(source_ref=ref,field=s['field'],value=s['value'],unit=s['unit'],
++            counterfacts.append(dict(source_ref=ref,field=s['field'],value=s['value'],value_type=value_type(s['value']),unit=s['unit'],
+                                      observed_at=s['observed_at'],horse_nos=s['horse_nos']))
+     return dict(status='VERIFIED_FACTS_ONLY' if facts else 'EXPLANATION_PENDING',
+                 facts=facts,counterfacts=counterfacts,rank_recovery_reason=reason)
+--- r11/store.py
++++ r12/store.py
+@@ -52,6 +52,8 @@
+             close=st['live_close'] if live_close is None else live_close
+             close_time=r.timestamp(close);old_time=r.timestamp(st['live_close'])
+             e.require(close_time<=old_time,'live close cannot be extended')
++            # Check every value required by read/claim before committing the new state.
++            r.publication_deadline(inp['time_contract']['publish_deadline'],close,inp['time_contract']['safety_margin_ms'])
+             if old==set(cancelled) and close_time==old_time:
+                 self.db.execute('COMMIT');return self.state(race_id)
+             rev=st['state_revision']+1
+@@ -106,7 +108,9 @@
+             e.require((generation,state_revision,publication_revision,st['snapshot_hash'])==
+                 (current['generation'],current['state_revision'],current['publication_revision'],current['snapshot_hash']),'stale publication job')
+             e.require(observed_response_revision==self.response_revision(race_id,generation),'stale response revision')
+-            st=current;now=self.clock();result['verified_at']=now
++            st=current;now=self.clock()
++            e.require(r.timestamp(now)>=r.timestamp(result['verified_at']),'clock moved backwards during verification')
++            result['verified_at']=now
+             margin=inp['time_contract']['safety_margin_ms']
+             e.require(r.can_publish(now=now,received_at=result['received_at'],verified_at=result['verified_at'],
+                 reply_deadline=inp['time_contract']['reply_deadline'],publish_deadline=inp['time_contract']['publish_deadline'],live_close=st['live_close'],
+@@ -115,7 +119,7 @@
+             result['effective_publish_deadline']=r.publication_deadline(inp['time_contract']['publish_deadline'],st['live_close'],margin).isoformat()
+             rev=publication_revision+1
+             result.update(generation=generation,state_revision=state_revision,publication_revision=rev,
+-                implementation_version='baganriki-v041-r11-strict-boundaries-20261017')
++                implementation_version='baganriki-v041-r12-exact-transport-20261017')
+             if response_revision is not None:result['response_revision']=response_revision
+             cur=self.db.execute('INSERT INTO publications(race_id,snapshot_hash,generation,state_revision,publication_revision,job_id,request_hash,result_json,responses_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                 (race_id,st['snapshot_hash'],generation,state_revision,rev,job_id,request_hash,'{}',r.json_dumps(responses),now))
+@@ -125,6 +129,7 @@
+             self.db.execute('UPDATE publications SET result_json=? WHERE id=?',(result_json,cur.lastrowid))
+             self.db.execute('UPDATE race_state SET publication_revision=? WHERE race_id=?',(rev,race_id))
+             commit_at=r.timestamp(self.clock())
++            e.require(commit_at>=r.timestamp(now),'clock moved backwards before commit')
+             e.require(commit_at<=r.publication_deadline(inp['time_contract']['publish_deadline'],st['live_close'],margin)
+                 and commit_at<r.timestamp(st['live_close']),'deadline elapsed before commit')
+             self.db.execute('COMMIT');return result
+--- r11/journal.py
++++ r12/journal.py
+@@ -92,8 +92,10 @@
+             current=self._rows(race,generation,role)
+             deadline=min(r.timestamp(tc['reply_deadline']),r.publication_deadline(tc['publish_deadline'],st['live_close'],tc['safety_margin_ms']))
+             now=self.clock()
++            prior_times=[r.timestamp(x[key]) for x in current for key in ('claimed_at','received_at') if x[key] is not None]
+             if len(r.strict_loads(st['cancelled_json']))==inp['N']:reason='ALL_CANCELLED'
+             elif r.timestamp(now)>=deadline:reason='DEADLINE'
++            elif prior_times and r.timestamp(now)<max(prior_times):reason='CLOCK_ROLLBACK'
+             elif signature(current)!=observed:reason='STATE_CHANGED'
+             if reason:
+                 out=dict(granted=False,reason=reason,attempts=self._attempts(current),slots=self._summary(current))
+--- r11/verify.py
++++ r12/verify.py
+@@ -2,7 +2,7 @@
+ import subprocess,sys,json
+ from pathlib import Path
+ root=Path(__file__).resolve().parent;results=[]
+-for script in ('test_reference.py','test_contract.py','test_engine.py','test_audit_regressions.py','test_r7_integration.py','test_r8_regressions.py','test_journal.py','test_r10_regressions.py','test_r11_regressions.py','test_malformed_responses.py','schema_standard_check.py'):
++for script in ('test_reference.py','test_contract.py','test_engine.py','test_audit_regressions.py','test_r7_integration.py','test_r8_regressions.py','test_journal.py','test_r10_regressions.py','test_r11_regressions.py','test_r12_regressions.py','test_malformed_responses.py','schema_standard_check.py'):
+  p=subprocess.run([sys.executable,str(root/script)],cwd=root,capture_output=True,text=True)
+  (root/(script+'.log')).write_text(p.stdout+p.stderr,encoding='utf-8')
+  results.append(dict(script=script,exit_code=p.returncode))
+--- r11/test_reference.py
++++ r12/test_reference.py
+@@ -283,7 +283,7 @@
+         by_band={b:[h['horse_no'] for h in rs if h['band']==b] for b in r.BANDS}
+         for amounts in itertools.product(range(7),range(5),range(9)):
+             active=set(n for b,a in zip(r.BANDS,amounts) for n in by_band[b][:a])
+-            cancelled=set(range(1,19))-active
++            cancelled=sorted(set(range(1,19))-active)
+             for mode in ('FIRM','MIXED','VOLATILE'):
+                 v=r.cancellation_view(rs,cancelled,mode)
+                 self.assertEqual(sum(v['publication_quota'].values()),r.target_count(len(active)))
+--- r11/php/BaganrikiR11Bridge.php
++++ r12/php/BaganrikiR12Bridge.php
+@@ -1,9 +1,10 @@
+ <?php
+ declare(strict_types=1);
+ namespace Baganriki;
++require_once __DIR__.'/ExactJson.php';
+ 
+ /** PHP 8.0+. Preserve nested decimal JSON as strings; do not decode/re-encode it in PHP. */
+-final class BaganrikiR11Bridge
++final class BaganrikiR12Bridge
+ {
+     public function __construct(private string $python, private string $engineDir, private string $database, private float $timeoutSeconds = 30.0)
+     {
+@@ -66,10 +67,11 @@
+     {
+         $json = json_encode($request, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+         $raw = $this->callRaw($json);
+-        // Nested input_json strings remain exact. Decoded output facts are presentation-only.
+-        $response = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
++        // Decimal facts must survive both PHP decoding and the HTTP JSON response.
++        // Native input_json/common_json strings remain the canonical AI inputs.
++        $response = ExactJson::decode($raw);
+         if (($response['ok'] ?? null) !== true) {
+-            throw new \RuntimeException('r11 validation failed: ' . ($response['message'] ?? 'unknown error'));
++            throw new \RuntimeException('r12 validation failed: ' . ($response['message'] ?? 'unknown error'));
+         }
+         return $response['result'];
+     }
+@@ -82,7 +84,7 @@
+         }, $json);
+         if ($ascii === null || strlen($ascii) > 64 * 1024 * 1024) throw new \InvalidArgumentException('UTF-8/transport size');
+         $json = $ascii;
+-        $inputPath = tempnam(sys_get_temp_dir(), 'bgr11_');
++        $inputPath = tempnam(sys_get_temp_dir(), 'bgr12_');
+         if ($inputPath === false) throw new \RuntimeException('Cannot create private input path');
+         chmod($inputPath, 0600);
+         $input = fopen($inputPath, 'w+b');
+--- r11/php/ExactJson.php
++++ r12/php/ExactJson.php
+@@ -0,0 +1,35 @@
++<?php
++declare(strict_types=1);
++namespace Baganriki;
++/** Preserve decimal/exponent tokens as text. Ordinary integer metadata stays integer. */
++final class ExactJson
++{
++    public static function decode(string $json): mixed
++    {
++        // Scan string boundaries without a repeated regex group: a megabyte of
++        // escaped controls can exceed PCRE's stack even in otherwise valid JSON.
++        $parts=[];$offset=0;$length=strlen($json);
++        while ($offset<$length) {
++            $quote=strpos($json,'"',$offset);
++            $outside=substr($json,$offset,($quote===false ? $length : $quote)-$offset);
++            $converted=preg_replace_callback('/-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/',
++                static function(array $match): string {
++                    return strpbrk($match[0],'.eE')===false ? $match[0] : '"'.$match[0].'"';
++                },$outside);
++            if ($converted===null) throw new \RuntimeException('Cannot decode exact JSON numbers');
++            $parts[]=$converted;
++            if ($quote===false) break;
++            $end=$quote+1;
++            while (true) {
++                $end=strpos($json,'"',$end);
++                if ($end===false) throw new \JsonException('Unterminated JSON string');
++                $slashes=0;
++                for ($i=$end-1;$i>$quote && $json[$i]==='\\';--$i) ++$slashes;
++                if ($slashes%2===0) break;
++                ++$end;
++            }
++            $parts[]=substr($json,$quote,$end-$quote+1);$offset=$end+1;
++        }
++        return json_decode(implode('',$parts),true,512,JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING);
++    }
++}
+--- r11/runtime_contract.template.json
++++ r12/runtime_contract.template.json
+@@ -33,7 +33,10 @@
+     "publication_race_tests_passed": false,
+     "ui_evidence_provenance_passed": false,
+     "ui_live_counts_and_expiry_passed": false,
+-    "concurrent_save_cancel_during_validation_passed": false
++    "concurrent_save_cancel_during_validation_passed": false,
++    "php_exact_numeric_roundtrip_passed": false,
++    "live_update_rollback_passed": false,
++    "monotonic_event_time_passed": false
+   },
+   "purchase": {
+     "policy_id": null,
+@@ -63,9 +66,13 @@
+     "db_timestamp_columns": null,
+     "new_api_route": null,
+     "ui_connected": false,
+-    "release": "r10",
++    "release": "r12",
+     "journal_tests": "journal_results.json",
+-    "concurrency_tests": "r10_regression_results.json"
++    "concurrency_tests": "r10_regression_results.json",
++    "boundary_tests": [
++      "r11_regression_results.json",
++      "r12_regression_results.json"
++    ]
+   },
+   "durable_worker": {
+     "shared_persistent_db_verified": false,

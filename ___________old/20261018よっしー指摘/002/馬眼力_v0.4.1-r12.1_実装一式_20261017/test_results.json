@@ -1,0 +1,31 @@
+{
+  "unit_tests_run": 41,
+  "failures": 0,
+  "errors": 0,
+  "parameter_counts": {
+    "cancellation_subset_conditions_N13": 24576,
+    "tristate_conditions": 2187,
+    "unknown3_recovered": 20,
+    "fixed_r3_reproduction": {
+      "before_r3": [
+        2,
+        0,
+        1
+      ],
+      "r7_backup": [
+        2,
+        2,
+        1
+      ],
+      "r7_fallback": [
+        2,
+        2,
+        1
+      ]
+    },
+    "cancellation_band_count_conditions_N18": 945,
+    "structural_conditions": 54,
+    "supply_conditions": 4995
+  },
+  "scope": "reference code only; no production PHP/AI/UI execution"
+}

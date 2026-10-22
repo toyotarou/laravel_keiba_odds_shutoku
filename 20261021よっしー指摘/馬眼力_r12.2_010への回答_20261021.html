@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力 r12.2 008への回答</title>
+<style>
+:root{
+  --bg:#f7f7f5; --card:#fff; --ink:#1c1c1a; --sub:#6b6b66; --line:#e3e3df;
+  --ok:#1f7a4d; --okbg:#e8f5ee; --ng:#a33; --ngbg:#fbecec;
+  --warn:#8a6100; --warnbg:#fdf3e0; --accent:#2b5e8e;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#16181a; --card:#1e2124; --ink:#e8e8e4; --sub:#9a9a94; --line:#2f3337;
+    --ok:#6fd49b; --okbg:#17301f; --ng:#f29a9a; --ngbg:#301a1a;
+    --warn:#e9c46a; --warnbg:#2e2614; --accent:#8ab8e0;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16181a; --card:#1e2124; --ink:#e8e8e4; --sub:#9a9a94; --line:#2f3337;
+  --ok:#6fd49b; --okbg:#17301f; --ng:#f29a9a; --ngbg:#301a1a;
+  --warn:#e9c46a; --warnbg:#2e2614; --accent:#8ab8e0;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:16px; line-height:1.85; padding:0 16px 64px;
+}
+.wrap{max-width:720px;margin:0 auto}
+header{padding:28px 0 8px}
+h1{font-size:21px;line-height:1.5;margin:0 0 6px}
+.meta{color:var(--sub);font-size:13px;margin:0}
+h2{font-size:17px;margin:34px 0 10px;padding-bottom:7px;border-bottom:2px solid var(--line)}
+h3{font-size:15px;margin:22px 0 6px;color:var(--accent)}
+p{margin:10px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:14px 0}
+.lead{border-left:4px solid var(--accent)}
+.ok{background:var(--okbg);border-color:transparent}
+.ng{background:var(--ngbg);border-color:transparent}
+.warn{background:var(--warnbg);border-color:transparent}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;margin-right:6px;vertical-align:2px}
+.t-ok{background:var(--ok);color:var(--card)}
+.t-ng{background:var(--ng);color:var(--card)}
+.t-warn{background:var(--warn);color:var(--card)}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--bg);font-weight:700;white-space:nowrap}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+  background:var(--bg);padding:1px 5px;border-radius:4px;word-break:break-all}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  padding:11px 13px;overflow-x:auto;font-size:13px;line-height:1.6;margin:10px 0}
+.sub{color:var(--sub);font-size:13.5px}
+.big{font-size:19px;font-weight:700}
+footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--sub);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+<h1>馬眼力 r12.2<br>10月21日「なるさんへの依頼 確認結果（010）」への回答</h1>
+<p class="meta">2026年10月21日（日本時間）／豊田英之（実装担当）</p>
+</header>
+
+<div class="card lead">
+<p><span class="big">依頼していた設計の回答をいただいたので、全部つくりました。</span></p>
+<p>Jobの4本、型を落とさない読み書き、12レース限定、使用量の記録。
+あわせて、こちらの試験の作り方の誤りも3つ直しました。</p>
+<p class="sub">実AIへの送信は0回です。旗は1つも上げていません。</p>
+</div>
+
+<div class="card warn">
+<p><span class="tag t-warn">先に訂正</span><b>なるさんの前提が1つ、実際と違っていました。</b></p>
+<p>設計の回答は Laravel 12 の仕組みを前提に書かれていましたが、
+このサーバは <b>Laravel 8</b>、PHP も <b>8.0</b> です。
+推奨されていた supervisord も入っていません。</p>
+<p>そこで2点だけ変えました。常駐のしかたを systemd にしたこと、
+PHP 8.1 以降の書き方を使わないようにしたことです。
+環境の資料を添えたので、これで見直していただく形にしています。</p>
+</div>
+
+<h2>1. やったこと</h2>
+
+<h3>AIを2つ、別々に走らせる仕組み（Job 4本）</h3>
+<p>いままでは画面の処理の中でAIの返事を待っていました。
+1つめのAIが145秒かかると、2つめのAIも期限の判定も、その間ずっと待たされます。
+レースの締切まで3分しかないので、これでは間に合いません。</p>
+<p>待ち行列を4本に分けて、別々に走らせる形にしました。</p>
+<table>
+<tr><th>待ち行列</th><th>役</th><th>枠</th></tr>
+<tr><td>freeze</td><td>入力を固める</td><td>1</td></tr>
+<tr><td>ai-1st</td><td>1つめのAIを待つ</td><td>2</td></tr>
+<tr><td>ai-2nd</td><td>2つめのAIを待つ</td><td>2</td></tr>
+<tr><td>agg</td><td>期限の判定と公開</td><td>1</td></tr>
+</table>
+<p>1つめが145秒かかっても、2つめと期限の判定は止まりません。</p>
+
+<h3>「返事が来た」と「採用するか決まった」を分けました</h3>
+<p>これはなるさんが見つけてくれた、<b>並列にしたときだけ起きる問題</b>です。</p>
+<p>AIから返事が来た直後、こちらはまだ「この返事を使うか、直してもらうか」を
+判定していません。なのに、いままでの数え方では「返事が来た＝その役は終わり」
+と数えていました。
+2つのAIを同時に走らせると、片方がまだ判定中なのに、もう片方が
+「両方終わった」と見なして<b>先に公開してしまいます。</b></p>
+<p>2つを別々に記録する形にしました。
+「返事が来た」と「採用が決まった」は別の印です。
+印には<b>その時点の返事の版</b>を結び付けているので、
+あとから訂正が届けば印は自動的に効かなくなり、もう一度待ちに戻ります。</p>
+<p class="sub">ここで、こちらの足りないところも1つ見つかりました。
+返事が完全に失敗して終わった役には、判定することが何も残りません。
+つまり印が永久に付きません。待たせると、失敗した役のぶんだけ
+公開が最後の期限まで遅れてしまいます。
+「採るものが無い」ことを確定として数えるようにしました。</p>
+
+<h3>数字の「書き方」まで落とさずに持つようにしました</h3>
+<p>AIが返してくる数字を、こちらで読んで、直してもらって、保存して、また読む。
+この行き帰りのどこかで<b>数字の形が変わってしまう</b>問題です。</p>
+<p>PHPでは、次の3つが見分けられません。</p>
+<table>
+<tr><th>AIが書いたもの</th><th>PHPでは</th></tr>
+<tr><td><code>2e0</code> と <code>2.0</code></td><td>どちらも同じ数に見える</td></tr>
+<tr><td><code>{}</code> と <code>[]</code></td><td>どちらも同じ空っぽに見える</td></tr>
+<tr><td>長い数字 と、その数字を文字で書いたもの</td><td>どちらも同じ文字列に見える</td></tr>
+</table>
+<p>見分けられないと、「AIが勝手に書き換えた」のか「もともとそうだった」のかが
+分からなくなります。
+値とは別に<b>「ここは数字だった」「ここは{}だった」という地図</b>を持ち、
+読む・比べる・保存する・読み戻すの全部でその地図を見るようにしました。</p>
+<p class="sub">なるさんの案（値そのものを入れ物で包む）には賛成なのですが、
+全部の値を包むと既存の計算が全部動かなくなります。
+なるさん自身も「全部包むと正しい整数まで落ちる」と書かれていたので、
+値は素のまま、型だけ別に持つ形にしました。
+この形だと「同じ数なのに別物と判定される」問題も起きません。</p>
+
+<h3>24日は12レースだけに限る仕組み</h3>
+<p>対象のレース番号を設定に並べ、<b>5か所</b>で確認します。
+初回を送る直前、訂正を送る直前、巡回、画面のあと、待ち行列から出たとき。
+判定は1つの関数なので、どこか1か所だけ直し忘れることがありません。</p>
+<div class="card ok">
+<p><span class="tag t-ok">安全側</span><b>設定が空のときは、1レースも送りません。</b></p>
+<p>「指定が無ければ全部送る」の逆にしています。
+設定を入れ忘れた日に全レースへ送ってしまうほうが、危ないからです。</p>
+</div>
+
+<h3>いくらかかったかを、推測せずに残す仕組み</h3>
+<p>費用の話で何度も訂正をいただいたので、<b>実際にAPIが返してきた数字</b>を
+そのまま残す形にしました。使ったトークン数と、<b>APIが名乗ったモデル名</b>です。
+こちらが設定した名前ではありません。</p>
+<p>金額はまだ出しません。24日に実際に送ったときの記録から出します。
+文字数からの推測はもうしません。</p>
+
+<h2>2. こちらの試験の作り方の誤り（3つ）</h2>
+
+<h3>① 帯の順位を守れているか、確かめていなかった</h3>
+<p>「対象外の帯の順位は変えない」という試験を書いていたのですが、
+<b>件数が1以上かどうかしか見ていませんでした。</b>
+しかも初回と訂正で同じ順位を返していたので、
+守れていなくても気づけない試験でした。</p>
+<p>訂正の側で、対象外の帯の順位を<b>わざと逆順</b>にして、
+それでも初回の順番が残ることを、帯ごとに1つずつ突き合わせる形にしました。</p>
+
+<h3>② 時刻を3,600秒後に決め打ちしていた</h3>
+<p>通し試験で、投票締切を「いまから3,600秒後」と手で置いていました。
+実際のレースは締切まで3分です。
+出馬表とオッズから<b>実際に固めて</b>公開まで通す試験に作り替えました。
+締切は渡さず、発走時刻から計算させています。</p>
+
+<h3>③ PHP 8.1 の書き方を使っていた</h3>
+<p>数字の入れ物を書くときに、PHP 8.1 から入った書き方を使っていました。
+このサーバの PHP は 8.0 なので、そのままでは動きません。
+サーバには届いていなかったので実害はありませんが、
+以降は毎回、8.1 以降の書き方が混じっていないか機械で探すようにしました。
+<b>開発側の PHP は 8.3 なので、普通の構文チェックでは見つかりません。</b></p>
+
+<h3>設計書も 1.4 に直しました</h3>
+<p>1.3 では「<b>Jobはまだ作っていない。正本との差である</b>」と書いていました。
+作ったので、その部分を書き直しました。
+これまでどおり、書き直す前の文もその場に残してあります。</p>
+<p>このサーバが Laravel 8、PHP 8.0 であることも、設計書に書き入れました。
+次からは、この前提で見ていただけます。</p>
+
+<h2>3. まだやっていないこと</h2>
+<div class="card ng">
+<p>正直に3つあります。</p>
+<table>
+<tr><th>何</th><th>なぜ</th></tr>
+<tr><td>18頭・過去5走で、新しいモデルの容量と時間を実測する</td>
+    <td>モデルを変えるかどうかの判断を待っています</td></tr>
+<tr><td>非公開の読み取り経路の確認</td><td>まだ手が回っていません</td></tr>
+<tr><td>遅いAIを混ぜた実機の同時実行</td>
+    <td>常駐を立ててからになります。いまは1枠も起動していません</td></tr>
+</table>
+</div>
+
+<h2>4. 報告が1つあります</h2>
+<div class="card warn">
+<p><b>本番のサーバが「開発用」の設定で動いています。</b></p>
+<p><code>APP_ENV=local</code>／<code>APP_DEBUG=true</code> です。
+本番としては適切ではありません。エラーの詳しい中身が外に出る設定です。</p>
+<p>直すべきだと思いますが、<b>いま変えると影響する範囲が読めません。</b>
+24日の検証が終わってからにしたいです。ご判断をください。</p>
+</div>
+
+<h2>5. 試験の結果</h2>
+<p>今回の提出で動かした試験です。実AIへの送信は0回、
+データベースに残る書き込みも0件（全部もとに戻しています）。</p>
+<table>
+<tr><th>試験</th><th>件数</th><th>不合格</th></tr>
+<tr><td>受入試験（壊れていないこと）</td><td>662</td><td>0</td></tr>
+<tr><td>キューと予約・採用の確定</td><td>112</td><td>0</td></tr>
+<tr><td>型を落とさない読み書き</td><td>92</td><td>0</td></tr>
+<tr><td>Jobの構成</td><td>72</td><td>0</td></tr>
+<tr><td>応答の検証と局所回復</td><td>76</td><td>0</td></tr>
+<tr><td>統合・公開</td><td>67</td><td>0</td></tr>
+<tr><td>本体直通（合成729件ほか）</td><td>41</td><td>0</td></tr>
+<tr><td>読取API</td><td>29</td><td>0</td></tr>
+<tr><td>固定入力</td><td>20</td><td>0</td></tr>
+<tr><td>OPIと推定確定オッズ</td><td>18</td><td>0</td></tr>
+<tr><td>本番の経路で作った入力</td><td>9</td><td>0</td></tr>
+<tr><td>実凍結から公開まで一続き</td><td>24</td><td>0</td></tr>
+</table>
+<p class="sub">詳しい記録は <code>log/</code> に、
+コードは <code>code/</code> に入れています。
+なるさんへの技術的な回答は <code>02_010のご指摘ごとの対応表.md</code> です。</p>
+
+<h2>6. いまの設定</h2>
+<table>
+<tr><th>設定</th><th>値</th><th>意味</th></tr>
+<tr><td>PROMPT</td><td>shadow</td><td>入力だけ作って固める。送るのは旧来の文</td></tr>
+<tr><td>QUEUE</td><td>0</td><td>予約の仕組みは動かさない</td></tr>
+<tr><td>JOBS</td><td>0</td><td><b>Jobは動かさない</b></td></tr>
+<tr><td>TARGETS</td><td>（空）</td><td><b>1レースも送らない</b></td></tr>
+</table>
+<p>常駐は1枠も起動していません。crontab は1文字も変えていません。</p>
+
+<footer>
+<p>馬眼力 r12.2 ／ 010への回答 ／ 2026年10月21日 ／ 豊田英之</p>
+</footer>
+
+</div>
+</body>
+</html>

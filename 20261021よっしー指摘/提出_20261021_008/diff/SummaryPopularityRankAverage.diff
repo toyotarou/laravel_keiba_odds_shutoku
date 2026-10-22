@@ -1,0 +1,49 @@
+--- "../\346\217\220\345\207\272_20261021/code/SummaryPopularityRankAverage.php"	2026-10-20 21:25:48.335752701 +0000
++++ code/SummaryPopularityRankAverage.php	2026-10-21 00:22:31.458772053 +0000
+@@ -159,10 +159,42 @@
+             //   平均の値は元データだけで決まるので、同じ元データなら
+             //   いつ計算しても同じ値になります。
+             if (!$isFirstRun) {
+-                $touched = DB::table('t_horse_odds_finder_popularity_rank_average')
+-                    ->update(['computed_at' => $computedAt]);
+-                $this->info("  値は変えずに、算出時刻だけ入れ直しました（{$touched} 行・{$computedAt}）");
+-                $this->info('  ※ 集計期間の終わり（end_date）は変えていません');
++                // ═════════════════════════════════════════════════════
++                // @ANCHOR-20261021-R122-VERIFIEDAT  10月21日008のご指摘8
++                // ═════════════════════════════════════════════════════
++                //   【説明が間違っていました】
++                //   ここは「古い結果を再集計して一致を比べる」処理では
++                //   ありません。end_date より後の新規データが無いことを
++                //   確かめているだけです。
++                //   ですので「もう一度集計して同じ値を確認した」は誤りです。
++                //
++                //   【もう1つ、こちらのほうが重い】
++                //   新規結果が無いだけで computed_at を毎回上書きすると、
++                //   <b>いつ実際に算出したかという証拠が消えます。</b>
++                //   r12.2 は「情報上限より前に利用可能だった証拠」を見るので、
++                //   証拠そのものを毎晩書き換えてはいけません。
++                //
++                //   【いま】意味の違う3つを分けます。
++                //     computed_at  実際に値を算出した時刻。<b>ここでは触りません</b>
++                //     verified_at  その値がこの時刻に存在し、使えたことの確認
++                //     end_date     集計期間の終わり。ここでは触りません
++                //   computed_at がまだ無い行（この列を足す前から在る行）だけは、
++                //   初めての記録として verified_at と同じ時刻を入れます。
++                //   それ以外は上書きしません。
++                $tbl = 't_horse_odds_finder_popularity_rank_average';
++                $firstTime = DB::table($tbl)->whereNull('computed_at')
++                               ->update(['computed_at' => $computedAt]);
++                $verified  = DB::table($tbl)
++                               ->update(['verified_at' => $computedAt]);
++                $this->info("  新規データはありません。値は1つも変えていません。");
++                if ($firstTime > 0) {
++                    $this->info("  算出時刻が無かった {$firstTime} 行に、初めての記録として"
++                              . " computed_at を入れました（{$computedAt}）");
++                }
++                $this->info("  {$verified} 行の verified_at を更新しました"
++                          . "（この時刻に、この値が使えることを確かめた、の意味）");
++                $this->info('  ※ computed_at（実際に算出した時刻）と'
++                          . ' end_date（集計期間の終わり）は変えていません');
+             }
+             $this->info('========== keiba:summaryPopularityRankAverage 終了 ' . date('Y-m-d H:i:s') . ' ==========');
+             $this->info('');

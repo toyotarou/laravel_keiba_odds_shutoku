@@ -1,0 +1,54 @@
+════════════════════════════════════════════════════════
+ r12.2 異常例の突き合わせ（Schema と 意味検証 を分けて判定）
+════════════════════════════════════════════════════════
+  実行時刻 : 2026-10-20T13:21:15+09:00
+  資材      : /home/centos/r122_v23/mat/validation
+
+── 入力 ──
+  ケース                    Schema    意味検証 弾いた理由
+  ○ I01_old_version              FAIL(期待FAIL) FAIL(期待FAIL)  /prompt_version const 不一致 得た値 "baganriki-v041-r12-1-quota-20261…
+  ○ I02_missing_status           FAIL(期待FAIL) FAIL(期待FAIL)  (root) required キーがありません: mode_status
+  ○ I03_old_unknown_stop         FAIL(期待FAIL) FAIL(期待FAIL)  /quota type 不一致（期待 object／得た値 null）
+  ○ I04_fake_confirmed_mode      FAIL(期待FAIL) FAIL(期待FAIL)  /mode const 不一致 得た値 "MIXED" / 期待値 "UNKNOWN"
+  ○ I05_other_unknown_provisional FAIL(期待FAIL) FAIL(期待FAIL)  /signals/X1 type 不一致（期待 boolean／得た値 null）
+  ○ I06_wrong_provisional_policy FAIL(期待FAIL) FAIL(期待FAIL)  /mode_policy_id const 不一致 得た値 "BASE_TRI_STATE_V1" / 期待値 "X6_…
+  ○ I07_wrong_provisional_range  FAIL(期待FAIL) FAIL(期待FAIL)  (root) oneOf に合うのが 0 個（1個でなければなりません。最初の候補の理…
+  ○ I08_wrong_grace              FAIL(期待FAIL) FAIL(期待FAIL)  /time_contract/acquisition_grace_ms/6 const 不一致 得た値 120000 / 期…
+  ○ I09_wrong_anchor             FAIL(期待FAIL) FAIL(期待FAIL)  /time_contract/anchor_kind const 不一致 得た値 "SALES_CLOSE_TIME" / …
+  ○ I10_wrong_sampling           FAIL(期待FAIL) FAIL(期待FAIL)  /time_contract/sampling_policy_id const 不一致 得た値 "fixture-only" …
+  ○ I11_freeze_slot_missing      FAIL(期待FAIL) FAIL(期待FAIL)  /collection_audit/6 required キーがありません: batch_id
+  ○ I12_blank_missing_reason     FAIL(期待FAIL) FAIL(期待FAIL)  /collection_audit/9 oneOf に合うのが 0 個（1個でなければなりません。…
+  ○ I13_unknown_top_key          FAIL(期待FAIL) FAIL(期待FAIL)  (root) 余分なキー: extra
+  ○ I14_precise_datetime         FAIL(期待FAIL) FAIL(期待FAIL)  /input_freeze_at pattern 不一致 "2026-10-17T14:54:30.0000001+09:00"
+  ○ I15_unvalidated_x6           FAIL(期待FAIL) FAIL(期待FAIL)  /signals/X6 type 不一致（期待 null／得た値 true）
+  ○ I16_learning_live            FAIL(期待FAIL) FAIL(期待FAIL)  /learning_stage const 不一致 得た値 "LIVE_VALIDATED" / 期待値 "COLLEC…
+  ○ I17_freeze_arithmetic        PASS(期待PASS) FAIL(期待FAIL)  時刻: input_freeze_at が cutoff_at＋30秒 ではありません
+  ○ I18_signal_s0_arithmetic     PASS(期待PASS) FAIL(期待FAIL)  mode: S_min が信号から計算した値と違います（1 / 3）
+  ○ I19_quota_to_popular         PASS(期待PASS) FAIL(期待FAIL)  配分: quota が N と mode から決まる値と違います（{"A":5,"B":2,"D":0} …
+  ○ I20_reply_deadline           PASS(期待PASS) FAIL(期待FAIL)  時刻: reply_deadline が 公開期限−30秒 ではありません
+  ○ I21_late_s6                  PASS(期待PASS) FAIL(期待FAIL)  取得6: 取得猶予を超えています
+  ○ I22_early_request            PASS(期待PASS) FAIL(期待FAIL)  取得6: 予定時刻より前に要求を出しています
+  ○ I23_source_future            PASS(期待PASS) FAIL(期待FAIL)  取得6: 取得元の更新時刻が受信より未来です
+
+── 出力 ──
+  ○ O01_old_version              FAIL(期待FAIL) FAIL(期待FAIL)  /prompt_version const 不一致 得た値 "baganriki-v041-r12-1-quota-20261…
+  ○ O02_missing_policy           FAIL(期待FAIL) FAIL(期待FAIL)  (root) required キーがありません: mode_policy_id
+  ○ O03_input_only_key           FAIL(期待FAIL) FAIL(期待FAIL)  (root) 余分なキー: input_freeze_at
+  ○ O04_old_unknown_stop         FAIL(期待FAIL) FAIL(期待FAIL)  /quota type 不一致（期待 object／得た値 null）
+  ○ O05_fabricated_mode          FAIL(期待FAIL) FAIL(期待FAIL)  /mode const 不一致 得た値 "MIXED" / 期待値 "UNKNOWN"
+  ○ O06_wrong_echo               PASS(期待PASS) FAIL(期待FAIL)  おうむ返し: 応答の識別・版・mode・配分が合わない: allocation_mode（期…
+  ○ O07_wrong_role_echo          PASS(期待PASS) FAIL(期待FAIL)  公開候補: 馬番 2 の public_candidate が公開リストと合いません
+  ○ O08_horse_missing            PASS(期待PASS) FAIL(期待FAIL)  全頭: band_ranks の馬番 16 が horses にいません
+  ○ O09_hole_quota_replaced      PASS(期待PASS) FAIL(期待FAIL)  公開候補: 帯の先頭から枠数ぶん取っていません（得た値 [1,2,3,4,5,6,7] …
+
+  対象 32 件（入力 23 ／ 出力 9）
+  Schemaの判定が期待と違ったもの   : 0 件
+  意味検証の判定が期待と違ったもの : 0 件
+
+════════════════════════════════════════════════════════
+ すべて先方の期待どおりに弾けました（不一致 0 件）
+════════════════════════════════════════════════════════
+
+※ Schemaで弾くものと意味検証で弾くものを分けて判定しています。
+※ Schemaで落ちたものは、契約上も不採用（FAIL）として扱います。
+※ 出力の検査は、入力を対にできない前提で「出力だけで分かる矛盾」を見ています。

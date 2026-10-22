@@ -1,0 +1,115 @@
+=== horses の列 ===
+mysql: [Warning] Using a password on the command line interface can be insecure.
+Field	Type	Null	Key	Default	Extra
+id	int	NO	PRI	NULL	auto_increment
+date	text	YES	MUL	NULL	
+kaisuu	text	YES		NULL	
+basho	text	YES		NULL	
+basho_name	text	YES		NULL	
+day	text	YES		NULL	
+race	int	YES		NULL	
+waku	int	YES		NULL	
+num	int	YES		NULL	
+name	text	YES		NULL	
+horse_url	text	YES		NULL	
+jockey	text	YES		NULL	
+trainer	text	YES		NULL	
+=== 対象2レースの出馬表 ===
+mysql: [Warning] Using a password on the command line interface can be insecure.
+id	date	kaisuu	basho	basho_name	day	race	waku	num	name	horse_url	jockey	trainer
+53	2026-10-17	4	05	東京	6	5	1	1	ペルケチセイ	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024102606/A4	津村 明秀	加藤 士津八
+54	2026-10-17	4	05	東京	6	5	2	2	コルヴィリア	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024104154/F7	佐々木 大輔	菊川 正達
+55	2026-10-17	4	05	東京	6	5	3	3	サトノエスパーダ	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024102250/7E	横山 和生	田中 博康
+56	2026-10-17	4	05	東京	6	5	4	4	ダークアベンジャー	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024103617/16	原 優介	蛯名 利弘
+57	2026-10-17	4	05	東京	6	5	5	5	ジェットシェヴロン	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024106490/DC	岩田 望来	宮田 敬介
+58	2026-10-17	4	05	東京	6	5	6	6	プリズンブレイク	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024101397/25	木幡 巧也	高柳 瑞樹
+59	2026-10-17	4	05	東京	6	5	7	7	トナリティ	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024107031/1A	武 豊	辻 哲英
+60	2026-10-17	4	05	東京	6	5	8	8	フィニート	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024105910/62	石橋 脩	小手川 準
+61	2026-10-17	4	05	東京	6	5	8	9	ソーロブスト	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024106531/20	C.ルメール	木村 哲也
+825	2026-10-18	4	04	新潟	2	5	1	1	ウインロッドブレス	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024104164/07	黛 弘人	高木 登
+826	2026-10-18	4	04	新潟	2	5	2	2	アルファマロン	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024103729/3D	河原田 菜々	村田 一誠
+827	2026-10-18	4	04	新潟	2	5	2	3	テーオーディスタス	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024100089/79	秋山 稔樹	宮 徹
+828	2026-10-18	4	04	新潟	2	5	3	4	フィックスユー	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024102841/07	江田 照男	小野 次郎
+829	2026-10-18	4	04	新潟	2	5	3	5	エッシネン	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024100006/A0	M.デムーロ	藤野 健太
+830	2026-10-18	4	04	新潟	2	5	4	6	ロードハイエンド	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024105319/47	西塚 洸二	奥村 豊
+831	2026-10-18	4	04	新潟	2	5	4	7	オーウェン	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024105005/D8	酒井 学	柴田 卓
+832	2026-10-18	4	04	新潟	2	5	5	8	セイバードライバー	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024100075/9D	横山 琉人	矢嶋 大樹
+833	2026-10-18	4	04	新潟	2	5	5	9	ストルワート	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024102486/C2	丹内 祐次	牧浦 充徳
+834	2026-10-18	4	04	新潟	2	5	6	10	トップドッグ	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024102938/4D	永島 まなみ	高橋 康之
+835	2026-10-18	4	04	新潟	2	5	6	11	ワンダフルワールド	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024104563/58	斎藤 新	斎藤 誠
+836	2026-10-18	4	04	新潟	2	5	7	12	ルクスラモン	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024101298/67	森田 誠也	高橋 亮
+837	2026-10-18	4	04	新潟	2	5	7	13	マイネルブラントン	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024103633/6A	国分 恭介	吉田 直弘
+838	2026-10-18	4	04	新潟	2	5	8	14	シヴィリティ	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024106911/C4	三浦 皇成	池江 泰寿
+839	2026-10-18	4	04	新潟	2	5	8	15	メイショウバレリア	https://www.jra.go.jp/JRADB/accessU.html?CNAME=pw01dud002024101818/0D	菊沢 一樹	高柳 瑞樹
+=== 対象2レースのレース情報 ===
+mysql: [Warning] Using a password on the command line interface can be insecure.
+date	kaisuu	basho	basho_name	day	race	race_name	start_time	num_horses
+2026-10-17	4	05	東京	6	5	メイクデビュー東京	12:25:00	9
+2026-10-18	4	04	新潟	2	5	メイクデビュー新潟	11:55:00	15
+=== 欠けている馬のオッズ行（全時点） ===
+mysql: [Warning] Using a password on the command line interface can be insecure.
+date	basho	day	race	num	minutes_before_start	odds	fuku_min
+2026-10-17	05	6	5	5	999	取消	
+2026-10-17	05	6	5	5	21	取消	
+2026-10-17	05	6	5	5	18	取消	
+2026-10-17	05	6	5	5	15	取消	
+2026-10-17	05	6	5	5	12	取消	
+2026-10-17	05	6	5	5	9	取消	
+2026-10-17	05	6	5	5	6	取消	
+2026-10-17	05	6	5	5	3	取消	
+2026-10-17	05	6	5	5	-999	取消	
+2026-10-18	04	2	5	3	999	取消	
+2026-10-18	04	2	5	3	21	取消	
+2026-10-18	04	2	5	3	18	取消	
+2026-10-18	04	2	5	3	15	取消	
+2026-10-18	04	2	5	3	12	取消	
+2026-10-18	04	2	5	3	9	取消	
+2026-10-18	04	2	5	3	6	取消	
+2026-10-18	04	2	5	3	3	取消	
+2026-10-18	04	2	5	3	-999	取消	
+=== 対象2レースの着順（取消か欠落かの決め手） ===
+mysql: [Warning] Using a password on the command line interface can be insecure.
+date	basho	day	race	num	horse_name	result
+2026-10-17	05	6	5	1	ペルケチセイ	5
+2026-10-17	05	6	5	2	コルヴィリア	8
+2026-10-17	05	6	5	3	サトノエスパーダ	3
+2026-10-17	05	6	5	4	ダークアベンジャー	7
+2026-10-17	05	6	5	6	プリズンブレイク	4
+2026-10-17	05	6	5	7	トナリティ	2
+2026-10-17	05	6	5	8	フィニート	6
+2026-10-17	05	6	5	9	ソーロブスト	1
+2026-10-18	04	2	5	1	ウインロッドブレス	4
+2026-10-18	04	2	5	2	アルファマロン	8
+2026-10-18	04	2	5	4	フィックスユー	9
+2026-10-18	04	2	5	5	エッシネン	12
+2026-10-18	04	2	5	6	ロードハイエンド	5
+2026-10-18	04	2	5	7	オーウェン	2
+2026-10-18	04	2	5	8	セイバードライバー	6
+2026-10-18	04	2	5	9	ストルワート	7
+2026-10-18	04	2	5	10	トップドッグ	3
+2026-10-18	04	2	5	11	ワンダフルワールド	1
+2026-10-18	04	2	5	12	ルクスラモン	14
+2026-10-18	04	2	5	13	マイネルブラントン	10
+2026-10-18	04	2	5	14	シヴィリティ	13
+2026-10-18	04	2	5	15	メイショウバレリア	11
+=== 時点別のオッズ件数 ===
+mysql: [Warning] Using a password on the command line interface can be insecure.
+date	basho	day	race	minutes_before_start	頭数
+2026-10-17	05	6	5	-999	9
+2026-10-17	05	6	5	3	9
+2026-10-17	05	6	5	6	9
+2026-10-17	05	6	5	9	9
+2026-10-17	05	6	5	12	9
+2026-10-17	05	6	5	15	9
+2026-10-17	05	6	5	18	9
+2026-10-17	05	6	5	21	9
+2026-10-17	05	6	5	999	9
+2026-10-18	04	2	5	-999	15
+2026-10-18	04	2	5	3	15
+2026-10-18	04	2	5	6	15
+2026-10-18	04	2	5	9	15
+2026-10-18	04	2	5	12	15
+2026-10-18	04	2	5	15	15
+2026-10-18	04	2	5	18	15
+2026-10-18	04	2	5	21	15
+2026-10-18	04	2	5	999	15

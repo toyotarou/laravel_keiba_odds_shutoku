@@ -1,0 +1,848 @@
+--- "../\346\217\220\345\207\272_20261021/code/AiController.php"	2026-10-20 21:25:48.333535870 +0000
++++ code/AiController.php	2026-10-21 00:22:31.457049853 +0000
+@@ -4952,6 +4952,73 @@
+         $check('R122-J04', '採点は整数しか受け取らない条件が診断に入っている',
+             substr_count($srcE08, 'if (!is_int($v) || $v < 0 || $v > $mx)'), 2);
+ 
++        // ── @ANCHOR-20261021-R122-NUMTYPE / UNESCAPE  10月21日008のご指摘6 ──
++        //   (1) 数値と文字列を区別して持ち、再保存でも型が変わらないこと
++        //   (2) \uXXXX を復号してから重複キーを見ること
++        $N5 = static fn(string $t) => BaganrikiJson::strict($t);
++        $RS = static fn(array $r) => BaganrikiJson::reserialize($r['value'],
++                                                                $r['number_paths']);
++
++        $n1 = $N5('{"a":1.99999999999999999999}');      // JSON上は数値
++        $n2 = $N5('{"a":"1.99999999999999999999"}');    // JSON上は文字列
++        $check('R122-J05', '丸まる数値もそのまま値は読める',
++            $n1['value'], ['a' => '1.99999999999999999999']);
++        $check('R122-J05', '最初から文字列の方も同じ値に見える',
++            $n2['value'], ['a' => '1.99999999999999999999']);
++        $check('R122-J05', 'しかし数値だった位置は控えている',
++            $n1['stats']['number_paths'], 1);
++        $check('R122-J05', '文字列だった位置は控えない',
++            $n2['stats']['number_paths'], 0);
++        $check('R122-J05', '再保存すると数値は数値に戻る',
++            $RS($n1), '{"a":1.99999999999999999999}');
++        $check('R122-J05', '再保存しても文字列は文字列のまま',
++            $RS($n2), '{"a":"1.99999999999999999999"}');
++        $check('R122-J05', 'AIが引用符付きで返した数は数値に変えない',
++            $n2['number_paths'], []);
++
++        $n3 = $N5('{"a":11,"b":1.99999999999999999999,"c":"2.5","d":2.5}');
++        $check('R122-J05', '混在：再保存で型が入れ替わらない',
++            $RS($n3), '{"a":11,"b":1.99999999999999999999,"c":"2.5","d":2.5}');
++        $n4 = $N5('{"horses":[{"scores":{"H1":12345678901234567890}}]}');
++        $check('R122-J05', '入れ子でも数値の位置が分かる',
++            $n4['stats']['number_paths'], 1);
++        $check('R122-J05', '入れ子でも再保存で数値に戻る',
++            $RS($n4), '{"horses":[{"scores":{"H1":12345678901234567890}}]}');
++        $check('R122-J05', '有効桁128も再保存で数値に戻る',
++            $RS($N5('{"a":1.' . str_repeat('9', 127) . '}')),
++            '{"a":1.' . str_repeat('9', 127) . '}');
++
++        // 閾値の両側（採点は整数だけを受け取ります）
++        $n5 = $N5('{"a":18,"b":18.0000000000000000001}');
++        $check('R122-J05', '満点ちょうどは整数のまま',
++            is_int($n5['value']['a'] ?? null), true);
++        $check('R122-J05', '満点をわずかに超える数は整数にならない',
++            is_int($n5['value']['b'] ?? null), false);
++
++        // (2) \uXXXX を復号してから重複キーを見ます
++        $check('R122-J05', 'エスケープした同じキーの重複を見つける',
++            $N5('{"a":1,"\u0061":2}')['code'], 'JSON_DUPLICATE_KEY');
++        $check('R122-J05', '素のままの重複も、これまでどおり見つける',
++            $N5('{"a":1,"a":2}')['code'], 'JSON_DUPLICATE_KEY');
++        $check('R122-J05', '違うキーなら通す',
++            $N5('{"a":1,"\u0062":2}')['ok'], true);
++        $check('R122-J05', 'エスケープを復号した値になる',
++            $N5('{"\u99ac":1}')['value'], ['馬' => 1]);
++        $check('R122-J05', '代理対も組み立てる',
++            $N5('{"a":"\ud83d\ude00"}')['value'], ['a' => '😀']);
++        $check('R122-J05', '上位代理だけなら断る',
++            $N5('{"a":"\ud83d"}')['code'], 'JSON_BAD_SURROGATE');
++        $check('R122-J05', '下位代理だけでも断る',
++            $N5('{"a":"\ude00"}')['code'], 'JSON_BAD_SURROGATE');
++        // extract も型の印を引き継ぎます
++        $ex5 = BaganrikiResponse::extract($mkR('{"a":1.99999999999999999999}'));
++        $check('R122-J05', 'extract も型の印を引き継ぐ',
++            count((array) ($ex5['number_paths'] ?? [])), 1);
++        $check('R122-J05', 'extract の結果も再保存で数値に戻る',
++            BaganrikiJson::reserialize($ex5['json'],
++                (array) $ex5['number_paths']),
++            '{"a":1.99999999999999999999}');
++
+         $check('R122-P01', 'coverageは7区分そろえる',
+             array_keys(BaganrikiPrompt::coverageOf(null)),
+             BaganrikiPrompt::COVERAGE_KEYS);
+@@ -15986,24 +16053,33 @@
+                         //   Aが「全頭そろった」として採用されます。
+                         //   hash不一致で committed=false にした候補でも同じです。
+                         //   【いま】pick と<b>同じ条件</b>を先に当てます。
+-                        //   採用され得るバッチの取消だけで活動集合を作ります。
+-                        $active = $entryNums;
++                        // ══════════════════════════════════════════════
++                        // @ANCHOR-20261021-R122-PERCAND  008のご指摘4
++                        // ══════════════════════════════════════════════
++                        //   【まだ足りませんでした】commit済み・時刻適合の
++                        //   候補<b>全部</b>の取消を合算した1つの集合を、
++                        //   各バッチの全頭検査に使っていました。
++                        //   「採用され得る」は「全頭検査を通った」ではありません。
++                        //   別の候補の取消で欠損が隠れ、取消を持たない候補が
++                        //   採用され、採用判定と凍結集合が食い違います。
++                        //   【いま】合算しません。基礎集合（出馬表）だけを渡し、
++                        //   <b>その候補自身の取消</b>は pick の中で引きます。
+                         $cancelSrc = [];
+                         foreach ($cand as $cb) {
+-                            if (($cb['committed'] ?? true) !== true) { continue; }
+-                            $chk = BaganrikiTime::acceptBatch($slot, $cb, $anchorUs);
+-                            if (($chk['ok'] ?? false) !== true) { continue; }
+-                            $active = array_values(array_diff($active, $cb['cancelled']));
+                             if ((array) $cb['cancelled'] !== []) {
+-                                $cancelSrc[] = (string) $cb['batch_id'];
++                                $cancelSrc[] = (string) $cb['batch_id']
++                                             . '（' . implode('・',
++                                               array_map('strval', (array) $cb['cancelled']))
++                                             . '）';
+                             }
+                         }
+                         if ($cancelSrc !== []) {
+-                            $notes[] = $slot . '分前の活動集合は、採用され得るバッチ'
+-                                     . '（commit済み・時刻適合）の取消だけで作りました（'
+-                                     . implode('・', $cancelSrc) . '）';
++                            $notes[] = $slot . '分前の全頭検査は、候補ごとに'
++                                     . '<b>その候補自身の取消だけ</b>を引いて行いました'
++                                     . '（取消を持つ候補 ' . implode('・', $cancelSrc) . '）';
+                         }
+-                        $picked[$slot] = BaganrikiAcquisition::pick($slot, $cand, $active, $anchorUs);
++                        $picked[$slot] = BaganrikiAcquisition::pick($slot, $cand,
++                                                                    $entryNums, $anchorUs);
+                         if (($picked[$slot]['status'] ?? '') === 'ADOPTED') {
+                             $bt = $picked[$slot]['batch'];
+                             foreach ((array) $bt['values'] as $n => $v) {
+@@ -17451,7 +17527,7 @@
+             if (!is_int($t) && !(is_string($t) && ctype_digit($t))) { continue; }
+             $bad[(int) $t][] = (string) ($fd['code'] ?? '');
+         }
+-        $salvaged = [];
++        $salvaged = []; $salvageDetail = [];
+         $normal = [];
+         foreach ((array) $iso['kept'] as $k => $h) {
+             $no = is_int($k) ? $k : (int) ($h['horse_no'] ?? 0);
+@@ -17506,8 +17582,27 @@
+                 $h['observed_cap'] = $capS;
+                 $h['total_score']  = ($nNull === 0) ? $sumS : null;
+                 $h['score_status'] = ($nNull === 0) ? 'complete' : 'partial';
+-                // 直した中身を、あとから読めるように残します
+-                $h['r122_salvage'] = [
++                // ══════════════════════════════════════════════════════
++                // @ANCHOR-20261021-R122-METASPLIT  10月21日008のご指摘3
++                // ══════════════════════════════════════════════════════
++                //   【本物の不具合でした】
++                //   直した中身を <b>馬の行の中に</b> r122_salvage として
++                //   足していました。これは内部の監査項目で、AIの業務項目
++                //   ではありません。ところが、この行がそのまま
++                //   $first['normal'] に入り、acceptCorrection の
++                //   「範囲外の項目を変えていないか」の比較対象になります。
++                //   正しい全頭訂正に r122_salvage は入っていないので、
++                //     初回 = 配列 ／ 訂正 = 無い
++                //   となり「その範囲で直してよい項目の外を変えている」と
++                //   判定され、<b>正しい訂正が FIX_REJECTED になります。</b>
++                //   つまり「採点の救済」と「全頭訂正」を両方通すと落ちます。
++                //   別々に試していたので気づきませんでした。
++                //
++                //   【いま】馬の行には入れません。<b>別の入れ物</b>に出します。
++                //   AIが返すべき項目だけが訂正の比較対象になります。
++                //   AIに r122_salvage を返させる解決はしません（それは
++                //   内部の監査項目をAIに書かせることになります）。
++                $salvageDetail[$no] = [
+                     'nulled_scores' => array_values($badKeys),
+                     'recomputed'    => ['observed_sum' => $sumS,
+                                         'observed_cap' => $capS,
+@@ -17531,6 +17626,9 @@
+         // @ANCHOR-20261020-R122-COMPLETE  未完了は選出に使いません（本文は残します）
+         $out['normal']       = ($out['complete'] === true) ? $normal : [];
+         $out['normal_kept']  = $normal;      // 保持はします（監査・訂正の材料）
++        // @ANCHOR-20261021-R122-METASPLIT  内部の監査項目はここに出します
++        //   （馬の行には入れません。訂正の比較対象にしないためです）
++        $out['salvage_detail'] = $salvageDetail;
+         if ($out['complete'] !== true) {
+             $out['reason'] = '未完了（complete=false）なので選出に使いません。'
+                            . '本文は保持しています。／' . $out['reason'];
+@@ -18182,8 +18280,23 @@
+         if ($useNo === null) { return $o; }
+         $o['attempt_no'] = $useNo;
+ 
+-        // ── ② 初回の順位（②の縮退に使います）────────────────────────
++        // ── ② 初回の順位（②の縮退と、対象外の帯の保持に使います）────
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-BANDSCOPE  10月21日008のご指摘3（後半）
++        // ══════════════════════════════════════════════════════════════
++        //   【本物の不具合でした】
++        //   acceptCorrection は<b>馬の行しか比べていません。</b>
++        //   band_ranks のような top の項目は比べていません。
++        //   そのため「別の馬を直す訂正」が、初回では正常だった帯の
++        //   並びを<b>黙って変えて</b>も通り、FIX_APPLIED なら
++        //   その変えた並びが使われていました。
++        //   【いま】訂正で直してよい帯（初回の repair_scope.rank_bands）
++        //   だけを、訂正の並びで上書きできます。
++        //   それ以外の帯は<b>初回の並びを保持</b>します。
++        //   変えようとしていた場合は、そのことを記録に残します。
+         $prevRanks = [];
++        $allowBands = [];      // 訂正で順位を変えてよい帯
++        $prevSeen   = false;   // 初回の応答を読めたか
+         if ($useNo === BaganrikiWorker::FIX) {
+             $p = \DB::table('baganriki_ai_attempts')
+                    ->where('snapshot_id', $snapshotId)->where('role', $role)
+@@ -18192,9 +18305,12 @@
+             if ($p !== null && (int) ($p->complete ?? 0) === 1) {
+                 $pe = BaganrikiResponse::extract((string) $p->raw_response);
+                 if ($pe['ok']) {
++                    $prevSeen = true;
+                     $pi = $this->r122InspectResponse($snapshotId, $role,
+                               BaganrikiWorker::FIRST);
+                     $pBad = self::r122BadBands($pi['repair_scope'] ?? null);
++                    // @ANCHOR-20261021-R122-BANDSCOPE  直してよい帯はこれだけ
++                    $allowBands = $pBad;
+                     foreach (['A', 'B', 'D'] as $b) {
+                         if (in_array($b, $pBad, true)) { continue; }
+                         $lst = ((array) $pe['json'])['band_ranks'][$b] ?? null;
+@@ -18215,6 +18331,29 @@
+         foreach (['A', 'B', 'D'] as $b) {
+             if ($bandMembers[$b] === []) { continue; }   // その帯に馬が居ません
+ 
++            // ══════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-BANDSCOPE  訂正で直してよい帯だけ
++            // ══════════════════════════════════════════════════════════
++            //   訂正を使っていて、その帯が<b>訂正の対象ではない</b>のに
++            //   初回の並びが使えるなら、初回の並びを保持します。
++            //   訂正が違う並びを返していたら、そのことを残します
++            //   （採用はしません）。
++            if ($useNo === BaganrikiWorker::FIX && $prevSeen
++                && !in_array($b, $allowBands, true)
++                && isset($prevRanks[$b])) {
++                $o['band_ranks'][$b]  = $prevRanks[$b];
++                $o['rank_source'][$b] = 'PREVIOUS_KEPT';
++                $rl = $resBands[$b] ?? null;
++                if (is_array($rl)
++                    && array_map('intval', array_values($rl)) !== $prevRanks[$b]) {
++                    $o['rank_notes'][] = $b . '帯は訂正の対象ではないので初回の順位を'
++                                       . '保持しました（訂正は違う順位を返していました）';
++                } else {
++                    $o['rank_notes'][] = $b . '帯は訂正の対象ではないので初回の順位を'
++                                       . '保持しました';
++                }
++                continue;
++            }
+             // ①応答の順位（指摘が無く、集合が合っているとき）
+             if (!in_array($b, $badBands, true)
+                 && $usable($resBands[$b] ?? null, $bandMembers[$b])) {
+@@ -18749,22 +18888,38 @@
+         // ── 表を読む ────────────────────────────────────────────────
+         $load = static function (string $table, string $valueCol, string $countCol)
+                 use ($check) {
+-            $rows = []; $win = null; $bad = null; $at = null;
++            $rows = []; $win = null; $bad = null; $at = null; $atSrc = null;
+             foreach (\DB::table($table)->get() as $r) {
+-                [$ok, $reason, $cAt] = $check($r->end_date ?? null, $r->computed_at ?? null);
++                // ══════════════════════════════════════════════════════
++                // @ANCHOR-20261021-R122-VERIFIEDAT  10月21日008のご指摘8
++                // ══════════════════════════════════════════════════════
++                //   computed_at（実際に算出した時刻）を正とします。
++                //   列を足す前から在った行は computed_at が無いので、
++                //   その行だけ verified_at（この時刻に使えることを確かめた）
++                //   で代えます。どちらを使ったかは下の理由文に出ます。
++                $cSrc = 'computed_at';
++                $cRaw = $r->computed_at ?? null;
++                if ($cRaw === null && property_exists($r, 'verified_at')) {
++                    $cRaw = $r->verified_at ?? null;
++                    if ($cRaw !== null) { $cSrc = 'verified_at'; }
++                }
++                [$ok, $reason, $cAt] = $check($r->end_date ?? null, $cRaw);
+                 if (!$ok) { if ($bad === null) { $bad = $reason; } continue; }
+                 $rk = (int) ($r->popularity_rank ?? 0);
+                 if ($rk <= 0) { continue; }
+                 $rows[$rk] = $r;
+                 if ($at === null || ($cAt !== null && strcmp($cAt, (string) $at) > 0)) {
+-                    $at = $cAt;
++                    $at = $cAt; $atSrc = $cSrc;
+                 }
+                 if ($win === null) {
+                     $win = ['start' => substr((string) ($r->start_date ?? ''), 0, 10),
+                             'end'   => substr((string) ($r->end_date ?? ''), 0, 10)];
+                 }
+             }
+-            return ['rows' => $rows, 'window' => $win, 'bad' => $bad, 'computed_at' => $at];
++            return ['rows' => $rows, 'window' => $win, 'bad' => $bad,
++                    'computed_at' => $at,
++                    // @ANCHOR-20261021-R122-VERIFIEDAT  どちらの時刻を使ったか
++                    'time_source' => $atSrc];
+         };
+ 
+         $popAvg  = $load('t_horse_odds_finder_popularity_rank_average', 'odds_average', 'count');
+@@ -19120,7 +19275,10 @@
+      */
+     public const R122_FIX_MIN_SEC      = 25;   // これ未満なら訂正を送りません
+     public const R122_FIX_MAX_WAIT     = 60;   // 訂正の待ち時間の上限（秒）
+-    public const R122_SWEEP_GRACE_SEC  = 30;   // 受領直後はやり直しで触りません
++    public const R122_SWEEP_GRACE_SEC  = 30;
++    // @ANCHOR-20261021-R122-SENDFIRST  初回のやり直しに必要な残り時間
++    public const R122_FIRST_MIN_SEC   = 40;   // これ未満なら初回を送りません
++    public const R122_FIRST_MAX_WAIT  = 170;  // 初回の待ち時間の上限（秒）   // 受領直後はやり直しで触りません
+ 
+     /**
+      * @ANCHOR-20261020-R122-WIRE  設定の食い違いを送信の前に止めます
+@@ -19460,6 +19618,170 @@
+     }
+ 
+     /**
++     * ═══════════════════════════════════════════════════════════════════════
++     * @ANCHOR-20261021-R122-SENDFIRST  初回をやり直せるようにします（008の5）
++     * ═══════════════════════════════════════════════════════════════════════
++     * ご指摘：
++     *   「r122AfterCached は凍結と公開判定を呼びますが、初回送信を起動しません。
++     *     sweep も初回送信をしない設計です。旧キャッシュあり・初回枠なしの
++     *     レースが、上限後に凍結できただけで止まらず、両AIの初回送信へ
++     *     進む経路を示してください。」
++     *
++     * そのとおりでした。固定入力ができても、初回の送信を始める者が
++     * 誰もいませんでした。<b>画面からの呼び出しがキャッシュで終わる限り、
++     * そのレースは永久に送られません。</b>
++     *
++     * ここが、その経路です。固定入力（generation=0）から
++     *   予約（reserve）→ 送信許可（allowSend）→ 送信（r122CallAi）
++     *   → 受領（receive）→ 検証・訂正・統合・公開（r122AfterReceive）
++     * まで進めます。送信口は訂正と<b>同じ</b>ものを使います。
++     *
++     * 二重送信はしません。枠は race_id・role・attempt_no で一意なので、
++     * 画面側とこちらが同時に動いても、予約できた側だけが送ります。
++     *
++     * @return array ['sent','ok','code','reason']
++     */
++    public function r122SendFirst(int $snapshotId, string $role,
++                                  array $opt = []): array
++    {
++        $out = ['sent' => false, 'ok' => false, 'code' => null, 'reason' => null];
++        if ($role !== '1st' && $role !== '2nd') {
++            $out['code'] = 'ROLE_INVALID'; return $out;
++        }
++        $cfg = self::r122WireConfig();
++        if (!($cfg['ok'] ?? false)) {
++            $out['code'] = (string) $cfg['code'];
++            $out['reason'] = (string) $cfg['reason'];
++            return $out;
++        }
++        // @ANCHOR-20261021-R122-SENDFIRST  旗の検査
++        //   $opt['test_ignore_flags'] は<b>試験からだけ</b>渡します。
++        //   送信口を偽物に差し替えた通し試験で、旗が下りている環境でも
++        //   経路そのものを通すためのものです。
++        //   本番の呼び出し元（r122SweepPending／r122AfterCached）は
++        //   渡しません。渡していないことは試験で見張ります。
++        if (($opt['test_ignore_flags'] ?? false) !== true
++            && (!BaganrikiPrompt::sending() || !BaganrikiWorker::enabled())) {
++            $out['code']   = 'FLAG_OFF';
++            $out['reason'] = '本文の段か枠の段が上がっていないので初回は送りません';
++            return $out;
++        }
++        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
++        if ($snap === null || (int) $snap->generation !== 0) {
++            $out['code'] = 'NO_SNAPSHOT';
++            $out['reason'] = '本番の固定入力（generation=0）がありません';
++            return $out;
++        }
++        // すでに枠があれば何もしません（作り直しません）
++        $has = \DB::table('baganriki_ai_attempts')
++                 ->where('snapshot_id', $snapshotId)->where('role', $role)
++                 ->where('attempt_no', BaganrikiWorker::FIRST)->exists();
++        if ($has) {
++            $out['code'] = 'ALREADY';
++            $out['reason'] = 'その role の初回の枠はすでにあります';
++            return $out;
++        }
++        $live = \DB::table('baganriki_live_states')
++                  ->where('snapshot_id', $snapshotId)->first();
++        $dl = BaganrikiWorker::deadlines($snap, $live);
++        if (!$dl['ok']) {
++            $out['code'] = (string) $dl['code'];
++            $out['reason'] = (string) $dl['reason'];
++            return $out;
++        }
++        $now  = BaganrikiWorker::nowUs();
++        $left = (int) floor(($dl['reply'] - $now) / 1000000);
++        if ($left < self::R122_FIRST_MIN_SEC) {
++            $out['code']   = 'NO_TIME_FOR_FIRST';
++            $out['reason'] = '応答期限まで ' . $left . '秒しかないので初回を送りません'
++                           . '（最低 ' . self::R122_FIRST_MIN_SEC . '秒）';
++            return $out;
++        }
++
++        // ── 保存した本文をそのまま使います（作り直しません）──────────
++        $col  = ($role === '2nd') ? 'input_json_2nd' : 'input_json_1st';
++        $user = (string) ($snap->{$col} ?? '');
++        if ($user === '') {
++            $out['code'] = 'NO_SAVED_INPUT';
++            $out['reason'] = '固定入力に ' . $role . ' の本文がありません';
++            return $out;
++        }
++        $in = json_decode($user, true);
++        if (!is_array($in)
++            || (string) ($in['snapshot_hash'] ?? '') !== (string) $snap->snapshot_hash) {
++            $out['code'] = 'SAVED_HASH_MISMATCH';
++            $out['reason'] = '保存本文の snapshot_hash が列の値と違います';
++            return $out;
++        }
++        $sys = BaganrikiPrompt::systemBody($role);
++        if (!$sys['ok']) {
++            $out['code'] = 'PROMPT_BODY_INVALID';
++            $out['reason'] = (string) $sys['reason'];
++            return $out;
++        }
++
++        $expect = ($live === null) ? [] : [
++            'state_revision'       => (int) $live->state_revision,
++            'publication_revision' => (int) $live->publication_revision,
++        ];
++        $r = BaganrikiWorker::reserve($snapshotId, $role, BaganrikiWorker::FIRST,
++                                      BaganrikiWorker::nowUs(), $expect);
++        if (!$r['ok']) {
++            $out['code'] = (string) $r['code']; $out['reason'] = (string) $r['reason'];
++            return $out;
++        }
++        $a = BaganrikiWorker::allowSend((string) $r['token'], BaganrikiWorker::nowUs());
++        if (!$a['ok']) {
++            $out['code'] = (string) $a['code']; $out['reason'] = (string) $a['reason'];
++            return $out;
++        }
++        self::recordPromptHash($role . '_first_resume', $user);
++        \Log::error('[R122-SENDFIRST] 初回を送ります（やり直し経路）', [
++            'race_id'     => (string) $snap->race_id,
++            'role'        => $role,
++            'user_bytes'  => strlen($user),
++            'snapshot_hash' => (string) $snap->snapshot_hash,
++            '残り秒'      => $left,
++        ]);
++
++        $wait = max(20, min(self::R122_FIRST_MAX_WAIT, $left - 5));
++        $call = $this->r122CallAi($role, (string) $sys['body'], $user, $wait);
++        $out['sent'] = true;
++        if (!$call['ok']) {
++            $unknown = ($call['code'] === 'CONNECTION' || $call['code'] === 'EXCEPTION');
++            BaganrikiWorker::fail((string) $r['token'],
++                '初回の送信が失敗しました（' . (string) $call['code'] . '）'
++                . (string) $call['reason'],
++                BaganrikiWorker::nowUs(), $unknown);
++            $out['code'] = (string) $call['code'];
++            $out['reason'] = (string) $call['reason'];
++            return $out;
++        }
++        $rc = BaganrikiWorker::receive((string) $r['token'], (string) $call['raw'],
++                                       (bool) $call['complete'],
++                                       BaganrikiWorker::nowUs());
++        if (!($rc['ok'] ?? false)) {
++            $out['code'] = (string) ($rc['code'] ?? 'RECEIVE_FAILED');
++            $out['reason'] = (string) ($rc['reason'] ?? '初回の原応答を保存できません');
++            return $out;
++        }
++        $out['ok']   = true;
++        $out['code'] = 'OK';
++        $out['reason'] = '初回の原応答を保存しました（complete='
++                       . ((bool) $call['complete'] ? 'true' : 'false') . '）';
++
++        // 受け取ったので、検証→訂正→解決→公開まで続けます
++        $rid = (string) $snap->race_id;
++        $p = explode('-', $rid);
++        if (count($p) === 5) {
++            $d = substr($p[0], 0, 4) . '-' . substr($p[0], 4, 2) . '-' . substr($p[0], 6, 2);
++            $this->r122AfterReceive($d, $p[1], $p[2], $p[3], (int) $p[4], $role,
++                ['skip' => false, 'ok' => true, 'snapshot_id' => $snapshotId]);
++        }
++        return $out;
++    }
++
++    /**
+      * @ANCHOR-20261020-R122-WIRE  両roleが終端になってから公開します
+      *
+      *   1stだけで公開してしまうと、2ndがこれから返ってくるのに
+@@ -19670,6 +19992,10 @@
+      *   応答を返したあとに、固定のやり直しと公開の起動を1回だけ行います。
+      *   画面の待ち時間は増えません。
+      */
++    /**
++     * @ANCHOR-20261021-R122-SENDFIRST  キャッシュを返したあとの初回送信
++     *   008のご指摘5。凍結と公開判定だけでは、初回が永久に送られません。
++     */
+     public function r122AfterCached($date, $kaisuu, $basho, $day, $race): void
+     {
+         if (!BaganrikiPrompt::enabled() && !BaganrikiWorker::enabled()) { return; }
+@@ -19684,6 +20010,24 @@
+                 $sn = \DB::table('baganriki_snapshots')
+                         ->where('race_id', $rid)->where('generation', 0)->first();
+                 if ($sn !== null && BaganrikiWorker::enabled()) {
++                    // @ANCHOR-20261021-R122-SENDFIRST  008のご指摘5
++                    //   凍結できただけで止めません。初回の枠が無ければ
++                    //   ここから<b>両roleの初回を送ります</b>。
++                    //   応答を返したあと（terminating）なので画面は待ちません。
++                    foreach (['1st', '2nd'] as $rl) {
++                        $ex = \DB::table('baganriki_ai_attempts')
++                                ->where('snapshot_id', (int) $sn->id)
++                                ->where('role', $rl)
++                                ->where('attempt_no', BaganrikiWorker::FIRST)
++                                ->exists();
++                        if ($ex) { continue; }
++                        $fs = $self->r122SendFirst((int) $sn->id, $rl);
++                        \Log::error('[R122-SENDFIRST] キャッシュ後の初回送信', [
++                            'race_id' => $rid, 'role' => $rl,
++                            'sent' => $fs['sent'], 'ok' => $fs['ok'],
++                            'code' => $fs['code'], 'reason' => $fs['reason'],
++                        ]);
++                    }
+                     $self->r122PublishWhenReady((int) $sn->id);
+                 }
+             } catch (\Throwable $e) {
+@@ -19708,7 +20052,9 @@
+      */
+     public function r122SweepPending(array $opt = []): array
+     {
+-        $out = ['scanned' => 0, 'resumed' => 0, 'published' => 0, 'rows' => []];
++        $out = ['scanned' => 0, 'resumed' => 0, 'published' => 0, 'rows' => [],
++                // @ANCHOR-20261021-R122-SENDFIRST  初回をやり直した件数
++                'first_sent' => 0, 'first_codes' => []];
+         if (!BaganrikiWorker::enabled() || !BaganrikiWorker::ready()) { return $out; }
+         $now = (int) ($opt['now_us'] ?? BaganrikiWorker::nowUs());
+ 
+@@ -19742,6 +20088,25 @@
+                 }
+ 
+                 foreach (['1st', '2nd'] as $role) {
++                    // ══════════════════════════════════════════════════
++                    // @ANCHOR-20261021-R122-SENDFIRST  008のご指摘5
++                    // ══════════════════════════════════════════════════
++                    //   【足りませんでした】巡回は訂正と公開だけで、
++                    //   <b>初回の送信をする者が誰もいませんでした。</b>
++                    //   画面からの呼び出しがキャッシュで終わる限り、
++                    //   そのレースは永久に送られません。
++                    //   固定入力ができていて初回の枠が無いなら、
++                    //   ここから初回を送ります（期限内のときだけ）。
++                    //   枠は一意なので、画面側と同時でも二重には送りません。
++                    $any = \DB::table('baganriki_ai_attempts')
++                             ->where('snapshot_id', $sid)->where('role', $role)
++                             ->where('attempt_no', BaganrikiWorker::FIRST)->first();
++                    if ($any === null) {
++                        $fs = $this->r122SendFirst($sid, $role);
++                        if ($fs['sent']) { $out['first_sent']++; }
++                        $out['first_codes'][] = $role . ':' . (string) $fs['code'];
++                        continue;
++                    }
+                     $f = \DB::table('baganriki_ai_attempts')
+                            ->where('snapshot_id', $sid)->where('role', $role)
+                            ->where('attempt_no', BaganrikiWorker::FIRST)
+@@ -21005,7 +21370,10 @@
+                 continue;
+             }
+             if ($slot === 6) {
+-                $missing = self::missingWin($b, $activeNums);
++                // @ANCHOR-20261021-R122-PERCAND  その候補自身の取消だけを引きます
++                $selfCancel = array_map('intval', (array) ($b['cancelled'] ?? []));
++                $activeForB = array_values(array_diff($activeNums, $selfCancel));
++                $missing = self::missingWin($b, $activeForB);
+                 if (!empty($missing)) {
+                     $rejected[] = ['batch_id' => $b['batch_id'] ?? null,
+                                    'code' => 'FREEZE_ODDS_MISSING',
+@@ -21654,7 +22022,12 @@
+                     'reason' => 'JSONの最上位がオブジェクトでも配列でもありません',
+                     'json' => null];
+         }
+-        return ['ok' => true, 'code' => null, 'reason' => null, 'json' => $data];
++        // @ANCHOR-20261021-R122-NUMTYPE  JSON上の型の印を後段へ引き継ぎます。
++        //   これが無いと、丸まる数を文字列で持ったときに
++        //   「数値だったのか、最初から文字列だったのか」が分かりません。
++        //   再保存は BaganrikiJson::reserialize($json, $number_paths) です。
++        return ['ok' => true, 'code' => null, 'reason' => null, 'json' => $data,
++                'number_paths' => (array) ($st['number_paths'] ?? [])];
+     }
+ 
+     /**
+@@ -21854,6 +22227,31 @@
+             // @ANCHOR-20261020-R122-RESCUESCOPE  007のご指摘4（救済の範囲）
+             //   救済馬も horses の対象に入っていることを明示的に見ます。
+             //   以前は範囲の検査ごと continue で飛ばしていました。
++            // ══════════════════════════════════════════════════════════
++            // @ANCHOR-20261021-R122-METASPLIT  10月21日008のご指摘3
++            // ══════════════════════════════════════════════════════════
++            //   内部の監査項目（r122_ で始まるキー）は、こちらが足した
++            //   ものです。AIの業務項目ではありません。
++            //   ・比較からは<b>外します</b>（これが入っていると、正しい
++            //     訂正が「範囲外を変えた」と判定されます）
++            //   ・訂正の側に入っていたら<b>断ります</b>（AIに内部の監査
++            //     項目を書かせることになるためです）
++            $metaIn = [];
++            foreach ($fix as $num => $h1) {
++                foreach (array_keys((array) $h1) as $k) {
++                    if (strncmp((string) $k, 'r122_', 5) === 0) {
++                        $metaIn[] = (int) $num . ':' . (string) $k;
++                    }
++                }
++            }
++            if ($metaIn !== []) {
++                sort($metaIn);
++                return ['ok' => false, 'rescued' => [], 'applied' => [],
++                        'skipped' => [], 'restated' => [],
++                        'reason' => '訂正に内部の監査項目が入っています（'
++                                  . implode('・', array_slice($metaIn, 0, 5))
++                                  . '）。これはAIが返す項目ではありません'];
++            }
+             $restated = [];
+             foreach ($fix as $num => $h1) {
+                 $num = (int) $num;
+@@ -21887,6 +22285,8 @@
+                                                  array_keys((array) $h1)));
+                 foreach ($keys as $k) {
+                     if (in_array((string) $k, $fields, true)) { continue; }
++                    // @ANCHOR-20261021-R122-METASPLIT  内部の監査項目は見ません
++                    if (strncmp((string) $k, 'r122_', 5) === 0) { continue; }
+                     $v0 = $h0[$k] ?? null;
+                     $v1 = ((array) $h1)[$k] ?? null;
+                     if ($v0 !== $v1) { $outOfField[] = $num . ':' . $k; }
+@@ -21959,6 +22359,16 @@
+      */
+     public static function sameHorseRow(array $a, array $b): bool
+     {
++        // @ANCHOR-20261021-R122-METASPLIT  内部の監査項目（r122_）は比べません。
++        //   こちらが足したもので、AIが返す項目ではないためです。
++        $strip = static function (array $v): array {
++            $o = [];
++            foreach ($v as $k => $x) {
++                if (strncmp((string) $k, 'r122_', 5) === 0) { continue; }
++                $o[$k] = $x;
++            }
++            return $o;
++        };
+         $norm = static function ($v) use (&$norm) {
+             if (!is_array($v)) { return $v; }
+             $isList = (array_keys($v) === range(0, count($v) - 1));
+@@ -21967,7 +22377,7 @@
+             if (!$isList) { ksort($o, SORT_STRING); }
+             return $o;
+         };
+-        return $norm($a) === $norm($b);
++        return $norm($strip($a)) === $norm($strip($b));
+     }
+ 
+     /**
+@@ -27784,7 +28194,10 @@
+               'depth' => 0, 'max_depth' => 0, 'nodes' => 0, 'members' => 0,
+               'max_digits' => 0, 'err' => null,
+               // @ANCHOR-20261020-R122-NUMEXACT  数値トークンの原表現
+-              'numbers' => [], 'inexact' => []];
++              'numbers' => [], 'inexact' => [],
++              // @ANCHOR-20261021-R122-NUMTYPE  いま読んでいる位置（経路）と、
++              //   「ここはJSON上の数値だった」という印
++              'path' => [], 'number_paths' => []];
+ 
+         self::ws($s);
+         $okTop = self::value($s);
+@@ -27800,7 +28213,9 @@
+                   'nodes' => $s['nodes'], 'members' => $s['members'],
+                   'max_digits' => $s['max_digits'],
+                   // @ANCHOR-20261020-R122-NUMEXACT  原表現（監査用）
+-                  'numbers' => count($s['numbers'])];
++                  'numbers' => count($s['numbers']),
++                  // @ANCHOR-20261021-R122-NUMTYPE  数値だった位置の数
++                  'number_paths' => count($s['number_paths'])];
+         if (!$okTop) {
+             $e = $s['err'] ?? ['JSON_INVALID', '読めない形です'];
+             return $ng($e[0], $e[1], $stats);
+@@ -27833,7 +28248,9 @@
+                        $stats);
+         }
+         return ['ok' => true, 'code' => null, 'reason' => null,
+-                'value' => $v, 'stats' => $stats];
++                'value' => $v, 'stats' => $stats,
++                // @ANCHOR-20261021-R122-NUMTYPE  JSON上の型を結び付けた印
++                'number_paths' => $s['number_paths']];
+     }
+ 
+     // ── 以下は走査の部品 ───────────────────────────────────────────────
+@@ -27847,6 +28264,24 @@
+         }
+     }
+ 
++    /**
++     * @ANCHOR-20261021-R122-UNESCAPE  符号位置を UTF-8 のバイト列にします
++     *   （\uXXXX を復号してからキーを比べるために使います）
++     */
++    private static function utf8(int $cp): string
++    {
++        if ($cp < 0x80)    { return chr($cp); }
++        if ($cp < 0x800)   { return chr(0xC0 | ($cp >> 6))
++                                  . chr(0x80 | ($cp & 0x3F)); }
++        if ($cp < 0x10000) { return chr(0xE0 | ($cp >> 12))
++                                  . chr(0x80 | (($cp >> 6) & 0x3F))
++                                  . chr(0x80 | ($cp & 0x3F)); }
++        return chr(0xF0 | ($cp >> 18))
++             . chr(0x80 | (($cp >> 12) & 0x3F))
++             . chr(0x80 | (($cp >> 6) & 0x3F))
++             . chr(0x80 | ($cp & 0x3F));
++    }
++
+     private static function fail(array &$s, string $code, string $reason): bool
+     {
+         if ($s['err'] === null) { $s['err'] = [$code, $reason]; }
+@@ -27913,7 +28348,11 @@
+             }
+             $s['i']++;
+             self::ws($s);
+-            if (!self::value($s)) { return false; }
++            // @ANCHOR-20261021-R122-NUMTYPE  経路を1つ下ります
++            $s['path'][] = $k;
++            $okV = self::value($s);
++            array_pop($s['path']);
++            if (!$okV) { return false; }
+             self::ws($s);
+             if ($s['i'] >= $s['n']) {
+                 return self::fail($s, 'JSON_INVALID', '波括弧が閉じていません');
+@@ -27939,9 +28378,15 @@
+         if ($s['i'] < $s['n'] && $s['raw'][$s['i']] === ']') {
+             $s['i']++; $s['depth']--; return true;
+         }
++        $idx = 0;
+         for (;;) {
+             self::ws($s);
+-            if (!self::value($s)) { return false; }
++            // @ANCHOR-20261021-R122-NUMTYPE  経路を1つ下ります（配列の番号）
++            $s['path'][] = $idx;
++            $okV = self::value($s);
++            array_pop($s['path']);
++            $idx++;
++            if (!$okV) { return false; }
+             self::ws($s);
+             if ($s['i'] >= $s['n']) {
+                 return self::fail($s, 'JSON_INVALID', '角括弧が閉じていません');
+@@ -27973,13 +28418,52 @@
+                         'f' => "\x0C", 'n' => "\n", 'r' => "\r", 't' => "\t"];
+                 if (isset($map[$e])) { $out .= $map[$e]; $s['i']++; continue; }
+                 if ($e === 'u') {
++                    // ══════════════════════════════════════════════════
++                    // @ANCHOR-20261021-R122-UNESCAPE  10月21日008のご指摘6(2)
++                    // ══════════════════════════════════════════════════
++                    //   【本物の不具合でした】
++                    //   \uXXXX を<b>復号せずそのまま</b>キーの比較用文字列へ
++                    //   足していました。そのため
++                    //     {"a":1,"\u0061":2}
++                    //   は JSON 上は同じキー a なのに、走査では別のキーに
++                    //   見え、<b>重複キーの拒否をすり抜けます。</b>
++                    //   後段の json_decode では同じキーへ戻るので、
++                    //   黙って片方が消えます。
++                    //   【いま】復号してから比べます（代理対も組み立てます）。
+                     if ($s['i'] + 4 >= $s['n']
+                         || preg_match('/^[0-9a-fA-F]{4}$/', substr($s['raw'], $s['i'] + 1, 4)) !== 1) {
+                         self::fail($s, 'JSON_INVALID', '\\u の後ろが16進4桁ではありません');
+                         return null;
+                     }
+-                    $out .= substr($s['raw'], $s['i'] - 1, 6);   // キーの比較用なのでそのまま
++                    $cp = (int) hexdec(substr($s['raw'], $s['i'] + 1, 4));
+                     $s['i'] += 5;
++                    if ($cp >= 0xD800 && $cp <= 0xDBFF) {
++                        // 上位代理。下位代理が続いていなければ UTF-8 にできません
++                        if ($s['i'] + 5 < $s['n']
++                            && $s['raw'][$s['i']] === '\\'
++                            && $s['raw'][$s['i'] + 1] === 'u'
++                            && preg_match('/^[0-9a-fA-F]{4}$/',
++                                          substr($s['raw'], $s['i'] + 2, 4)) === 1) {
++                            $lo = (int) hexdec(substr($s['raw'], $s['i'] + 2, 4));
++                            if ($lo >= 0xDC00 && $lo <= 0xDFFF) {
++                                $cp = 0x10000 + (($cp - 0xD800) << 10) + ($lo - 0xDC00);
++                                $s['i'] += 6;
++                            } else {
++                                self::fail($s, 'JSON_BAD_SURROGATE',
++                                    '上位代理の後ろが下位代理ではありません');
++                                return null;
++                            }
++                        } else {
++                            self::fail($s, 'JSON_BAD_SURROGATE',
++                                '上位代理だけがあり、下位代理がありません');
++                            return null;
++                        }
++                    } elseif ($cp >= 0xDC00 && $cp <= 0xDFFF) {
++                        self::fail($s, 'JSON_BAD_SURROGATE',
++                            '下位代理だけがあります');
++                        return null;
++                    }
++                    $out .= self::utf8($cp);
+                     continue;
+                 }
+                 self::fail($s, 'JSON_INVALID', '使えない逃がし文字です（\\' . $e . '）');
+@@ -28121,10 +28605,74 @@
+             $s['numbers'][] = ['raw' => $tok, 'decimal' => $norm,
+                                'exact' => $exact];
+         }
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261021-R122-NUMTYPE  10月21日008のご指摘6(1)
++        // ══════════════════════════════════════════════════════════════
++        //   【足りませんでした】丸まる数値を文字列に置き替えたので、
++        //     {"a":1.99999999999999999999}   ← JSON上は数値
++        //     {"a":"1.99999999999999999999"} ← JSON上は文字列
++        //   が、返り値では<b>同じPHP文字列</b>になっていました。
++        //   型が消えるので、再保存すると数値が文字列になります。
++        //   【いま】<b>どの経路がJSON上の数値だったか</b>を控えます。
++        //   原トークン・正確な十進値・JSON上の型が結び付きます。
++        //   reserialize() はこの印を見て、数値の位置は引用符を付けずに
++        //   書き戻します。AIが最初から引用符付きで返した文字列は
++        //   ここに載らないので、勝手に数値へ変えることはありません。
++        if (count($s['number_paths']) < self::MAX_NUMBERS_KEPT) {
++            $s['number_paths'][self::pathKey($s['path'])] =
++                ['raw' => $tok, 'decimal' => $norm, 'exact' => $exact];
++        }
+         return true;
+     }
+ 
+     /**
++     * @ANCHOR-20261021-R122-NUMTYPE  経路を取り違えようのない文字列にします
++     *   ["horses",0,"scores","H1"] のような JSON 配列にします。
++     *   キーに「.」や「[」が入っていても境目が決まります。
++     */
++    public static function pathKey(array $path): string
++    {
++        return (string) json_encode(array_values($path),
++            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
++    }
++
++    /**
++     * @ANCHOR-20261021-R122-NUMTYPE  型を保ったまま書き戻します（再保存）
++     *
++     *   $numberPaths（strict の返り値 number_paths）に載っている経路は、
++     *   <b>引用符を付けずに</b>十進数のまま書きます。
++     *   載っていない文字列は、文字列のまま書きます。
++     *   これで「数値 → 文字列」への化けが起きません。
++     */
++    public static function reserialize($value, array $numberPaths,
++                                       array $path = []): string
++    {
++        $k = self::pathKey($path);
++        if (isset($numberPaths[$k]) && (is_string($value) || is_int($value)
++                                        || is_float($value))) {
++            // 数値だった位置。原表現の十進数をそのまま書きます
++            return (string) $numberPaths[$k]['decimal'];
++        }
++        if (is_array($value)) {
++            $isList = (array_keys($value) === range(0, count($value) - 1));
++            $out = [];
++            foreach ($value as $kk => $vv) {
++                $sub = $path; $sub[] = $isList ? (int) $kk : (string) $kk;
++                $enc = self::reserialize($vv, $numberPaths, $sub);
++                $out[] = $isList ? $enc
++                       : ((string) json_encode((string) $kk,
++                            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
++                          . ':' . $enc);
++            }
++            return ($isList ? '[' : '{') . implode(',', $out)
++                 . ($isList ? ']' : '}');
++        }
++        return (string) json_encode($value,
++            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
++            | JSON_PRESERVE_ZERO_FRACTION);
++    }
++
++    /**
+      * @ANCHOR-20261020-R122-NUMEXACT  原表現を十進数の文字列へ（文字だけで動かします）
+      *   指数は小数点を動かすだけで展開します。float を通りません。
+      *   前後の余分な0は落とします（numToDecimalString と同じ形にそろえます）。

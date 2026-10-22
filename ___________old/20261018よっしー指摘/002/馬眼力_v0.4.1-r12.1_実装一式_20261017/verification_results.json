@@ -1,0 +1,59 @@
+{
+  "all_passed": true,
+  "checks": [
+    {
+      "script": "test_reference.py",
+      "exit_code": 0
+    },
+    {
+      "script": "test_contract.py",
+      "exit_code": 0
+    },
+    {
+      "script": "test_engine.py",
+      "exit_code": 0
+    },
+    {
+      "script": "test_audit_regressions.py",
+      "exit_code": 0
+    },
+    {
+      "script": "test_r7_integration.py",
+      "exit_code": 0
+    },
+    {
+      "script": "test_r8_regressions.py",
+      "exit_code": 0
+    },
+    {
+      "script": "test_journal.py",
+      "exit_code": 0
+    },
+    {
+      "script": "test_r10_regressions.py",
+      "exit_code": 0
+    },
+    {
+      "script": "test_r11_regressions.py",
+      "exit_code": 0
+    },
+    {
+      "script": "test_r12_regressions.py",
+      "exit_code": 0
+    },
+    {
+      "script": "test_quota_revision.py",
+      "exit_code": 0
+    },
+    {
+      "script": "test_malformed_responses.py",
+      "exit_code": 0
+    },
+    {
+      "script": "schema_standard_check.py",
+      "exit_code": 0
+    }
+  ],
+  "production_deployed": false,
+  "real_model_calls": false
+}

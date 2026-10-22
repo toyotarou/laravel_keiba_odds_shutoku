@@ -1,0 +1,19 @@
+
+══════════════════════════════════════════════════════════
+ r12.2 合成試験の突き合わせ（先方の期待値との比較）
+  対象フォルダ: /home/centos/r122_v23/mat/validation
+  （DBも外部APIも使いません・費用0円）
+══════════════════════════════════════════════════════════
+
+  mode_cases.json            :  729件 / 不一致 0件 → 合格
+    T6_30            slot=6  期待=PASS 実際=PASS 一致  
+    T6_30.000001     slot=6  期待=FAIL 実際=FAIL 一致  ACQUISITION_DEADLINE_EXCEEDED（取得猶予を超えた）
+    T9_120           slot=9  期待=PASS 実際=PASS 一致  
+    T9_120.000001    slot=9  期待=FAIL 実際=FAIL 一致  ACQUISITION_DEADLINE_EXCEEDED（取得猶予を超えた）
+  acquisition_boundary_cases :    4件 / 不一致 0件 → 合格
+
+  すべて先方の期待値と一致しました。
+
+※この試験はSchemaと判定規則の突き合わせです。
+　実DB・Queue・実AI・Flutterの受入は別に行います（契約14章）。
+

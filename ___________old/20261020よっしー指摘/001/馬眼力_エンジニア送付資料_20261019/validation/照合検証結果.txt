@@ -1,0 +1,40 @@
+馬眼力 r12.2 プロンプト・Schema照合結果
+作成日：2026年10月19日
+対象版：baganriki-v041-r12-2-20261020
+
+結果：1570確認、全件合格。
+検査対象は今回の本文・Schema・契約条件。Laravel本体、本番DB、実Queue、実AI、Flutterの動作確認は未実施。
+
+実施した確認
+・acquisition_boundary: 4
+・complete_role_prompt: 2
+・design_alignment: 5
+・full_synthetic_input: 14
+・hash_independence: 7
+・invalid_schema: 21
+・invalid_semantics: 11
+・mode_formal_preserved: 729
+・mode_schema: 729
+・old_rule_removed: 2
+・preserved_contract: 4
+・preserved_prompt_sections: 5
+・role_quota: 5
+・schema_prompt_alignment: 18
+・synthetic_response: 14
+
+根拠
+・正本r12.1 ZIPのSHA-256：caca4506b70c16f45e6ae31984089a1f07f37a7d50f77a65819296a4b5a49ab7
+・変更計画書v1.2、基本設計書v1.0、詳細設計書v1.0に記載のX6暫定規則・30/120秒・配分・版を使用。
+・標準JSON Schema Draft 2020-12、jsonschema 4.26.0、format checkerで検証。
+・信号式の維持確認に旧正本の純粋計算を使用。旧ワーカーをr12.2として実行した試験ではない。
+・5つの不変本文セクション、馬単位Schema、順位Schema、配分、採点上限を原本と比較。
+
+試験の区分
+・normalは架空の元オッズから従来の信号を再計算し、新契約の合成時刻を付けた全頭の入出力例。
+・mode_casesはX1〜X5/Zの真偽・不明全729組合せ。正式判定が維持され、暫定条件が限定されることを確認。
+・invalid_casesにはSchemaでは通るが意味検証で必ず拒否する例も明記。型検証だけで本番合格にしない。
+・取得猶予ちょうどと1マイクロ秒超過を確認。
+・合成応答は実AI出力でも予測成績でもない。実際の入力・実APIでの再試験が必要。
+
+未実施
+Laravel移植コードの動作、既存DB/Queue/API/Flutter接続、最大18頭の実AI応答時間、72実レース回帰、33実レース候補比較、回収率・高配当捕捉率の改善。これらは計画書の受入条件を維持する。

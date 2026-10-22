@@ -1,0 +1,6 @@
+mysql: [Warning] Using a password on the command line interface can be insecure.
+t	rows_n	fp
+odds	8283	bcba698ed03855c2853df74839b542f8
+horses	922	16f97810a2bdb18838166a005b50add5
+races	72	8e8e8ee3b9ff9df5e9b3740a9e68d028
+race_results	916	8bb127a8b6bb6d46e48d08f5a56c1be6

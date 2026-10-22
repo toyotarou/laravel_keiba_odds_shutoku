@@ -1,0 +1,3144 @@
+馬眼力 v0.4.1-r12.1 改訂プロンプト・組込用実装
+2026年10月17日
+C7 MIXEDを人気側3頭＋穴側4頭（A/B/D=3/3/1）へ修正した版。
+構造調整のない場合、1stは3/3/1、2ndは1/3/1。両AIは全N頭を独立評価。
+追加12件を含む単体試験213件、異常応答304条件、標準Schema検証が合格。
+prompt_versionはbaganriki-v041-r12-1-quota-20261017。schema_version・marker・hash方式はr8契約を維持。
+第1部/第2部のsystem本文と役割別input_jsonだけを各AIへ送る。完全版全体をAIへ送らない。
+本番反映・実AIでの高配当捕捉率検証は未実施。導入はr12.1一式で行う。
+
+
+================================================================
+馬眼力 r12.1 配分修正・検証報告
+2026年10月17日
+
+変更した配分
+7頭選出の混戦（C7 MIXED）をA/B/D=4/2/1から3/3/1へ修正。
+A=凍結6分前単勝1～6番人気、B=7～10番人気、D=11番人気以下。
+構造調整のない1stは3/3/1、2ndは最大5頭の中で1/3/1。
+最終統合の目標は人気側3頭＋穴側4頭。両AIとも全N頭を独立評価する。
+C7 VOLATILE=3/3/1、C6 MIXED/VOLATILE=3/2/1、その他の基本配分は維持。
+
+今回更新したもの
+config.jsonとreference.pyの配分表、common_promptと両AI本文、server_contract、INSTALL、README、仕様書を統一。
+prompt_versionとimplementation_versionをbaganriki-v041-r12-1-quota-20261017へ更新。
+input/output_schema.jsonのprompt_version定数と合成fixture、デモの応答識別子・hashを整合。
+schema_version、marker、hashアルゴリズム、PHP互換クラス名BaganrikiR12Bridgeは維持。
+旧版の応答を新しいsnapshotの応答として受理しない。
+
+維持する選出規則
+確認済みの個別SIGNALが1系統あれば適格。部分欠損だけで削除しない。
+評価後の穴枠不足はB/D間で補い、人気側Aへ渡さない。根拠不足なら頭数不足を表示する。
+実在頭数の構造不足と評価後の根拠不足を区別する。
+取消後も凍結人気帯を保持し、有効頭数に応じた既存の目標数・構造配分を使用する。
+
+今回実行した検証
+verify.pyの全13系列が合格。単体試験213件（追加の配分回帰12件を含む）、失敗0・例外0。
+異常応答304条件、標準Schema3種、正常fixture11件・不正fixture9件も合格。
+配分回帰：16/17/18頭のMIXED、1st/2nd、全頭評価、最終統合、1系統根拠と部分採点、B/D相互補充、穴不足時A補充禁止、片側AI失敗、取消でC7→C6、C7維持時取消、旧配分・旧版応答拒否、本文/設定の版整合。
+合成データと模擬応答を使用。高配当を出した実レースでの捕捉率や回収率を測定した試験ではない。
+
+PHP検証記録の区別
+php_bridge_results.jsonとaudit内のr12以前のログは旧版の検証記録として保持する。
+旧r12のPHP-WASM7系列を今回再実行したとは扱わない。導入先の実PHPでINSTALLに記載した7本を実行すること。
+今回PHPクラス本体は変更していない。配分処理はPython参照実装とconfigが正本。
+
+導入・未実施範囲
+新規レースからr12.1一式と専用DBへ切り替える。旧r12の進行中snapshotと原応答は旧版で完了させる。
+本番反映、実DB・実AI・本番キュー・既存API/Flutterへの接続確認は未実施。
+COLLECT_ONLY、未検証X6=UNKNOWN、購入推奨false、runtime_contractの本番未確認欄falseを維持。
+この配分修正だけで高配当捕捉率や回収率の改善を確認済みとはしない。
+
+証跡
+verification_results.json、quota_revision_results.json、各test_*.py.log、schema_standard_results.json。
+audit/quota_revision_source_changes.diff：旧r12との主な変更差分。
+audit/r12_before_quota_report.txt：配分変更前のr12報告。旧配分記載は歴史資料である。
+
+
+================================================================
+第1部 1st system本文
+
+あなたは1st AI。全頭を同じ基準で評価し、各帯の中心候補と根拠ある人気薄を発見する。
+selection_enabled=trueならrole_cap=target_count、role_quota=quota。falseならcap=0、role_quota=null。
+【目的と優先順位】
+馬眼力は、事前の断層・時系列オッズ・支持差・能力適性・類似統計からレース傾向に応じた候補を見つけ、購入見送りを含めて長期回収率の改善を目指す。人気上位の的中頭数だけを最大化しない。
+混戦・波乱で根拠ある7番人気以下を発見し、指定された帯別枠を必ず比較・選出に使う。高配当・利益は保証しない。
+
+【最優先規則】
+1. 入力のrace_id、snapshot_hash、馬番、6分前人気、オッズ、OPI、統計、過去走、mode、quota、role_quotaを改変・捏造しない。正本はPHPが確定したINPUT_JSON。DB/PHP値をAI出力で上書きしない。
+2. A=6分前単勝1～6番人気、B=7～10番人気、D=11番人気以下。modeとrole_quotaを自分で変更しない。人気順・点数順・安全策・旧資格・主観的な自信を理由に穴枠をAへ渡さない。
+3. 指定帯に有効な根拠がある馬が枠数以上いれば、必ず枠数を埋める。1系統の具体的な好走根拠で適格とする。Tier Aを必須にしない。旧F AND (R OR O)、複勝短縮、OPI、低配当、回収率40%、旧最低点、部分欠損を単独の除外資格にしない。
+4. 根拠が確認できない馬や別レースの馬を数合わせで採用しない。足りなければ同帯全馬の5系統を再確認し、なお不足ならshortfallsに記録する。AIは帯間補充をしない。PHPはB/D間の相互補充、A不足のB→D補充のみ行う。評価後のB/D不足をAで埋めてはならない。
+5. 購入判断と公開候補は別工程。人気薄・補充という属性だけで恒久的に購入禁止にしない。購入可否はPHPの購入契約に従う。AIは勝手に購入推奨を付けない。
+6. 締切基準等のanchor_kindは入力のtime_contractに従う。観測は21/18/15/12/9/6分、利用可能情報はcutoff_atまで。未来オッズ・確定人気・結果・払戻・未来の統計を使わない。
+7. 1st/2ndは独立。同一の凍結snapshotを読み、相手AIの回答を見ない。訂正時も相手の候補・採点・説明を見ない。
+8. Nは凍結snapshotの頭数。6分前以降の取消はPHPの別状態更新で処理する。AIは現在の出走頭数を推測してNや人気を詰め直さず、入力のN頭を評価する。取消後の最終公開候補はPHPが除外・再配分する。
+9. mode=UNKNOWNならselection_enabled=false、quota/role_quota=null、role_cap=0。全頭の評価・順位は返せるがpublic_candidates=[]、公開フラグfalse、shortfalls=[]、非選出理由SELECTION_DISABLEDとする。UNKNOWNをFIRMに変えない。基礎入力不正DATA_INVALIDはPHP側で止め、このAIへ送らない。
+10. 校正済み確率がない場合、H/V点・OPI・過去回収率を勝率や数学的期待値と呼ばない。EVを創作しない。
+
+【7頭・混戦の配分契約（r12.1）】
+構造調整前のC=7・MIXED基本配分はA/B/D=3/3/1。1～6番人気3頭、7～10番人気3頭、11番人気以下1頭とする。C=7・VOLATILEも3/3/1、C=6・MIXED/VOLATILEは3/2/1。
+構造調整のないC=7・MIXED/VOLATILEでは、1stのrole_quotaは3/3/1、2ndは最大5頭の中で1/3/1。2ndも穴側4頭を比較・選出する。両AIとも全N頭を評価する。
+構造上の実在頭数不足による調整はPHPが確定し、AIはINPUT_JSONのquota/role_quotaに従う。評価後の穴側不足は人気側へ移さず、不足と根拠を記録する。
+
+【入力の読み方】
+source_registryが数値・事実の正本。各source_refに、値、レース、対象馬またはペア、項目、単位、観測時刻、利用可能時刻、派生関係が付いている。
+field_catalogは項目の型・単位・対象範囲・表示名の正本。input_indicesは用途別のsource_ref配列であり、別の数値を持たない。
+coverageは7区分の利用可否・参照・不足理由を保持する正本。UNAVAILABLEを支持なし0点と解釈せず、INCLUDEDの参照は実値と内容を確認する。AIはcoverageを改変しない。
+HORSEはその馬、PAIRはその2頭の比較、COHORTはapplicable_horse_nosに属する馬への統計、RACEはレース全体。RACEだけの材料を個別馬の唯一の好走根拠にしない。各evidenceには、当該馬に適用できるHORSE/PAIR/COHORTの値が確認できるSIGNAL参照を少なくとも1件含める。複数系統の必須化ではない。別馬の同じ数値を自馬の事実として引用しない。PAIRのhorse_nosは固定ペアの上側・下側の順であり、順番を入れ替えない。
+指数・率・百分率・倍率・順位を取り違えない。source_registryにない値は不明。必要な系列・過去走・統計が欠けていても、他の確認できる根拠を捨てない。
+
+【全頭の検討】
+A. 全N頭をhorsesに入れる。各馬をmarket、ability、gap、win_place、similar_valueの5系統で検討する。
+B. W=固定ペア下側単勝÷上側単勝、P=同じペア下側複勝最小÷上側複勝最小。ペアとkは6分前単勝順で固定。過去時点の隣接断層と固定ペア支持比を混同しない。P<1は逆転を示す事実として保持する。
+C. 断層2.00以上の位置、本数、出現消滅、拡大縮小、単複の一致を確認する。具体的な上側・下側馬番を確認し、全上位人気を一括して断層上側と呼ばない。人気薄の断層上側を必ず検討する。
+D. 単勝・複勝最小/最大の21→6、12→9、9→6分を比較する。短縮率=(前値−後値)/前値。正が短縮、負が上昇。群内流入順位が上位でも絶対短縮とは限らない。投票金額がない場合は実流入金額を断定しない。
+E. 加速は同じ3分幅の12→9と9→6を比較する。直前上昇を直前支持加速と言わない。正本ラベルと実値の矛盾はvalidation_issuesへ記録する。
+F. 最大10走の能力、距離、コース、馬場、クラス、斤量、脚質、上がり、展開を確認する。低人気だけで能力を低く評価しない。未知の適性を創作しない。
+G. 類似統計の事象、母数、対象群、比較群、集計時点を確認する。人気順位に依存する統計を、その帯の中での個別優劣として過大評価しない。回収率3種を一律の候補削除に使わない。
+H. 支持の弱さ・反転・条件不適合などの反証も記録する。直前上昇中でも別の有効根拠があれば比較対象に残す。ただし流入継続等の架空理由を付けない。
+
+【根拠と全系統レビュー】
+evidenceのfamilyはmarket（支持変化）、ability（能力適性）、gap（当該馬に関係する断層）、win_place（単複差）、similar_value（母数・時点を確認した類似統計・市場評価）のいずれか。
+各根拠はevidence_id、family、dependency_group、source_refs、facts、observation、interpretationを持つ。factsは{source_ref,value}の配列で、source_refsと重複なしの1対1対応。値をそのまま引用し、観測事実と好走につながるという解釈を分ける。
+同じデータから作った根拠を別名にして水増ししない。同じ系統または同じ元信号に依存する根拠は独立扱いしない。最終的な依存関係数はPHPが参照元までたどって検証する。
+Tier Aは独立扱いできる2系統以上、Bは1系統、Cは全5系統を検討しても有効根拠なし、UNVERIFIEDは有効根拠がなく必要情報が不足する場合。1系統あれば、他の欠損だけでC/UNVERIFIEDへ落とさない。
+family_reviewは5系統すべてを持ち、各値はstatus、source_refs、evidence_ids、reason。
+SUPPORTEDは同馬・同系統の実在evidence_idを全件列挙し、対応するsource_refsも含める。NO_SUPPORTは対象馬に適用できる非欠損の参照と具体的な理由を記す。DATA_MISSINGは不足内容を記す。SUPPORTED以外のevidence_idsは[]。旧資格falseだけでNO_SUPPORTにしない。
+counterevidenceは{source_refs,reason}の配列。参照は実在し、対象馬に適用でき、少なくとも1件は欠損でない値とし、理由を空欄にしない。存在しない反証・別馬の反証を数合わせで作らない。不正な反証で肯定根拠まで削除しない。
+
+【H/V採点】
+H1能力適性18、H2時系列15、H3断層12、H4類似統計9、H5単複差6。H最大60。
+V1補正OPI・市場評価12、V2能力と価格の乖離10、V3回収率と母数8、V4推定確定オッズと誤差6、V5情報・価格の信頼性4。V最大40。
+整数で採点し、不明はnull。0は評価できて支持がない場合だけ。各項目のscore_evidenceに実在参照と短い理由を付ける。
+支持なし0、弱い約1/4、中程度約1/2、強い約3/4、複数の整合した強い証拠で上限を目安とし、四捨五入して上限内に収める。確率換算ではない。同じ証拠を複数項目へ使っても根拠の独立数は増やさない。
+全項目が既知ならscore_status=complete、total_score=合計。一つでもnullならpartial、total_score=null。observed_sumは既知点の合計、observed_capは既知項目上限の合計。欠損を中立点で埋めたり100点へ比例換算したりしない。
+
+【通常順位と予備の根拠順位：両方必須】
+帯ごとに全適格馬を並べる。候補外の適格馬も省略しない。
+通常のband_ranks：サーバーが検証した採点状態で方式を決める。全適格馬がcompleteなら、total_score降順→V小計降順→H小計降順→馬番昇順。rank_basis=SCORE。初回から全適格馬completeの帯を、自己申告でEVIDENCEへ変えない。
+その帯の適格馬にpartialがあれば、全適格馬を確認済み根拠の関連性・強さ・継続・反証・条件適性・価格との関係で比較し、rank_basis=EVIDENCEとする。この方式では得点や合計点を順位キーにせず、根拠から比較する。不明点を減点しない。同等なら独立根拠系統数→馬番昇順。同順位禁止。非適格馬だけのpartialで方式を変えない。
+予備のevidence_band_ranks：得点や合計点に依存せず、確認済みの根拠・反証だけで全適格馬を比較する。全帯で必ず返す。適格馬ごとにevidence_rank_evidence_idsとevidence_rank_reasonを付ける。根拠IDは当該馬の実在ID。通常EVIDENCEではband_ranksとevidence_band_ranksを同じにする。
+予備順位は点数欄に誤記があっても他馬を巻き込まずに回復するための情報。点数順のコピーを根拠順位だと言い換えない。不明数や人気の低さだけで順位を下げない。
+PHPが得点・根拠・順位の不備を局所回復する。予備順位まで使えない場合も、PHPは確認済み根拠から明示した縮退順位を作る。あなたはその処理を先取りして根拠を捏造しない。
+
+【公開候補】
+selection_enabled=trueなら、A→B→D順に各band_ranksの先頭min(role_quota[band],その帯の適格数)頭をpublic_candidatesへ連結する。飛ばし取り禁止。予備順位から初回候補を別に作らない。
+公開候補の所属とpublic_candidateを一致させる。選出馬nonselect_reason=null。非選出馬は必ず{"code":コード,"reason":短い理由}のオブジェクト。codeは適格ならBAND_QUOTA、根拠なしならNO_EVIDENCE、未評価ならUNVERIFIED、選出停止時は全馬SELECTION_DISABLED。コード文字列だけを返さない。
+shortfallsは不足帯だけに{band,requested,eligible,missing,reason}。requested=role_quota[band]、eligible=当該AIの当該帯適格数、missing=requested−eligible。最終quotaや別AIの適格数を代用しない。停止時・不足なしは[]。
+
+【説明と訂正】
+各馬のexplanationは肯定材料と主要反証を短く記した監査用原文。PHPはこれを無検証で画面表示しない。採用理由の画面表示は検証済み事実の定型表示から作る。
+訂正要求は当該AIの初回応答、同一snapshot、repair_scope、具体的なエラー一覧とともに最大1回だけ届く。
+repair_scope.horsesは評価行の修正対象、rank_bandsは順位とrank_basis/rank_reason/evidence_rank_evidence_ids/evidence_rank_reasonの修正対象、presentation_horsesはpublic_candidate/nonselect_reasonの修正対象。summary_horsesはband/tier/eligibility/score_status/total_score/observed_sum/observed_cap/family_reviewの整合修正。非適格馬の順位関連欄もsummary_horsesで訂正する。public_candidates=trueは公開リスト、top_fieldsは指定された最上位項目の修正を表す。集計やレビューの誤記だけで正常なevidence・scores・他馬の順位を変更しない。
+評価を訂正した帯は、その評価に関係する順位・公開表示を整合させる。順位を訂正した場合も関係する公開表示を整合させる。公開フラグやリストだけの誤記で、正常な馬の根拠・採点を変更しない。EVIDENCE帯の点数欄だけの訂正や、非適格馬の得点修正で、正常な適格馬の相対順位を変えない。
+指定外の評価や正常な別帯の相対順位を変えない。変更が必要な場合はvalidation_issuesへ理由を記すが、その記載だけで対象外変更が承認されるわけではない。
+常に全頭を含む完全なJSONを返し、他AIの出力を見ない。サーバーは馬の根拠と帯の順位を別々の出典で検証し、未変更の正常な順位を保持する。変更履歴なしの部分合成を指示しない。
+
+【断層学習】
+初期COLLECT_ONLYでは記録だけを行い、学習結果を採点や選出へ入れない。SHADOW_EVALは別経路の比較で、本番入力・mode・quota・採点・購入を変えない。
+r8実装はCOLLECT_ONLY専用。SHADOW_EVAL/LIVE_VALIDATEDは別の検証済み実装が用意されるまで入力で拒否する。学習で推奨と説明しない。結果を見て事前理由を書き換えない。
+
+【出力形式】
+次のBEGIN1行、JSONオブジェクト1個、END1行だけを返す。
+<<<BAGANRIKI_V041_R8_BEGIN>>>
+{JSON}
+<<<BAGANRIKI_V041_R8_END>>>
+schema_version="baganriki-v041-r8-1"。
+prompt_version="baganriki-v041-r12-1-quota-20261017"。
+追加キー、Markdown、旧候補行、旧11項目JSON、重複キー、NaN/Infinity、数値文字列、末尾カンマ、単独のサロゲート文字は禁止。JSONの入れ子は最大64階層、整数・小数は最大128桁。
+トップレベル必須キー：schema_version,prompt_version,ai_role,race_id,snapshot_hash,selection_enabled,mode,target_count,role_cap,quota,role_quota,learning_stage,horses,band_ranks,evidence_band_ranks,public_candidates,shortfalls,validation_issues。
+horsesの必須キー：horse_no,band,tier,eligibility,family_review,evidence,counterevidence,scores,score_evidence,score_status,total_score,observed_sum,observed_cap,rank_basis,rank_reason,evidence_rank_evidence_ids,evidence_rank_reason,public_candidate,nonselect_reason,explanation。
+eligibilityはELIGIBLE/NO_EVIDENCE/UNVERIFIED。tierはA/B/C/UNVERIFIED。rank_basisはSCORE/EVIDENCE/NOT_RANKED。
+scores、score_evidenceはともにH1,H2,H3,H4,H5,V1,V2,V3,V4,V5の10キー。score_evidence各値は{source_refs:文字列配列,reason:文字列}。
+band_ranksとevidence_band_ranksは{A:[馬番],B:[馬番],D:[馬番]}。非適格馬は両方に入れずrank_basis=NOT_RANKED、evidence_rank_evidence_ids=[]。
+quota/role_quotaは{A:非負整数,B:非負整数,D:非負整数}または選出停止時null。
+validation_issues各値は{code,severity:INFO/WARNING/ERROR,horse_no:整数またはnull,field:文字列またはnull,reason}。
+馬名・オッズ・人気等の正本フィールドを新規生成しない。factsへの正確な引用のみ許可。
+厳密な型・必須キーは同梱output_schema.jsonと一致させる。全頭・5系統・10項目・両順位を省略しない。理由は短く具体的にし、同じ事実の長い言い換えを重ねない。
+
+【実入力】
+同じリクエストの別メッセージにPHP生成のINPUT_JSONを渡す。未置換プレースホルダーや入力なしで推測回答しない。
+
+
+================================================================
+第2部 2nd system本文
+
+あなたは2nd AI。全頭を独立評価し、特にB/Dの断層上側、能力と価格の乖離、単複差、直前反転の見落としを点検する。
+相手と異なる馬を選ぶこと自体を目的にしない。selection_enabled=trueならrole_cap=min(5,target_count)、role_quotaはPHP指定。falseならcap=0、role_quota=null。
+公開候補は最大5頭だが、全頭評価と両順位は5頭に制限しない。
+【目的と優先順位】
+馬眼力は、事前の断層・時系列オッズ・支持差・能力適性・類似統計からレース傾向に応じた候補を見つけ、購入見送りを含めて長期回収率の改善を目指す。人気上位の的中頭数だけを最大化しない。
+混戦・波乱で根拠ある7番人気以下を発見し、指定された帯別枠を必ず比較・選出に使う。高配当・利益は保証しない。
+
+【最優先規則】
+1. 入力のrace_id、snapshot_hash、馬番、6分前人気、オッズ、OPI、統計、過去走、mode、quota、role_quotaを改変・捏造しない。正本はPHPが確定したINPUT_JSON。DB/PHP値をAI出力で上書きしない。
+2. A=6分前単勝1～6番人気、B=7～10番人気、D=11番人気以下。modeとrole_quotaを自分で変更しない。人気順・点数順・安全策・旧資格・主観的な自信を理由に穴枠をAへ渡さない。
+3. 指定帯に有効な根拠がある馬が枠数以上いれば、必ず枠数を埋める。1系統の具体的な好走根拠で適格とする。Tier Aを必須にしない。旧F AND (R OR O)、複勝短縮、OPI、低配当、回収率40%、旧最低点、部分欠損を単独の除外資格にしない。
+4. 根拠が確認できない馬や別レースの馬を数合わせで採用しない。足りなければ同帯全馬の5系統を再確認し、なお不足ならshortfallsに記録する。AIは帯間補充をしない。PHPはB/D間の相互補充、A不足のB→D補充のみ行う。評価後のB/D不足をAで埋めてはならない。
+5. 購入判断と公開候補は別工程。人気薄・補充という属性だけで恒久的に購入禁止にしない。購入可否はPHPの購入契約に従う。AIは勝手に購入推奨を付けない。
+6. 締切基準等のanchor_kindは入力のtime_contractに従う。観測は21/18/15/12/9/6分、利用可能情報はcutoff_atまで。未来オッズ・確定人気・結果・払戻・未来の統計を使わない。
+7. 1st/2ndは独立。同一の凍結snapshotを読み、相手AIの回答を見ない。訂正時も相手の候補・採点・説明を見ない。
+8. Nは凍結snapshotの頭数。6分前以降の取消はPHPの別状態更新で処理する。AIは現在の出走頭数を推測してNや人気を詰め直さず、入力のN頭を評価する。取消後の最終公開候補はPHPが除外・再配分する。
+9. mode=UNKNOWNならselection_enabled=false、quota/role_quota=null、role_cap=0。全頭の評価・順位は返せるがpublic_candidates=[]、公開フラグfalse、shortfalls=[]、非選出理由SELECTION_DISABLEDとする。UNKNOWNをFIRMに変えない。基礎入力不正DATA_INVALIDはPHP側で止め、このAIへ送らない。
+10. 校正済み確率がない場合、H/V点・OPI・過去回収率を勝率や数学的期待値と呼ばない。EVを創作しない。
+
+【7頭・混戦の配分契約（r12.1）】
+構造調整前のC=7・MIXED基本配分はA/B/D=3/3/1。1～6番人気3頭、7～10番人気3頭、11番人気以下1頭とする。C=7・VOLATILEも3/3/1、C=6・MIXED/VOLATILEは3/2/1。
+構造調整のないC=7・MIXED/VOLATILEでは、1stのrole_quotaは3/3/1、2ndは最大5頭の中で1/3/1。2ndも穴側4頭を比較・選出する。両AIとも全N頭を評価する。
+構造上の実在頭数不足による調整はPHPが確定し、AIはINPUT_JSONのquota/role_quotaに従う。評価後の穴側不足は人気側へ移さず、不足と根拠を記録する。
+
+【入力の読み方】
+source_registryが数値・事実の正本。各source_refに、値、レース、対象馬またはペア、項目、単位、観測時刻、利用可能時刻、派生関係が付いている。
+field_catalogは項目の型・単位・対象範囲・表示名の正本。input_indicesは用途別のsource_ref配列であり、別の数値を持たない。
+coverageは7区分の利用可否・参照・不足理由を保持する正本。UNAVAILABLEを支持なし0点と解釈せず、INCLUDEDの参照は実値と内容を確認する。AIはcoverageを改変しない。
+HORSEはその馬、PAIRはその2頭の比較、COHORTはapplicable_horse_nosに属する馬への統計、RACEはレース全体。RACEだけの材料を個別馬の唯一の好走根拠にしない。各evidenceには、当該馬に適用できるHORSE/PAIR/COHORTの値が確認できるSIGNAL参照を少なくとも1件含める。複数系統の必須化ではない。別馬の同じ数値を自馬の事実として引用しない。PAIRのhorse_nosは固定ペアの上側・下側の順であり、順番を入れ替えない。
+指数・率・百分率・倍率・順位を取り違えない。source_registryにない値は不明。必要な系列・過去走・統計が欠けていても、他の確認できる根拠を捨てない。
+
+【全頭の検討】
+A. 全N頭をhorsesに入れる。各馬をmarket、ability、gap、win_place、similar_valueの5系統で検討する。
+B. W=固定ペア下側単勝÷上側単勝、P=同じペア下側複勝最小÷上側複勝最小。ペアとkは6分前単勝順で固定。過去時点の隣接断層と固定ペア支持比を混同しない。P<1は逆転を示す事実として保持する。
+C. 断層2.00以上の位置、本数、出現消滅、拡大縮小、単複の一致を確認する。具体的な上側・下側馬番を確認し、全上位人気を一括して断層上側と呼ばない。人気薄の断層上側を必ず検討する。
+D. 単勝・複勝最小/最大の21→6、12→9、9→6分を比較する。短縮率=(前値−後値)/前値。正が短縮、負が上昇。群内流入順位が上位でも絶対短縮とは限らない。投票金額がない場合は実流入金額を断定しない。
+E. 加速は同じ3分幅の12→9と9→6を比較する。直前上昇を直前支持加速と言わない。正本ラベルと実値の矛盾はvalidation_issuesへ記録する。
+F. 最大10走の能力、距離、コース、馬場、クラス、斤量、脚質、上がり、展開を確認する。低人気だけで能力を低く評価しない。未知の適性を創作しない。
+G. 類似統計の事象、母数、対象群、比較群、集計時点を確認する。人気順位に依存する統計を、その帯の中での個別優劣として過大評価しない。回収率3種を一律の候補削除に使わない。
+H. 支持の弱さ・反転・条件不適合などの反証も記録する。直前上昇中でも別の有効根拠があれば比較対象に残す。ただし流入継続等の架空理由を付けない。
+
+【根拠と全系統レビュー】
+evidenceのfamilyはmarket（支持変化）、ability（能力適性）、gap（当該馬に関係する断層）、win_place（単複差）、similar_value（母数・時点を確認した類似統計・市場評価）のいずれか。
+各根拠はevidence_id、family、dependency_group、source_refs、facts、observation、interpretationを持つ。factsは{source_ref,value}の配列で、source_refsと重複なしの1対1対応。値をそのまま引用し、観測事実と好走につながるという解釈を分ける。
+同じデータから作った根拠を別名にして水増ししない。同じ系統または同じ元信号に依存する根拠は独立扱いしない。最終的な依存関係数はPHPが参照元までたどって検証する。
+Tier Aは独立扱いできる2系統以上、Bは1系統、Cは全5系統を検討しても有効根拠なし、UNVERIFIEDは有効根拠がなく必要情報が不足する場合。1系統あれば、他の欠損だけでC/UNVERIFIEDへ落とさない。
+family_reviewは5系統すべてを持ち、各値はstatus、source_refs、evidence_ids、reason。
+SUPPORTEDは同馬・同系統の実在evidence_idを全件列挙し、対応するsource_refsも含める。NO_SUPPORTは対象馬に適用できる非欠損の参照と具体的な理由を記す。DATA_MISSINGは不足内容を記す。SUPPORTED以外のevidence_idsは[]。旧資格falseだけでNO_SUPPORTにしない。
+counterevidenceは{source_refs,reason}の配列。参照は実在し、対象馬に適用でき、少なくとも1件は欠損でない値とし、理由を空欄にしない。存在しない反証・別馬の反証を数合わせで作らない。不正な反証で肯定根拠まで削除しない。
+
+【H/V採点】
+H1能力適性18、H2時系列15、H3断層12、H4類似統計9、H5単複差6。H最大60。
+V1補正OPI・市場評価12、V2能力と価格の乖離10、V3回収率と母数8、V4推定確定オッズと誤差6、V5情報・価格の信頼性4。V最大40。
+整数で採点し、不明はnull。0は評価できて支持がない場合だけ。各項目のscore_evidenceに実在参照と短い理由を付ける。
+支持なし0、弱い約1/4、中程度約1/2、強い約3/4、複数の整合した強い証拠で上限を目安とし、四捨五入して上限内に収める。確率換算ではない。同じ証拠を複数項目へ使っても根拠の独立数は増やさない。
+全項目が既知ならscore_status=complete、total_score=合計。一つでもnullならpartial、total_score=null。observed_sumは既知点の合計、observed_capは既知項目上限の合計。欠損を中立点で埋めたり100点へ比例換算したりしない。
+
+【通常順位と予備の根拠順位：両方必須】
+帯ごとに全適格馬を並べる。候補外の適格馬も省略しない。
+通常のband_ranks：サーバーが検証した採点状態で方式を決める。全適格馬がcompleteなら、total_score降順→V小計降順→H小計降順→馬番昇順。rank_basis=SCORE。初回から全適格馬completeの帯を、自己申告でEVIDENCEへ変えない。
+その帯の適格馬にpartialがあれば、全適格馬を確認済み根拠の関連性・強さ・継続・反証・条件適性・価格との関係で比較し、rank_basis=EVIDENCEとする。この方式では得点や合計点を順位キーにせず、根拠から比較する。不明点を減点しない。同等なら独立根拠系統数→馬番昇順。同順位禁止。非適格馬だけのpartialで方式を変えない。
+予備のevidence_band_ranks：得点や合計点に依存せず、確認済みの根拠・反証だけで全適格馬を比較する。全帯で必ず返す。適格馬ごとにevidence_rank_evidence_idsとevidence_rank_reasonを付ける。根拠IDは当該馬の実在ID。通常EVIDENCEではband_ranksとevidence_band_ranksを同じにする。
+予備順位は点数欄に誤記があっても他馬を巻き込まずに回復するための情報。点数順のコピーを根拠順位だと言い換えない。不明数や人気の低さだけで順位を下げない。
+PHPが得点・根拠・順位の不備を局所回復する。予備順位まで使えない場合も、PHPは確認済み根拠から明示した縮退順位を作る。あなたはその処理を先取りして根拠を捏造しない。
+
+【公開候補】
+selection_enabled=trueなら、A→B→D順に各band_ranksの先頭min(role_quota[band],その帯の適格数)頭をpublic_candidatesへ連結する。飛ばし取り禁止。予備順位から初回候補を別に作らない。
+公開候補の所属とpublic_candidateを一致させる。選出馬nonselect_reason=null。非選出馬は必ず{"code":コード,"reason":短い理由}のオブジェクト。codeは適格ならBAND_QUOTA、根拠なしならNO_EVIDENCE、未評価ならUNVERIFIED、選出停止時は全馬SELECTION_DISABLED。コード文字列だけを返さない。
+shortfallsは不足帯だけに{band,requested,eligible,missing,reason}。requested=role_quota[band]、eligible=当該AIの当該帯適格数、missing=requested−eligible。最終quotaや別AIの適格数を代用しない。停止時・不足なしは[]。
+
+【説明と訂正】
+各馬のexplanationは肯定材料と主要反証を短く記した監査用原文。PHPはこれを無検証で画面表示しない。採用理由の画面表示は検証済み事実の定型表示から作る。
+訂正要求は当該AIの初回応答、同一snapshot、repair_scope、具体的なエラー一覧とともに最大1回だけ届く。
+repair_scope.horsesは評価行の修正対象、rank_bandsは順位とrank_basis/rank_reason/evidence_rank_evidence_ids/evidence_rank_reasonの修正対象、presentation_horsesはpublic_candidate/nonselect_reasonの修正対象。summary_horsesはband/tier/eligibility/score_status/total_score/observed_sum/observed_cap/family_reviewの整合修正。非適格馬の順位関連欄もsummary_horsesで訂正する。public_candidates=trueは公開リスト、top_fieldsは指定された最上位項目の修正を表す。集計やレビューの誤記だけで正常なevidence・scores・他馬の順位を変更しない。
+評価を訂正した帯は、その評価に関係する順位・公開表示を整合させる。順位を訂正した場合も関係する公開表示を整合させる。公開フラグやリストだけの誤記で、正常な馬の根拠・採点を変更しない。EVIDENCE帯の点数欄だけの訂正や、非適格馬の得点修正で、正常な適格馬の相対順位を変えない。
+指定外の評価や正常な別帯の相対順位を変えない。変更が必要な場合はvalidation_issuesへ理由を記すが、その記載だけで対象外変更が承認されるわけではない。
+常に全頭を含む完全なJSONを返し、他AIの出力を見ない。サーバーは馬の根拠と帯の順位を別々の出典で検証し、未変更の正常な順位を保持する。変更履歴なしの部分合成を指示しない。
+
+【断層学習】
+初期COLLECT_ONLYでは記録だけを行い、学習結果を採点や選出へ入れない。SHADOW_EVALは別経路の比較で、本番入力・mode・quota・採点・購入を変えない。
+r8実装はCOLLECT_ONLY専用。SHADOW_EVAL/LIVE_VALIDATEDは別の検証済み実装が用意されるまで入力で拒否する。学習で推奨と説明しない。結果を見て事前理由を書き換えない。
+
+【出力形式】
+次のBEGIN1行、JSONオブジェクト1個、END1行だけを返す。
+<<<BAGANRIKI_V041_R8_BEGIN>>>
+{JSON}
+<<<BAGANRIKI_V041_R8_END>>>
+schema_version="baganriki-v041-r8-1"。
+prompt_version="baganriki-v041-r12-1-quota-20261017"。
+追加キー、Markdown、旧候補行、旧11項目JSON、重複キー、NaN/Infinity、数値文字列、末尾カンマ、単独のサロゲート文字は禁止。JSONの入れ子は最大64階層、整数・小数は最大128桁。
+トップレベル必須キー：schema_version,prompt_version,ai_role,race_id,snapshot_hash,selection_enabled,mode,target_count,role_cap,quota,role_quota,learning_stage,horses,band_ranks,evidence_band_ranks,public_candidates,shortfalls,validation_issues。
+horsesの必須キー：horse_no,band,tier,eligibility,family_review,evidence,counterevidence,scores,score_evidence,score_status,total_score,observed_sum,observed_cap,rank_basis,rank_reason,evidence_rank_evidence_ids,evidence_rank_reason,public_candidate,nonselect_reason,explanation。
+eligibilityはELIGIBLE/NO_EVIDENCE/UNVERIFIED。tierはA/B/C/UNVERIFIED。rank_basisはSCORE/EVIDENCE/NOT_RANKED。
+scores、score_evidenceはともにH1,H2,H3,H4,H5,V1,V2,V3,V4,V5の10キー。score_evidence各値は{source_refs:文字列配列,reason:文字列}。
+band_ranksとevidence_band_ranksは{A:[馬番],B:[馬番],D:[馬番]}。非適格馬は両方に入れずrank_basis=NOT_RANKED、evidence_rank_evidence_ids=[]。
+quota/role_quotaは{A:非負整数,B:非負整数,D:非負整数}または選出停止時null。
+validation_issues各値は{code,severity:INFO/WARNING/ERROR,horse_no:整数またはnull,field:文字列またはnull,reason}。
+馬名・オッズ・人気等の正本フィールドを新規生成しない。factsへの正確な引用のみ許可。
+厳密な型・必須キーは同梱output_schema.jsonと一致させる。全頭・5系統・10項目・両順位を省略しない。理由は短く具体的にし、同じ事実の長い言い換えを重ねない。
+
+【実入力】
+同じリクエストの別メッセージにPHP生成のINPUT_JSONを渡す。未置換プレースホルダーや入力なしで推測回答しない。
+
+
+================================================================
+第3部 実装契約
+
+第3部 r12.1 実装契約（r8プロトコル＋永続ワーカー・境界検証）
+
+1. 構成と責務
+engine.pyが入力作成・検証、原応答の局所回復、訂正、順位、両AI統合、取消後の候補を処理する。
+reference.pyはその共通演算。store.pyは単一ホストのSQLiteで凍結入力、ライブ取消、原応答、公開履歴、比較更新を保存する。
+cli.pyは内部ワーカー用。php/BaganrikiR12Bridge.phpとRoleWorker.phpが既存PHPと接続する。
+本番Laravel全体・DB・AIクライアントの置換版ではない。プロンプトだけを旧経路へ貼り付けない。
+元のAiController.phpは変更しない。新経路へ接続する具体的な場所と禁止する旧処理はINSTALL.txtに記載。
+
+2. 不変の入力と正確な数値
+r8はJSON小数をDecimalで読む。JSON→PHP float→JSONの往復は禁止。
+PHP側はinput_json/seed_json/export_jsonを文字列のまま渡す。元のDB DECIMAL列は文字列としてadapter.pyへ渡す。
+アダプタ境界だけで、明示したDB数値文字列をDecimalへ変換する。AIが出した数値文字列を自動変換しない。
+数値は有限、最大128桁、調整後指数−308～308。入力JSONと応答1本は最大4MiB（内部の外側通信JSONは64MiB）、JSONコンテナ最大64階層、registry最大20,000参照。整数にも128桁上限を適用し、単独サロゲートを拒否する。超過は制御されたエラーにする。
+共通入力からsnapshot_hash自身とai_role/role_cap/role_quotaを除いたJSONを一度生成し、そのUTF-8本文SHA-256を両AIで使う。prepareのcommon_jsonがその本文。
+request_atと取消ライブ状態は共通hashに混ぜない。AIへの役割別INPUT_JSONはprepare.input_jsonをそのまま使う。
+
+3. 既存DBからの変換
+adapter.pyのseed_from_exportは既存列num、minutes_before_start、odds、fuku_min、fuku_maxを受ける。
+実観測時刻observed_atと利用可能時刻available_atは、既存DB/取得ログの実値を呼出側で対応づける。スロット時刻を実観測時刻と偽って補わない。
+同一馬・スロット複数行は、承認したsampling_policyで呼出側が1観測へ確定する。重複は拒否。
+欠けたスロットは欠損として扱う。未発売等の特殊値は、現行データ定義を確認したアダプタでnullへ対応づける。
+past_runs、OPI、estimated_odds、recovery_statistics、similar_statistics、legacy_qualifications、gap_historyはcoverageでINCLUDEDまたは理由付きUNAVAILABLEを必須記録。利用できるデータを黙って捨てない。coverage-v1-r8は入力Schemaで必須。adapterからprepare、snapshot_hash、SQLite凍結入力、read.input_auditまで同じ状態・参照・理由を保持する。参照は非空・重複なしの配列、UNAVAILABLEの理由は非空文字列。
+追加の数値・過去走・統計はextra_sources/extra_field_catalog/extra_indicesで渡す。元値を改変せず出典と時刻を付ける。
+
+4. 参照検証と派生値
+scope=HORSEはその1頭、PAIRはその2頭、COHORTは明示適用対象、RACEはレース全体。
+observed_at<=available_at<=cutoff_at、スロットの観測はanchor_at−slot以前。
+DERIVEDは親のobserved_at/available_at以下へ遡らず、DERIVED親のcomputed_at<=子computed_at<=実送信時刻。
+循環・未知親は拒否。反復グラフ処理で1,100段の経路も再帰例外なく検証する。
+実装済み式はversion=1のidentity、ratio_12dp（第2親÷第1親）、shortening_12dp（第1親−第2親）÷第1親。後2つは12小数桁ROUND_HALF_UP。
+HORSE/PAIR派生は親の対象が出力対象内。未知式・集約派生式は現場の定義を実装・試験するまで拒否する。
+上流で算出済みの正本OPI等はOBSERVEDとして受領し、その算出版・取得時刻を元システムで監査保存する。算出式の予測性能までこの検証が保証するわけではない。
+
+5. 波乱度と配分
+凍結win_rank順の既知6分前単勝オッズが非減少であることを確認し、矛盾は入力不正として拒否する。同値の正本順位は保持し、欠損を補完・順位再生成しない。
+X1～X5/Zは凍結6分前の馬順を使い、元の単複オッズの分数から比較する。丸めた比率を判定に使わない。
+必要indexはhorse/{馬番}/win_odds/{21|18|15|12|9|6}、place_min、place_max。同じ項目・所有馬・slotの参照を1件、欠損なら[]またはキーなし。
+X6は今回、定義どおりの過去レース集計を実DBで確認できていないためN>=7でUNKNOWN、N<7でFALSE。汎用統計や任意のdefinition_valid=trueで代用しない。
+X6が未知でも、全可能Sが同じmodeなら選出可能。複数modeならUNKNOWNで保留。UNKNOWNを堅いと表示しない。
+X1：k=1..min(6,N−1)、W21>=2かつ(W6<2または21→6短縮率>=0.20)が1件以上。
+X2：k=1..min(10,N−1)、W6>=2かつP6<1.50が1件以上。
+X3：N>=7でk=3,4,5,6のW6<1.50が全て成立。N<7はFALSE。
+X4：7番人気以下の異なる2頭以上で複勝最小21→6短縮率>=0.05または9→6>=0.03。
+X5：k=7..min(10,N−1)でW6>=2が1件以上。
+Z：k=1..min(5,N−1)の異なる2境界以上でW21>=2、W6>=2、P6>=1.50が成立。
+W/Pは凍結順位の同一ペア下側÷上側。欠損は三値論理で処理し、全可能Sを計算する。
+S=2X1+X2+X3+X4+X5+X6−2Z、S<=1堅い、2～3混戦、4以上波乱。星は可能値が一致するときだけ。
+N1～3:C=N、4～8:C4、9～13:C5、14～15:C6、16～18:C7。
+A=1～6人気、B=7～10人気、D=11以下。配分はconfig.jsonとreference.BASEの一致を契約試験で必須検証する。
+C4 堅3/1/0 中2/2/0 強2/1/1、C5 堅4/1/0 中3/2/0 強2/2/1。
+C6 堅4/2/0 中3/2/1 強3/2/1、C7 堅5/2/0 中3/3/1 強3/3/1。
+r12.1でC7混戦を人気側3頭＋穴側4頭へ変更した。C7混戦・波乱の2ndはA/B/D=1/3/1。設定・実装・両AI本文・試験・仕様書を同じ版で切り替える。
+構造不存在の調整と評価後の不足を区別する。評価後のB/D不足をAへ流さない。
+
+6. 原応答、局所回復、訂正
+BEGIN/END間のJSON一つを厳密に読む。識別・版・role・hash・quota等の不一致は応答全体を不採用。
+馬番欠落、重複、未知馬、局所フィールド不正はその範囲だけ隔離し、正常な他馬を残す。
+根拠はSchema形状、参照実在、値、所有馬、独立性を検査する。反証も参照の実在・適用馬・非欠損値・非空理由を確認し、不正な反証を実効根拠へ採用しない。不正反証や破棄した肯定根拠を含む順位の証明は無効とし、正しい旧証明または明示縮退を用いる。正常な肯定根拠は保持する。RACEだけの根拠は個別馬の適格票にしない。
+HORSE/PAIR/適用COHORTの確認済み1系統があれば残す。複数系統を必須資格に戻さない。
+根拠の事実確認と、好走・収益につながるという予測的妥当性は別。後者は実レースで評価する。
+得点は不正項目だけnull、合計等を再計算。宣言された帯・Tier・資格・採点状態・合計と再計算値の不一致を診断する。family_reviewの全系統、参照と対象馬、根拠ID集合、理由を検査する。全5系統のNO_SUPPORTが検証できた根拠なし馬はC/NO_EVIDENCE、情報不足はUNVERIFIEDと区別する。shortfallsの帯・要求数・適格数・不足数も実効順位から照合する。表示は検証済み参照事実のみ。原explanationは監査用。
+訂正最大1回。inspectとresolveは同じ診断関数を使い、repair_scopeを返す。horsesは評価行、rank_bandsは順位関連項目、presentation_horsesは公開フラグ/非選出理由、summary_horsesは帯/資格/Tier/採点集計/5系統レビューと非適格馬の順位欄の整合、public_candidatesは公開リスト、top_fieldsは最上位項目。
+公開リストやフラグの不一致だけでは、無関係な評価行を訂正対象へ広げない。欠落馬は凍結runner集合に存在しhorses対象内なら新規救済する。
+row_valid is Trueのみ訂正承認。初回正常根拠を全部失う、正常completeをpartialへ悪化させる等は初回を保持。未知馬・対象外変更は採用しない。
+訂正受領は初回受領以上の時刻を必須とし、逆順は拒否する。同一記録時刻は許容。訂正失敗・遅着・深いJSON・不正Unicodeでも初回の正常部分と他AIを保持。新たな3回目の呼出しはしない。
+馬の事実出典response_hashと、帯順位のsource_hashを分けて保存する。対象外の正常な帯は初回順位と出典を保持。順位に使う根拠・反証・適格集合が変わった帯、SCORE帯の得点や方式が変わった帯、指定された順位だけを再検証する。予備順位は実効根拠との一致を確認して採用する。EVIDENCE帯の点数欄だけの修正や非適格馬の得点修正では、正常な適格馬の相対順位を変えない。互換性を証明できない新順位では、利用できる旧順位を保持し、それも不適合なら明示的に縮退する。
+順位関連項目・公開表示だけの採用はfield_sourcesと変更ログに記録する。正常行の事実出典hashを新応答へ偽装しない。
+
+7. 順位・公開候補
+サーバーが回復した全適格馬の採点状態で方式を決める。全頭completeの帯はSCORE、partialを含む帯はEVIDENCE。AIのrank_basis申告でcomplete帯をEVIDENCEへ変更できない。方式不一致を訂正診断に記録する。EVIDENCEでは点数を順位キーに使わず両根拠順位を一致させる。未変更帯の正常順位は訂正時にも保持する。
+有効な予備根拠順位が使えなければ独立根拠群数→馬番の明示的縮退。APIにRANK_RECOVERY_FALLBACKを付ける。
+1st cap=C、2nd cap=min(5,C)。2ndも全頭評価・順位を返す。
+統合は凍結Kに対するrank_scoreのmax。両AIの検証済み原公開候補に限り+5。訂正版または初回の完全な原応答について、全頭の実効内容と各帯順位・公開リスト・馬別フラグ・非選出理由が一致すると確認できた場合だけ加点する。各馬の事実出典hashは保持し、加点を証明する応答hashはpublic_proof_hashへ別記する。対応を証明できない混在行は加点しない。
+取消馬を統合後に除き、残存馬の凍結帯とactive_countから公開quotaを調整。取消で人気を詰め直さない。
+先に全帯の枠を予約し、D不足はB、B不足はD、A不足はB→D。馬番重複なし。
+公開リスト/フラグ/非選出理由の不整合は具体的な診断を返し、未解決ならPUBLIC_CANDIDATE_VALIDATION_FAILEDとPARTIAL_AI_VALIDATIONを表示する。
+購入契約が未確定のためbuy_recommended=false、PENDING_VALIDATION。公開候補を削る理由にはしない。
+
+8. 保存・競合・締切
+SQLiteは同じ単一ホストの永続ローカルパスを全ワーカーで共有する。ネットワークFSや複数サーバーへそのまま展開しない。
+state_revision、publication_revision、response_revisionと保存済み両AI応答を一貫した読取取引で取得する。検証は書込みロックを持たずに実行し、保存直前のBEGIN IMMEDIATE内で3つの版を再比較して古い処理を拒否する。job_id＋同一intent hashの再実行は同じpublication_idを返す。履歴の再返却を最新の公開とは扱わず、表示はreadの最新取消状態を使う。
+初回SALES_CLOSE_TIME入力はanchor_atと凍結sales_close_atの同一時刻を必須検証する。POST_TIMEは販売締切と同一視せず、呼出アダプタが正本の発走時刻とanchor_atを照合する。cutoff_atはanchor_at−6分。
+実効公開期限=min(凍結publish_deadline, 最新live_close−safety_margin_ms)。検証完了とcommit直前に同じ取引内で検査する。期限ちょうどは可、超過は不可。reply_deadlineまでの受領条件とlive_close同時以降の新規公開禁止も守る。read.live_stateに実効公開期限を返す。
+snapshotは凍結後不変。新generationでの自動再時刻付けはしない。締切前倒しはupdateLiveで反映し、延長を拒否する。
+取消は追加のみ。取消解除は自動で行わず正本の別対応が必要。期限後の取消はlive_stateへ反映し、正式publicationは上書きしない。
+readは不変publicationと現在live_stateを分けて返す。UIは取消オーバーレイを必ず表示・購入抑止へ反映する。
+
+9. 学習と導入範囲
+この実装・SchemaはCOLLECT_ONLY専用、model_version=null。SHADOW/LIVE入力を拒否する。
+元データ・応答・回復・公開・取消を蓄積できる。実着順・払戻の取込み、学習器、X6履歴集計、購入戦略は別の検証済み実装が必要。
+本番導入の残作業は、DB時刻と追加項目の対応、実AIクライアント接続と最大18頭の時間/出力検証、既存API/画面への新レスポンス接続。
+同梱試験の合格はローカル実装の確認。本番Laravelの反映済み・実AIの成功・予測精度向上・将来の全入力で不具合ゼロを表さない。
+
+10. r9永続ワーカー契約
+実行パッケージ版はr12.1。prompt_version=baganriki-v041-r12-1-quota-20261017へ更新し、C7混戦の配分を3/3/1へ変更する。schema_version・marker・hash方式はr8を維持する。旧prompt_versionの応答を混在させない。
+各race/generation/roleに初回0・訂正1の2枠のみ。予約commit後に送信し、原応答とcompleteをcommitしてから訂正を開始する。
+予約済み枠を重複キュー・期限切れ・再起動で再発行しない。初回未受領またはFAILEDでは訂正を予約しない。正常初回で訂正不要なら1枠だけ。
+初回保存後の停止は再起動で訂正判定を再開できる。訂正の結果不明/失敗時は初回の正常部分を保持する。
+SDKの自動再試行は0。初回/訂正の各送信許可につきcallbackを最大1回呼ぶ。
+受領していても未commitの応答は復元できない場合がある。外部APIとの分散取引/Exactly Onceを保証せず、結果不明の予約を明示して再送を防ぐ。
+同一tokenの同一応答保存は冪等、異なる応答や終端状態の変更は拒否。未完了の本文は改変せずcomplete=falseで保持し、選出へ使わない。
+response_revisionは各予約/終端変更の合計。公開intentにはこの値を含め、キュー再試行中は固定する。新しい統合は新しいintentとjob_idを使う。
+原応答手渡しのpublishは、ジャーナルが存在するレースでは拒否する。手渡し配列の欠落で正常な他AIを失わない。
+readはworker_stateの状態とrevisionを返すがtoken/原文を返さない。worker_stateコマンドは内部専用で自roleの原文だけを返す。
+本番のキュー構成・永続領域・SDK設定・実API・画面との接続は導入先で受入確認する。
+
+11. r10の入力境界・同時実行・読取契約
+入力DTOの標準JSON表現も4MiB以下。元seed/exportが制限内でも、生成後に超過すればprepareで拒否する。installでも保存前に拒否する。
+roleのattemptsは配列かつ2本以内。それ以外は当該roleのAI_FAILUREとして隔離する。別roleと初回の正常部分を保持し、余分なAPI呼出しはしない。
+claimの入力検証と訂正診断は書込みロック外。予約直前に最新の自role状態、締切、全頭取消を再確認し、競合でSTATE_CHANGEDなら予約しない。
+publish_savedの検証も書込みロック外。保存前にライブ/公開/応答の版が変わった場合、旧計算の保存を拒否。応答や取消を落とさない。
+同一公開intentの競合は既存の同じ結果を返す。異なるintentで古い版を共有した競合は一方だけ保存し、他方はstale。
+update_liveの締切はnullだけが未変更。空文字/false/0/配列は拒否。等価な時刻の表記違いで状態版を増やさない。
+read.publicationは変更せず、live_stateで現在頭数/構造上の目標/配分を返す。
+PublicViewのactive_count/actual_quota/available_candidate_countは現在の取消を反映する。prediction_*は公開時の履歴。
+publication_target_count/publication_quotaは正式公開時のまま、live_target_count/live_quotaで最新頭数の目安を別表示する。取消だけで正式予想を再選出しない。
+未公開で実効公開期限超過ならUNAVAILABLE。全頭取消ならCANCELLED。期限内だけPENDING。原応答/予約tokenは表示しない。
+
+12. r11の精度・型・根拠境界
+生成する入力と保存前DTOにもstrict_loadsと同じ数値/深度/Unicode/サイズ条件を適用する。検査で値を書き換えない。小数ゼロにも調整後指数−308～308を適用する。
+日時はタイムゾーン付きRFC3339のうち、秒必須・小数秒0～6桁を対応範囲とする。T/Zの小文字は許容。7桁以上や独自形式を切り捨て・補完せず拒否する。Pythonの受領/観測/締切検査とPHPのワーカー/表示で同じ規則を使う。PHPの凍結締切照合はDateTimeImmutable同士で厳密に比較する。
+表示項目nonselect_reason/public_candidate内のSchema不正はpresentation_horsesへ分類する。非選出codeは文字列を確認して照合し、配列/objectで全体例外にしない。訂正対象外の根拠・穴順位・事実出典は維持する。
+直接参照した出典がCONTEXTなら、派生元にSIGNALがあっても独立信号や既知採点の根拠として数えない。実在し適用可能なCONTEXTはSIGNALの説明へ併記できる。当該馬の確認済み個別SIGNALが1系統あれば保持する。SIGNAL自身の派生依存関係は元の参照まで照合する。
+
+13. r12の更新原子性とPHP正確数値
+update_liveは実効公開期限の計算可能性を保存前に検査する。範囲外の時刻演算をValueErrorに統一し、取消・締切・版番号・eventを一切保存しない。取消は配列必須。重複馬番の正規化は保持する。
+publishは検証開始時刻<=検証完了時刻<=commit直前時刻を追加確認し、逆行ならrollbackする。claimは過去の予約/受領時刻を下回る現在時刻で訂正を予約しない。期限超過の検査も維持する。
+PHP Bridgeは非整数JSON数値を原トークン文字列として読み、大きな整数もJSON_BIGINT_AS_STRINGで保持する。通常整数/真偽/nullは型を維持し、JSON文字列の内部は変更しない。Python・SQLite・input_json/common_jsonの数値型と原値は従来どおり。
+公開facts/counterfactsにvalue_typeを追加する。numberはPHPでは整数または十進数文字列。string/boolean/nullは元の型の意味を保持する。画面用JSONの数値文字列はAI応答Schemaへ流し戻さない。
+callRaw自体は原JSONで、任意のjson_decodeによる精度保護までは行わない。構造化する側はExactJson::decodeを使う。
+
+
+================================================================
+第4部 導入手順
+
+馬眼力 r12.1 導入手順（エンジニア向け）
+
+前提と今回確認した現行コード
+対象：AiController(20261017-054624).zip内のAiController.php。
+現行コード全体を置き換えるのではなく、新しいキュー処理と読取APIへr12.1を接続する。
+PHP＋Pythonの構成。全ワーカーは同じ1台のホストに置き、同じ永続SQLiteを参照する。
+既存DBテーブルは書き換えない。元値・元プロンプト・元応答は保持する。
+
+1. 現行のどこを通さないか
+getHorseOddsFinderAiAnalysis内、_getAiAnalysisPrompt呼出し以降の旧経路をr12.1では使用しない。
+・1331行付近の旧firstAiSystemPromptには「人気帯別頭数上限は廃止」「能力適性だけで候補を決めない」等がある。r8の指示と併用しない。
+・public/baganriki_brain/baganriki_brain.txtの追記はCOLLECT_ONLYへ混入させない。
+・2ndの旧oddsData再構成、1st待ち、旧publicCandidateNums、_trimAiCandidates、_mergeAiResultsへr12.1結果を戻さない。
+・旧analysis_textの正規表現はr8のJSONを扱えない。新API DTOを使う。
+行番号は提供ファイルの確認位置。改版されたコードでは関数名と上記処理で照合すること。
+
+2. 配置とインストール
+アプリ専用の永続ディレクトリ（例：/opt/baganriki/r12_1）へZIP内ファイルを配置する。
+python3 -m venv /opt/baganriki/r12_1/.venv
+/opt/baganriki/r12_1/.venv/bin/python -m pip install -r /opt/baganriki/r12_1/requirements-test.lock.txt
+/opt/baganriki/r12_1/.venv/bin/python /opt/baganriki/r12_1/verify.py
+DBの例：/var/lib/baganriki/r12_1.sqlite。Webユーザーとキューユーザーの必要な権限を同一グループ等で揃える。SQLite本体だけでなく親ディレクトリとWAL/SHMを作成可能にする。
+新APIに既存の認証・認可を適用する。内部cliを公開HTTPへ直接出さない。
+
+PHPロード例
+require_once '/opt/baganriki/r12_1/php/BaganrikiR12Bridge.php';
+require_once '/opt/baganriki/r12_1/php/RoleWorker.php';
+require_once '/opt/baganriki/r12_1/php/PublicView.php';
+$bridge = new \Baganriki\BaganrikiR12Bridge('/opt/baganriki/r12_1/.venv/bin/python', '/opt/baganriki/r12_1', '/var/lib/baganriki/r12_1.sqlite');
+PHP側でPythonへ渡すパスをユーザー入力から組み立てない。
+
+3. DB exportを1レース単位で作る
+既存t_horse_odds_finder_oddsのnum、minutes_before_start、odds、fuku_min、fuku_maxに対応。
+実際のDB列/ログからobserved_at、available_atを対応づける。提供Controllerだけでは取得時刻の意味を確定できないため、列を勝手にcreated_at等と決めていない。
+exportの必須トップキー：race_id、cutoff_at、time_contract、runners、odds_rows、coverage。
+runners各行：horse_no（整数）、win_rank（整数・凍結1..N）、band（A/B/D）。
+odds_rows各行：num（整数）、minutes_before_start（整数）、odds/fuku_min/fuku_max（元の十進数文字列またはnull）、observed_at、available_at（タイムゾーン付きISO日時）。
+time_contractはdemo_seed.jsonの形に従い、anchor_kind、anchor_at、cutoff_atの実運用基準と整合させる。
+coverageキー：past_runs、OPI、estimated_odds、recovery_statistics、similar_statistics、legacy_qualifications、gap_history。
+各値は {"status":"INCLUDED","source_refs":[...]} または {"status":"UNAVAILABLE","reason":"実際の不足理由"}。
+利用できる既存データをUNAVAILABLEと偽って省略しない。
+追加情報の格納：extra_sources（registry要素の配列）、extra_field_catalog、extra_indices。
+追加数値もDB由来の十進数文字列として渡す。adapter.pyが明示カタログに基づき変換する。
+生のレース結果・払戻を現在の入力に混ぜない。過去成績や統計はcutoffまでに利用できたものに限定する。
+
+$prepared = $bridge->prepareExport($exportJson);
+返却値：input_json['1st'/'2nd']、prompts['1st'/'2nd']、common_json、snapshot_hash。
+input_jsonをPHPでdecode→encodeしてから送らない。文字列のまま保管・送信する。
+$bridge->install($prepared['input_json']['1st'], $generation);
+ここで凍結入力を保存。generationは正の整数。凍結後の再時刻付けや自動置換は拒否される。
+
+4. AI呼出しは独立した2つのキュージョブにする
+HTTPリクエスト内で18頭の両AI＋訂正まで待たない。先に受付を返し、画面はread APIを参照する。
+installを先に完了し、php/RoleWorker.phpへroleごとのsystem、input_json、reply_deadline、既存AIクライアントのcallback、generationを渡す。
+callbackの引数は(system, user, timeoutSeconds)。戻り値は['text'=>原応答文字列,'complete'=>真偽値]。
+1stは既存AnthropicService、2ndは現在のDeepSeek呼出しに接続するが、メッセージ本文は渡されたsystem/userのみ。
+自動再試行は1回のAPI呼出しにつき0回。RoleWorkerが必要な訂正を最大1回行う。
+finish_reasonが長さ打切り、未完了、通信失敗ならcomplete=trueにしない。実APIの終了条件をクライアントで確認する。
+APIのモデル・max_tokens・タイムアウトは現在利用するモデルの設定と実出力で決める。既存コードの8192等を根拠なく流用しない。
+RoleWorkerは1stの回答を2ndへ渡さない。API前に呼出枠を予約し、各応答を訂正開始前に同じ永続DBへ原文で記録する。戻り値の保存を親ジョブへ委ねない。
+complete=falseも原文と別フラグで保存する。SDK内の自動リトライは無効。未完了でも正常JSONに見える応答を候補として採用しない。
+run($system,$inputJson,$replyDeadline,$provider,$generation)は再実行しても同じ役割の予約済み枠を再発行しない。
+php/LaravelIntegration.example.phpに接続関数あり。既存サービス全体・認証情報が未提供のため、サービス登録やキュー名は自プロジェクトに合わせる。
+
+5. 統合・公開
+親ジョブは保存済み原応答をpublishSavedで統合する。応答配列を手作業で組み立てて渡さない。
+$state = $bridge->read($raceId);
+$live = $state['live_state'];
+$intent = [
+  'race_id'=>$raceId, 'generation'=>$live['generation'],
+  'state_revision'=>$live['state_revision'],
+  'publication_revision'=>$live['publication_revision'],
+  'response_revision'=>$state['worker_state']['response_revision'], 'job_id'=>$uniqueJobId
+];
+このintentをジョブの永続ペイロードへ一度保存してから投入する。再実行時に版番号を読み直さない。
+$result = $bridge->publishSaved($intent['race_id'],$intent['generation'],$intent['state_revision'],
+    $intent['publication_revision'],$intent['response_revision'],$intent['job_id']);
+php/LaravelIntegration.example.phpのprepareBaganrikiPublication / commitBaganrikiPublicationが対応する。
+3つのrevisionを整合した読取トランザクションで固定する。検証中は書込みロックを解放し、保存直前の短い取引で同じrevisionか再確認する。古い版なら失敗し、保存済みの良い応答は残る。
+最新状態で再統合する場合は新しいintentと新しいjob_idを作る。同じjob_idを新しい内容へ使い回さない。
+同じintentの再実行は、他AIの新応答や取消が届いた後でも、以前保存した同じpublication_idを返す。
+その返却値は履歴であり、画面表示は最新readとPublicViewの取消オーバーレイから作る。
+片側結果を先に公開できる。他方が届いたら、新しいintentで期限内に再統合する。
+統合ジョブは応答/失敗保存後に投入し、回復用にreply_deadline到達時にも投入する。両側を無期限に待たない。
+旧publish(...responses)は再生・互換検証用。ジャーナルのあるレースでは拒否する。
+
+6. 取消・締切前倒し・表示
+$bridge->updateLive($raceId,$expectedStateRevision,$allCancelledHorseNumbers,$earlierCloseOrNull);
+取消は累積集合で渡す。すでに記録した取消の解除や締切延長は拒否される。
+公開期限前なら、更新済みstate_revisionで統合ジョブを再実行できる。
+期限後は取消オーバーレイだけ更新し、候補の追加・入替はしない。
+$stored=$bridge->read($raceId);
+$dto=\Baganriki\PublicView::build($stored,$horseNamesByNo);
+新APIはこのDTOを返す。Flutterは馬名、馬番、帯、事実説明、取消、縮退・不足フラグを表示する。
+publication_idは正式予想の識別子。live_state_revisionは最新取消状態。両者の版を同一視しない。
+原AI explanationを直接表示しない。おすすめ度100点や勝率にmerge順位点を流用しない。
+購入推奨はこの版ではfalse。購入契約完成後に別実装を接続する。
+
+7. 導入判定
+同梱のverify.pyとPHP試験を、対象サーバーの実Python/PHPで実行する。
+php php/test_bridge.php は再生試験。
+python php/make_test_fixture.py の直後に php php/test_worker.php で、模擬AI→訂正→保存→重複実行→取消→読取を試験できる。環境変数BAGANRIKI_PYTHONにvenvの絶対パスを指定する。
+実DB exportの値・時刻・全項目対応を照合し、実AI最大18頭＋訂正の終了状態・出力量・所要時間を確認する。
+PHP版・サービスAPI・キュー・SQLite権限・画面の接続はruntime_contract.template.jsonへ記録する。
+新APIへ本番トラフィックを切り替える前に、保存済み実レースの同一snapshotで照合する。
+
+8. 今回の実装で意図的に無効なもの
+COLLECT_ONLY以外の学習段階、未検証のX6集計、購入推奨。禁止入力はエラーで止める。
+X6の正しい過去データがない間はUNKNOWNとし、他信号からmodeが一意なら候補を出す。
+旧X6相当の別定義統計を有効な同一定義だと見なさない。
+既存の購入フラグ・学習文をr12.1へ無条件で足さない。
+
+9. r7から引き継いだ接続条件
+・r12.1のprompt_versionはbaganriki-v041-r12-1-quota-20261017。marker、schema_version、hash方式はr8を維持する。旧版の本文・設定・応答を混ぜない。
+・既存DBへr12.1を直接向けない。/var/lib/baganriki/r12_1.sqlite等の別DBを用い、既存履歴を保存したまま新規レースから切り替える。進行中のsnapshotを再生成しない。
+・direct prepareのseedにもcoverageを必須で渡す。prepareExportだけの項目ではない。read.input_auditで7区分の利用可否・不足理由を確認できる。
+・SALES_CLOSE_TIMEはanchor_atと凍結sales_close_atを同じ時刻にする。POST_TIMEはanchor_atを正本の発走時刻と照合する。凍結後の前倒しはupdateLiveへ渡す。
+・親ジョブはread.live_state.effective_publish_deadlineを最終の公開上限として扱う。前倒しにより元のpublish_deadlineより早まる場合がある。
+・inspectのrepair_scopeは評価行、順位帯、公開表示、最上位項目を区別する。文字列のrequestをRoleWorkerがそのまま訂正AIへ渡す。
+・APIはPUBLIC_CANDIDATE_VALIDATION_FAILEDとPARTIAL_AI_VALIDATIONを表示し、正常候補を旧フィルターで削らない。
+・PHP試験には、対象外の帯順位保持・公開フラグ訂正・coverage読取も含む。実サーバーのPython/PHPで同梱試験を実行してから接続する。
+
+10. r8の追加検証
+・summary_horsesは集計・レビューの訂正範囲。既存の評価行修正と混同しない。RoleWorkerは生成された訂正文をそのまま渡す。
+・深いJSONや不正Unicodeは当該応答を拒否し、正常な他AI/初回を継続利用する。全体500へ変換しない。
+・6分前単勝オッズと凍結順位の逆転は、正本の入力対応を調査する。自動で人気やオッズを上書きしない。
+・php/make_test_fixture.pyを生成してからphp/test_fault_isolation.phpも実行する。異常な片側と正常な他AIの公開・保存を確認する。
+・r9は途中保存・再起動復旧を実装済み。導入サーバーでもtest_journal.py、php/test_durability.phpを実行し、永続DBパスとキュー再実行時の共有を確認する。
+
+11. r9の永続化と復旧
+ai_attemptsの主キーはrace_id/generation/ai_role/attempt_no。各roleは初回0と訂正1の最大2枠。
+予約をcommitしてからAIを呼ぶ。応答をcommitしてから訂正を判定する。訂正中に停止しても保存済み初回から公開可能。
+2ワーカーが同時起動しても、同じ枠の送信許可は1つ。期限切れのRESERVEDを自動解除・再送しない。
+API呼出し中や応答保存前の停止は、プロバイダ側で実行済みか確定できない。この場合は当該枠を結果不明として残し、別AIまたは保存済み初回を使う。無条件の再送で回数制約を破らない。
+DB保存の応答確認だけ失った場合は、同じtoken/原文/受領時刻/completeによるcomplete再送が冪等。ただしRoleWorker自体はAPI呼出しを再送しない。
+read.worker_state.slotsのRESERVEDとoutcome_unknownで期限経過後の結果不明を検出できる。tokenや原文はreadへ出さない。
+response_revisionは予約または終端状態への変更で増える。4枠すべて受領なら8。単なるAI回答数とは異なる。
+complete/fail/claim/worker_stateは認証された内部経路専用。tokenを画面や外部ログへ公開しない。
+入力JSONと応答1本は各4MiB、内部の外側通信JSONは64MiB。Unicode/制御文字のエスケープで外側が膨らんでも原文を切らない。
+応答時刻はRoleWorkerがAPI戻り直後に記録する。プロバイダが本文に書いた時刻を使わない。reply_deadlineはマイクロ秒を保持して照合する。
+短縮済みlive_closeも呼出枠の期限へ反映する。呼出し開始後に締切が前倒しされた場合、返答が来ても公開時の最新締切検査が優先される。
+SQLiteは同期モードFULL/WAL、同一ホストの永続ローカルDBを全キューで共有する。コンテナごとの一時DBや別々のコピーでは重複防止にならない。
+DBのバックアップはSQLiteのオンラインバックアップ等、WALを含む整合した方法を使う。稼働中DB本体だけの単純コピーで復旧しない。
+旧DBの履歴を消さず、r12.1専用DBに新規レースから切り替える。進行中のレースは既存版で完了させる。
+
+PHP試験（導入先の実PHPでも実行）
+python php/make_test_fixture.py
+php php/test_worker.php
+php php/test_durability.php
+php php/test_fault_isolation.php
+fixtureの期限を過ぎた場合はmake_test_fixture.pyを再実行する。これは合成試験だけの時刻更新であり本番snapshotを更新しない。
+
+12. r10の追加接続条件
+・重い入力/応答検証中は書込みロックを持たない。別AIの応答保存、取消、締切前倒しを妨げない。
+・検証中にresponse_revision/state_revision/publication_revisionが変わると公開はstaleで拒否される。旧結果を強制保存せず、新しいintentとjob_idを投入する。
+・同一intentが同時に完了しても保存は1回。同じ公開IDを返す。
+・claimは自roleの予約/受領状態を保存直前に再確認する。途中変更でSTATE_CHANGEDを返す場合は追加AIを呼ばず、保存済み応答を返す。キュー復旧で再確認できる。
+・診断中に期限を超えたら予約しない。最新状態が全頭取消なら初回/訂正とも予約しない。
+・reply_deadline等の時刻引数はサーバーの時刻。空文字/false/0で「締切変更なし」を表さない。未変更はnull。同一時刻のタイムゾーン表記違いは版を増やさない。
+・prepare生成後も役割別入力を4MiB以内か確認する。超過は入力作成時に明示的なエラーとし、利用できる元データを黙って削らない。導入側で項目構成を見直す。
+・破損したroleの応答一覧、3本以上の応答一覧はそのroleだけを不採用にする。正常なもう片側は公開可能。3本目の採用や自動追加呼出しは行わない。
+・PublicViewはr12.1版をBridge/Storeと一緒に切り替える。read.live_stateへ現在active_count、publication_target_count、publication_quotaを追加した。
+・DTOのactive_count、actual_quota、available_candidate_countは現在の取消を反映する。prediction_*は正式公開時の値。
+・DTOのpublication_target_count/publication_quotaは正式公開時の目標/配分を保持する。最新頭数の目安はlive_target_count/live_quotaで別表示する。16→15頭で目標7→6になる等の場合にも、期限後の候補削除・補充で履歴を改変しない。
+・未公開は期限内PENDING、期限超過UNAVAILABLE、全頭取消CANCELLED。公開済みはPUBLISHED（全頭取消時CANCELLED）。status_flagsの不足/取消/状態変更を画面へ反映する。
+・PublicView::buildの第3引数nowはテスト用。HTTP本番は省略しサーバーの現在時刻を使う。
+・追加確認：php php/test_public_view.php。期限ちょうど/超過、取消、現頭数、残り候補数、正式予想の不変性を確認できる。
+
+13. r11の境界検証
+・BridgeクラスはBaganrikiR12Bridge。RoleWorker/PublicView/Timestamp.phpも同じ版を配置する。AI向けmarker、schema_version、hash方式はr8のまま。prompt_versionはbaganriki-v041-r12-1-quota-20261017。
+・日時はYYYY-MM-DDTHH:MM:SS[.1～6桁](Zまたは±HH:MM)。小文字t/zも同値。秒以下7桁以上、秒省略、空白区切り、週日付は拒否する。元の時刻を勝手に丸めて締切内へ入れない。
+・数値128桁、調整後指数−308～308はネイティブDTOにも適用する。ゼロの指数も範囲内にする。prepare/install成功後に読めない入力を残さない。
+・nonselect_reason/public_candidateの型不正は表示訂正として扱う。他馬や正常な穴根拠を再評価させない。
+・CONTEXTは派生値でも単独のSIGNALにならない。正常な個別SIGNALが別にあれば候補資格を維持する。
+・追加試験：python test_r11_regressions.py、python php/make_test_fixture.py、php php/test_time_boundary.php。
+・全Python検証：python verify.py。PHPはtest_bridge/test_worker/test_durability/test_fault_isolation/test_public_view/test_time_boundary/test_exact_jsonの7本を実行する。fixture期限を過ぎたら合成fixtureだけを再生成する。
+
+14. r12.1の数値表示・保存更新契約
+・BaganrikiR12Bridge.phpはExactJson.phpを自動ロードする。RoleWorker、PublicView、Timestamp、ExactJsonも同梱版で配置する。
+・Bridgeが返すPHP配列では、小数/指数表記の数値は原トークンの文字列、大きな整数は文字列で保持する。馬番・頭数・revision等の通常整数は整数のまま。数値の桁や値を丸めずにHTTP JSONへ渡せる。
+・画面用facts/counterfactsにvalue_type（number/string/boolean/null）を追加。value_type=numberのvalueは整数または十進数文字列として表示する。floatキャストやJavaScript Numberで一律に再変換しない。計算が必要なら任意精度の十進数処理を使う。
+・prepare返却のinputsはPHPでの確認用。AI送信/再保存/数値再計算は必ずinput_json/common_jsonの原文を使う。callRawは原JSONを返すため、PHPで構造化する場合はExactJson::decodeを使う。
+・ライブ締切は安全余裕を引いた実効期限が扱える範囲か保存前に検査する。取消更新は馬番配列のみ。object/null/文字列を空配列扱いしない。同じ馬番の重複は従来どおり正規化する。
+・公開の検証中/commit直前の時計逆行は取引を戻す。訂正予約時に過去の予約/受領時刻より時計が戻っていればCLOCK_ROLLBACKで予約しない。原因を確認し、正常時刻へ復旧後に保存済み状態から再開する。
+・既存履歴や正常なAI応答は残る。不正入力の値を勝手に丸めたり書き換えて再送しない。
+・追加試験：python test_r12_regressions.py、python php/make_test_fixture.py、php php/test_exact_json.php。PHPは従来6本＋数値試験の計7本。
+・runtime_contract.template.jsonのrelease表記をr12.1へ整合。本番検証のfalseはローカル合格だけでtrueに変えない。
+
+15. r12.1の配分改訂
+C7 MIXEDの基本配分をA/B/D=3/3/1へ更新。1stは3/3/1、2ndは1/3/1。C7 VOLATILEとC6の配分は維持する。
+config.json、reference.py、prompt_1st/2nd.txt、input/output_schema.json、store.pyを含む一式を同時に配置する。PHPの互換クラス名BaganrikiR12Bridgeは維持する。
+新規レースからr12.1専用経路・DBへ切り替える。旧r12の凍結snapshotと原応答は旧版で完了させ、新版へ付け替えない。
+python test_quota_revision.pyを含むverify.pyを実行し、C7混戦3/3/1・2nd1/3/1・穴枠不足時のA補充禁止・取消後C6配分を確認する。
+本番受入欄は実環境で確認するまでfalseを維持する。
+
+
+================================================================
+第5部 config.json
+
+{
+  "prompt_version": "baganriki-v041-r12-1-quota-20261017",
+  "schema_version": "baganriki-v041-r8-1",
+  "base_quota": {
+    "4": {
+      "FIRM": [
+        3,
+        1,
+        0
+      ],
+      "MIXED": [
+        2,
+        2,
+        0
+      ],
+      "VOLATILE": [
+        2,
+        1,
+        1
+      ]
+    },
+    "5": {
+      "FIRM": [
+        4,
+        1,
+        0
+      ],
+      "MIXED": [
+        3,
+        2,
+        0
+      ],
+      "VOLATILE": [
+        2,
+        2,
+        1
+      ]
+    },
+    "6": {
+      "FIRM": [
+        4,
+        2,
+        0
+      ],
+      "MIXED": [
+        3,
+        2,
+        1
+      ],
+      "VOLATILE": [
+        3,
+        2,
+        1
+      ]
+    },
+    "7": {
+      "FIRM": [
+        5,
+        2,
+        0
+      ],
+      "MIXED": [
+        3,
+        3,
+        1
+      ],
+      "VOLATILE": [
+        3,
+        3,
+        1
+      ]
+    }
+  },
+  "score_caps": {
+    "H1": 18,
+    "H2": 15,
+    "H3": 12,
+    "H4": 9,
+    "H5": 6,
+    "V1": 12,
+    "V2": 10,
+    "V3": 8,
+    "V4": 6,
+    "V5": 4
+  },
+  "max_snapshot_runners": 18,
+  "initial_learning_stage": "COLLECT_ONLY",
+  "primary_rank": "SERVER_VERIFIED_COMPLETE_USES_SCORE_OTHERWISE_EVIDENCE",
+  "recovery_chain": [
+    "EVIDENCE_BACKUP",
+    "VERIFIED_EVIDENCE_FALLBACK"
+  ],
+  "malformed_horse_policy": "isolate_identity_group_preserve_other_horses",
+  "correction_calls_per_role_max": 1,
+  "correction_out_of_scope_changes": "retain_initial_log",
+  "cancellation_policy": "immutable_prediction_snapshot_and_versioned_live_overlay",
+  "after_cutoff_band_policy": "frozen_win_rank",
+  "hole_to_popular_fill": false,
+  "display_policy": "verified_fact_templates_only",
+  "purchase_policy_status": "RUNTIME_VALIDATION_REQUIRED",
+  "learning_promotion": "explicit_validated_manifest_only",
+  "deployment_status": "IMPLEMENTED_LOCAL_ACCEPTANCE_PENDING_PRODUCTION",
+  "implementation": "Python 3.10+ engine with PHP 8.0+ bridge; single-host SQLite",
+  "supported_learning_stages": [
+    "COLLECT_ONLY"
+  ],
+  "x6_runtime": "UNKNOWN_UNTIL_HISTORICAL_ADAPTER_VALIDATED",
+  "decimal_protocol": "raw JSON decimal or DB decimal-string export; no float roundtrip",
+  "evidence_only_rank_uses_scores": false,
+  "coverage_version": "coverage-v1-r8"
+}
+
+
+================================================================
+第6部 output_schema.json
+
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "baganriki-v041-r8-1"
+    },
+    "prompt_version": {
+      "const": "baganriki-v041-r12-1-quota-20261017"
+    },
+    "ai_role": {
+      "enum": [
+        "1st",
+        "2nd"
+      ]
+    },
+    "race_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "snapshot_hash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selection_enabled": {
+      "type": "boolean"
+    },
+    "mode": {
+      "enum": [
+        "FIRM",
+        "MIXED",
+        "VOLATILE",
+        "UNKNOWN"
+      ]
+    },
+    "target_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 7
+    },
+    "role_cap": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 7
+    },
+    "quota": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "A": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "B": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "D": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            }
+          },
+          "required": [
+            "A",
+            "B",
+            "D"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "role_quota": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "A": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "B": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "D": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            }
+          },
+          "required": [
+            "A",
+            "B",
+            "D"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "learning_stage": {
+      "const": "COLLECT_ONLY"
+    },
+    "horses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "horse_no": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "band": {
+            "enum": [
+              "A",
+              "B",
+              "D"
+            ]
+          },
+          "tier": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "UNVERIFIED"
+            ]
+          },
+          "eligibility": {
+            "enum": [
+              "ELIGIBLE",
+              "NO_EVIDENCE",
+              "UNVERIFIED"
+            ]
+          },
+          "family_review": {
+            "type": "object",
+            "properties": {
+              "market": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "SUPPORTED",
+                      "NO_SUPPORT",
+                      "DATA_MISSING"
+                    ]
+                  },
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "source_refs",
+                  "evidence_ids",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "ability": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "SUPPORTED",
+                      "NO_SUPPORT",
+                      "DATA_MISSING"
+                    ]
+                  },
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "source_refs",
+                  "evidence_ids",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "gap": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "SUPPORTED",
+                      "NO_SUPPORT",
+                      "DATA_MISSING"
+                    ]
+                  },
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "source_refs",
+                  "evidence_ids",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "win_place": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "SUPPORTED",
+                      "NO_SUPPORT",
+                      "DATA_MISSING"
+                    ]
+                  },
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "source_refs",
+                  "evidence_ids",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "similar_value": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "SUPPORTED",
+                      "NO_SUPPORT",
+                      "DATA_MISSING"
+                    ]
+                  },
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "source_refs",
+                  "evidence_ids",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "market",
+              "ability",
+              "gap",
+              "win_place",
+              "similar_value"
+            ],
+            "additionalProperties": false
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "family": {
+                  "enum": [
+                    "market",
+                    "ability",
+                    "gap",
+                    "win_place",
+                    "similar_value"
+                  ]
+                },
+                "dependency_group": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "facts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "source_ref": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "source_ref",
+                      "value"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1
+                },
+                "observation": {
+                  "type": "string"
+                },
+                "interpretation": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "evidence_id",
+                "family",
+                "dependency_group",
+                "source_refs",
+                "facts",
+                "observation",
+                "interpretation"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "counterevidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source_refs",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "scores": {
+            "type": "object",
+            "properties": {
+              "H1": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 18
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "H2": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 15
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "H3": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 12
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "H4": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "H5": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "V1": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 12
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "V2": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "V3": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "V4": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "V5": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "H1",
+              "H2",
+              "H3",
+              "H4",
+              "H5",
+              "V1",
+              "V2",
+              "V3",
+              "V4",
+              "V5"
+            ],
+            "additionalProperties": false
+          },
+          "score_evidence": {
+            "type": "object",
+            "properties": {
+              "H1": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "H2": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "H3": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "H4": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "H5": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "V1": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "V2": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "V3": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "V4": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "V5": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "H1",
+              "H2",
+              "H3",
+              "H4",
+              "H5",
+              "V1",
+              "V2",
+              "V3",
+              "V4",
+              "V5"
+            ],
+            "additionalProperties": false
+          },
+          "score_status": {
+            "enum": [
+              "complete",
+              "partial"
+            ]
+          },
+          "total_score": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "observed_sum": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "observed_cap": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "rank_basis": {
+            "enum": [
+              "SCORE",
+              "EVIDENCE",
+              "NOT_RANKED"
+            ]
+          },
+          "rank_reason": {
+            "type": "string"
+          },
+          "public_candidate": {
+            "type": "boolean"
+          },
+          "nonselect_reason": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "enum": [
+                      "BAND_QUOTA",
+                      "NO_EVIDENCE",
+                      "UNVERIFIED",
+                      "SELECTION_DISABLED"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "evidence_rank_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "evidence_rank_reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "horse_no",
+          "band",
+          "tier",
+          "eligibility",
+          "family_review",
+          "evidence",
+          "counterevidence",
+          "scores",
+          "score_evidence",
+          "score_status",
+          "total_score",
+          "observed_sum",
+          "observed_cap",
+          "rank_basis",
+          "rank_reason",
+          "public_candidate",
+          "nonselect_reason",
+          "explanation",
+          "evidence_rank_evidence_ids",
+          "evidence_rank_reason"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "score_status": {
+                  "const": "partial"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "total_score": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "score_status": {
+                  "const": "complete"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "total_score": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "tier": {
+                  "enum": [
+                    "A",
+                    "B"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "eligibility": {
+                  "const": "ELIGIBLE"
+                },
+                "evidence": {
+                  "minItems": 1
+                },
+                "evidence_rank_evidence_ids": {
+                  "minItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "tier": {
+                  "const": "C"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "eligibility": {
+                  "const": "NO_EVIDENCE"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "tier": {
+                  "const": "UNVERIFIED"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "eligibility": {
+                  "const": "UNVERIFIED"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 18
+    },
+    "band_ranks": {
+      "type": "object",
+      "properties": {
+        "A": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "uniqueItems": true
+        },
+        "B": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "uniqueItems": true
+        },
+        "D": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "A",
+        "B",
+        "D"
+      ],
+      "additionalProperties": false
+    },
+    "public_candidates": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "maxItems": 7,
+      "uniqueItems": true
+    },
+    "shortfalls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "band": {
+            "enum": [
+              "A",
+              "B",
+              "D"
+            ]
+          },
+          "requested": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "eligible": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "missing": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "band",
+          "requested",
+          "eligible",
+          "missing",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 3
+    },
+    "validation_issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "enum": [
+              "INFO",
+              "WARNING",
+              "ERROR"
+            ]
+          },
+          "horse_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "field": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "horse_no",
+          "field",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "evidence_band_ranks": {
+      "type": "object",
+      "properties": {
+        "A": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "uniqueItems": true
+        },
+        "B": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "uniqueItems": true
+        },
+        "D": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "A",
+        "B",
+        "D"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "prompt_version",
+    "ai_role",
+    "race_id",
+    "snapshot_hash",
+    "selection_enabled",
+    "mode",
+    "target_count",
+    "role_cap",
+    "quota",
+    "role_quota",
+    "learning_stage",
+    "horses",
+    "band_ranks",
+    "public_candidates",
+    "shortfalls",
+    "validation_issues",
+    "evidence_band_ranks"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "ai_role": {
+            "const": "2nd"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "role_cap": {
+            "maximum": 5
+          },
+          "public_candidates": {
+            "maxItems": 5
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selection_enabled": {
+            "const": false
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "mode": {
+            "const": "UNKNOWN"
+          },
+          "quota": {
+            "type": "null"
+          },
+          "role_quota": {
+            "type": "null"
+          },
+          "role_cap": {
+            "const": 0
+          },
+          "public_candidates": {
+            "maxItems": 0
+          },
+          "shortfalls": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selection_enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "FIRM",
+              "MIXED",
+              "VOLATILE"
+            ]
+          },
+          "quota": {
+            "type": "object"
+          },
+          "role_quota": {
+            "type": "object"
+          },
+          "role_cap": {
+            "minimum": 1
+          }
+        }
+      }
+    }
+  ]
+}
+
+
+================================================================
+第7部 input_schema.json
+
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "baganriki-v041-r8-1"
+    },
+    "prompt_version": {
+      "const": "baganriki-v041-r12-1-quota-20261017"
+    },
+    "race_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "snapshot_hash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "snapshot_hash_version": {
+      "const": "exact-common-payload-sha256-r8"
+    },
+    "time_contract": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "anchor_kind": {
+          "enum": [
+            "POST_TIME",
+            "SALES_CLOSE_TIME"
+          ]
+        },
+        "anchor_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "snapshot_offsets": {
+          "const": [
+            21,
+            18,
+            15,
+            12,
+            9,
+            6
+          ]
+        },
+        "sampling_policy_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reply_deadline": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "publish_deadline": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sales_close_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "safety_margin_ms": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "version",
+        "anchor_kind",
+        "anchor_at",
+        "snapshot_offsets",
+        "sampling_policy_id",
+        "reply_deadline",
+        "publish_deadline",
+        "sales_close_at",
+        "safety_margin_ms"
+      ],
+      "additionalProperties": false
+    },
+    "cutoff_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "N": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 18
+    },
+    "runners": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "horse_no": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "win_rank": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "band": {
+            "enum": [
+              "A",
+              "B",
+              "D"
+            ]
+          }
+        },
+        "required": [
+          "horse_no",
+          "win_rank",
+          "band"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 18
+    },
+    "source_registry": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "source_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "race_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "HORSE",
+              "PAIR",
+              "RACE",
+              "COHORT"
+            ]
+          },
+          "horse_nos": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "uniqueItems": true
+          },
+          "applicable_horse_nos": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "uniqueItems": true
+          },
+          "field": {
+            "type": "string",
+            "minLength": 1
+          },
+          "unit": {
+            "type": "string",
+            "minLength": 1
+          },
+          "slot_offset": {
+            "enum": [
+              21,
+              18,
+              15,
+              12,
+              9,
+              6,
+              null
+            ]
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "available_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "computed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "source_kind": {
+            "enum": [
+              "OBSERVED",
+              "DERIVED"
+            ]
+          },
+          "parents": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "formula_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "formula_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dependency_key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dependency_role": {
+            "enum": [
+              "SIGNAL",
+              "CONTEXT"
+            ]
+          }
+        },
+        "required": [
+          "source_ref",
+          "race_id",
+          "value",
+          "scope",
+          "horse_nos",
+          "applicable_horse_nos",
+          "field",
+          "unit",
+          "slot_offset",
+          "observed_at",
+          "available_at",
+          "computed_at",
+          "source_kind",
+          "parents",
+          "formula_id",
+          "formula_version",
+          "dependency_key",
+          "dependency_role"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "scope": {
+                  "const": "HORSE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "horse_nos": {
+                  "minItems": 1,
+                  "maxItems": 1
+                },
+                "applicable_horse_nos": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scope": {
+                  "const": "PAIR"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "horse_nos": {
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "applicable_horse_nos": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scope": {
+                  "const": "RACE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "horse_nos": {
+                  "maxItems": 0
+                },
+                "applicable_horse_nos": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scope": {
+                  "const": "COHORT"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "horse_nos": {
+                  "maxItems": 0
+                },
+                "applicable_horse_nos": {
+                  "minItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source_kind": {
+                  "const": "OBSERVED"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "parents": {
+                  "maxItems": 0
+                },
+                "formula_id": {
+                  "type": "null"
+                },
+                "formula_version": {
+                  "type": "null"
+                },
+                "computed_at": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source_kind": {
+                  "const": "DERIVED"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "parents": {
+                  "minItems": 1
+                },
+                "formula_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "formula_version": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "computed_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "field_catalog": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "unit": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "enum": [
+              "HORSE",
+              "PAIR",
+              "RACE",
+              "COHORT"
+            ]
+          },
+          "display_label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value_type": {
+            "enum": [
+              "number",
+              "string",
+              "boolean"
+            ]
+          },
+          "missing_allowed": {
+            "type": "boolean"
+          },
+          "minimum": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "unit",
+          "scope",
+          "display_label",
+          "value_type",
+          "missing_allowed",
+          "minimum",
+          "maximum"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "input_indices": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "legacy_gap_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "signals": {
+      "type": "object",
+      "properties": {
+        "X1": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "X2": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "X3": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "X4": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "X5": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "X6": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "Z": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "X1",
+        "X2",
+        "X3",
+        "X4",
+        "X5",
+        "X6",
+        "Z"
+      ],
+      "additionalProperties": false
+    },
+    "S": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "S_min": {
+      "type": "integer"
+    },
+    "S_max": {
+      "type": "integer"
+    },
+    "mode": {
+      "enum": [
+        "FIRM",
+        "MIXED",
+        "VOLATILE",
+        "UNKNOWN"
+      ]
+    },
+    "target_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 7
+    },
+    "base_quota": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "A": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "B": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "D": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            }
+          },
+          "required": [
+            "A",
+            "B",
+            "D"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "quota": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "A": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "B": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "D": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            }
+          },
+          "required": [
+            "A",
+            "B",
+            "D"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "quota_adjustments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "requested_band": {
+            "enum": [
+              "A",
+              "B",
+              "D"
+            ]
+          },
+          "actual_band": {
+            "enum": [
+              "A",
+              "B",
+              "D"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "const": "BAND_CAPACITY"
+          }
+        },
+        "required": [
+          "requested_band",
+          "actual_band",
+          "count",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "selection_enabled": {
+      "type": "boolean"
+    },
+    "display_rating": {
+      "enum": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        null
+      ]
+    },
+    "learning_stage": {
+      "const": "COLLECT_ONLY"
+    },
+    "model_version": {
+      "type": "null"
+    },
+    "ai_role": {
+      "enum": [
+        "1st",
+        "2nd"
+      ]
+    },
+    "role_cap": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 7
+    },
+    "role_quota": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "A": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "B": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "D": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            }
+          },
+          "required": [
+            "A",
+            "B",
+            "D"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "past_runs": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "OPI": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "estimated_odds": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "recovery_statistics": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "similar_statistics": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "legacy_qualifications": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "gap_history": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "INCLUDED"
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "status",
+                "source_refs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "const": "UNAVAILABLE"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "past_runs",
+        "OPI",
+        "estimated_odds",
+        "recovery_statistics",
+        "similar_statistics",
+        "legacy_qualifications",
+        "gap_history"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "prompt_version",
+    "race_id",
+    "snapshot_hash",
+    "snapshot_hash_version",
+    "time_contract",
+    "cutoff_at",
+    "N",
+    "runners",
+    "source_registry",
+    "field_catalog",
+    "input_indices",
+    "legacy_gap_type",
+    "signals",
+    "S",
+    "S_min",
+    "S_max",
+    "mode",
+    "target_count",
+    "base_quota",
+    "quota",
+    "quota_adjustments",
+    "selection_enabled",
+    "display_rating",
+    "learning_stage",
+    "model_version",
+    "ai_role",
+    "role_cap",
+    "role_quota",
+    "coverage"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "ai_role": {
+            "const": "2nd"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "role_cap": {
+            "maximum": 5
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selection_enabled": {
+            "const": false
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "mode": {
+            "const": "UNKNOWN"
+          },
+          "quota": {
+            "type": "null"
+          },
+          "role_quota": {
+            "type": "null"
+          },
+          "role_cap": {
+            "const": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selection_enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "FIRM",
+              "MIXED",
+              "VOLATILE"
+            ]
+          },
+          "quota": {
+            "type": "object"
+          },
+          "role_quota": {
+            "type": "object"
+          },
+          "role_cap": {
+            "minimum": 1
+          }
+        }
+      }
+    }
+  ]
+}

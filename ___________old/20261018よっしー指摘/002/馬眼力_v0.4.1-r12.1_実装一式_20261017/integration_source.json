@@ -1,0 +1,7 @@
+{
+  "file": "AiController.php",
+  "provided_archive": "AiController(20261017-054624).zip",
+  "sha256": "a6fe958bc613c184dc0f771a8c98c5fa9c7cec318ec9c68d750ffb8e05543779",
+  "modified": false,
+  "method": "separate engine and queue route; old controller retained"
+}

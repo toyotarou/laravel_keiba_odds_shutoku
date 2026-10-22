@@ -1,0 +1,509 @@
+馬眼力 BAGANRIKI v0.4.1-r12.1
+エンジニア向け実装・接続・受入仕様書
+作成日：2026年10月17日（日本時間）
+文書版：r12.1-quota-handoff-1
+
+この文書は、7頭選出の混戦を人気側3頭＋穴側4頭へ変更したr12.1の実装・接続仕様です。
+C7 MIXEDの基本配分をA/B/D=3/3/1へ統一しました。添付のr12.1実装一式と同時に適用してください。
+仕様書全文をAIへ送らず、同梱の役割別system本文とprepareが生成したinput_jsonだけを送信してください。
+
+【最初に確認すること】
+・今回の作業は、r12.1を既存DB・実AI・キュー・読取API・Flutter画面へ接続し、本番受入を行うことです。
+・確認済みの個別根拠が1系統ある穴馬を残し、人気帯ごとの枠を守ります。
+・実装側でmode、配分、締切、根拠、訂正、統合、取消を検証します。AIの自己申告だけで確定しません。
+・同梱版はローカル検証済みです。実DB・実AI・本番キュー・画面の接続は未検証です。
+・今回の配分修正をローカル試験で確認します。全環境・将来の全入力に対する不具合ゼロの保証ではありません。
+・学習はCOLLECT_ONLY（記録のみ）。購入推奨は無効です。これらを本番候補表示の接続と混同しないでください。
+
+1. 納品物・版の識別
+
+使用する実装ZIP：
+馬眼力_v0.4.1-r12.1_実装一式_20261017.zip
+ZIP SHA-256：
+caca4506b70c16f45e6ae31984089a1f07f37a7d50f77a65819296a4b5a49ab7
+
+実行版：r12.1
+implementation_version：baganriki-v041-r12-1-quota-20261017
+PHPクラス：Baganriki\BaganrikiR12Bridge
+
+prompt_versionは配分改訂を識別するr12.1へ更新します。Schema構造・marker・hash方式はr8契約を維持します。
+prompt_version：baganriki-v041-r12-1-quota-20261017
+schema_version：baganriki-v041-r8-1
+snapshot_hash_version：exact-common-payload-sha256-r8
+BEGIN：<<<BAGANRIKI_V041_R8_BEGIN>>>
+END：<<<BAGANRIKI_V041_R8_END>>>
+
+上記のprompt_versionとimplementation_versionを正確に使用してください。schema_version・marker・hash方式・PHP互換クラス名を機械的に改名しないこと。
+
+参照する正本ファイル：
+・INSTALL.txt：既存システムへの導入手順。
+・server_contract.txt：保存、検証、訂正、公開等の実装契約。
+・config.json / reference.py：配分と共通演算。
+・prompt_1st.txt / prompt_2nd.txt：各AIへ送るsystem本文。
+・input_schema.json / output_schema.json：厳密な入出力型と必須項目。
+・php/LaravelIntegration.example.php：接続例。
+・runtime_contract.template.json：本番受入の記録用。
+・IMPLEMENTATION_REPORT.txt / audit/：修正内容と検証記録。
+
+詳細なJSONの全キー・型は同梱Schemaを参照してください。本書と実装一式に相違を発見した場合は、独自に丸めず、該当箇所を報告して版を揃えてください。
+
+2. 目的と今回の実装範囲
+
+目的は、締切前に利用可能な断層、時系列オッズ、能力適性、単複差、類似統計から、レース傾向に応じた候補を抽出することです。
+混戦・波乱では根拠ある7番人気以下の見落としを抑えます。長期回収率の改善は今後の実レース評価で確認する目標であり、本実装が利益や的中を保証するものではありません。
+
+今回接続する範囲：
+DB読取・export → 入力検証と凍結 → 1st/2nd独立評価 → 局所検証・必要時訂正 → 永続保存 → 統合・公開 → 最新取消状態を反映したAPI/画面表示。
+
+今回の実装に含まれないもの：
+・実着順・払戻の取込み機能。
+・学習器、学習済み重みの本番適用、X6の実履歴集計アダプタ。
+・券種、点数、資金配分、購入条件を定める購入戦略。
+これらは別の検証済み実装が必要です。今回完成した機能として表示しないでください。
+
+3. 構成と責務
+
+既存PHP：DBの正本値・時刻の取得、AIサービス接続、新キュー・認証済み読取APIの用意。
+adapter.py：DB exportから入力へ変換。
+engine.py / reference.py：入力、参照、根拠、採点、順位、訂正、統合、配分、取消の処理。
+journal.py / store.py：呼出枠、原応答、凍結入力、ライブ状態、公開履歴の永続化と競合検査。
+php/BaganrikiR12Bridge.php：PHPからPythonへの接続。
+php/RoleWorker.php：役割別の永続ワーカー。
+php/Timestamp.php / ExactJson.php：厳密な日時と数値の保持。
+php/PublicView.php：画面用DTO作成。
+Flutter：新DTOの表示。候補の再選出や独自フィルターを行わない。
+
+必要環境：Python 3.10以上、PHP 8.0以上、proc_open、同一ホストの共有永続SQLite。
+SQLiteはWAL・同期FULL。同一レースを扱うWeb/全キューから同じDBを参照します。
+複数ホスト、ネットワークFS、コンテナごとの一時DBや別コピーへそのまま展開しないこと。
+
+4. 既存処理との分離
+
+確認対象はAiController(20261017-054624).zip内のAiController.phpです。
+Controller全体の置換ではなく、新しいキューと読取APIへr12.1を接続してください。
+変更後のコードでは行番号ではなく関数名・処理内容で照合してください。
+
+r12.1結果を通してはいけない旧処理：
+・getHorseOddsFinderAiAnalysis内、旧_getAiAnalysisPrompt以降のプロンプト生成経路。
+・旧firstAiSystemPrompt、public/baganriki_brain/baganriki_brain.txtの追記。
+・2ndの旧oddsData再構成、1stの回答待ち、相手AIの回答参照。
+・旧publicCandidateNums、_trimAiCandidates、_mergeAiResults、旧候補削除条件。
+・旧analysis_textの正規表現解析、旧11項目JSONへの変換。
+
+既存DBの値をAI出力で更新しないこと。旧履歴を残し、進行中レースは既存版で完了させ、新規レースからr12.1へ切り替えます。
+
+5. 入力データと時刻の確定
+
+1レースのexport必須キー：
+race_id、cutoff_at、time_contract、runners、odds_rows、coverage。
+
+runners各行：horse_no（整数）、win_rank（凍結順位1..Nの整数）、band（A/B/D）。
+odds_rows各行：num、minutes_before_start、odds、fuku_min、fuku_max、observed_at、available_at。
+odds/fuku_min/fuku_maxはDBの元の十進数文字列、または定義に沿ったnull。
+既存列はt_horse_odds_finder_oddsのnum、minutes_before_start、odds、fuku_min、fuku_maxに対応します。
+
+observed_atは実観測時刻、available_atは実際に利用可能になった時刻です。
+取得ログ・実DBの意味を確認して列を対応づけてください。created_at等を根拠なく採用せず、スロット予定時刻を実観測時刻として埋めないこと。
+同一馬・同一スロットが複数ある場合は、承認したsampling_policyで1観測に確定してから渡します。重複入力は拒否されます。
+欠損は欠損のまま扱います。未発売等の特殊値は、現行データ定義を確認してアダプタでnullへ対応づけます。
+
+観測スロット：21、18、15、12、9、6分前。
+cutoff_at = anchor_at − 6分。
+SALES_CLOSE_TIMEを使う場合、anchor_atと凍結sales_close_atは同一時刻。
+POST_TIMEを使う場合、anchor_atを正本の発走時刻と照合し、販売締切と同一視しません。
+time_contractにはanchor_kind、anchor_at、sales_close_at、reply_deadline、publish_deadline、safety_margin_ms、sampling_policy_id等を同梱Schemaに従って設定します。
+demo_seed.jsonのfixture-only値や架空の時刻を本番へ流用しないこと。
+
+観測値はobserved_at <= available_at <= cutoff_at。
+各スロットのobserved_atはanchor_at−当該slot以前。
+未来オッズ、確定人気、今回の実着順・払戻、cutoff後に利用可能になった統計を事前入力に混ぜないこと。
+
+凍結順位は6分前の単勝順位。既知の単勝オッズが凍結順位順で非減少であることを検証します。
+順位とオッズが矛盾すれば入力不正として止めます。同値の正本順位は維持し、欠損補完や順位再生成で通さないこと。
+
+6. 出典とデータ利用範囲
+
+source_registry：値、対象、項目、単位、観測/利用可能時刻、派生関係の正本。
+field_catalog：型・単位・対象範囲・表示名の正本。
+input_indices：用途別のsource_ref配列。別の数値を複製して持ちません。
+
+coverageは次の7区分を必須とします。
+past_runs、OPI、estimated_odds、recovery_statistics、similar_statistics、legacy_qualifications、gap_history。
+利用できる区分：{"status":"INCLUDED","source_refs":[実在参照...]}。
+利用できない区分：{"status":"UNAVAILABLE","reason":"具体的な不足理由"}。
+INCLUDEDの参照は非空・重複なし。UNAVAILABLEの理由も非空。利用可能な既存項目を黙って除外しません。
+coverageはprepare、snapshot_hash、保存、read.input_auditまで保持します。
+追加項目はextra_sources、extra_field_catalog、extra_indicesで渡します。
+
+参照scope：
+HORSE＝その1頭、PAIR＝固定された2頭、COHORT＝明示された適用馬、RACE＝レース全体。
+PAIRの馬順は上側・下側を維持。別馬の事実を引用しません。
+
+派生値は未知親、循環、対象馬の不整合、時刻の不整合を拒否します。
+今回対応する式はversion=1のidentity、ratio_12dp、shortening_12dp。
+ratio_12dpは第2親÷第1親、shortening_12dpは（第1親−第2親）÷第1親。
+後2式は小数12桁ROUND_HALF_UP。独自の集約式は追加実装・試験前に使いません。
+DERIVEDの観測/利用可能時刻を親より過去にせず、DERIVED親computed_at <= 子computed_at <= 実送信時刻を守ります。
+上流で算出済みの正本OPI等はOBSERVEDとして受け、元システム側で算出版・取得時刻を監査保存します。
+
+7. 数値・JSON・日時の境界
+
+入力JSONとAI原応答1本は各4MiB以下。prepareで生成した役割別入力も検査します。
+内部の外側通信JSONは64MiB以下、JSONコンテナは最大64階層、registryは最大20,000参照。
+数値は有限、最大128桁、調整後指数−308～308。小数ゼロの指数にも適用します。
+重複キー、NaN/Infinity、単独サロゲート、不正Unicode、数値制限超過は拒否します。
+大きすぎる入力を通すために、原文や利用可能な元データを黙って切り捨てないこと。
+
+日時：YYYY-MM-DDTHH:MM:SS[.小数秒1～6桁](Zまたは±HH:MM)。秒必須。小文字t/zも許容。
+小数秒7桁以上、秒省略、空白区切り等は拒否。切捨て・丸め・補完で締切内へ入れません。
+
+PHPとAI入力の区別：
+・DB DECIMAL文字列はアダプタ境界で正確な数値へ変換します。
+・AI送信用input_json/common_jsonは原文を保持。PHP float経由のdecode→encodeを禁止します。
+・r12.1 Bridgeが返すPHP配列では小数/指数数値を原トークンの文字列、大きな整数も文字列として保持します。
+・通常の整数ID・頭数・revisionは整数、真偽/null/文字列は各型を維持します。
+・prepareのinputsは確認用です。AIへの送信・再保存・再計算にはinput_json/common_jsonを使います。
+・callRawは原JSON。PHPで構造化する場合はExactJson::decodeを使います。
+・画面用facts/counterfactsのvalue_typeはnumber/string/boolean/null。numberのvalueはPHPでは整数または十進数文字列です。
+・floatやJavaScript Numberへの一律変換を禁止します。計算が必要なら任意精度の十進数処理を使います。
+・画面用の数値文字列をAI応答Schemaへ戻さないこと。AIに数値文字列を許容する変更ではありません。
+
+8. 入力凍結と共通hash
+
+prepareExportの戻り値は、input_json['1st'/'2nd']、prompts['1st'/'2nd']、common_json、snapshot_hash等。
+共通入力からsnapshot_hash自身とai_role/role_cap/role_quotaを除いたJSONを一度作り、UTF-8本文のSHA-256を両AIで共用します。
+request_atや取消のライブ状態は共通hashへ混ぜません。
+install(input_json['1st'], generation)で保存します。generationは正の整数。
+凍結後は元値・時刻・順位を変更しません。新generationへの自動再時刻付けで締切をやり直さないこと。
+
+9. 波乱度の算定
+
+kは6分前の凍結順位で隣り合う上側・下側の境界番号です。
+W＝下側単勝÷上側単勝、P＝同じペアの下側複勝最小÷上側複勝最小。
+過去時点も同じ固定ペアで比較します。過去時点の隣接順位で組み替えません。
+閾値比較は元の十進数からの分数を使用し、表示用に丸めた比率を使用しません。
+
+X1：k=1..min(6,N−1)で、W21>=2かつ（W6<2またはWの21→6短縮率>=0.20）が1件以上。
+X2：k=1..min(10,N−1)で、W6>=2かつP6<1.50が1件以上。
+X3：N>=7でk=3,4,5,6のW6<1.50が全て成立。N<7はFALSE。
+X4：凍結7番人気以下の異なる2頭以上で、複勝最小の21→6短縮率>=0.05または9→6短縮率>=0.03。
+X5：k=7..min(10,N−1)でW6>=2が1件以上。
+X6：今回の実装ではN>=7でUNKNOWN、N<7でFALSE。実履歴集計が未検証のため、汎用統計や任意フラグでTRUE/FALSEを作りません。
+Z：k=1..min(5,N−1)の異なる2境界以上で、W21>=2、W6>=2、P6>=1.50が成立。
+
+S = 2×X1 + X2 + X3 + X4 + X5 + X6 − 2×Z
+FIRM（堅い）：S<=1
+MIXED（混戦）：S=2～3
+VOLATILE（波乱）：S>=4
+
+未知値はFALSEにせず三値論理で扱い、全ての可能なSを計算します。
+可能なSが全て同じmodeなら、そのmodeで選出できます。
+複数modeにまたがる場合はmode=UNKNOWN、selection_enabled=false、quota/role_quota=null、role_cap=0、public_candidates=[]。
+UNKNOWNをFIRMと表示しません。全頭の評価・順位を返しても公開候補は作りません。
+星はS<=0で1、S=1で2、S=2～3で3、S=4～5で4、S>=6で5。modeが確定し、全可能Sの星が一致する場合だけ表示します。
+
+10. 人気帯・目標頭数・配分
+
+帯は凍結6分前単勝順位で固定します。
+A：1～6番人気
+B：7～10番人気
+D：11～18番人気
+取消後も順位を詰め直しません。
+
+目標頭数C：
+N=1～3 → C=N
+N=4～8 → C=4
+N=9～13 → C=5
+N=14～15 → C=6
+N=16～18 → C=7
+全頭取消で有効頭数0の場合は目標0。
+
+基本配分（表記はA/B/D）：
+ C | FIRM（堅い） | MIXED（混戦） | VOLATILE（波乱）
+ 4 |    3/1/0     |     2/2/0     |      2/1/1
+ 5 |    4/1/0     |     3/2/0     |      2/2/1
+ 6 |    4/2/0     |     3/2/1     |      3/2/1
+ 7 |    5/2/0     |     3/3/1     |      3/3/1
+C<=3の基本配分はC/0/0。
+
+r12.1ではC7 MIXEDとVOLATILEをともに3/3/1とします。人気側3頭＋穴側4頭です。
+C7 MIXEDの旧4/2/1を使用しません。両AI本文・config・参照実装・試験・仕様書を同時に更新しています。
+
+構造上の不足（その帯に実在する馬が少ない場合）：
+全帯にmin(要求枠,実在頭数)を先に予約し、不足をD→B→Aの順に処理します。
+D枠不足はB→A、B枠不足はD→A、A枠不足はB→Dの順に残余容量から補います。
+例えば8頭MIXEDは基本2/2/0ですが、Bは7～8番人気の2頭なのでそのままです。
+6頭MIXEDはBが構造上存在せず、最終4/0/0になります。
+
+評価後の不足（その帯は存在するが、適格馬が足りない場合）：
+全帯の枠を先に予約し、不足をD→B→Aの順に処理します。
+D枠不足はBだけ、B枠不足はDだけ、A枠不足はB→Dで補います。
+B/Dの評価後不足をAへ移しません。補充先にも根拠がなければ頭数不足のまま理由を記録します。
+構造調整と評価後の補充を混同しないこと。
+
+11. 1st / 2ndの役割
+
+両AIは同じ凍結snapshotで全N頭を独立評価します。相手の回答を渡しません。
+1st：全頭を同じ基準で評価し、各帯の中心候補と根拠ある人気薄を探します。
+2nd：全頭を評価し、特にB/Dの断層上側、能力と価格の乖離、単複差、直前反転を点検します。
+相手と違う候補を出すこと自体は目的にしません。
+
+選出有効時の公開上限：1stはC、2ndはmin(5,C)。
+2ndの「最大5頭」は公開候補の上限です。評価する頭数や順位リストを5頭に限定しません。
+構造調整のないC7 MIXED/VOLATILEでは、1stのrole_quotaは3/3/1、2ndは1/3/1です。穴側4頭を維持し、人気側を1頭にします。
+1stのrole_quotaは構造調整済みquotaと同じ。
+2ndはC<=5なら同じquota。C>5ならBとDを維持し、A=5−B−Dとします。
+例：C7 MIXEDの1st=3/3/1、2nd=1/3/1。
+例：C7 VOLATILEの1st=3/3/1、2nd=1/3/1。
+AI自身がrole_quotaを書き換えたり帯間補充したりしません。
+
+各AIはA→B→Dの順に、各帯順位の先頭min(role_quota,適格数)頭をpublic_candidatesに連結します。
+選出馬はpublic_candidate=true、nonselect_reason=null。
+非選出馬のnonselect_reasonは{code,reason}。codeはBAND_QUOTA/NO_EVIDENCE/UNVERIFIED/SELECTION_DISABLEDの該当値。
+shortfallsは不足帯だけに{band,requested,eligible,missing,reason}を返します。requestedは当該role_quota、eligibleは当該AIの適格数、missingは差分です。
+
+12. 適格条件・根拠・採点
+
+全頭についてmarket、ability、gap、win_place、similar_valueの5系統を検討します。
+当該馬に適用できるHORSE/PAIR/COHORTの確認済み個別SIGNALが1系統あれば適格です。
+RACEだけの情報、CONTEXTだけの情報は個別の適格根拠にしません。
+CONTEXTの派生元にSIGNALがあっても、直接参照がCONTEXTだけならSIGNALへ格上げしません。
+別に正常な個別SIGNALがあれば、その馬の適格資格を維持します。
+
+禁止する一律除外：
+複数根拠必須、Tier A必須、旧F AND (R OR O)、OPI必須、複勝短縮必須、低配当、回収率40%、旧最低点、部分欠損だけによる候補削除。
+根拠のない馬を数合わせで追加することも禁止します。
+
+evidenceはevidence_id、family、dependency_group、source_refs、facts、observation、interpretationを保持。
+factsは{source_ref,value}で、source_refsと重複なしの1対1対応。参照元の値・対象馬・時刻を検証します。
+同一系統または同じ元信号に依存する根拠を独立した根拠として水増ししません。
+Tier A＝独立2系統以上、B＝1系統、C＝5系統を確認しても有効根拠なし、UNVERIFIED＝有効根拠がなく必要情報不足。
+各family_reviewはSUPPORTED/NO_SUPPORT/DATA_MISSINGと参照・根拠ID・理由を持ちます。
+反証も実在参照・対象馬・非欠損値・非空理由を検証。不正な反証で正常な肯定根拠まで削除しません。
+
+採点上限：
+H1 能力適性18、H2 時系列15、H3 断層12、H4 類似統計9、H5 単複差6（H計60）。
+V1 補正OPI・市場評価12、V2 能力と価格の乖離10、V3 回収率と母数8、V4 推定確定オッズと誤差6、V5 情報・価格の信頼性4（V計40）。
+各点は整数。不明はnull、確認した上で支持なしの場合だけ0。
+各項目にscore_evidence（実在参照と理由）を付けます。
+支持なし0、弱い約1/4、中程度約1/2、強い約3/4、整合した強い証拠で上限を目安に四捨五入し、上限内に収めます。予測確率への換算ではありません。
+全10項目既知ならcomplete、total_scoreは合計。
+1項目でもnullならpartial、total_score=null。observed_sumは既知点の合計、observed_capは既知項目上限の合計。
+欠損を中立点で埋めたり、100点へ比例換算したりしません。
+
+13. 順位・両AI統合・最終選出
+
+帯の全適格馬がcompleteならSCORE方式：合計点降順→V小計降順→H小計降順→馬番昇順。
+合計とVが等しい場合はHも等しいため、実装の合計→V→馬番と同じ順序です。
+適格馬にpartialがある帯はEVIDENCE方式。得点を順位キーに使わず、確認済み根拠・反証から比較します。
+非適格馬だけのpartialで方式を変えません。AIのrank_basis申告だけでcomplete帯をEVIDENCEへ変更しません。
+
+通常band_ranksと予備evidence_band_ranksの両方を全帯で必須とし、全適格馬を含めます。
+EVIDENCE方式では両順位を一致させます。適格馬ごとに実在根拠IDと比較理由を付けます。
+通常順位に不備があれば検証済み予備根拠順位を利用します。それも使えなければ独立根拠群数降順→馬番昇順へ縮退し、RANK_RECOVERY_FALLBACKを表示します。
+
+統合：凍結時点の帯の実在頭数をK、各AI帯内順位をrとしてrank_score=100×(K−r+1)/K。
+馬ごとに有効なAIのrank_scoreの最大値を採用します。
+両AIの検証済み原公開候補であることを証明できた馬だけ+5。
+混在した訂正結果について元の完全な公開主張との一致を証明できなければ加点しません。
+同点は両AI一致の有無→独立根拠群数→馬番昇順。
+この統合順位点を「勝率」「期待値」「おすすめ度100点」と表示しません。
+
+統合後に取消馬を除き、残存馬の凍結帯と有効頭数で構造配分を調整して最終選出します。
+第10項の先行予約と補充順を使用し、重複選出しません。
+正式候補が目標に届かない場合は不足を表示し、旧処理で人気上位を追加しません。
+
+14. 原応答検証と訂正
+
+AI出力はBEGIN1行、JSONオブジェクト1個、END1行のみ。
+Markdown、旧候補行、追加キー、末尾カンマ、数値欄の数値文字列等を許容しません。
+識別子、race_id、role、snapshot_hash、mode、quota等の不一致は応答全体を不採用にします。
+馬番欠落・重複・未知馬・局所フィールド不正は該当範囲を隔離し、正常な他馬・他AIを維持します。
+採点不正は該当項目をnullにして集計を再計算。帯、Tier、資格、レビュー、順位、公開リスト、非選出理由も照合します。
+
+訂正は各roleで初回＋必要時の1回だけ。最大2回、両role合計最大4回。SDK自動リトライは0。
+inspectとresolveは同じ診断を使用し、repair_scopeを指定します。
+horses＝評価行、rank_bands＝順位、presentation_horses＝公開フラグ/非選出理由、summary_horses＝集計・レビュー等、public_candidates＝公開リスト、top_fields＝指定最上位項目。
+表示だけの不正で正常な根拠や別帯順位まで再評価させません。
+指定範囲外の変更は採用せず、変更ログを残します。
+訂正は検証済みの行だけ採用。初回の正常根拠を全て失う、completeをpartialへ悪化させる等の場合は初回を保持します。
+訂正受領時刻は初回受領時刻以上。同一時刻は許容。遅着、未完了、不正JSON、深いJSON、不正Unicode等では初回の正常部分を保持し、3回目を呼びません。
+attemptsが配列でない、または3本以上の場合は当該roleをAI_FAILUREとして隔離し、正常な他roleを保持します。
+
+馬の事実出典response_hash、帯順位のsource_hash、両AI公開一致のpublic_proof_hashを分けて保存します。
+公開フラグだけの修正を理由に、正常な馬の事実出典を訂正版へ付け替えません。
+未解決の公開整合性はPUBLIC_CANDIDATE_VALIDATION_FAILED/PARTIAL_AI_VALIDATION等として表示します。
+
+15. 永続ワーカーと再起動
+
+installを完了してから1st/2ndを独立したキュージョブとして投入します。
+HTTPリクエスト内で両AI＋訂正の完了まで待たず、受付後は読取APIを参照させます。
+RoleWorkerへ(system, input_json, reply_deadline, provider, generation)を渡します。
+providerの引数は(system,user,timeoutSeconds)、戻り値は{text:原応答文字列,complete:真偽値}。
+1stは既存AnthropicService、2ndは現在のDeepSeek呼出しへ接続します。送信本文は渡されたsystem/userのみ。
+モデルID、max_output_tokens、timeout等は実APIと最大18頭の実測で決め、旧8192等を無条件で流用しません。
+completeは実際の終了理由で確定。長さ打切り、未完了、通信失敗をtrueにしません。
+
+ai_attemptsの主キーはrace_id/generation/ai_role/attempt_no。attempt_noは初回0、訂正1。
+API送信前に呼出枠予約をcommitし、原応答とcompleteをcommitしてから訂正を判定します。
+初回未受領またはFAILEDなら訂正を予約しません。正常初回で訂正不要なら1回で終了します。
+重複キュー、再起動、予約の期限切れで同じ枠を再発行しません。
+未完了本文も原文で保存しますが、選出には使用しません。
+
+API中や応答保存前の停止では、プロバイダ側の実行結果を確定できないことがあります。
+結果不明の予約はoutcome_unknownとして残し、自動再送せず、別AIや保存済み初回で縮退します。
+外部APIまで含むExactly Onceや未commit応答の完全復元を保証するものではありません。
+同一token・同一原文・同一受領時刻・同一completeの保存再試行は冪等。異なる内容への終端変更は拒否します。
+response_revisionは予約/終端変更の合計で、4枠全て受領なら8。単純な回答本数ではありません。
+read.worker_stateは状態を返しますがtoken/原文を画面へ出しません。内部worker_stateは自roleの原文だけを扱います。
+
+16. 公開・競合・締切
+
+公開はpublishSavedで保存済み応答を統合します。手渡しの応答配列で正常な他AIを欠落させません。
+ジャーナルのあるレースでは旧publish(...responses)を使用しません。
+
+公開intentは次を一貫したreadから取得し、キューペイロードへ一度保存します。
+race_id、generation、state_revision、publication_revision、response_revision、job_id。
+再実行時は同じintentを使います。handle内で版を読み直して同じjob_idに詰め替えないこと。
+同じintentの再実行は同じpublication_idを返します。
+最新状態で再統合する場合は、新しいintentと新しいjob_idを作ります。
+
+重い検証は書込みロック外で行い、commit直前の短い取引で3つのrevisionを再比較します。
+取消・応答・公開版が変化したら古い結果を保存しません。正常な新応答・ライブ更新を維持します。
+同一intent同士の競合は同じ結果を返し、異なるintentで古い版を共有した競合は片方だけ保存、他方はstaleとなります。
+
+片側結果を先に公開でき、他方到着後は期限内に新intentで再統合できます。
+応答/失敗保存後に統合ジョブを投入し、reply_deadline到達時にも回復用ジョブを投入します。両側を無期限に待ちません。
+
+実効公開期限＝min(凍結publish_deadline, 最新live_close−safety_margin_ms)。
+受領はreply_deadlineまで。検証完了・commit直前は実効公開期限以下、かつlive_closeより前であること。
+実効公開期限ちょうどの公開は上記条件下で可。超過は不可。呼出開始は期限到達以降不可。
+開始後に締切が前倒しされた場合も、公開時には最新の締切を優先します。
+検証開始<=検証完了<=commit直前を確認し、時計逆行ではrollbackします。
+過去の予約/受領時刻より現在時刻が前ならCLOCK_ROLLBACKとして訂正枠を消費しません。
+OSの時計同期も導入側で確認し、時刻回復後は保存済み状態から再開します。
+
+17. 取消と画面表示
+
+updateLive(raceId, expectedStateRevision, 累積取消馬番配列, 前倒し締切またはnull)を使用します。
+取消は追加のみ。解除や締切延長は拒否します。変更なしの締切はnullだけを使用し、空文字/false/0を渡しません。
+取消は馬番配列必須。object/null/文字列等を空配列扱いしません。同一馬番の重複は正規化します。
+実効期限を計算できない更新は保存前に拒否し、取消・締切・revision・eventを全て変更せず残します。
+
+公開期限前なら最新state_revisionで再統合できます。
+期限後は取消表示だけを更新し、正式予想の候補追加・入替・削除による履歴改変を行いません。
+取消された正式候補は履歴に残し、cancelled=true、display_status=CANCELLED、buy_recommended=falseで表示します。
+
+APIはreadした最新状態からPublicView::build($stored,$horseNamesByNo)を使用して作ります。
+本番で第3引数nowを任意指定せず、サーバー現在時刻を使います。
+horseNamesByNoは正本の馬名対応。AIに馬名やオッズ等を新規生成させません。
+
+状態表示：
+・未公開、期限内：PENDING。
+・未公開、実効公開期限超過：UNAVAILABLE。
+・公開済み：PUBLISHED。
+・全頭取消：CANCELLED（公開有無より優先）。
+PENDING/UNAVAILABLE/CANCELLEDの未公開DTOは候補空配列で、公開時とは返却キーが異なります。画面は未公開でpublication_id等の存在を仮定しないこと。
+
+版・頭数の表示：
+publication_id/publication_revision＝正式公開の識別。
+live_state_revision＝現在の取消等の版。
+active_count/actual_quota/available_candidate_count＝現在の取消を反映した値。
+prediction_*＝正式公開時の履歴値。
+publication_target_count/publication_quota＝正式公開時の目標と配分。
+live_target_count/live_quota＝現在頭数に基づく構造上の目安。
+例えば16→15頭で現在の目標が7→6となっても、期限後に正式予想を再選出しません。
+status_flagsの取消、状態変更、不足、縮退、AI検証問題を画面へ反映します。
+
+候補理由は検証済みfacts/counterfactsから定型表示を作ります。AIの原explanationは監査用で、無検証のまま画面に出しません。
+全候補buy_recommended=false、purchase_status=PENDING_VALIDATIONを維持します。
+
+18. 学習段階
+
+learning_stage=COLLECT_ONLY、model_version=null。
+入力、AI原応答、検証・回復、公開、取消の記録を蓄積します。
+SHADOW_EVAL/LIVE_VALIDATEDは今回の実装では入力拒否。旧brainや学習文を追記して学習済みのように動作させません。
+将来の結果・払戻取込、評価指標、学習方式、比較方法、昇格条件は別途定義・実装・検証します。
+結果を見て事前の根拠を書き換えません。候補表示の本番接続完了を学習・購入機能の完成と扱いません。
+
+19. 導入作業の順序
+
+① r12.1一式を配置し、同梱SHA256SUMS.txtで内容を照合。
+   配置例：/opt/baganriki/r12_1
+   DB例：/var/lib/baganriki/r12_1.sqlite
+   Web/キューがDB・親ディレクトリ・WAL/SHMへ必要な書込み権限を持つことを確認。
+② 対象サーバーの実Python/PHPで同梱検証を実行。
+③ DB列・実時刻・coverage・追加項目の対応表とsampling_policyを確定。
+④ prepareExport → install → 役割別キュー → publishSaved → read → PublicViewの新経路を接続。
+⑤ 実AIの終了理由、最大18頭の出力長、初回＋訂正の所要時間を確認。
+⑥ 新APIへ既存の認証・認可を適用。内部CLI/claim/complete/fail/worker_stateを公開HTTPへ直接露出しない。
+⑦ Flutterで数値、根拠、取消、不足、期限、未公開状態を確認。
+⑧ 保存済み実レースの同一snapshotで照合し、本番受入記録を作成。
+⑨ 問題が解消した新規レースから切替。進行中snapshotと旧履歴は維持。旧r12のレースは旧版で完了させ、r12.1の設定へ途中で付け替えない。
+
+Python実行例（パスは導入先に合わせる）：
+python3 -m venv /opt/baganriki/r12_1/.venv
+/opt/baganriki/r12_1/.venv/bin/python -m pip install -r /opt/baganriki/r12_1/requirements-test.lock.txt
+/opt/baganriki/r12_1/.venv/bin/python /opt/baganriki/r12_1/verify.py
+
+PHPは以下7本を、ZIPの展開先にある実装ディレクトリを作業ディレクトリとして実PHPで実行します。
+php/test_bridge.php
+php/test_worker.php
+php/test_durability.php
+php/test_fault_isolation.php
+php/test_public_view.php
+php/test_time_boundary.php
+php/test_exact_json.php
+実行前にphp/make_test_fixture.pyを実行し、BAGANRIKI_PYTHONへvenvの絶対パスを設定してください。
+合成fixtureが期限切れなら合成fixtureだけを再生成します。本番snapshotの時刻を更新しないこと。
+PHP Bridgeへ渡すPython/実装/DBのパスをユーザー入力から組み立てません。
+バックアップはSQLiteオンラインバックアップ等、WALを含む整合した方法で実施します。稼働中DB本体だけのコピーで復旧しません。
+
+20. 本番受入条件と提出証跡
+
+以下を導入先で確認し、結果・設定・該当ログをruntime_contract.template.jsonと併せて提出してください。
+「ローカルで合格済み」だけを理由に本番欄をtrueへ変更しないでください。
+
+AC01 版・旧処理分離：r12.1一式が同じ版で配置され、配分改訂のprompt_versionとr8のSchema/marker/hashを使用。旧brain/候補フィルター/旧マージが新経路へ混入しない。
+AC02 DB入力：実DBの値、時刻、順位、全7coverage、追加項目を照合。原値とhashを保持し、欠損や未取得理由を確認できる。
+AC03 配分：C7 MIXEDは3/3/1、同2ndは1/3/1。C4～C7の全mode、構造不足、評価後不足、1st/2nd配分が一致。B/D不足をAで埋めない。
+AC04 穴馬保持：個別SIGNAL1系統の馬を残し、旧資格、低配当、部分欠損だけで削らない。CONTEXTのみは適格にしない。
+AC05 実AI：同一snapshotの全N頭を独立評価。最大18頭＋必要時訂正が設定した受領/公開期限内に終了し、finish_reasonと出力長を確認できる。
+AC06 異常応答：片側不正、欠落/重複馬、表示型不正、得点不正、未知参照、未完了、深いJSON等で正常な他馬/他AI/初回を保持。訂正対象外順位・出典を維持する。
+AC07 永続性：共有DB、SDKリトライ0、同時起動、重複ジョブ、初回保存後停止、API中停止、訂正中停止、再起動を確認。予約を再発行せず結果不明を表示できる。
+AC08 公開競合：固定intentの再試行は同じ公開ID。検証中の取消/応答保存/別公開で古いcommitを拒否し、新しい正常状態を失わない。
+AC09 時刻境界：期限ちょうど/超過、締切前倒し、時計逆行、日時精度不正を確認。範囲外更新は全体rollbackし旧状態を読める。
+AC10 数値：長い小数、指数、大整数、引用符/バックスラッシュ/制御文字をDB→入力→保存→公開→HTTP→画面で保持。value_typeで区別し、float丸めやJSON出力失敗がない。
+AC11 取消・画面：現在頭数と正式公開時頭数を区別。期限後の取消で履歴を改変せず、取消候補と不足を表示。未公開期限超過をPENDINGのままにしない。
+AC12 範囲：COLLECT_ONLY/model_version=null、buy_recommended=false/PENDING_VALIDATION、未検証X6=UNKNOWNを維持。未実装機能を有効化しない。
+
+候補表示の本番接続完了は、上記の対象項目が実環境で合格し、未解決の接続不具合がなく、実データの照合と画面確認の証跡を提出した状態とします。
+候補経路の受入が完了しても、purchase_ready/live_learning_readyを自動でtrueにしません。
+
+21. 配布版での検証済み範囲
+
+r12.1で今回実行した検証：
+・verify.pyの全13系列が合格。単体試験213件（配分回帰12件を含む）、失敗0・例外0。
+・異常応答304条件、標準Schema3種、正常fixture11/不正fixture9。
+・16～18頭MIXEDの3/3/1、2ndの1/3/1、全頭評価、最終統合、部分採点・単一根拠、B/D相互補充、穴不足時A補充禁止、片側AI失敗、取消後配分、旧版拒否を確認。
+・試験は合成データ・模擬応答を使用。実レースの高配当捕捉率・回収率改善は未検証。
+
+旧r12の記録として残すもの：
+・php_bridge_results.jsonとaudit内のPHP-WASM7系列の結果。r12.1での再実行結果ではありません。
+・配分変更前の報告と差分。旧配分の記載を現行仕様として使用しません。
+
+実DB・実AI・本番PHP・実キュー・既存API/Flutter接続の受入は未実施です。
+導入先ではINSTALL.txtに従い実Python/PHPで検証し、本番受入欄を証跡とともに確認してください。
+
+22. エンジニアから回答いただきたい事項
+
+1）実装する新API・キュージョブ・DBアダプタ・画面の変更箇所。
+2）Python/PHPの実行環境、共有DBパス、ワーカー配置、バックアップ方法。
+3）anchor基準、DBのobserved_at/available_at対応、sampling_policy、受領/公開期限と安全余裕。
+4）7区分coverageと追加項目の対応表。利用できない項目は具体的理由。
+5）1st/2ndの実モデル、SDK再試行設定、出力上限、最大18頭＋訂正の実測時間。
+6）AC01～AC12の確認結果と証跡、未解決事項、切替手順・予定。
+7）仕様変更が必要な場合は、対象条項、理由、候補配分・穴馬保持・期限・画面への影響。
+
+不明な項目を推測値で埋めて受入完了にしないでください。
+今回の依頼は、r12.1の契約を維持した接続と受入です。仕様・コード・試験・画面の挙動を揃えた状態での引渡しをお願いします。

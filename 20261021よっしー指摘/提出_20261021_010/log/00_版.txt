@@ -1,0 +1,30 @@
+PHP 8.0.30 (cli) (built: Jan 16 2026 07:00:26) ( NTS gcc x86_64 )
+Laravel Framework 8.83.29
+2c6460626989c78bf542db65ef1fb3a8  app/Http/Controllers/Api/AiController.php
+e05ccaa64eda0225d3b24a25a32edd60  app/Console/Commands/SummaryAiAnalysisCompensate.php
+5d9648d932b0b4bffd119a05650f90a1  app/Console/Commands/SummaryPopularityRankAverage.php
+ffe28f51db5f80c636bf342e4b2f29da  app/Console/Commands/SummaryFukuPopularityRankAverage.php
+319ce857b8c5b938c52d8adf9c3d8582  app/Jobs/R122AggregateRaceJob.php
+f72f0dc95dc30bfd9a2838afeb698e75  app/Jobs/R122FreezeRaceJob.php
+b5427782fe211b55866e779b8d200c72  app/Jobs/R122Job.php
+e6c61f1a5d316b5b58c2d887af14ba3e  app/Jobs/R122RunRoleJob.php
+872b4afb67e64f4438ee726156a37dd7  app/Jobs/R122UpdateRaceLiveJob.php
+-- 8.1以降の書き方が1つも無いこと --
+-- 待ち行列の設定 --
+  既定の接続 : sync
+  r122       : {"driver":"database","table":"jobs","queue":"r122-agg","retry_after":300,"after_commit":true}
+  jobs         あり（0 行）
+  job_batches  あり（0 行）
+  failed_jobs  あり（0 行）
+-- 旗 --
+BAGANRIKI_R122_AUDIT=1
+BAGANRIKI_R122_PROMPT=shadow
+BAGANRIKI_R122_QUEUE=0
+BAGANRIKI_SALES_CLOSE_DERIVE=1
+BAGANRIKI_SALES_CLOSE_OFFSET_SEC=60
+BAGANRIKI_PAST_RUNS_MAX=5
+BAGANRIKI_R122_JOBS=0
+BAGANRIKI_R122_TARGETS=
+BAGANRIKI_R122_TARGETS_ENFORCE=0
+-- 常駐（1枠も起動していないこと）--
+  （上が空なら1枠も起動していません）

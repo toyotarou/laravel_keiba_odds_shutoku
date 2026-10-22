@@ -1,0 +1,305 @@
+--- r9/engine.py
++++ r10/engine.py
+@@ -97,6 +97,7 @@
+ def common_payload(inp):return {k:v for k,v in inp.items() if k not in (*ROLE_KEYS,'snapshot_hash')}
+ 
+ def validate_input(inp,request_at):
++    require(len(r.json_dumps(inp).encode('utf-8'))<=4*1024*1024,'input size limit: 4 MiB')
+     VALIDATORS['input'].validate(inp)
+     require(inp['learning_stage']=='COLLECT_ONLY' and inp['model_version'] is None,'r8 supports COLLECT_ONLY only')
+     r.validate_runners(inp['runners']);require(r.exact_int(inp['N']) and inp['N']==len(inp['runners']),'N mismatch')
+@@ -394,11 +395,15 @@
+     """Each role: [{text,received_at}, optional correction]. No extra model calls."""
+     # Check frozen input at its valid cutoff (computed sources can be later than cutoff).
+     validate_input(inp,min(now,inp['time_contract']['reply_deadline'],key=r.timestamp))
++    require(isinstance(responses,dict),'responses object')
+     role_orders={};role_views={};public={};audit={};received=[]
+     for role in ('1st','2nd'):
+         x=copy.deepcopy(inp);x['ai_role']=role;x['role_cap'],x['role_quota']=r.role_quota(x['quota'],x['target_count'],role)
+-        attempts=responses.get(role,[]);require(isinstance(attempts,list) and len(attempts)<=2,'at most one correction per role')
++        attempts=responses.get(role,[])
+         current=None;repair={};log=[];previous_receipt=None
++        if not isinstance(attempts,list) or len(attempts)>2:
++            audit[role]=dict(status='AI_FAILURE',corrections=[dict(error='invalid attempts: array with at most two entries required')])
++            continue
+         for i,a in enumerate(attempts):
+             try:
+                 at=r.timestamp(a['received_at'])
+--- r9/store.py
++++ r10/store.py
+@@ -49,8 +49,10 @@
+             st=self.state(race_id);e.require(type(expected_revision) is int and expected_revision==st['state_revision'],'stale live state')
+             inp=r.strict_loads(st['snapshot_json']);r.cancellation_view(inp['runners'],cancelled,inp['mode'])
+             old=set(r.strict_loads(st['cancelled_json']));e.require(old<=set(cancelled),'cancellation removal requires separate authoritative review')
+-            close=live_close or st['live_close'];e.require(r.timestamp(close)<=r.timestamp(st['live_close']),'live close cannot be extended')
+-            if old==set(cancelled) and close==st['live_close']:
++            close=st['live_close'] if live_close is None else live_close
++            close_time=r.timestamp(close);old_time=r.timestamp(st['live_close'])
++            e.require(close_time<=old_time,'live close cannot be extended')
++            if old==set(cancelled) and close_time==old_time:
+                 self.db.execute('COMMIT');return self.state(race_id)
+             rev=st['state_revision']+1
+             self.db.execute('UPDATE race_state SET state_revision=?,cancelled_json=?,live_close=? WHERE race_id=?',
+@@ -70,22 +72,41 @@
+         intent=dict(generation=generation,state_revision=state_revision,publication_revision=publication_revision)
+         intent.update(dict(source='saved',response_revision=response_revision) if response_revision is not None else dict(responses=responses))
+         request_hash=r.canonical_hash(intent)
++        # Capture a consistent read snapshot, then release it before validation.
++        # WAL allows live updates and response saves while this read is active.
++        self.db.execute('BEGIN')
++        try:
++            previous=self.db.execute('SELECT * FROM publications WHERE race_id=? AND generation=? AND job_id=?',(race_id,generation,job_id)).fetchone()
++            if previous:
++                e.require(previous['request_hash']==request_hash,'job id reused with different input')
++                cached=previous['result_json'];self.db.execute('COMMIT')
++                return r.strict_loads(cached,max_bytes=64*1024*1024)
++            st=self.state(race_id)
++            e.require((generation,state_revision,publication_revision)==(st['generation'],st['state_revision'],st['publication_revision']),'stale publication job')
++            observed_response_revision=self.response_revision(race_id,generation)
++            if response_revision is not None:
++                e.require(response_revision==observed_response_revision,'stale response revision')
++                responses=self.saved_responses(race_id,generation)
++            else:e.require(observed_response_revision==0,'journal-backed race requires publish_saved')
++            inp=r.strict_loads(st['snapshot_json']);cancelled=r.strict_loads(st['cancelled_json'])
++            self.db.execute('COMMIT')
++        except Exception:
++            if self.db.in_transaction:self.db.execute('ROLLBACK')
++            raise
++        result=e.resolve(inp,responses,cancelled,self.clock())
++        # Compare all captured revisions again, inside the short write transaction.
+         self.db.execute('BEGIN IMMEDIATE')
+         try:
+             previous=self.db.execute('SELECT * FROM publications WHERE race_id=? AND generation=? AND job_id=?',(race_id,generation,job_id)).fetchone()
+             if previous:
+                 e.require(previous['request_hash']==request_hash,'job id reused with different input')
+-                self.db.execute('COMMIT');return r.strict_loads(previous['result_json'],max_bytes=64*1024*1024)
+-            st=self.state(race_id)
+-            e.require((generation,state_revision,publication_revision)==(st['generation'],st['state_revision'],st['publication_revision']),'stale publication job')
+-            if response_revision is not None:
+-                e.require(response_revision==self.response_revision(race_id,generation),'stale response revision')
+-                responses=self.saved_responses(race_id,generation)
+-            else:
+-                e.require(not self._rows(race_id,generation),'journal-backed race requires publish_saved')
+-            inp=r.strict_loads(st['snapshot_json']);now=self.clock()
+-            result=e.resolve(inp,responses,r.strict_loads(st['cancelled_json']),now)
+-            now=self.clock();result['verified_at']=now
++                cached=previous['result_json'];self.db.execute('COMMIT')
++                return r.strict_loads(cached,max_bytes=64*1024*1024)
++            current=self.state(race_id)
++            e.require((generation,state_revision,publication_revision,st['snapshot_hash'])==
++                (current['generation'],current['state_revision'],current['publication_revision'],current['snapshot_hash']),'stale publication job')
++            e.require(observed_response_revision==self.response_revision(race_id,generation),'stale response revision')
++            st=current;now=self.clock();result['verified_at']=now
+             margin=inp['time_contract']['safety_margin_ms']
+             e.require(r.can_publish(now=now,received_at=result['received_at'],verified_at=result['verified_at'],
+                 reply_deadline=inp['time_contract']['reply_deadline'],publish_deadline=inp['time_contract']['publish_deadline'],live_close=st['live_close'],
+@@ -93,18 +114,23 @@
+                 safety_margin_ms=margin),'publication deadline/state')
+             result['effective_publish_deadline']=r.publication_deadline(inp['time_contract']['publish_deadline'],st['live_close'],margin).isoformat()
+             rev=publication_revision+1
+-            result.update(generation=generation,state_revision=state_revision,publication_revision=rev)
++            result.update(generation=generation,state_revision=state_revision,publication_revision=rev,
++                implementation_version='baganriki-v041-r10-concurrent-publication-20261017')
+             if response_revision is not None:result['response_revision']=response_revision
+             cur=self.db.execute('INSERT INTO publications(race_id,snapshot_hash,generation,state_revision,publication_revision,job_id,request_hash,result_json,responses_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                 (race_id,st['snapshot_hash'],generation,state_revision,rev,job_id,request_hash,'{}',r.json_dumps(responses),now))
+             result['publication_id']=cur.lastrowid
+-            self.db.execute('UPDATE publications SET result_json=? WHERE id=?',(r.json_dumps(result),cur.lastrowid))
++            result_json=r.json_dumps(result)
++            e.require(len(result_json.encode('utf-8'))<=64*1024*1024,'publication size limit')
++            self.db.execute('UPDATE publications SET result_json=? WHERE id=?',(result_json,cur.lastrowid))
+             self.db.execute('UPDATE race_state SET publication_revision=? WHERE race_id=?',(rev,race_id))
+             commit_at=r.timestamp(self.clock())
+             e.require(commit_at<=r.publication_deadline(inp['time_contract']['publish_deadline'],st['live_close'],margin)
+                 and commit_at<r.timestamp(st['live_close']),'deadline elapsed before commit')
+             self.db.execute('COMMIT');return result
+-        except Exception:self.db.execute('ROLLBACK');raise
++        except Exception:
++            if self.db.in_transaction:self.db.execute('ROLLBACK')
++            raise
+     def read(self,race_id):
+         self.db.execute('BEGIN')
+         try:
+@@ -112,9 +138,10 @@
+             row=self.db.execute('SELECT result_json FROM publications WHERE race_id=? AND generation=? ORDER BY publication_revision DESC LIMIT 1',(race_id,st['generation'])).fetchone()
+             result=r.strict_loads(row['result_json'],max_bytes=64*1024*1024) if row else None
+             inp=r.strict_loads(st['snapshot_json'])
++            overlay=r.cancellation_view(inp['runners'],r.strict_loads(st['cancelled_json']),inp['mode'])
+             view=dict(publication=result,input_audit=dict(snapshot_hash=st['snapshot_hash'],coverage=inp['coverage']),
+                 worker_state=dict(response_revision=self.response_revision(race_id,st['generation']),slots=self._summary(self._rows(race_id,st['generation']))),
+-                live_state=dict(generation=st['generation'],publication_revision=st['publication_revision'],state_revision=st['state_revision'],cancelled=r.strict_loads(st['cancelled_json']),live_close=st['live_close'],
++                live_state=dict(active_count=overlay['active_count'],publication_target_count=overlay['publication_target_count'],publication_quota=overlay['publication_quota'],generation=st['generation'],publication_revision=st['publication_revision'],state_revision=st['state_revision'],cancelled=r.strict_loads(st['cancelled_json']),live_close=st['live_close'],
+                     effective_publish_deadline=r.publication_deadline(inp['time_contract']['publish_deadline'],st['live_close'],inp['time_contract']['safety_margin_ms']).isoformat()))
+             self.db.execute('COMMIT');return view
+         except Exception:self.db.execute('ROLLBACK');raise
+--- r9/journal.py
++++ r10/journal.py
+@@ -67,33 +67,45 @@
+     def claim(self, inp, generation, system):
+         e.require(inp.get('ai_role') in ('1st','2nd'),'AI role')
+         e.require(system==(e.ROOT/f"prompt_{inp['ai_role']}.txt").read_text(),'system prompt differs from installed protocol')
++        # Immutable input checks and model diagnostics can be expensive. Do not
++        # hold the SQLite writer while the other role is trying to save a reply.
++        st=self._input(inp,generation);race=inp['race_id'];role=inp['ai_role'];tc=inp['time_contract']
++        rows=self._rows(race,generation,role)
++        signature=lambda items:[(x['attempt_no'],x['token'],x['status']) for x in items]
++        observed=signature(rows);reason=None;user='INPUT_JSON\n'+r.json_dumps(inp)
++        deadline=min(r.timestamp(tc['reply_deadline']),r.publication_deadline(tc['publish_deadline'],st['live_close'],tc['safety_margin_ms']))
++        if r.timestamp(self.clock())>=deadline:reason='DEADLINE'
++        elif len(rows)>=2:reason='BUDGET_EXHAUSTED'
++        elif rows:
++            first=rows[0]
++            if first['status']!='RECEIVED':reason='INITIAL_OUTCOME_PENDING_OR_FAILED'
++            elif r.timestamp(first['received_at'])>r.timestamp(tc['reply_deadline']):reason='LATE_INITIAL'
++            else:
++                inspect_text=first['response_text'] if first['complete'] else 'INCOMPLETE_MODEL_RESPONSE'
++                check=e.inspect_for_correction(inp,inspect_text,first['received_at'])
++                if not check['needs_correction']:reason='COMPLETE'
++                else:user+='\nINITIAL_RESPONSE\n'+first['response_text']+'\n'+check['request']
+         self.db.execute('BEGIN IMMEDIATE')
+         try:
+-            st=self._input(inp,generation);race=inp['race_id'];role=inp['ai_role']
+-            rows=self._rows(race,generation,role);tc=inp['time_contract']
++            st=self.state(race)
++            e.require((generation,inp['snapshot_hash'])==(st['generation'],st['snapshot_hash']),'stale worker snapshot')
++            current=self._rows(race,generation,role)
+             deadline=min(r.timestamp(tc['reply_deadline']),r.publication_deadline(tc['publish_deadline'],st['live_close'],tc['safety_margin_ms']))
+-            now=self.clock();reason=None;user='INPUT_JSON\n'+r.json_dumps(inp)
+-            if r.timestamp(now)>=deadline:reason='DEADLINE'
+-            elif len(rows)>=2:reason='BUDGET_EXHAUSTED'
+-            elif rows:
+-                first=rows[0]
+-                if first['status']!='RECEIVED':reason='INITIAL_OUTCOME_PENDING_OR_FAILED'
+-                elif r.timestamp(first['received_at'])>r.timestamp(tc['reply_deadline']):reason='LATE_INITIAL'
+-                else:
+-                    # Incomplete raw bytes remain untouched in the journal.
+-                    inspect_text=first['response_text'] if first['complete'] else 'INCOMPLETE_MODEL_RESPONSE'
+-                    check=e.inspect_for_correction(inp,inspect_text,first['received_at'])
+-                    if not check['needs_correction']:reason='COMPLETE'
+-                    else:user+='\nINITIAL_RESPONSE\n'+first['response_text']+'\n'+check['request']
++            now=self.clock()
++            if len(r.strict_loads(st['cancelled_json']))==inp['N']:reason='ALL_CANCELLED'
++            elif r.timestamp(now)>=deadline:reason='DEADLINE'
++            elif signature(current)!=observed:reason='STATE_CHANGED'
+             if reason:
+-                out=dict(granted=False,reason=reason,attempts=self._attempts(rows),slots=self._summary(rows))
++                out=dict(granted=False,reason=reason,attempts=self._attempts(current),slots=self._summary(current))
+             else:
+-                token=secrets.token_hex(32);index=len(rows)
++                token=secrets.token_hex(32);index=len(current)
+                 self.db.execute('INSERT INTO ai_attempts(race_id,generation,ai_role,attempt_no,snapshot_hash,token,status,claimed_at,call_deadline) VALUES(?,?,?,?,?,?,\'RESERVED\',?,?)',
+                     (race,generation,role,index,st['snapshot_hash'],token,now,deadline.isoformat()))
+                 out=dict(granted=True,token=token,attempt_no=index,user=user,call_deadline=deadline.isoformat())
+             self.db.execute('COMMIT');return out
+-        except Exception:self.db.execute('ROLLBACK');raise
++        except Exception:
++            if self.db.in_transaction:self.db.execute('ROLLBACK')
++            raise
+ 
+     def complete(self, token, text, received_at, complete):
+         e.require(isinstance(text,str) and len(text.encode('utf-8'))<=MAX_RESPONSE_BYTES,'response size/UTF-8/type')
+--- r9/verify.py
++++ r10/verify.py
+@@ -2,7 +2,7 @@
+ import subprocess,sys,json
+ from pathlib import Path
+ root=Path(__file__).resolve().parent;results=[]
+-for script in ('test_reference.py','test_contract.py','test_engine.py','test_audit_regressions.py','test_r7_integration.py','test_r8_regressions.py','test_journal.py','test_malformed_responses.py','schema_standard_check.py'):
++for script in ('test_reference.py','test_contract.py','test_engine.py','test_audit_regressions.py','test_r7_integration.py','test_r8_regressions.py','test_journal.py','test_r10_regressions.py','test_malformed_responses.py','schema_standard_check.py'):
+  p=subprocess.run([sys.executable,str(root/script)],cwd=root,capture_output=True,text=True)
+  (root/(script+'.log')).write_text(p.stdout+p.stderr,encoding='utf-8')
+  results.append(dict(script=script,exit_code=p.returncode))
+--- r9/test_engine.py
++++ r10/test_engine.py
+@@ -31,7 +31,8 @@
+   obj=f.output(self.i);obj['snapshot_hash']='wrong';self.res['1st'][0]['text']=f.text(obj);self.assertIn('SINGLE_AI',e.resolve(self.i,self.res,[],f.NOW)['status_flags'])
+  def test_late_and_extra_attempts(self):
+   self.res['1st'][0]['received_at']='2026-10-17T14:59:01+09:00';self.assertIn('SINGLE_AI',e.resolve(self.i,self.res,[],f.NOW)['status_flags']);self.res['1st']*=3
+-  with self.assertRaises(ValueError):e.resolve(self.i,self.res,[],f.NOW)
++  out=e.resolve(self.i,self.res,[],f.NOW)
++  self.assertEqual(out['audit']['1st']['status'],'AI_FAILURE');self.assertIn('SINGLE_AI',out['status_flags']);self.assertTrue(out['public_candidates'])
+  def test_race_only_evidence_does_not_select(self):
+   inp=copy.deepcopy(self.i);ref='race-only';s=copy.deepcopy(next(iter(inp['source_registry'].values())));s.update(source_ref=ref,scope='RACE',horse_nos=[],field='race_signal',slot_offset=None,value=1);inp['source_registry'][ref]=s;inp['field_catalog']['race_signal']=dict(unit=s['unit'],scope='RACE',display_label='race',value_type='number',minimum=None,maximum=None,missing_allowed=True);inp['snapshot_hash']=r.canonical_hash(e.common_payload(inp));obj=f.output(inp)
+   for h in obj['horses']:
+--- r9/php/PublicView.php
++++ r10/php/PublicView.php
+@@ -4,24 +4,43 @@
+ /** Explicit new API DTO. No conversion to legacy "おすすめ度" candidate rows. */
+ final class PublicView
+ {
+-    public static function build(array $stored, array $horseNamesByNo = []): array
++    public static function build(array $stored, array $horseNamesByNo = [], ?string $now = null): array
+     {
+         $pub=$stored['publication'];$live=$stored['live_state'];
+-        if ($pub===null) return ['status'=>'PENDING','candidates'=>[],'live_state'=>$live];
+-        $candidates=[];
++        if ($pub===null) {
++            $allCancelled=($live['active_count'] ?? null)===0;
++            $expired=(new \DateTimeImmutable($now ?? 'now',new \DateTimeZone('UTC'))) > new \DateTimeImmutable($live['effective_publish_deadline']);
++            return ['status'=>$allCancelled ? 'CANCELLED' : ($expired ? 'UNAVAILABLE' : 'PENDING'),
++                'status_flags'=>$allCancelled ? ['ALL_CANCELLED'] : ($expired ? ['PUBLICATION_DEADLINE_PASSED'] : []),
++                'candidates'=>[],'live_state'=>$live];
++        }
++        $candidates=[];$actual=['A'=>0,'B'=>0,'D'=>0];$available=0;$hasCancelled=false;
+         foreach ($pub['candidates'] as $candidate) {
+             $no=$candidate['horse_no'];$cancelled=in_array($no,$live['cancelled'],true);
+             $candidate['horse_name']=$horseNamesByNo[$no] ?? null;
+             $candidate['cancelled']=$cancelled;$candidate['buy_recommended']=false;
+             $candidate['display_status']=$cancelled ? 'CANCELLED' : 'CANDIDATE';
++            if ($cancelled) $hasCancelled=true;
++            else {++$actual[$candidate['band']];++$available;}
+             $candidates[]=$candidate;
+         }
+-        return ['publication_id'=>$pub['publication_id'],'generation'=>$pub['generation'],
++        $active=$live['active_count'];$target=min($pub['publication_target_count'],$live['publication_target_count']);
++        $flags=array_values(array_diff($pub['status_flags'],['PARTIAL_COUNT','ALL_CANCELLED']));
++        if ($hasCancelled || $active!==$pub['active_count']) $flags[]='CANCELLATION_OVERLAY';
++        if ($live['state_revision']!==$pub['state_revision']) $flags[]='LIVE_STATE_CHANGED';
++        if ($available<$target) $flags[]='PARTIAL_COUNT';
++        if ($active===0) $flags[]='ALL_CANCELLED';
++        return ['status'=>$active===0 ? 'CANCELLED' : 'PUBLISHED',
++            'publication_id'=>$pub['publication_id'],'generation'=>$pub['generation'],
+             'publication_revision'=>$pub['publication_revision'],'prediction_state_revision'=>$pub['state_revision'],
+             'live_state_revision'=>$live['state_revision'],'mode'=>$pub['mode'],'display_rating'=>$pub['display_rating'],
+-            'active_count'=>$pub['active_count'],'publication_target_count'=>$pub['publication_target_count'],
+-            'publication_quota'=>$pub['publication_quota'],'actual_quota'=>$pub['actual_quota'],
+-            'status_flags'=>$pub['status_flags'],'candidates'=>$candidates,'live_state'=>$live,
++            'active_count'=>$active,'publication_target_count'=>$pub['publication_target_count'],
++            'publication_quota'=>$pub['publication_quota'],'actual_quota'=>$actual,'available_candidate_count'=>$available,
++            'live_target_count'=>$live['publication_target_count'],'live_quota'=>$live['publication_quota'],
++            'prediction_active_count'=>$pub['active_count'],'prediction_target_count'=>$pub['publication_target_count'],
++            'prediction_quota'=>$pub['publication_quota'],'prediction_actual_quota'=>$pub['actual_quota'],
++            'prediction_status_flags'=>$pub['status_flags'],
++            'status_flags'=>array_values(array_unique($flags)),'candidates'=>$candidates,'live_state'=>$live,
+             'prediction_basis'=>'6分前評価','purchase_status'=>'PENDING_VALIDATION'];
+     }
+ }
+--- r9/php/BaganrikiR9Bridge.php
++++ r10/php/BaganrikiR10Bridge.php
+@@ -3,7 +3,7 @@
+ namespace Baganriki;
+ 
+ /** PHP 8.0+. Preserve nested decimal JSON as strings; do not decode/re-encode it in PHP. */
+-final class BaganrikiR9Bridge
++final class BaganrikiR10Bridge
+ {
+     public function __construct(private string $python, private string $engineDir, private string $database, private float $timeoutSeconds = 30.0)
+     {
+@@ -69,7 +69,7 @@
+         // Nested input_json strings remain exact. Decoded output facts are presentation-only.
+         $response = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+         if (($response['ok'] ?? null) !== true) {
+-            throw new \RuntimeException('r9 validation failed: ' . ($response['message'] ?? 'unknown error'));
++            throw new \RuntimeException('r10 validation failed: ' . ($response['message'] ?? 'unknown error'));
+         }
+         return $response['result'];
+     }
+@@ -82,7 +82,7 @@
+         }, $json);
+         if ($ascii === null || strlen($ascii) > 64 * 1024 * 1024) throw new \InvalidArgumentException('UTF-8/transport size');
+         $json = $ascii;
+-        $inputPath = tempnam(sys_get_temp_dir(), 'bgr9_');
++        $inputPath = tempnam(sys_get_temp_dir(), 'bgr10_');
+         if ($inputPath === false) throw new \RuntimeException('Cannot create private input path');
+         chmod($inputPath, 0600);
+         $input = fopen($inputPath, 'w+b');

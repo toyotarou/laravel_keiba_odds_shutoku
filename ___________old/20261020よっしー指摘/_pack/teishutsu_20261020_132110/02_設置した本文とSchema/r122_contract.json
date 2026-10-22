@@ -1,0 +1,130 @@
+{
+  "prompt_version": "baganriki-v041-r12-2-20261020",
+  "schema_version": "baganriki-v041-r12-2",
+  "base_quota": {
+    "4": {
+      "FIRM": [
+        3,
+        1,
+        0
+      ],
+      "MIXED": [
+        2,
+        2,
+        0
+      ],
+      "VOLATILE": [
+        2,
+        1,
+        1
+      ]
+    },
+    "5": {
+      "FIRM": [
+        4,
+        1,
+        0
+      ],
+      "MIXED": [
+        3,
+        2,
+        0
+      ],
+      "VOLATILE": [
+        2,
+        2,
+        1
+      ]
+    },
+    "6": {
+      "FIRM": [
+        4,
+        2,
+        0
+      ],
+      "MIXED": [
+        3,
+        2,
+        1
+      ],
+      "VOLATILE": [
+        3,
+        2,
+        1
+      ]
+    },
+    "7": {
+      "FIRM": [
+        5,
+        2,
+        0
+      ],
+      "MIXED": [
+        3,
+        3,
+        1
+      ],
+      "VOLATILE": [
+        3,
+        3,
+        1
+      ]
+    }
+  },
+  "score_caps": {
+    "H1": 18,
+    "H2": 15,
+    "H3": 12,
+    "H4": 9,
+    "H5": 6,
+    "V1": 12,
+    "V2": 10,
+    "V3": 8,
+    "V4": 6,
+    "V5": 4
+  },
+  "max_snapshot_runners": 18,
+  "initial_learning_stage": "COLLECT_ONLY",
+  "primary_rank": "SERVER_VERIFIED_COMPLETE_USES_SCORE_OTHERWISE_EVIDENCE",
+  "recovery_chain": [
+    "EVIDENCE_BACKUP",
+    "VERIFIED_EVIDENCE_FALLBACK"
+  ],
+  "malformed_horse_policy": "isolate_identity_group_preserve_other_horses",
+  "correction_calls_per_role_max": 1,
+  "correction_out_of_scope_changes": "retain_initial_log",
+  "cancellation_policy": "immutable_prediction_snapshot_and_versioned_live_overlay",
+  "after_cutoff_band_policy": "FROZEN_AT_INPUT_FREEZE_AT_NO_POST_FREEZE_RERANK",
+  "hole_to_popular_fill": false,
+  "display_policy": "verified_fact_templates_only",
+  "purchase_policy_status": "PENDING_VALIDATION",
+  "learning_promotion": "explicit_validated_manifest_only",
+  "deployment_status": "CONTRACT_FILES_READY_PRODUCTION_IMPLEMENTATION_UNVERIFIED",
+  "implementation": "Laravel service layer + existing MySQL + Laravel Queue; Flutter read-only presentation",
+  "supported_learning_stages": [
+    "COLLECT_ONLY"
+  ],
+  "x6_runtime": "NULL_IF_N_GE_7_FALSE_OTHERWISE_WITH_X6_ONLY_PROVISIONAL_ALLOCATION",
+  "decimal_protocol": "raw JSON decimal or DB decimal-string export; no float roundtrip",
+  "evidence_only_rank_uses_scores": false,
+  "coverage_version": "coverage-v1-r8",
+  "implementation_version": "baganriki-v041-r12-2-20261020",
+  "mode_policy_id": "BASE_TRI_STATE_V1",
+  "provisional_mode_policy_id": "X6_ONLY_UPPER_MODE_V1",
+  "time_contract_version": "baganriki-post-slot-grace-v1",
+  "anchor_kind": "POST_TIME",
+  "sampling_policy_id": "SLOT_FIRST_VALID_COMMITTED_V1",
+  "acquisition_grace_ms": {
+    "21": 120000,
+    "18": 120000,
+    "15": 120000,
+    "12": 120000,
+    "9": 120000,
+    "6": 30000
+  },
+  "input_freeze_offset_seconds": -330,
+  "safety_margin_ms": 60000,
+  "reply_before_publish_ms": 30000,
+  "model_version": null,
+  "buy_recommended": false
+}

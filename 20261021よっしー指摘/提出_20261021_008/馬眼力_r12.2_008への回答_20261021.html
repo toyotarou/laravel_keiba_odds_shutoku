@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力 r12.2 008への回答</title>
+<style>
+:root{
+  --bg:#f7f7f5; --card:#fff; --ink:#1c1c1a; --sub:#6b6b66; --line:#e3e3df;
+  --ok:#1f7a4d; --okbg:#e8f5ee; --ng:#a33; --ngbg:#fbecec;
+  --warn:#8a6100; --warnbg:#fdf3e0; --accent:#2b5e8e;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#16181a; --card:#1e2124; --ink:#e8e8e4; --sub:#9a9a94; --line:#2f3337;
+    --ok:#6fd49b; --okbg:#17301f; --ng:#f29a9a; --ngbg:#301a1a;
+    --warn:#e9c46a; --warnbg:#2e2614; --accent:#8ab8e0;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16181a; --card:#1e2124; --ink:#e8e8e4; --sub:#9a9a94; --line:#2f3337;
+  --ok:#6fd49b; --okbg:#17301f; --ng:#f29a9a; --ngbg:#301a1a;
+  --warn:#e9c46a; --warnbg:#2e2614; --accent:#8ab8e0;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:16px; line-height:1.85; padding:0 16px 64px;
+}
+.wrap{max-width:720px;margin:0 auto}
+header{padding:28px 0 8px}
+h1{font-size:21px;line-height:1.5;margin:0 0 6px}
+.meta{color:var(--sub);font-size:13px;margin:0}
+h2{font-size:17px;margin:34px 0 10px;padding-bottom:7px;border-bottom:2px solid var(--line)}
+h3{font-size:15px;margin:22px 0 6px;color:var(--accent)}
+p{margin:10px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:14px 0}
+.lead{border-left:4px solid var(--accent)}
+.ok{background:var(--okbg);border-color:transparent}
+.ng{background:var(--ngbg);border-color:transparent}
+.warn{background:var(--warnbg);border-color:transparent}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;margin-right:6px;vertical-align:2px}
+.t-ok{background:var(--ok);color:var(--card)}
+.t-ng{background:var(--ng);color:var(--card)}
+.t-warn{background:var(--warn);color:var(--card)}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--bg);font-weight:700;white-space:nowrap}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+  background:var(--bg);padding:1px 5px;border-radius:4px;word-break:break-all}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  padding:11px 13px;overflow-x:auto;font-size:13px;line-height:1.6;margin:10px 0}
+.sub{color:var(--sub);font-size:13.5px}
+.big{font-size:19px;font-weight:700}
+footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--sub);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+<h1>馬眼力 r12.2<br>10月21日「007への回答 確認結果（008）」への回答</h1>
+<p class="meta">2026年10月21日（日本時間）／豊田英之（実装担当）</p>
+</header>
+
+<div class="card lead">
+<p><span class="big">ご指摘は4件とも本物の不具合でした。</span></p>
+<p>追跡のとおりです。直したうえで、直ったことを実際に動かした記録を添えます。</p>
+<p class="sub">実行 2026-10-21 09:17:56／実AIへの送信は0回です。</p>
+</div>
+
+<table>
+<tr><th>試験</th><th>件数</th><th>不合格</th></tr>
+<tr><td>実経路（E群）</td><td>70</td><td>0</td></tr>
+<tr><td>応答検証（R群）</td><td>76</td><td>0</td></tr>
+<tr><td>統合・公開（P群）</td><td>67</td><td>0</td></tr>
+<tr><td>本体直通（N群）</td><td>41</td><td>0</td></tr>
+<tr><td>読取API</td><td>29</td><td>0</td></tr>
+<tr><td>本番入力</td><td>9</td><td>0</td></tr>
+<tr><td>OPI</td><td>18</td><td>0</td></tr>
+<tr><td>受入試験</td><td>662</td><td>0</td></tr>
+</table>
+
+<h2>3章（優先）救済した馬の正常な訂正が拒否される</h2>
+<div class="card ng">
+<p><span class="tag t-ng">本物</span>①〜⑤の条件がそのまま成立していました。</p>
+</div>
+<p>救済の明細（<code>r122_salvage</code>）を<b>評価行の中に</b>足していました。これは内部の監査項目で、AIの業務項目ではありません。ところがその行がそのまま照合の対象になり、</p>
+<pre>初回         r122_salvage あり（配列）
+正しい訂正   r122_salvage なし</pre>
+<p>の差で「その範囲で直してよい項目の外」と判定され、<b>正しい訂正が FIX_REJECTED</b> になっていました。「採点の救済」と「全頭訂正」を別々に試していたので、組み合わせたときに落ちることに気づけませんでした。</p>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span>内部の監査項目は評価行に入れず、別の入れ物に出します。訂正の側に <code>r122_</code> のキーが入っていたら、その訂正を採用しません。<b>AIに内部の監査項目を返させる解決にはしていません。</b></p>
+</div>
+<p>試験は R-58〜R-75 です。合計欄だけの誤り、得点1項目だけの不正、どちらも「救済 → 全頭訂正 → 採用 → 統合」を通し、全頭そろうこと・当てたのはその馬だけであること・他の馬の帯と根拠が初回のままであることを見ています。</p>
+<div class="card warn">
+<p><b>この修正で R-18 が落ちました。</b>対象外の馬の <code>observed_sum</code> を書き換えて「中身を変えた訂正」としていましたが、これは集計欄なので<b>救済が計算し直して元の値へ戻します。</b>比べる時点では初回と同じ中身でした。それでも不採用になっていたのは、救済の印が行に残っていてその差で弾いていたからです。</p>
+<p><b>つまり R-18 は、今回ご指摘を受けた不具合そのものに助けられて合格していました。</b>救済が触らない項目（explanation）を書き換える形に差し替えました。</p>
+</div>
+
+<h2>3章（後半）別の帯の正常な順位が守られていない</h2>
+<div class="card ng">
+<p><span class="tag t-ng">本物</span>照合は評価行だけで、<code>band_ranks</code> のような最上位の項目は見ていませんでした。別の馬を直す訂正が、初回では正常だった帯の並びを黙って変えても通っていました。</p>
+</div>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span>上書きしてよいのは、初回の <code>repair_scope.rank_bands</code> に入っている帯だけです。それ以外は初回の並びを保持し（<code>PREVIOUS_KEPT</code>）、訂正が変えようとしていたことを記録に残します。</p>
+</div>
+<p>試験は P-58〜P-67 です。A帯だけを壊した初回に、A帯を直しつつ<b>B帯の並びも入れ替える</b>訂正を与え、A帯は訂正の並び・B帯は初回の並びになることを見ています。</p>
+
+<h2>4章　取消の採用単位</h2>
+<div class="card ng">
+<p><span class="tag t-ng">本物</span>「採用され得る」は「全頭検査を通った」ではありません。commit済み・時刻適合の候補<b>全部</b>の取消を合算した1つの集合を、各バッチの検査に共用していました。</p>
+</div>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span>全頭検査は<b>その候補自身の取消だけ</b>を引いた活動集合で行います。別の候補の取消を、欠損を救うために流用しません。</p>
+</div>
+<p>挙げていただいた例を、そのまま本体の <code>pick()</code> へ通しました。</p>
+<table>
+<tr><th>試験</th><th>中身</th><th>結果</th></tr>
+<tr><td>N-30・31</td><td>A（3番は単勝も取消も無い）と B（3番の正式取消）</td><td><b>B を採用</b></td></tr>
+<tr><td>N-32・33</td><td>そのとき A が落ちる理由</td><td>単勝が揃っていない（馬番 3）</td></tr>
+<tr><td>N-34〜36</td><td>取消を持つ側が<b>未commit</b></td><td>どの候補も通らない</td></tr>
+<tr><td>N-37〜39</td><td>取消を持つ側が<b>時刻不適合</b></td><td>どの候補も通らない</td></tr>
+<tr><td>N-40</td><td>自分で取消を持つ候補</td><td>その馬は検査から外れる</td></tr>
+<tr><td>N-41</td><td>取消が無く全頭そろう候補が2つ</td><td>先に利用できた方（従来どおり）</td></tr>
+</table>
+<p class="sub">「Dが埋まったとは扱えない」はそのとおりでした。前回のログに明細がありませんでした。hash不一致と不正ペイロードは committed=false として N-34〜36 と同じ経路を通ります。</p>
+
+<h2>5章　期限起動</h2>
+<div class="card ng">
+<p><span class="tag t-ng">本物</span><code>r122AfterCached</code> は凍結と公開判定を呼ぶだけ、巡回も初回を送らない設計でした。画面からの呼び出しがキャッシュ返却で終わる限り、そのレースは<b>永久に送られません。</b></p>
+</div>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span><code>r122SendFirst()</code> を作りました。固定入力から<b>予約 → 送信許可 → 送信 → 受領 → 検証・訂正・解決・公開</b>まで進めます。巡回と、キャッシュ返却後の後始末の両方から呼びます。枠は一意なので二重には送りません。</p>
+</div>
+<p>見張りの終了条件も直しました。「今＋間隔 ≧ 終わり」だと55秒・5秒間隔でも50秒で終わり、次の起動まで約10秒空いていました。ご指摘の計算のとおりです。</p>
+<div class="card warn">
+<p><b>まだ足りていないこと。</b></p>
+<p>巡回は訂正の送信を<b>同期で</b>行うので、AIの応答待ちが加わります。複数レースが同時に期限へ来たとき、2本目以降を5秒以内に再確認できるとは限りません。<b>無負荷の刻みの実測は期限遵守の証明になりません。</b>ご指摘のとおりです。</p>
+<p>専用 cron はまだ入れていません（枠の段が 0 のあいだは何もしないため）。<b>Job は未実装です。</b>「方針を維持する」と「実装が完成している」は別、というご指摘を受け入れました。</p>
+</div>
+
+<h2>6章　厳密JSON</h2>
+<div class="card ng">
+<p><span class="tag t-ng">本物</span>丸まる数値を引用符で囲んでいたので、<b>JSON上の型が消えて</b>いました。再保存で数値が文字列に化けます。<code>\uXXXX</code> を復号していなかったので、<code>{"a":1,"\u0061":2}</code> が重複キーの拒否を<b>すり抜けて</b>いました。</p>
+</div>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span>走査中に<b>どの経路がJSON上の数値だったか</b>を控えます。原トークン・正確な十進値・JSON上の型が結び付きます。再保存はその印を見て、数値の位置は引用符を付けずに書き戻します。</p>
+<p><b>AIが最初から引用符付きで返した文字列は印に載らないので、勝手に数値として扱うことはありません。</b></p>
+<p><code>\uXXXX</code> は復号してから比べます。代理対は組み立て、片方だけの代理は受け取りません。</p>
+</div>
+<p>試験は R122-J05（22項目）。合格件数だけでなく1項目ずつ出しています。閾値の両側（満点18ちょうどは整数のまま／18.0000000000000000001 は整数にならない）、入れ子での再保存、<code>extract</code> が型の印を引き継ぐことも入れました。</p>
+
+<h2>7章　試験の「できた範囲」</h2>
+<table>
+<tr><th>ご指摘</th><th>いま</th></tr>
+<tr><td>A：Y-15/16 は SNAPSHOT_MISMATCH でないことだけ。期限内の予約成功は通っていない</td><td><b>そのとおりです。</b>期限内の予約成功から公開までは、新しい E-53〜E-68 で通しています</td></tr>
+<tr><td>E：偽HTTPを通したのは訂正の送信だけ</td><td><b>そのとおりです。</b>今回は<b>初回の送信そのもの</b>も偽HTTPで通しました</td></tr>
+<tr><td>E-46 は ENTRY_MISSING。上限後の凍結成功ではない</td><td><b>そのとおりです。</b>「TOO_EARLY で止まらなくなった」ことの確認です。凍結成功は24日に示します</td></tr>
+<tr><td>H：18頭固定入力の事前測定は可能</td><td><b>前回の書き方を取り下げます。</b>別日の有料試験は12レース分と分けて明記します</td></tr>
+</table>
+
+<h2>8章　集計時刻と設計書</h2>
+<div class="card ng">
+<p><span class="tag t-ng">説明が誤り</span>「もう一度集計して同じ値を確認した」は誤りでした。実際は <code>end_date</code> より後の新規データが無いことを確認しているだけです。</p>
+<p>さらに、新規結果が無いだけで算出時刻を毎回更新すると、<b>過去の利用可能時刻の証拠が失われます。</b>そのとおりです。</p>
+</div>
+<table>
+<tr><th>列</th><th>意味</th><th>新規データが無い日</th></tr>
+<tr><td><code>computed_at</code></td><td>実際に値を算出した時刻</td><td><b>触りません</b></td></tr>
+<tr><td><code>verified_at</code></td><td>この時刻に使えることを確かめた</td><td>更新します</td></tr>
+<tr><td><code>end_date</code></td><td>集計期間の終わり</td><td>触りません</td></tr>
+</table>
+<pre>入れる前  算出時刻あり 18行／期間 2023-01-05〜2026-10-18／件数合計 179915
+          平均と件数の指紋 fd8098601b58b78f674cb5184d65bb02
+入れた後  算出時刻 18行（最新 10-21 06:24:38）← 上書きされていません
+          確認時刻 18行（最新 10-21 09:18:00）
+          期間・件数合計・指紋  すべて同じ</pre>
+<p>指紋の順序も直しました。前回は前測定が集計の更新より<b>後</b>でした。今回は先に取っています。2集計表は指紋の4表に入っていないので、平均・件数・期間を前後で並べる形にしました。</p>
+<div class="card ok">
+<p><span class="tag t-ok">設計書</span>追記案だけでは正本を取り違える、というご指摘のとおりです。<b>文書版1.3へ実際に反映しました。</b>「Jobを作らないことを選んだ」は取り下げ、<b>正本の Job 構成を維持する。Jobクラスは未実装</b>と書き直しました。取り下げ前の文もその場に残しています。</p>
+</div>
+
+<h2>24日の検証</h2>
+<p>非公開12レース・初回24回・訂正込みの上限48回で承知しました。自動再送はしません。失敗したレースを無断で足すこともしません。レースは<b>結果を見る前に</b>決め、race_id の一覧を先に提出します。</p>
+<div class="card warn">
+<p><b>金額はまだ出しません。</b>トークン数を実測していないためです。<b>バイト数から換算した数字は出しません。</b></p>
+<p>Anthropic の <code>count_tokens</code> は<b>料金がかかりません</b>。24日の前に、代表レースと18頭固定入力の本文を通して実トークンを測り、そこから24回時・48回時を出します。この手順自体に課金は発生しません。</p>
+<p class="sub">キャッシュは使っていません（<code>cache_control</code> を付けていません）。入力は毎回フルで課金されます。</p>
+</div>
+
+<h2>残っているもの</h2>
+<div class="card warn">
+<p><b>H（実AIでの実測）</b>　応答時間・完了率・出力品質は未測定です。</p>
+<p><b>Job クラス</b>　未実装です。方針は正本どおり維持します。</p>
+<p><b>巡回の同期送信</b>　複数レースが同時に期限へ来たときの保証はありません。</p>
+<p><b>専用 cron</b>　枠の段を上げるときに同時に入れます。</p>
+<p><b>Flutter・実ルート・AC01〜AC14・的中率／回収率</b>　未確認です。</p>
+</div>
+
+<h2>お願い</h2>
+<div class="card lead">
+<p>次に不具合をご指摘いただくときは、<b>PHPのコードレベルで「どう直してほしいか」</b>も書いていただけると助かります。</p>
+<p>今回は「内部監査メタデータをAI応答の業務項目と分けてください」「単にAIに <code>r122_salvage</code> の返却・変更を許す解決にはしないでください」と<b>直し方の方向まで</b>書いていただいたので、迷わず直せました。これがあると往復が1回減ります。</p>
+</div>
+
+<footer>
+馬眼力 r12.2／2026年10月21日／豊田英之<br>
+この資料のすべての主張は、同梱の log と code から再現できます。
+</footer>
+
+</div>
+</body>
+</html>

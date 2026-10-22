@@ -1,0 +1,248 @@
+test_all_cancelled_does_not_dispatch (__main__.R10Tests.test_all_cancelled_does_not_dispatch) ... FAIL
+test_bad_attempt_cannot_discard_prior_valid_holes (__main__.R10Tests.test_bad_attempt_cannot_discard_prior_valid_holes) ... ok
+test_bad_attempt_entries_preserve_other_role (__main__.R10Tests.test_bad_attempt_entries_preserve_other_role) ... ok
+test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) ... 
+  test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) (value=None) ... ERROR
+  test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) (value=True) ... ERROR
+  test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) (value=0) ... ERROR
+  test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) (value='') ... ERROR
+  test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) (value={}) ... ERROR
+  test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) (value=[{}, {}, {}]) ... ERROR
+test_correction_diagnostics_crossing_deadline_cannot_reserve (__main__.R10Tests.test_correction_diagnostics_crossing_deadline_cannot_reserve) ... FAIL
+test_direct_oversized_snapshot_rejected_before_install (__main__.R10Tests.test_direct_oversized_snapshot_rejected_before_install) ... FAIL
+test_generated_input_over_limit_rejected_during_prepare (__main__.R10Tests.test_generated_input_over_limit_rejected_during_prepare) ... FAIL
+test_live_count_reflects_cancel_without_republishing (__main__.R10Tests.test_live_count_reflects_cancel_without_republishing) ... ERROR
+test_slow_claim_honours_new_all_cancelled_state (__main__.R10Tests.test_slow_claim_honours_new_all_cancelled_state) ... ERROR
+test_slow_correction_does_not_block_other_role_save (__main__.R10Tests.test_slow_correction_does_not_block_other_role_save) ... ERROR
+test_slow_publication_allows_cancellation_and_rejects_stale_result (__main__.R10Tests.test_slow_publication_allows_cancellation_and_rejects_stale_result) ... ERROR
+test_slow_publication_allows_response_save_and_rejects_stale_result (__main__.R10Tests.test_slow_publication_allows_response_save_and_rejects_stale_result) ... ERROR
+test_slow_publication_honours_new_earlier_close (__main__.R10Tests.test_slow_publication_honours_new_earlier_close) ... ERROR
+
+======================================================================
+ERROR: test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) (value=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 28, in test_bad_role_container_preserves_other_role
+    out=e.resolve(self.i,{'1st':bad,'2nd':good},[],f.NOW)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/engine.py", line 400, in resolve
+    attempts=responses.get(role,[]);require(isinstance(attempts,list) and len(attempts)<=2,'at most one correction per role')
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/engine.py", line 31, in require
+    if not ok: raise ContractError(msg)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+engine.ContractError: at most one correction per role
+
+======================================================================
+ERROR: test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) (value=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 28, in test_bad_role_container_preserves_other_role
+    out=e.resolve(self.i,{'1st':bad,'2nd':good},[],f.NOW)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/engine.py", line 400, in resolve
+    attempts=responses.get(role,[]);require(isinstance(attempts,list) and len(attempts)<=2,'at most one correction per role')
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/engine.py", line 31, in require
+    if not ok: raise ContractError(msg)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+engine.ContractError: at most one correction per role
+
+======================================================================
+ERROR: test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) (value=0)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 28, in test_bad_role_container_preserves_other_role
+    out=e.resolve(self.i,{'1st':bad,'2nd':good},[],f.NOW)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/engine.py", line 400, in resolve
+    attempts=responses.get(role,[]);require(isinstance(attempts,list) and len(attempts)<=2,'at most one correction per role')
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/engine.py", line 31, in require
+    if not ok: raise ContractError(msg)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+engine.ContractError: at most one correction per role
+
+======================================================================
+ERROR: test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) (value='')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 28, in test_bad_role_container_preserves_other_role
+    out=e.resolve(self.i,{'1st':bad,'2nd':good},[],f.NOW)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/engine.py", line 400, in resolve
+    attempts=responses.get(role,[]);require(isinstance(attempts,list) and len(attempts)<=2,'at most one correction per role')
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/engine.py", line 31, in require
+    if not ok: raise ContractError(msg)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+engine.ContractError: at most one correction per role
+
+======================================================================
+ERROR: test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) (value={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 28, in test_bad_role_container_preserves_other_role
+    out=e.resolve(self.i,{'1st':bad,'2nd':good},[],f.NOW)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/engine.py", line 400, in resolve
+    attempts=responses.get(role,[]);require(isinstance(attempts,list) and len(attempts)<=2,'at most one correction per role')
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/engine.py", line 31, in require
+    if not ok: raise ContractError(msg)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+engine.ContractError: at most one correction per role
+
+======================================================================
+ERROR: test_bad_role_container_preserves_other_role (__main__.R10Tests.test_bad_role_container_preserves_other_role) (value=[{}, {}, {}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 28, in test_bad_role_container_preserves_other_role
+    out=e.resolve(self.i,{'1st':bad,'2nd':good},[],f.NOW)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/engine.py", line 400, in resolve
+    attempts=responses.get(role,[]);require(isinstance(attempts,list) and len(attempts)<=2,'at most one correction per role')
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/engine.py", line 31, in require
+    if not ok: raise ContractError(msg)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+engine.ContractError: at most one correction per role
+
+======================================================================
+ERROR: test_live_count_reflects_cancel_without_republishing (__main__.R10Tests.test_live_count_reflects_cancel_without_republishing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 112, in test_live_count_reflects_cancel_without_republishing
+    self.assertEqual(view['live_state']['active_count'],11)
+                     ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+KeyError: 'active_count'
+
+======================================================================
+ERROR: test_slow_claim_honours_new_all_cancelled_state (__main__.R10Tests.test_slow_claim_honours_new_all_cancelled_state)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 105, in test_slow_claim_honours_new_all_cancelled_state
+    out=self._pause_compute('inspect_for_correction',lambda s:s.claim(self.i,1,self.p['prompts']['1st']),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 77, in _pause_compute
+    self.assertTrue(entered.wait(10));concurrent()
+                                      ^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 106, in <lambda>
+    lambda:self.s.update_live('race',0,[h['horse_no'] for h in self.i['runners']]))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/store.py", line 47, in update_live
+    self.db.execute('BEGIN IMMEDIATE')
+sqlite3.OperationalError: database is locked
+
+======================================================================
+ERROR: test_slow_correction_does_not_block_other_role_save (__main__.R10Tests.test_slow_correction_does_not_block_other_role_save)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 83, in test_slow_correction_does_not_block_other_role_save
+    out=self._pause_compute('inspect_for_correction',lambda s:s.claim(self.i,1,self.p['prompts']['1st']),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 77, in _pause_compute
+    self.assertTrue(entered.wait(10));concurrent()
+                                      ^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 84, in <lambda>
+    lambda:self.s.complete(second['token'],f.text(f.output(self.p['inputs']['2nd'])),self.now,True))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/journal.py", line 102, in complete
+    self.db.execute('BEGIN IMMEDIATE')
+sqlite3.OperationalError: database is locked
+
+======================================================================
+ERROR: test_slow_publication_allows_cancellation_and_rejects_stale_result (__main__.R10Tests.test_slow_publication_allows_cancellation_and_rejects_stale_result)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 97, in test_slow_publication_allows_cancellation_and_rejects_stale_result
+    out=self._pause_compute('resolve',lambda s:s.publish_saved('race',1,0,0,rev,'slow'),lambda:self.s.update_live('race',0,[1]))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 77, in _pause_compute
+    self.assertTrue(entered.wait(10));concurrent()
+                                      ^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 97, in <lambda>
+    out=self._pause_compute('resolve',lambda s:s.publish_saved('race',1,0,0,rev,'slow'),lambda:self.s.update_live('race',0,[1]))
+                                                                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/store.py", line 47, in update_live
+    self.db.execute('BEGIN IMMEDIATE')
+sqlite3.OperationalError: database is locked
+
+======================================================================
+ERROR: test_slow_publication_allows_response_save_and_rejects_stale_result (__main__.R10Tests.test_slow_publication_allows_response_save_and_rejects_stale_result)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 89, in test_slow_publication_allows_response_save_and_rejects_stale_result
+    out=self._pause_compute('resolve',lambda s:s.publish_saved('race',1,0,0,rev,'slow'),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 77, in _pause_compute
+    self.assertTrue(entered.wait(10));concurrent()
+                                      ^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 90, in <lambda>
+    lambda:self.s.complete(second['token'],f.text(f.output(self.p['inputs']['2nd'])),self.now,True))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/journal.py", line 102, in complete
+    self.db.execute('BEGIN IMMEDIATE')
+sqlite3.OperationalError: database is locked
+
+======================================================================
+ERROR: test_slow_publication_honours_new_earlier_close (__main__.R10Tests.test_slow_publication_honours_new_earlier_close)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 101, in test_slow_publication_honours_new_earlier_close
+    out=self._pause_compute('resolve',lambda s:s.publish_saved('race',1,0,0,rev,'slow'),lambda:self.s.update_live('race',0,[],self.now))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 77, in _pause_compute
+    self.assertTrue(entered.wait(10));concurrent()
+                                      ^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 101, in <lambda>
+    out=self._pause_compute('resolve',lambda s:s.publish_saved('race',1,0,0,rev,'slow'),lambda:self.s.update_live('race',0,[],self.now))
+                                                                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r9/store.py", line 47, in update_live
+    self.db.execute('BEGIN IMMEDIATE')
+sqlite3.OperationalError: database is locked
+
+======================================================================
+FAIL: test_all_cancelled_does_not_dispatch (__main__.R10Tests.test_all_cancelled_does_not_dispatch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 54, in test_all_cancelled_does_not_dispatch
+    grant=self.claim();self.assertFalse(grant['granted']);self.assertEqual(grant['reason'],'ALL_CANCELLED')
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_correction_diagnostics_crossing_deadline_cannot_reserve (__main__.R10Tests.test_correction_diagnostics_crossing_deadline_cannot_reserve)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 61, in test_correction_diagnostics_crossing_deadline_cannot_reserve
+    self.assertFalse(grant['granted']);self.assertEqual(len(self.s._rows('race',1)),1)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_direct_oversized_snapshot_rejected_before_install (__main__.R10Tests.test_direct_oversized_snapshot_rejected_before_install)
+----------------------------------------------------------------------
+engine.ContractError: immutable snapshot already installed; no automatic re-anchoring
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 50, in test_direct_oversized_snapshot_rejected_before_install
+    with self.assertRaisesRegex(ValueError,'input.*size|size.*input'):self.s.install(inp,1)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "input.*size|size.*input" does not match "immutable snapshot already installed; no automatic re-anchoring"
+
+======================================================================
+FAIL: test_generated_input_over_limit_rejected_during_prepare (__main__.R10Tests.test_generated_input_over_limit_rejected_during_prepare)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r10/test_r10_regressions.py", line 46, in test_generated_input_over_limit_rejected_during_prepare
+    with self.assertRaisesRegex(ValueError,'input.*size|size.*input'):e.prepare(seed,f.REQUEST)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 13 tests in 7.223s
+
+FAILED (failures=4, errors=12)

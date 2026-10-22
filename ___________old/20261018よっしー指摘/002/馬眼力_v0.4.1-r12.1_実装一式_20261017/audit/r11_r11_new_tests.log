@@ -1,0 +1,22 @@
+test_context_does_not_turn_missing_signal_into_known_score (__main__.R11Tests.test_context_does_not_turn_missing_signal_into_known_score) ... ok
+test_context_with_real_signal_keeps_supported_hole (__main__.R11Tests.test_context_with_real_signal_keeps_supported_hole) ... ok
+test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) ... ok
+test_derived_context_is_not_individual_signal (__main__.R11Tests.test_derived_context_is_not_individual_signal) ... ok
+test_exact_reply_deadline_is_still_accepted (__main__.R11Tests.test_exact_reply_deadline_is_still_accepted) ... ok
+test_future_submicrosecond_source_rejected (__main__.R11Tests.test_future_submicrosecond_source_rejected) ... ok
+test_install_rejects_unreadable_snapshot_without_creating_row (__main__.R11Tests.test_install_rejects_unreadable_snapshot_without_creating_row) ... ok
+test_invalid_live_close_is_not_persisted (__main__.R11Tests.test_invalid_live_close_is_not_persisted) ... ok
+test_invalid_receipt_cannot_be_saved (__main__.R11Tests.test_invalid_receipt_cannot_be_saved) ... ok
+test_late_precise_correction_preserves_valid_initial (__main__.R11Tests.test_late_precise_correction_preserves_valid_initial) ... ok
+test_late_seventh_fractional_digit_cannot_be_adopted (__main__.R11Tests.test_late_seventh_fractional_digit_cannot_be_adopted) ... ok
+test_nested_nonselect_code_does_not_crash_other_role (__main__.R11Tests.test_nested_nonselect_code_does_not_crash_other_role) ... ok
+test_nested_nonselect_repair_preserves_initial_holes (__main__.R11Tests.test_nested_nonselect_repair_preserves_initial_holes) ... ok
+test_only_bad_context_evidence_is_removed (__main__.R11Tests.test_only_bad_context_evidence_is_removed) ... ok
+test_prepare_rejects_unreadable_numbers (__main__.R11Tests.test_prepare_rejects_unreadable_numbers) ... ok
+test_supported_numeric_boundaries_roundtrip_exactly (__main__.R11Tests.test_supported_numeric_boundaries_roundtrip_exactly) ... ok
+test_valid_timestamp_precision_and_offset_aliases (__main__.R11Tests.test_valid_timestamp_precision_and_offset_aliases) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 5.256s
+
+OK

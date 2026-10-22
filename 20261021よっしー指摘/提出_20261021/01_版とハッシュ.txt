@@ -1,0 +1,49 @@
+馬眼力 r12.2　版とハッシュ
+作成日：2026年10月21日（日本時間）
+作成者：豊田英之（実装担当）
+
+────────────────────────────────────────────────
+1　この提出物の現物（code/）
+────────────────────────────────────────────────
+
+ファイル                              SHA-256                                                            行数
+AiController.php                     6074ed660e8af8949bf27a91934bae67db456b3ea8c23213ec0724f38e1da3ae   28150
+SummaryAiAnalysisCompensate.php      0dea01266b9ed3620c10fb28e4ff5607f49fad3734457026e95d983124f12ef4   18245
+SummaryPopularityRankAverage.php     1e1c9bb30421e90a8fc785c90a8a93ffa8932edab97ed2074a2bbd746ecd310c     289
+SummaryFukuPopularityRankAverage.php f81344e945281139b75789db1ffba3cccbd257e886c27653062e0311aa1dd997     247
+
+これはサーバ（/var/www/horse_odds_finder）に置いたものと同じ中身です。
+置いた直後に php -l を通し、md5 を突き合わせています（log の冒頭）。
+
+────────────────────────────────────────────────
+2　差分の比較元（diff/）
+────────────────────────────────────────────────
+
+AiController.diff
+    比較元 SHA-256 67c759fabfc61937fcd7f7a057e7011829769d6e7aaefdcbd9d925acb9d60a8b（27262行）
+    = 前回提出（提出_20261022）の code/AiController.php
+
+SummaryAiAnalysisCompensate.diff
+    比較元 SHA-256 eb47bdf4a90c4485333b4ad6145abfe6af1c893c199e5ea62b55df99a1ba8aeb（17269行）
+    = 前回提出（提出_20261022）の code/SummaryAiAnalysisCompensate.php
+
+SummaryPopularityRankAverage.php.diff
+SummaryFukuPopularityRankAverage.php.diff
+    比較元は diff/変更前_*.php です（サーバの退避フォルダから取り出した現物）。
+    退避日時 2026-08-14 10:29:47（ファイルの更新時刻）。
+    この2本は算出時刻（computed_at）を1か所も持っていません。
+    10月20日のご指摘8-4「現物と差分が添付されていない」への回答です。
+
+────────────────────────────────────────────────
+3　この提出物を作ったときの実行
+────────────────────────────────────────────────
+
+実行日時 2026-10-21 06:24:34（日本時間）
+サーバ   さくらVPS CentOS / PHP 8.3.6 / MySQL 8.4.9
+設定     BAGANRIKI_R122_PROMPT=shadow / BAGANRIKI_R122_QUEUE=0
+         BAGANRIKI_SALES_CLOSE_DERIVE=1 / BAGANRIKI_SALES_CLOSE_OFFSET_SEC=60
+         BAGANRIKI_PAST_RUNS_MAX=5
+
+実AIへの送信は0回です。
+log/16_実経路.txt は、送信口（HTTPクライアント）を偽の応答に差し替えて、
+本番の関数をそのまま通したものです。偽の送信口が何回呼ばれたかも数えています。

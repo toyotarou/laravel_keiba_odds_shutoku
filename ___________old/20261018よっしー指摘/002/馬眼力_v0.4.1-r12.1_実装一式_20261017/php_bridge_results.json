@@ -1,0 +1,88 @@
+{
+  "exact_json": {
+    "php_version": "8.5.10",
+    "runtime": "PHP-WASM",
+    "exact_json": {
+      "numbers_and_metadata": "PASSED",
+      "http_roundtrip": "PASSED",
+      "large_escaped_strings_unchanged": "PASSED",
+      "large_control_string_unchanged": "PASSED",
+      "invalid_json_rejected": "PASSED",
+      "store_publication_view_http_exact": "PASSED"
+    },
+    "production_db_and_live_ai_tested": false
+  },
+  "bridge": {
+    "php_version": "8.5.10",
+    "bridge_replay_passed": true,
+    "selected": [
+      1,
+      2,
+      8,
+      9,
+      11
+    ]
+  },
+  "worker": {
+    "php_version": "8.5.10",
+    "runtime": "PHP-WASM",
+    "provider": "mock",
+    "correction_calls": 2,
+    "worker_publish_idempotency_cancel_read": "PASSED",
+    "coverage_roundtrip": "PASSED",
+    "r8_corrections": {
+      "unrelated_correction": "PASSED",
+      "public_flag_correction": "PASSED",
+      "summary_correction": "PASSED",
+      "review_correction": "PASSED",
+      "counter_correction": "PASSED"
+    },
+    "production_db_and_live_ai_tested": false
+  },
+  "durability": {
+    "php_version": "8.5.10",
+    "runtime": "PHP-WASM",
+    "provider": "mock",
+    "durability": {
+      "failed_correction": "PASSED",
+      "unknown_initial": "PASSED",
+      "incomplete_reply": "PASSED",
+      "large_transport": "PASSED",
+      "deadline_mismatch": "PASSED"
+    }
+  },
+  "fault_isolation": {
+    "php_version": "8.5.10",
+    "fault_isolation": {
+      "deep": "PASSED",
+      "unicode": "PASSED"
+    },
+    "production_db_and_live_ai_tested": false
+  },
+  "public_view": {
+    "php_version": "8.5.10",
+    "public_view": {
+      "deadline_exact_pending": "PASSED",
+      "expired_is_unavailable": "PASSED",
+      "cancelled_before_publication": "PASSED",
+      "current_active_count": "PASSED",
+      "current_actual_quota": "PASSED",
+      "immutable_prediction_counts": "PASSED",
+      "late_cancel_never_refills": "PASSED",
+      "shortage_visible": "PASSED",
+      "input_unchanged": "PASSED",
+      "frozen_quota_separate_from_live_target": "PASSED"
+    }
+  },
+  "time_boundary": {
+    "php_version": "8.5.10",
+    "time_boundary": {
+      "invalid_timestamps_rejected": "PASSED",
+      "exact_microseconds_and_alias": "PASSED",
+      "worker_rejects_before_reserving_or_calling": "PASSED",
+      "view_rejects_unsupported_precision": "PASSED",
+      "view_exact_and_next_microsecond": "PASSED"
+    },
+    "invalid_timestamp_cases": 12
+  }
+}

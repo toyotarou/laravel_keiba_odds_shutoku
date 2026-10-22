@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力 r12.2 008への回答</title>
+<style>
+:root{
+  --bg:#f7f7f5; --card:#fff; --ink:#1c1c1a; --sub:#6b6b66; --line:#e3e3df;
+  --ok:#1f7a4d; --okbg:#e8f5ee; --ng:#a33; --ngbg:#fbecec;
+  --warn:#8a6100; --warnbg:#fdf3e0; --accent:#2b5e8e;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#16181a; --card:#1e2124; --ink:#e8e8e4; --sub:#9a9a94; --line:#2f3337;
+    --ok:#6fd49b; --okbg:#17301f; --ng:#f29a9a; --ngbg:#301a1a;
+    --warn:#e9c46a; --warnbg:#2e2614; --accent:#8ab8e0;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16181a; --card:#1e2124; --ink:#e8e8e4; --sub:#9a9a94; --line:#2f3337;
+  --ok:#6fd49b; --okbg:#17301f; --ng:#f29a9a; --ngbg:#301a1a;
+  --warn:#e9c46a; --warnbg:#2e2614; --accent:#8ab8e0;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:16px; line-height:1.85; padding:0 16px 64px;
+}
+.wrap{max-width:720px;margin:0 auto}
+header{padding:28px 0 8px}
+h1{font-size:21px;line-height:1.5;margin:0 0 6px}
+.meta{color:var(--sub);font-size:13px;margin:0}
+h2{font-size:17px;margin:34px 0 10px;padding-bottom:7px;border-bottom:2px solid var(--line)}
+h3{font-size:15px;margin:22px 0 6px;color:var(--accent)}
+p{margin:10px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:14px 0}
+.lead{border-left:4px solid var(--accent)}
+.ok{background:var(--okbg);border-color:transparent}
+.ng{background:var(--ngbg);border-color:transparent}
+.warn{background:var(--warnbg);border-color:transparent}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;margin-right:6px;vertical-align:2px}
+.t-ok{background:var(--ok);color:var(--card)}
+.t-ng{background:var(--ng);color:var(--card)}
+.t-warn{background:var(--warn);color:var(--card)}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--bg);font-weight:700;white-space:nowrap}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+  background:var(--bg);padding:1px 5px;border-radius:4px;word-break:break-all}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  padding:11px 13px;overflow-x:auto;font-size:13px;line-height:1.6;margin:10px 0}
+.sub{color:var(--sub);font-size:13.5px}
+.big{font-size:19px;font-weight:700}
+footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--sub);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+<h1>馬眼力 r12.2<br>10月21日「007への回答 確認結果（008）」への回答</h1>
+<p class="meta">2026年10月21日（日本時間）／豊田英之（実装担当）</p>
+</header>
+
+<div class="card lead">
+<p><span class="big">ご指摘は4件とも本物の不具合でした。</span></p>
+<p>追跡のとおりです。直したうえで、直ったことを実際に動かした記録を添えます。</p>

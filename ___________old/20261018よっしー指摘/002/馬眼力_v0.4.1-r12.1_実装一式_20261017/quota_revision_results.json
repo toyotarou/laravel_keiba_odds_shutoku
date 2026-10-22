@@ -1,0 +1,9 @@
+{
+  "release": "r12.1",
+  "tests_run": 12,
+  "failures": 0,
+  "errors": 0,
+  "synthetic_only": true,
+  "real_model_calls": false,
+  "production_deployed": false
+}

@@ -1,0 +1,111 @@
+{
+  "prompt_version": "baganriki-v041-r12-1-quota-20261017",
+  "schema_version": "baganriki-v041-r8-1",
+  "base_quota": {
+    "4": {
+      "FIRM": [
+        3,
+        1,
+        0
+      ],
+      "MIXED": [
+        2,
+        2,
+        0
+      ],
+      "VOLATILE": [
+        2,
+        1,
+        1
+      ]
+    },
+    "5": {
+      "FIRM": [
+        4,
+        1,
+        0
+      ],
+      "MIXED": [
+        3,
+        2,
+        0
+      ],
+      "VOLATILE": [
+        2,
+        2,
+        1
+      ]
+    },
+    "6": {
+      "FIRM": [
+        4,
+        2,
+        0
+      ],
+      "MIXED": [
+        3,
+        2,
+        1
+      ],
+      "VOLATILE": [
+        3,
+        2,
+        1
+      ]
+    },
+    "7": {
+      "FIRM": [
+        5,
+        2,
+        0
+      ],
+      "MIXED": [
+        3,
+        3,
+        1
+      ],
+      "VOLATILE": [
+        3,
+        3,
+        1
+      ]
+    }
+  },
+  "score_caps": {
+    "H1": 18,
+    "H2": 15,
+    "H3": 12,
+    "H4": 9,
+    "H5": 6,
+    "V1": 12,
+    "V2": 10,
+    "V3": 8,
+    "V4": 6,
+    "V5": 4
+  },
+  "max_snapshot_runners": 18,
+  "initial_learning_stage": "COLLECT_ONLY",
+  "primary_rank": "SERVER_VERIFIED_COMPLETE_USES_SCORE_OTHERWISE_EVIDENCE",
+  "recovery_chain": [
+    "EVIDENCE_BACKUP",
+    "VERIFIED_EVIDENCE_FALLBACK"
+  ],
+  "malformed_horse_policy": "isolate_identity_group_preserve_other_horses",
+  "correction_calls_per_role_max": 1,
+  "correction_out_of_scope_changes": "retain_initial_log",
+  "cancellation_policy": "immutable_prediction_snapshot_and_versioned_live_overlay",
+  "after_cutoff_band_policy": "frozen_win_rank",
+  "hole_to_popular_fill": false,
+  "display_policy": "verified_fact_templates_only",
+  "purchase_policy_status": "RUNTIME_VALIDATION_REQUIRED",
+  "learning_promotion": "explicit_validated_manifest_only",
+  "deployment_status": "IMPLEMENTED_LOCAL_ACCEPTANCE_PENDING_PRODUCTION",
+  "implementation": "Python 3.10+ engine with PHP 8.0+ bridge; single-host SQLite",
+  "supported_learning_stages": [
+    "COLLECT_ONLY"
+  ],
+  "x6_runtime": "UNKNOWN_UNTIL_HISTORICAL_ADAPTER_VALIDATED",
+  "decimal_protocol": "raw JSON decimal or DB decimal-string export; no float roundtrip",
+  "evidence_only_rank_uses_scores": false,
+  "coverage_version": "coverage-v1-r8"
+}

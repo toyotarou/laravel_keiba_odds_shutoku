@@ -1,0 +1,67 @@
+════════════════════════════════════════════════════════
+ r12.2 本番の経路で作った入力を Schema に当てる
+════════════════════════════════════════════════════════
+  実行時刻 : 2026-10-21T09:18:29+09:00
+  Schema   : /home/centos/r122_v23/mat/schemas
+  ※ 取得監査は仮置きです（形とSchemaを見る試験です）
+
+── 20261018-4-04-2-1 ──
+    N=13  source_registry 470 件  送信文 264,255 バイト
+    過去走を外すと 127,853 バイト（過去走の分 136,402 バイト・+106.7%）
+    直近何走まで : 5 走／OPI・推定確定オッズ : 載せる
+    ○ input_schema に適合
+    ○ source_registry_schema に適合
+    ○ past_runs              INCLUDED  出典 223 件
+    － OPI                    UNAVAILABLE  集計期間の終わり（2026-10-18）が対象レースの開催日（2…
+    － estimated_odds         UNAVAILABLE  集計期間の終わり（2026-10-18）が対象レースの開催日（2…
+    － recovery_statistics    UNAVAILABLE  集計期間の終わり（2026-10-18）が対象レースの開催日（2…
+    － similar_statistics     UNAVAILABLE  この集計は情報上限より後に算出されたものしかありませ…
+    － legacy_qualifications  UNAVAILABLE  旧資格は r12.2 では使いません
+    ○ gap_history            INCLUDED  出典 13 件
+    coverage INCLUDED 2 / 7 区分
+    － OPI・推定確定オッズは載っていません（理由は上の coverage）
+    ○ 過去走 223 件／13 頭ぶん
+      過去走を 223 件 載せました（13頭ぶん・直近5走まで）
+
+── 20261018-4-04-2-2 ──
+    N=15  source_registry 554 件  送信文 310,949 バイト
+    過去走を外すと 146,870 バイト（過去走の分 164,079 バイト・+111.7%）
+    直近何走まで : 5 走／OPI・推定確定オッズ : 載せる
+    ○ input_schema に適合
+    ○ source_registry_schema に適合
+    ○ past_runs              INCLUDED  出典 269 件
+    － OPI                    UNAVAILABLE  集計期間の終わり（2026-10-18）が対象レースの開催日（2…
+    － estimated_odds         UNAVAILABLE  集計期間の終わり（2026-10-18）が対象レースの開催日（2…
+    － recovery_statistics    UNAVAILABLE  集計期間の終わり（2026-10-18）が対象レースの開催日（2…
+    － similar_statistics     UNAVAILABLE  この集計は情報上限より後に算出されたものしかありませ…
+    － legacy_qualifications  UNAVAILABLE  旧資格は r12.2 では使いません
+    ○ gap_history            INCLUDED  出典 15 件
+    coverage INCLUDED 2 / 7 区分
+    － OPI・推定確定オッズは載っていません（理由は上の coverage）
+    ○ 過去走 269 件／15 頭ぶん
+      過去走を 269 件 載せました（15頭ぶん・直近5走まで）
+
+── 20261018-4-04-2-3 ──
+    N=13  source_registry 451 件  送信文 254,258 バイト
+    過去走を外すと 127,841 バイト（過去走の分 126,417 バイト・+98.9%）
+    直近何走まで : 5 走／OPI・推定確定オッズ : 載せる
+    ○ input_schema に適合
+    ○ source_registry_schema に適合
+    ○ past_runs              INCLUDED  出典 204 件
+    － OPI                    UNAVAILABLE  集計期間の終わり（2026-10-18）が対象レースの開催日（2…
+    － estimated_odds         UNAVAILABLE  集計期間の終わり（2026-10-18）が対象レースの開催日（2…
+    － recovery_statistics    UNAVAILABLE  集計期間の終わり（2026-10-18）が対象レースの開催日（2…
+    － similar_statistics     UNAVAILABLE  この集計は情報上限より後に算出されたものしかありませ…
+    － legacy_qualifications  UNAVAILABLE  旧資格は r12.2 では使いません
+    ○ gap_history            INCLUDED  出典 13 件
+    coverage INCLUDED 2 / 7 区分
+    － OPI・推定確定オッズは載っていません（理由は上の coverage）
+    ○ 過去走 204 件／13 頭ぶん
+      過去走を 204 件 載せました（13頭ぶん・直近5走まで）
+
+  合格 : 9 件
+  不合格 : 0 件
+
+════════════════════════════════════════════════════════
+ 本番の経路で作った入力は Schema に適合しました（書き込み0件）
+════════════════════════════════════════════════════════

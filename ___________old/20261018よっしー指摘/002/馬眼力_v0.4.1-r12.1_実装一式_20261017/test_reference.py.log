@@ -1,0 +1,46 @@
+test_all_cancellation_subsets (__main__.R7Tests.test_all_cancellation_subsets) ... ok
+test_all_tristates (__main__.R7Tests.test_all_tristates) ... ok
+test_broken_backup_retains_all_positive (__main__.R7Tests.test_broken_backup_retains_all_positive) ... ok
+test_cancel_all_and_unknown (__main__.R7Tests.test_cancel_all_and_unknown) ... ok
+test_cancel_rank_and_band_frozen (__main__.R7Tests.test_cancel_rank_and_band_frozen) ... ok
+test_cancel_rejects_bool_float_string (__main__.R7Tests.test_cancel_rejects_bool_float_string) ... ok
+test_cancellation_band_counts_N18 (__main__.R7Tests.test_cancellation_band_counts_N18) ... ok
+test_correction_rejected_preserves_initial (__main__.R7Tests.test_correction_rejected_preserves_initial) ... ok
+test_correction_scope_and_regression (__main__.R7Tests.test_correction_scope_and_regression) ... ok
+test_correction_score_regression (__main__.R7Tests.test_correction_score_regression) ... ok
+test_counterfacts_reject_wrong_owner (__main__.R7Tests.test_counterfacts_reject_wrong_owner) ... ok
+test_deadlines_and_atomic_publication (__main__.R7Tests.test_deadlines_and_atomic_publication) ... ok
+test_dependency_duplicates (__main__.R7Tests.test_dependency_duplicates) ... ok
+test_dual_ai_bad_scores_keep_B_slots (__main__.R7Tests.test_dual_ai_bad_scores_keep_B_slots) ... ok
+test_duplicate_final_rejected (__main__.R7Tests.test_duplicate_final_rejected) ... ok
+test_evidence_order_survives_removal (__main__.R7Tests.test_evidence_order_survives_removal) ... ok
+test_explanation_drops_bad_fact (__main__.R7Tests.test_explanation_drops_bad_fact) ... ok
+test_fact_types_duplicate_and_context (__main__.R7Tests.test_fact_types_duplicate_and_context) ... ok
+test_malformed_evidence_is_local (__main__.R7Tests.test_malformed_evidence_is_local) ... ok
+test_merge_rejects_duplicate_and_bad_id (__main__.R7Tests.test_merge_rejects_duplicate_and_bad_id) ... ok
+test_merge_second_independent_discovery (__main__.R7Tests.test_merge_second_independent_discovery) ... ok
+test_missing_duplicate_extra_rows_isolated (__main__.R7Tests.test_missing_duplicate_extra_rows_isolated) ... ok
+test_null_is_not_positive_or_zero_score (__main__.R7Tests.test_null_is_not_positive_or_zero_score) ... ok
+test_one_bad_score_no_band_loss (__main__.R7Tests.test_one_bad_score_no_band_loss) ... ok
+test_publication_rejects_temporal_and_type_faults (__main__.R7Tests.test_publication_rejects_temporal_and_type_faults) ... ok
+test_registry_alias_cycle_and_lineage (__main__.R7Tests.test_registry_alias_cycle_and_lineage) ... ok
+test_registry_invalid_owner_time_and_type (__main__.R7Tests.test_registry_invalid_owner_time_and_type) ... ok
+test_registry_rejects_time_reversal (__main__.R7Tests.test_registry_rejects_time_reversal) ... ok
+test_registry_valid (__main__.R7Tests.test_registry_valid) ... ok
+test_score_bad_refs (__main__.R7Tests.test_score_bad_refs) ... ok
+test_scores_and_local_null (__main__.R7Tests.test_scores_and_local_null) ... ok
+test_signal_boundaries (__main__.R7Tests.test_signal_boundaries) ... ok
+test_signal_rejects_duplicate_missing_and_bool_rank (__main__.R7Tests.test_signal_rejects_duplicate_missing_and_bool_rank) ... ok
+test_signals_strict_types (__main__.R7Tests.test_signals_strict_types) ... ok
+test_small_and_empty_signals (__main__.R7Tests.test_small_and_empty_signals) ... ok
+test_strict_json (__main__.R7Tests.test_strict_json) ... ok
+test_structural_and_supply_exhaustive (__main__.R7Tests.test_structural_and_supply_exhaustive) ... ok
+test_validation_flags_must_be_boolean (__main__.R7Tests.test_validation_flags_must_be_boolean) ... ok
+test_wrong_cohort (__main__.R7Tests.test_wrong_cohort) ... ok
+test_wrong_horse_same_value (__main__.R7Tests.test_wrong_horse_same_value) ... ok
+test_wrong_unit_field_and_timezone_alias (__main__.R7Tests.test_wrong_unit_field_and_timezone_alias) ... ok
+
+----------------------------------------------------------------------
+Ran 41 tests in 0.672s
+
+OK

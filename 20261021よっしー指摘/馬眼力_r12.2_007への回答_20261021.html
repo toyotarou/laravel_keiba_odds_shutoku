@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力 r12.2 007への回答</title>
+<style>
+:root{
+  --bg:#f7f7f5; --card:#fff; --ink:#1c1c1a; --sub:#6b6b66; --line:#e3e3df;
+  --ok:#1f7a4d; --okbg:#e8f5ee; --ng:#a33; --ngbg:#fbecec;
+  --warn:#8a6100; --warnbg:#fdf3e0; --accent:#2b5e8e;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#16181a; --card:#1e2124; --ink:#e8e8e4; --sub:#9a9a94; --line:#2f3337;
+    --ok:#6fd49b; --okbg:#17301f; --ng:#f29a9a; --ngbg:#301a1a;
+    --warn:#e9c46a; --warnbg:#2e2614; --accent:#8ab8e0;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16181a; --card:#1e2124; --ink:#e8e8e4; --sub:#9a9a94; --line:#2f3337;
+  --ok:#6fd49b; --okbg:#17301f; --ng:#f29a9a; --ngbg:#301a1a;
+  --warn:#e9c46a; --warnbg:#2e2614; --accent:#8ab8e0;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:16px; line-height:1.85; padding:0 16px 64px;
+}
+.wrap{max-width:720px;margin:0 auto}
+header{padding:28px 0 8px}
+h1{font-size:21px;line-height:1.5;margin:0 0 6px}
+.meta{color:var(--sub);font-size:13px;margin:0}
+h2{font-size:17px;margin:34px 0 10px;padding-bottom:7px;border-bottom:2px solid var(--line)}
+h3{font-size:15px;margin:22px 0 6px;color:var(--accent)}
+p{margin:10px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:14px 0}
+.lead{border-left:4px solid var(--accent)}
+.ok{background:var(--okbg);border-color:transparent}
+.ng{background:var(--ngbg);border-color:transparent}
+.warn{background:var(--warnbg);border-color:transparent}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;margin-right:6px;vertical-align:2px}
+.t-ok{background:var(--ok);color:var(--card)}
+.t-ng{background:var(--ng);color:var(--card)}
+.t-warn{background:var(--warn);color:var(--card)}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--bg);font-weight:700;white-space:nowrap}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+  background:var(--bg);padding:1px 5px;border-radius:4px;word-break:break-all}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  padding:11px 13px;overflow-x:auto;font-size:13px;line-height:1.6;margin:10px 0}
+.sub{color:var(--sub);font-size:13.5px}
+.big{font-size:19px;font-weight:700}
+footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--sub);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+<h1>馬眼力 r12.2<br>10月20日「006回答 確認結果」への回答</h1>
+<p class="meta">2026年10月21日（日本時間）／豊田英之（実装担当）</p>
+</header>
+
+<div class="card lead">
+<p><span class="big">ご指摘はすべて正しいものでした。</span></p>
+<p>直したうえで、直ったことを実際に動かして確かめた記録を添えます。件数の話はしません。項目ごとに「どこで確かめられるか」だけを書きます。</p>
+<p class="sub">実AIへの送信は、今日までで0回です。</p>
+</div>
+
+<h2>最小セット A〜H</h2>
+
+<table>
+<tr><th>　</th><th>ご指定</th><th>いま</th><th>証跡</th></tr>
+<tr><td><b>A</b></td><td>保存した入力をそのまま使い、両roleが送信予約まで通る</td><td><span class="tag t-ok">埋</span></td><td><code>log/14_固定入力.txt</code></td></tr>
+<tr><td><b>B</b></td><td>採点不備でも正常根拠を持つB／D帯の馬が候補へ残る</td><td><span class="tag t-ok">埋</span></td><td><code>log/04_公開.txt</code></td></tr>
+<tr><td><b>C</b></td><td>全頭の訂正応答で対象馬だけ反映し、対象外を保持</td><td><span class="tag t-ok">埋</span></td><td><code>log/03_応答検証.txt</code></td></tr>
+<tr><td><b>D</b></td><td>未commit・不採用・不正ペイロードの取消混入を防ぐ</td><td><span class="tag t-ok">埋</span><span class="sub">限界あり</span></td><td><code>log/02_凍結.txt</code></td></tr>
+<tr><td><b>E</b></td><td>上限前→上限後凍結、片側失敗、期限到達、停止後の復旧</td><td><span class="tag t-ok">埋</span></td><td><code>log/16_実経路.txt</code></td></tr>
+<tr><td><b>F</b></td><td>両roleの設定不一致停止と、厳密数値の値・型・再保存</td><td><span class="tag t-ok">埋</span></td><td><code>log/01_キュー.txt</code><br><code>log/10_厳密JSONと桁.txt</code></td></tr>
+<tr><td><b>G</b></td><td>集計コマンド、スケジュール設定、変更前後の元値指紋</td><td><span class="tag t-ok">埋</span></td><td><code>code/</code> <code>diff/</code><br><code>log/20〜23</code></td></tr>
+<tr><td><b>H</b></td><td>18頭入力で両AI初回・訂正・統合・公開を非公開で測定</td><td><span class="tag t-warn">未</span></td><td>10/24・25の検証のみ</td></tr>
+</table>
+
+<div class="card">
+<p><b>E について。</b>9章の「まず送信口を試験用に置き換えて接続を通し、その後で実AIの時間と出力品質を測ってください」に沿いました。送信口（HTTPクライアント）を偽の応答に差し替え、<b>本番のコードを1行も変えずに</b>本番の関数をそのまま通しています。</p>
+<pre>r122AfterReceive → r122InspectResponse → r122SendFix
+→ r122CallAi → r122AcceptedHorses → r122PublishWhenReady</pre>
+<p class="sub">偽の送信口が何回呼ばれたかも数えています。すべてトランザクションの中で行い、最後にロールバックしています。</p>
+</div>
+
+<h2>2章　送信前の入力再生成で hash が違う</h2>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span>本物の不具合でした。送信用と保存用で入力を2回組み立てていたので、派生の計算時刻が変わり、snapshot_hash が一致せず、自分で自分の送信を拒否していました。</p>
+</div>
+<p>組み立てを1回だけにし、<b>保存した本文をそのまま送ります</b>（設計書7.2）。作り直す側は別の関数に分け、送信には使いません。</p>
+<p>1.1秒待って2回目を呼んでも本文が1バイトも変わらないこと、2nd も同じ固定入力から作られること、予約が hash 不一致で止まらないことを確かめています。対比として、作り直す側は2回で hash が変わることも並べました。</p>
+
+<h2>3-1章　needs_fix 一つで全帯の順位を捨てる</h2>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span>帯ごとに見るようにしました。指摘の無い帯は応答の順位をそのまま使います。</p>
+</div>
+<p>使えない帯だけを、設計書10.2の順で落とします。</p>
+<table>
+<tr><th>順</th><th>使うもの</th></tr>
+<tr><td>①</td><td>利用可能な旧順位</td></tr>
+<tr><td>②</td><td>検証済み予備根拠順位（evidence_band_ranks）</td></tr>
+<tr><td>③</td><td>独立根拠群数の多い順 → 馬番昇順の明示縮退</td></tr>
+</table>
+<p class="sub">前回の試験は「全帯を捨てる」動きを合格にしていました。期待値の側が間違っていたので、そちらを直しました。</p>
+
+<h2>3-2章　正常な採点項目まで全消去</h2>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span>診断が「どの採点項目がおかしいか」を項目名で返すようにし、救済ではその項目だけを null にします。</p>
+</div>
+<p>残った項目から observed_sum・observed_cap・total_score を計算し直し、根拠はそのまま残します。集計だけの誤りは項目の誤りではないので、<b>採点は1項目も消しません。</b></p>
+
+<h2>4章　全頭を返す訂正が対象外として拒否される</h2>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span>訂正は常に全頭を返すのが契約です。範囲外の馬を、初回と同じ中身かどうか調べる前に「対象外を変えようとしている」と判定していました。</p>
+</div>
+<p>いまは<b>未変更の正常行の再掲</b>と<b>対象外の行の書き換え</b>を分けます。初回と同じ中身なら通します（キーの順序は正規化して比べます）。救済馬も horses の対象に入っているかを明示的に検査し、row_valid を渡さない呼び方は断ります。</p>
+<p class="sub">対象外を本当に変える訂正は、これまでどおり採用しません。</p>
+
+<h2>5章　取消バッチの採用前混入</h2>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span>前処理は時刻しか見ておらず、committed を見るのは後段の pick でした。いまは pick と同じ条件を先に当てます。</p>
+</div>
+<p>commit済みかつ時刻適合のバッチの取消だけで活動集合を作り、どのバッチの取消を使ったかを batch_id で記録に残します。原ペイロードの重複馬番・未知馬・「取消と数値の併存」も理由付きで検出します。</p>
+<div class="card warn">
+<p><span class="tag t-warn">残り</span>同一スロットに採用され得る候補が複数あるとき、その取消は<b>依然として合算されます。</b>採用候補ごとに活動集合を分ける構造にはしていません。いまできているのは「採用され得ないバッチの取消を混ぜない」ところまでです。合算が起きた場合は記録から読めます。</p>
+</div>
+
+<h2>6-1章　早過ぎる凍結を断った後の再開</h2>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span>TOO_EARLY で断ったあと、誰も呼び直していませんでした。</p>
+</div>
+<p>TOO_EARLY のときは<b>空回答をキャッシュしません</b>。残すと次のアクセスがキャッシュ返却で終わります。キャッシュを返すときも、固定入力が無ければ<b>応答を返したあとに</b>1回だけ作り直し、公開の起動もします。画面の待ち時間は増えません。</p>
+
+<h2>6-2章　待機を解除する時刻の起動</h2>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span>ご指摘の計算のとおりです。1分おきの巡回では、応答期限から公開期限までの30秒を取りこぼします。</p>
+</div>
+<p>1回の呼び出しの中で、決めた秒数のあいだ短い間隔で回せるようにしました。既定は55秒を5秒間隔です。1分おきの cron に入れれば、<b>巡回の間隔は最大5秒</b>になります。刻みの実測（回数・最大の間隔）をログに出しています。</p>
+<p class="sub">cron にはまだ入れていません。枠の段が 0 の間は拾う対象を見ないので、入れても意味がありません。枠の段を上げるときに同時に入れます。行そのものはコマンドの最後に出力しています。</p>
+
+<h2>6-3章　Job 廃止の理由は未実証</h2>
+<div class="card ng">
+<p><span class="tag t-ng">取り下げ</span><b>A案（Jobを省く恒久変更）は取り下げます。</b>ご指摘のとおり、根拠として不足しています。原則B（設計書どおりのJob構成）を維持します。</p>
+</div>
+<p>Job 構成そのものは、まだ作っていません。10月24日・25日は非公開の検証にとどめ、恒久的な設計変更はしません。比較に必要な実測（取り出し待ち、同時開催、障害時）は、いまの手元にありません。</p>
+
+<h2>6-4章　設定検査が1stだけ</h2>
+<div class="card ok">
+<p><span class="tag t-ok">直しました</span>2nd の送信入口にも同じ設定検査を入れました。PROMPT=1／QUEUE=0 という組み合わせは、どちらの role からも作れません。</p>
+</div>
+<p class="sub">1st・2nd の両方の本番関数から接続を呼んでいることを、関数の中身そのものを見て確かめています。</p>
+
+<h2>6-5章　shadow が測れる範囲</h2>
+<div class="card ng">
+<p><span class="tag t-ng">取り下げ</span>ご指摘のとおりです。PROMPT=shadow／QUEUE=0 だけでは新しい応答・訂正・統合・公開は通りません。<b>「shadow で後処理の秒数まで測る」という前回の説明は成立しません。</b></p>
+</div>
+<p>そこで、入力観測用の shadow と、<b>公開系から隔離した新経路の試験</b>を分けました。新経路のほうが上の E です。通しているのは、初回→検証→訂正→解決→公開（1st・2nd とも）、訂正は最大1回、片側失敗、通信不能、途中で切れた応答、応答期限到達、公開期限到達、プロセス停止後の復旧、上限前呼出し→上限後凍結です。</p>
+<p class="sub">実AIの時間と出力品質は、これでは測れません。それが H です。</p>
+
+<h2>7章　正確な数値保持</h2>
+<div class="card ng">
+<p><span class="tag t-ng">一度間違えました</span>最初は「PHPで正確に持てない数値は受け取らない」という検査を入れました。ところがこれは、<b>契約9章が許している有効桁128桁の数値まで拒否します。</b>正しい応答を落とす側の誤りでした。自分の試験が落ちて気づきました。</p>
+</div>
+<p>ご指摘の文は「許容された数学的有限数を INF や丸めた別値へ変えないこと」「数値トークンの原表現と型を保持し、必要な任意精度計算へ渡してください」です。<b>拒否ではなく保持</b>が筋ですので、方針ごと差し替えました。</p>
+<table>
+<tr><th>応答に来た数値</th><th>いまの扱い</th></tr>
+<tr><td><code>11</code> / <code>2.5</code></td><td>そのまま数値。変えません</td></tr>
+<tr><td><code>1.99999999999999999999</code></td><td>通す → 原表現の文字列</td></tr>
+<tr><td><code>12345678901234567890</code></td><td>通す → 原表現の文字列</td></tr>
+<tr><td><code>2e308</code></td><td>通す → 309桁の十進数。<b>INF にしません</b></td></tr>
+<tr><td>有効桁128</td><td>通す → 原表現のまま</td></tr>
+<tr><td>有効桁129</td><td>拒否（契約の上限）</td></tr>
+</table>
+<p>置き替えるのは数値トークンの位置だけなので、本文の他の部分は1バイトも動きません。混在していても、丸まらない数は数値のままです。</p>
+<p><b>「AIが返した数値文字列を勝手に数値として通す変更もしないでください」</b>という点について。型は後段で見ます。採点は整数と決まっているので、丸まる数が採点に来れば文字列のままになり、採点の検査（<code>is_int</code>）が落とします。その条件が診断に入っていること自体も試験で見張っています。</p>
+
+<h2>8-4章　算出時刻が永久に入らない作りでした</h2>
+<div class="card ng">
+<p><span class="tag t-ng">間違えました</span>前回「翌日から載る」と書きました。<b>これは間違いでした。</b>ご指摘の「条件付きの見込み」そのものでした。</p>
+</div>
+<p>集計コマンド2本は、<b>新しいレース結果が無い日は DB に1行も書かずに終わる</b>作りです（両コマンドの【ブロック4】）。平日は必ずそこを通るので、算出時刻は永久に入りません。実際、DBを見るとこの2表が最後に書かれたのは10月18日で、10月19日・20日の集計はどちらも1行も書いていませんでした。</p>
+<p>値は1つも変えず、<b>算出時刻だけ</b>を入れ直すようにしました。意味は「この時刻にもう一度集計して、同じ値であることを確認した」です。集計期間の終わり（end_date）は触りません。</p>
+<table>
+<tr><th>　</th><th>いまの値</th></tr>
+<tr><td>集計期間の終わり</td><td>2026-10-18（変えていません）</td></tr>
+<tr><td>算出時刻</td><td>2026-10-21 06:21</td></tr>
+</table>
+<p class="sub">どちらも事実です。平均の値は元データだけで決まるので、同じ元データならいつ計算しても同じ値になります。</p>
+<div class="card ok">
+<p><span class="tag t-ok">結果</span><b>OPI が初めて載りました。</b>これまで一度も通っていなかった「載る側」の経路を初めて通し、載った値を SQL から取り直した値と突き合わせています。</p>
+<p class="sub">opi 0.9 ／ fuku_opi 1.08 ／ estimated_opi 0.91（いずれも一致）</p>
+</div>
+<p>なお popavg の cron は <code>10 21 * * 0-5</code> で<b>土曜は動きません</b>。この是正を入れなければ、10月24日・25日の検証中は OPI が載らないままでした。</p>
+
+<h2>添付したもの</h2>
+<table>
+<tr><th>場所</th><th>中身</th></tr>
+<tr><td><code>code/</code></td><td>PHP 4本の現物（サーバに置いたものと同じ）</td></tr>
+<tr><td><code>diff/</code></td><td>前回提出からの差分。集計2本は<b>算出時刻を持たない版</b>（2026-08-14）も同梱</td></tr>
+<tr><td><code>log/</code></td><td>2026-10-21 06:24 の実行結果（24本）</td></tr>
+<tr><td><code>log/20・21</code></td><td>元値の指紋。試験の<b>前後</b>で4表とも完全一致</td></tr>
+<tr><td><code>log/22・23</code></td><td>crontab の全文と Laravel のスケジュール（Laravel 側は空。定時実行はすべて crontab）</td></tr>
+<tr><td><code>documents/</code></td><td>基本設計書・詳細設計書（文書版1.2。本文は前回から変えていません）</td></tr>
+<tr><td><code>03_…md</code></td><td>設計書への差替え箇所と追記箇所（これを入れたものを文書版1.3とします）</td></tr>
+</table>
+
+<h2>残っているもの</h2>
+<div class="card warn">
+<p><b>H（実AIでの実測）</b>　10月24日・25日の非公開検証でしか測れません。本文サイズ、各時刻、期限内完了、最終候補、保持・不足理由を race_id 単位で出します。</p>
+<p><b>Job 構成</b>　A案は取り下げました。設計書どおりの構成はまだ作っていません。</p>
+<p><b>5章の合算</b>　同一スロットの複数候補の取消は、依然として合算されます。</p>
+<p><b>Flutter・実ルート・AC01〜AC14・的中率／回収率／人気薄捕捉率</b>　未確認です。</p>
+</div>
+
+<footer>
+馬眼力 r12.2／2026年10月21日／豊田英之<br>
+この資料のすべての主張は、同梱の log と code から再現できます。
+</footer>
+
+</div>
+</body>
+</html>

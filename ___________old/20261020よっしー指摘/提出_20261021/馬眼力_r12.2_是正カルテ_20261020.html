@@ -1,0 +1,377 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>r12.2 是正カルテ</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:0 16px 56px;font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+ line-height:1.8;color:#1b1b1b;font-size:16px;max-width:560px;margin:0 auto;background:#fff;
+ -webkit-text-size-adjust:100%}
+h1{font-size:21px;line-height:1.5;margin:22px 0 4px;padding-bottom:10px;border-bottom:3px solid #1b1b1b}
+h2{font-size:17px;margin:34px -16px 12px;padding:9px 16px;background:#1b1b1b;color:#fff}
+h3{font-size:15.5px;margin:22px 0 8px;padding-left:9px;border-left:5px solid #888}
+p{margin:10px 0}
+.meta{font-size:12.5px;color:#555;margin:6px 0 18px}
+.box{border:2px solid #1b1b1b;border-radius:8px;padding:13px;margin:16px 0}
+.ok{border-color:#1a6b1a;background:#f3fbf3}
+.warn{border-color:#8a5a00;background:#fffdf3}
+.stop{border-color:#b00;background:#fff5f5}
+.big{font-size:18px;font-weight:bold;line-height:1.6}
+.k{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #e3e3e3;align-items:baseline}
+.k:last-child{border-bottom:none}
+.k b{flex:0 0 42%;font-weight:600;font-size:14px;color:#333}
+.k span{flex:1;font-size:14.5px}
+.card{border:1px solid #ccc;border-radius:8px;padding:11px 13px;margin:11px 0;background:#fafafa}
+.card h4{margin:0 0 6px;font-size:15px}
+.card p{margin:5px 0;font-size:14.5px}
+.pass{color:#1a6b1a;font-weight:bold}
+.miss{color:#b00;font-weight:bold}
+.hold{color:#8a5a00;font-weight:bold}
+code{background:#eee;padding:1px 5px;border-radius:4px;font-size:13px;
+ word-break:break-all;font-family:ui-monospace,Menlo,monospace}
+pre{background:#f4f4f4;border-radius:6px;padding:10px;overflow-x:auto;font-size:12.5px;line-height:1.6}
+ul,ol{padding-left:1.25em;margin:9px 0}
+li{margin:7px 0;font-size:15px}
+.small{font-size:13px;color:#555}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0}
+th,td{border:1px solid #ccc;padding:5px 7px;text-align:left;vertical-align:top}
+th{background:#efefef;font-weight:600}
+hr{border:none;border-top:1px solid #ddd;margin:26px 0}
+.ab{border:2px solid #1b1b1b;border-radius:8px;margin:16px 0;overflow:hidden}
+.ab .q{background:#1b1b1b;color:#fff;padding:9px 13px;font-weight:bold;font-size:15.5px}
+.ab .o{padding:11px 13px;border-top:1px solid #ddd}
+.ab .o b{font-size:15px}
+.ab .o p{font-size:14px;margin:4px 0}
+</style>
+</head><body>
+
+<h1>是正カルテ<br>馬眼力 r12.2</h1>
+<div class="meta">
+2026年10月20日（JST）／ 実装担当より<br>サーバ実測 2026-10-20 17:50（JST）<br>
+対象：「馬眼力 r12.2『是正と現物』確認結果」（確認者：なる様）<br>
+版 <code>baganriki-v041-r12-2-20261020</code>／
+<code>schema_version = baganriki-v041-r12-2</code>
+</div>
+
+<div class="box stop">
+<div class="big">まず、前回の対応表が間違っていました。</div>
+<p>「修正済み」と書いた項目が、現物では直っていませんでした。コードを読まずに表を書いたのが原因です。申し訳ありません。</p>
+<p class="small">今回は<b>先にコードを読み、関数名と試験IDを突き合わせてから</b>この表を作りました。「直した」と書いた行には、必ず<b>その場所と、それを落とす試験</b>を添えています。添えられないものは<b>未実装</b>と書いています。</p>
+</div>
+
+<div class="box ok">
+<div class="big">005でいただいた指摘のうち、本物の不具合は9件。全部直しました。</div>
+<p>内訳は、Zの丸め／取消後の目標数／欠落馬の救済／証明なしの加点／監査のDB日時／情報上限の渡し忘れ／採用バッチの原値／日時の繰上がり／正本との一致検査です。</p>
+<p class="small">このうち<b>最後の4件は、このカルテを書く前にコードを読み直して見つけました。</b>「直したつもり」で表に書く寸前でした。見つけられたのは、前回ご指摘いただいた「現物と突き合わせる」をやったからです。</p>
+</div>
+
+<div class="box warn">
+<p><b>まだできていないことも、はっきり書きます。</b></p>
+<ul>
+<li><b>実AIは一度も呼んでいません。</b>本番の凍結入力も0件です。</li>
+<li><b>参照根拠の意味検証</b>（参照IDの実在・所有馬・SIGNAL／CONTEXT）と<b>採点の再計算</b>は未実装です。</li>
+<li><b>応答JSONの厳密読込</b>（重複キー・任意精度・サイズ・指数範囲）は未実装で、いまも通常の <code>json_decode</code> です。</li>
+<li>基本設計書・詳細設計書の更新と、是正込みの工程表はこれから作ります。</li>
+</ul>
+<p class="small">これらを「済み」として数えていません。公開可とも申し上げません。</p>
+</div>
+
+<h2>0. 対応表（現物基準）</h2>
+<p class="small">「場所」は <code>AiController.php</code> 内のアンカー注釈です。<code>grep</code> で一発で出ます。</p>
+
+<h3>最優先の4点</h3>
+<table>
+<tr><th>005の指摘</th><th>状態</th><th>場所と試験ID</th></tr>
+<tr><td>2-1 DB日時をRFC3339へ変換していない</td><td class="pass">修正</td><td><code>@ANCHOR-R122-COVERAGE</code><br><code>r122DbTime()</code> / <code>BaganrikiWorker::dbUs()</code><br>試験 <code>--r122-acq-test</code></td></tr>
+<tr><td>2-2 input_freeze_at が採用判定へ渡っていない</td><td class="pass">修正</td><td><code>r122GatherContext()</code> が正本anchorから算出して渡す<br>試験 N-05〜N-07</td></tr>
+<tr><td>2-3 採用バッチの原値を使っていない</td><td class="pass">修正</td><td><code>@ANCHOR-R122-ACQFIX</code><br><code>$cells = $batchCells;</code><br>試験 <code>--r122-acq-test</code>（payload_hash 再計算照合つき）</td></tr>
+<tr><td>2-4 実監査行を通した証跡がない</td><td class="pass">修正</td><td><code>--r122-acq-test</code> 13項目。監査行作成→採用→入力→凍結保存→読戻し。全ロールバックで<b>書込0件</b></td></tr>
+<tr><td>3 Zの丸め（16頭で3/3/1が5/2/0になる）</td><td class="pass">修正</td><td><code>@ANCHOR-R122-Z</code><br>試験 <b>R122-Z01</b>（ご指定の16頭そのもの・22項目）</td></tr>
+<tr><td>4 取消後の目標数C・基本配分の再計算</td><td class="pass">修正</td><td><code>@ANCHOR-R122-RECALC</code><br><code>afterCancellation()</code><br>試験 N-15〜N-29</td></tr>
+<tr><td>5-1 欠落実在馬の救済・repair_scope・row_valid</td><td class="pass">修正</td><td><code>@ANCHOR-R122-RESP</code><br><code>BaganrikiDiagnose</code> / <code>r122ResolveCorrection()</code><br>試験 R-03〜R-21</td></tr>
+<tr><td>5-2 証明hashなしで+5になる</td><td class="pass">修正</td><td><code>BaganrikiRanking::merge()</code><br>試験 R122-R03／P-06〜P-08</td></tr>
+<tr><td>5-3 isolateHorses が horse_no を読まない</td><td class="pass">修正</td><td><code>@ANCHOR-R122-HORSENO</code><br>試験 R122-V02</td></tr>
+</table>
+
+<h3>試験報告の訂正（005の6章）</h3>
+<table>
+<tr><th>005の指摘</th><th>状態</th><th>場所と試験ID</th></tr>
+<tr><td>6-1 729件＋4件がCommand側の検証用関数だった</td><td class="pass">修正</td><td><code>--r122-native-test</code><br>本体 <code>BaganrikiSignals::v04Classify</code> へ729件（判定<b>6,561項目</b>）<br>本体 <code>BaganrikiTime::acceptBatch</code> へ境界4件<br>試験 N-01〜N-04。<b>検証用関数側の結果は別の見出しで出します</b></td></tr>
+<tr><td>6-2 異常出力の呼出経路</td><td class="hold">一部</td><td><code>extract → checkEnvelope → isolateHorses</code> は通しました。<br><b>acceptCorrection→順位・統合までは未接続です</b></td></tr>
+<tr><td>6-2 roleは予約済みと固定snapshotで照合</td><td class="pass">修正</td><td><code>r122InspectResponse($sid, $role, $attemptNo)</code>。照合元は<b>予約した role</b>。応答の自己申告roleは照合相手の選択に使いません</td></tr>
+<tr><td>6-3 正常14出力を正規キーのまま本体へ</td><td class="pass">修正</td><td><code>--r122-response-test</code> 25項目。14本すべて<b>全頭残り・誤検出0</b></td></tr>
+</table>
+
+<h3>数値・日時（005の7章）</h3>
+<table>
+<tr><th>005の指摘</th><th>状態</th><th>場所と試験ID</th></tr>
+<tr><td>7-1 取得側・r122NumValue の小数4桁制限</td><td class="pass">修正</td><td><code>@ANCHOR-R122-DIGITS</code><br><code>usableDecimal()</code> / <code>r122NumValue()</code><br>試験 R122-E07（小数20桁・129桁整数・丸めが起きる桁）</td></tr>
+<tr><td>7-2 float代替経路が残る</td><td class="pass">分離</td><td>元値があるときは必ず <code>$pairs[k]['exact']</code> を使います。代替は<b>手で組んだ試験用ペアだけ</b>到達。試験 R122-E07「本番のペアは代替経路へ落ちない」</td></tr>
+<tr><td>7-3 応答JSONの厳密読込</td><td class="miss">未実装</td><td><code>BaganrikiResponse::extract()</code> はいまも <code>json_decode</code>（深さ64のみ）。<b>重複キー・任意精度・サイズ・指数範囲は見ていません</b></td></tr>
+<tr><td>7-4 日時の繰上がりを検査していない</td><td class="pass">修正</td><td><code>@ANCHOR-R122-ROLLOVER</code><br>試験 N-08〜N-14</td></tr>
+<tr><td>7-4 正本anchorとの意味的一致を検査していない</td><td class="pass">修正</td><td><code>@ANCHOR-R122-ANCHORMATCH</code><br>試験 N-05〜N-07</td></tr>
+</table>
+
+<h3>その他</h3>
+<table>
+<tr><th>005の指摘</th><th>状態</th><th>場所と試験ID</th></tr>
+<tr><td>8 元値指紋（切捨て・NULL表現・列境界・主キー集合）</td><td class="pass">修正</td><td><code>--r122-fingerprint</code><br>方式ID <code>per-row-length-prefixed-sha256-ordered-by-pk-v1</code><br>主キーを先頭に入れ、<b>主キー順に逐次SHA-256</b>。主キーの並びも別SHA-256</td></tr>
+<tr><td>9 REPLAYとPRODUCTIONの保存分離</td><td class="pass">修正</td><td><code>--r122-acq-test</code> 内「仮の監査・締切で作った入力は PRODUCTION として保存しません」。REPLAYは <code>generation=900</code>、本番は <code>generation=0</code>。同じ race_id でREPLAY保存後にPRODUCTIONを走らせ、<b>本番世代0件</b>を確認</td></tr>
+<tr><td>4末尾 公開期限後の正式履歴とライブ表示の分離</td><td class="pass">修正</td><td>試験 A-19〜A-23。正式公開の枠は動かさず、いまの枠だけが取消を映します</td></tr>
+<tr><td>5末尾 参照IDの実在・所有馬・SIGNAL/CONTEXT</td><td class="miss">未実装</td><td>各馬の事実出典hashは <code>r122FieldSources()</code> で<b>記録</b>していますが、<b>入力のsource_registryに実在するかの検査はしていません</b></td></tr>
+<tr><td>5末尾 採点の再計算</td><td class="miss">未実装</td><td>採点辞書は <code>BaganrikiDiagnose::SCORE_CAP</code> に正本どおり持っています。<b>再計算は未実装です</b></td></tr>
+<tr><td>10-1 採点項目を正本の辞書へ合わせる</td><td class="pass">修正</td><td>下の「6. 追加材料の接続表」のとおり</td></tr>
+<tr><td>10-2 時刻はA案</td><td class="pass">A案</td><td>真正な時刻だけを使い、<b>無い時刻は作りません</b>。00:00への置換はしていません</td></tr>
+<tr><td>11 更新した設計書・是正込み工程表</td><td class="miss">未着手</td><td>これから作ります</td></tr>
+</table>
+
+<h2>1. Zの丸め ─ ご指定の16頭を通しました</h2>
+<div class="box stop"><p><b>本物の不具合でした。</b>X1〜X5は元値の比較へ置き換えたのに、<b>Zだけ <code>round(…,4)</code> した表示用の値を見たままでした。</b>前回「全面的に置換」と書いたのは誤りです。</p></div>
+<p>直した形は X1〜X5 と同じで、元値のたすき掛けです。割り算も <code>float</code> も通りません。</p>
+<pre>$z = fn(int $k) =&gt; AND3(
+        $ex($k, 'W21&gt;=2'),      // 2×下21 &lt;= 上21
+        $ex($k, 'W6&gt;=2'),       // 2×下6  &lt;= 上6
+        $ex($k, 'P6&gt;=1.50'));   // 2×下6  &gt;= 3×上6
+$Z = v04TriAtLeast($zEach, 2);   // 2境界以上</pre>
+<p>旧コードは消さずにコメントで残してあります。</p>
+
+<h3>ご指定の16頭を、元値 → ペア → 全信号 → mode → 配分まで通した結果</h3>
+<p class="small">単勝 <code>10 / 19.9999 / 39.9997 / 44 …</code>、複勝最小 <code>1 / 1.5 / 2.25 / 2.3 …</code>、全6時点同値。試験ID <b>R122-Z01</b>。</p>
+<table>
+<tr><th>項目</th><th>正本</th><th>いまのコード</th></tr>
+<tr><td>Z</td><td>FALSE</td><td class="pass">FALSE</td></tr>
+<tr><td>X1／X2／X4／X5</td><td>FALSE</td><td class="pass">FALSE</td></tr>
+<tr><td>X3</td><td>TRUE</td><td class="pass">TRUE</td></tr>
+<tr><td>X6</td><td>UNKNOWN</td><td class="pass">UNKNOWN</td></tr>
+<tr><td>S の範囲</td><td>1〜2</td><td class="pass">1〜2</td></tr>
+<tr><td>mode_status</td><td>PROVISIONAL</td><td class="pass">PROVISIONAL</td></tr>
+<tr><td>allocation_mode</td><td>MIXED</td><td class="pass">MIXED</td></tr>
+<tr><td>1st の配分</td><td><b>3/3/1</b></td><td class="pass"><b>3/3/1</b></td></tr>
+<tr><td>2nd の配分</td><td>1/3/1</td><td class="pass">1/3/1</td></tr>
+</table>
+<div class="box ok"><p>同じ入力で<b>「4桁に丸めると 2.0000 になる」ことも試験に入れました。</b></p>
+<div class="k"><b>表示用のW21</b><span><code>2.0000</code></span></div>
+<div class="k"><b>元値の比</b><span class="pass">2未満（FALSE）</span></div>
+<p class="small">丸めが戻ったら、この2行が食い違って試験が落ちます。</p></div>
+
+<h2>2. 取消後の目標数 ─ 引き直しています</h2>
+<div class="box stop"><p><b>本物の不具合でした。</b><code>active_count</code> は数えていたのに、<b>そこから C と基本配分を引き直していませんでした。</b>旧 quota の不足移動だけでした。</p></div>
+<p>凍結帯は維持します。人気は繰り上げません。引き直すのは<b>最新の頭数に応じた目標数と基本配分</b>だけです。</p>
+<p class="small">試験 N-15〜N-29。ご指定の4例をそのまま通しました。</p>
+<table>
+<tr><th>例</th><th>取消前</th><th>目標数C</th><th>基本配分</th><th>結果</th></tr>
+<tr><td>16→15</td><td>7／3-3-1</td><td>6</td><td><b>3/2/1</b></td><td class="pass">一致</td></tr>
+<tr><td>14→13</td><td>6／3-2-1</td><td>5</td><td><b>3/2/0</b></td><td class="pass">一致</td></tr>
+<tr><td>9→8</td><td>5／3-2-0</td><td>4</td><td><b>2/2/0</b></td><td class="pass">一致</td></tr>
+<tr><td>全頭取消</td><td>7／3-3-1</td><td>0</td><td>枠を返しません</td><td class="pass">一致</td></tr>
+</table>
+<div class="card"><h4>全頭取消のとき</h4><p><code>all_cancelled = true</code>／<code>target_count = 0</code>／<code>live_quota = null</code> を返します。<b>旧quotaは返しません。</b>読取APIは <code>CANDIDATES_CANCELLED</code> を返し、候補0と整合します（試験 A-24）。</p></div>
+<div class="card"><h4>詰め直していないこと</h4><p>16頭で1番人気を取り消した場合、Aの生存は6→5、Bは6のまま。<b>Bから繰り上げません</b>（試験 N-28・N-29）。</p></div>
+
+<h2>3. 局所訂正・救済・証明</h2>
+<h3>欠落した実在馬は救済します</h3>
+<p>判定を1か所に集めました。<code>BaganrikiDiagnose::run()</code> が <code>repair_scope</code>・<code>row_valid</code>・<code>findings</code> を返し、<b>検証（inspect）と訂正（resolve）が同じ関数を使います。</b>片方だけ直って食い違う、という事故を防ぐためです。</p>
+<table>
+<tr><th>場面</th><th>扱い</th><th>試験</th></tr>
+<tr><td>初回に無い馬番で、凍結runner集合に居る</td><td class="pass">救済（horses訂正対象内のみ）</td><td>R-16・R-17</td></tr>
+<tr><td>初回に無い馬番で、凍結集合に居ない</td><td class="miss">未知馬として隔離</td><td>R-05・R-06</td></tr>
+<tr><td>対象外の行を書き換える訂正</td><td class="miss">採用しない</td><td>R-18・R-19</td></tr>
+<tr><td>訂正の時刻が初回より前</td><td class="miss">採用しない</td><td>R-20</td></tr>
+<tr><td>直すところが無いのに来た訂正</td><td class="miss">訂正しない</td><td>R-21</td></tr>
+<tr><td>壊れた1頭</td><td><code>row_valid=false</code>。他馬は <code>true</code></td><td>R-09〜R-11</td></tr>
+</table>
+<div class="box ok"><p><b>公開リスト・公開フラグの不一致では、評価行（horses）を広げません。</b></p><p class="small"><code>repair_scope</code> に <code>public_candidates</code> だけを入れ、全頭そのまま残します（試験 R-12〜R-14）。「表示がずれたから全頭やり直し」を防ぐためです。</p></div>
+
+<h3>証明がなければ加点しません</h3>
+<p><code>merge()</code> は、両roleの原公開が一致した馬に +5 しますが、<b>その証明がそろっているときだけ</b>です。</p>
+<table>
+<tr><th>状態</th><th>加点</th><th>試験</th></tr>
+<tr><td>両roleの証明hashがそろう</td><td class="pass">+5（統合点105）</td><td>R122-R03</td></tr>
+<tr><td>片側だけ</td><td class="miss">0</td><td>R122-R03／P-17</td></tr>
+<tr><td>片側の証明が不正</td><td class="miss">0</td><td>R122-R03</td></tr>
+</table>
+<p class="small">証明は、<b>1本の完全な原応答が、公開に使う全頭とそろっているときだけ</b>出します（<code>r122ResponseUsed()</code>）。混ざった行・片側不適合では出しません。加点の証明hashは、各馬の事実出典hashとは<b>別に</b>残しています（試験 P-08）。</p>
+
+<h2>4. 実監査行から凍結保存まで</h2>
+<div class="box stop"><p><b>3件とも本物の不具合でした。</b>DB日時を変換していない／情報上限を渡していない／採用バッチの原値を使っていない。ご指摘のとおり、仮置きのdry-runでは通っていなかった経路です。</p></div>
+<h3>直した3点</h3>
+<div class="card"><h4>① DBの日時をRFC3339へ</h4><p><code>r122DbTime()</code> と <code>BaganrikiWorker::dbUs()</code> を入れました。<code>DATETIME(6)</code> の <code>"2026-10-18 15:04:00.123456"</code> を<b>マイクロ秒を保ったまま</b>変換します。<b>外部入力の日時検査は緩めていません。</b>RFC3339しか受け付けない <code>BaganrikiTime::us()</code> はそのままです。DBとの変換だけを別の関数にしました。</p></div>
+<div class="card"><h4>② 情報上限を正本から算出して渡す</h4><p><code>r122GatherContext()</code> が発走時刻から <code>T−330秒</code> を出し、採用判定へ渡します。<b>バッチの自己申告は使いません。</b>申告が正本とずれていたら <code>FREEZE_MISMATCH</code> で落とします（試験 N-07）。</p></div>
+<div class="card"><h4>③ 採用バッチの原ペイロードから値を復元</h4><p>実監査行があるときは <code>$cells = $batchCells;</code> とし、<b>共通のオッズテーブルからは読みません。</b>取消情報も採用バッチのものを使います。採用の条件に <code>available_at ≤ 情報上限</code> が入っているので、情報上限より後の取消は混ざりません。</p><p class="small"><code>--r122-acq-test</code> で <b>payload_hash を再計算して保存hashと一致</b>することを確かめ、さらに「6分前の登録の値が採用バッチの原値と全頭一致」も見ています。</p></div>
+
+<h3>通した経路（全ロールバック・書込0件）</h3>
+<pre>監査行を作る → 採用バッチを選ぶ → INPUT_JSON を組む
+ → 凍結保存 → 読み戻して snapshot_hash 一致
+ → race_runs の status/run_kind/generation を確認
+ → ロールバック（監査0件・snapshot0件・race_runs0件）</pre>
+<p class="small">13項目すべて合格です。<b>これは実DB形式の監査行を通した経路です</b>（時刻は実開催のものではなく試験用に作った値です。そこは分けて書きます）。</p>
+
+<h2>5. 本体へ直接通した試験</h2>
+<div class="box warn"><p><b>ご指摘のとおりでした。</b>729件＋4件は <code>self::r122Decide</code> と <code>self::r122AcceptBatch</code>、つまり<b>Command側の検証用関数</b>へ通していました。本体の試験ではありませんでした。</p></div>
+<p>新しく <code>--r122-native-test</code> を作り、<b>本番が実際に計算している関数だけ</b>を呼ぶ試験にしました。</p>
+<table>
+<tr><th>通した先</th><th>件数</th><th>結果</th><th>試験ID</th></tr>
+<tr><td><code>BaganrikiSignals::v04Classify</code></td><td>729件（判定6,561項目）</td><td class="pass">不一致 0</td><td>N-01・N-02</td></tr>
+<tr><td><code>BaganrikiTime::acceptBatch</code></td><td>4件</td><td class="pass">不一致 0</td><td>N-03・N-04</td></tr>
+</table>
+<p class="small"><code>AiController::v04Classify</code> は <code>BaganrikiSignals</code> への薄い入口（private）です。実際に計算しているのは後者なので、そちらを呼んでいます。<b>検証用関数側の結果は、同じスクリプトの別の見出しで分けて出します。</b></p>
+
+<h3>日時の繰上がり</h3>
+<p>これも見つかりました。<code>createFromFormat</code> は <b><code>2026-02-30</code> を3月2日へ繰り上げて <code>false</code> を返しません。</b>正規表現は <code>\d{2}</code> しか見ていなかったので素通りしていました。</p>
+<p>作り直した日付・時刻を元の文字列と突き合わせ、あわせて警告・注意も見るようにしました。</p>
+<table>
+<tr><th>入力</th><th>いまの扱い</th><th>試験</th></tr>
+<tr><td><code>2026-02-30T10:05:00+09:00</code></td><td class="miss">受け取らない</td><td>N-08</td></tr>
+<tr><td><code>2026-13-01T…</code></td><td class="miss">受け取らない</td><td>N-09</td></tr>
+<tr><td><code>2026-10-18T25:00:00+09:00</code></td><td class="miss">受け取らない</td><td>N-10</td></tr>
+<tr><td><code>2026-10-18T10:61:00+09:00</code></td><td class="miss">受け取らない</td><td>N-11</td></tr>
+<tr><td><code>2025-02-29T…</code>（平年）</td><td class="miss">受け取らない</td><td>N-12</td></tr>
+<tr><td><code>2024-02-29T…</code>（うるう年）</td><td class="pass">通る</td><td>N-13</td></tr>
+<tr><td><code>…10:05:00.123456+09:00</code></td><td class="pass">通る</td><td>N-14</td></tr>
+</table>
+
+<h3>「形の検査」と「正本との一致検査」を分けました</h3>
+<p>ご指摘のとおり、この2つは別物でした。発走時刻が渡されているときは、後者も見ます。</p>
+<table>
+<tr><th>状態</th><th>コード</th><th>試験</th></tr>
+<tr><td>正本と合っている</td><td class="pass">採用</td><td>N-05</td></tr>
+<tr><td>申告の予定時刻が1秒ずれている</td><td class="miss"><code>SCHEDULE_MISMATCH</code></td><td>N-06</td></tr>
+<tr><td>申告の情報上限が1秒甘い</td><td class="miss"><code>FREEZE_MISMATCH</code></td><td>N-07</td></tr>
+</table>
+<p class="small">理由文には<b>申告値と正本値の両方</b>を書いています。発走時刻が変更されたレースでも、何がずれたのか追えます。</p>
+
+<h2>6. 追加材料の接続表（正本の採点辞書に合わせました）</h2>
+<div class="box warn"><p><b>前回の呼び名が間違っていました。</b>H4を「市場の支持の質」、H5を「条件適性」と書いていました。正本は H4=類似統計 9点、H5=単複差 6点です。<b>接続表の呼び名に合わせて採点仕様を変えることはしません。</b></p></div>
+<table>
+<tr><th>採点項目</th><th>点</th><th>裏付ける資料</th><th>いまの状態</th></tr>
+<tr><td>H1 能力適性</td><td>18</td><td>過去走（着順・頭数・人気・距離・馬場）</td><td class="pass">INCLUDED</td></tr>
+<tr><td>H2 時系列</td><td>15</td><td>6時点の単勝・複勝（21〜6分前）</td><td class="pass">INCLUDED</td></tr>
+<tr><td>H3 断層</td><td>12</td><td>21→6分前の増減率</td><td class="pass">INCLUDED</td></tr>
+<tr><td>H4 類似統計</td><td>9</td><td>人気順×頭数帯の3着内率ほか</td><td class="hold">期日待ち</td></tr>
+<tr><td>H5 単複差</td><td>6</td><td>単勝と複勝最小の同時点の比</td><td class="pass">INCLUDED</td></tr>
+<tr><td>V1 補正OPI・市場評価</td><td>12</td><td>OPI・複勝OPI・予測補正OPI</td><td class="hold">期日待ち</td></tr>
+<tr><td>V2 能力と価格の乖離</td><td>10</td><td>過去走＋6分前オッズ</td><td class="pass">INCLUDED</td></tr>
+<tr><td>V3 回収率と母数</td><td>8</td><td>増減率帯×人気帯の回収率・母数</td><td class="hold">期日待ち</td></tr>
+<tr><td>V4 推定確定オッズと誤差</td><td>6</td><td>補正係数・標準偏差・母数</td><td class="hold">期日待ち</td></tr>
+<tr><td>V5 情報・価格の信頼性</td><td>4</td><td>取得監査（採用バッチ・時刻・hash）</td><td class="pass">INCLUDED</td></tr>
+</table>
+<p class="small">旧資格（<code>legacy_qualifications</code>）は r12.2 では使いません。参考情報にも戻しません。<b>追加資料が欠けても、確認済み個別SIGNAL1系統の馬を一括削除しません。</b></p>
+
+<h3>「期日待ち」の意味</h3>
+<p>実装は終わっています。<b>載せられない理由は1つだけで、集計の期間です。</b></p>
+<div class="box ok"><p><b>使っていいかを2つ重ねて判定しています。</b></p>
+<div class="k"><b>①</b><span>集計期間の終わり（<code>end_date</code>）が<b>対象レースの開催日より前</b></span></div>
+<div class="k"><b>②</b><span>算出時刻（<code>computed_at</code>）が<b>情報上限より前</b></span></div>
+<p class="small">②の列が無い表は①だけで見ます。<b>無い時刻は作りません。</b>読み取った時刻を <code>observed_at</code> に入れ、集計期間は <code>start_date</code>／<code>end_date</code> として別項目で渡します。00:00への置換はしていません。</p></div>
+<p>集計元の <code>end_date</code> は <code>MAX(date)</code>、つまり<b>その日のレースを含みます。</b>いまDBにある集計は <code>end_date = 2026-10-18</code> なので、<b>10/18のレースには使えません。</b>これは正しい動きで、理由つきの <code>UNAVAILABLE</code> を返します。</p>
+<pre>集計期間の終わり（2026-10-18）が対象レースの開催日（2026-10-18）以降です。
+当日を含む集計でその日のレースを評価しないためです。</pre>
+
+<h3>載る側も通しました</h3>
+<p>10/18のデータだけでは「載る側」を一度も通せません。そこで<b>実レースの実オッズ・実人気はそのまま使い、開催日と情報上限だけを仮に先へ動かして</b>呼び、載った値を<b>SQLから取り直して組み直した値</b>と突き合わせました（試験 M-01〜M-18）。</p>
+<table>
+<tr><th>項目</th><th>載った値</th><th>SQLから</th></tr>
+<tr><td><code>opi</code></td><td>0.90</td><td class="pass">0.90</td></tr>
+<tr><td><code>fuku_opi</code></td><td>1.08</td><td class="pass">1.08</td></tr>
+<tr><td><code>estimated_final_odds</code></td><td>2.85</td><td class="pass">2.85</td></tr>
+<tr><td><code>estimated_final_place_min</code></td><td>1.18</td><td class="pass">1.18</td></tr>
+<tr><td><code>estimated_opi</code></td><td>0.91</td><td class="pass">0.91</td></tr>
+</table>
+<p class="small">13頭のレースで <code>source_registry</code> 162項目（RACE 6／COHORT 91／HORSE 65、OBSERVED 97／DERIVED 65）、Schema違反0件。式は<b>いまの商品と同じものを使い、作り直していません。</b>複勝専用の補正係数は未実装なので、推定確定複勝最小には単勝の係数を流用しています（そう明記して渡します）。</p>
+
+<h3>10/24に載るかどうか</h3>
+<p>集計を作るcronは全部夜です。材料が増えるのも夜（<code>keiba:summary</code> 20:10／<code>importRaceResultHistory</code> 20:30）です。<b>レース時間帯(9:00〜17:00)に <code>end_date</code> が当日になることは構造的に起きません。</b></p>
+<table>
+<tr><th>集計</th><th>期間の終わり</th><th>算出</th><th>10/24</th></tr>
+<tr><td>過去平均単勝</td><td>10/18</td><td>列なし</td><td class="pass">使える</td></tr>
+<tr><td>過去平均複勝</td><td>10/18</td><td>列なし</td><td class="pass">使える</td></tr>
+<tr><td>補正係数</td><td>10/18</td><td>10/19 21:20</td><td class="pass">使える</td></tr>
+<tr><td>回収率</td><td>10/18</td><td>10/19 22:20</td><td class="pass">使える</td></tr>
+<tr><td>過去類似成績</td><td>列なし</td><td>10/19 23:10</td><td class="pass">使える</td></tr>
+</table>
+<p class="small">回収率の表は <code>start_date</code>／<code>end_date</code> を持っているのに、<b>算出時刻しか見ていませんでした。</b>OPIと同じ①の判定を当て、使った集計期間も <code>gaprec_start_date</code>／<code>gaprec_end_date</code> として登録に残すようにしました。過去類似成績の表には期間の列が<b>無い</b>ので、②だけで見ます。母数は各行の <code>sample_count</code> をそのまま渡します（「43行」は集計行数です）。</p>
+
+<h2>7. 試験の一覧</h2>
+<p class="small">すべてサーバの実環境で実行。ロールバックするものは<b>DBへ残る書き込み0件</b>を毎回確認しています。</p>
+<table>
+<tr><th>試験</th><th>件数</th><th>結果</th></tr>
+<tr><td>受入試験（<code>--v04-test</code>。R122-Z01・CL01〜08 を含む）</td><td>553</td><td class="pass">不合格 0</td></tr>
+<tr><td>キューと永続予約＋送信口＋旗（<code>--r122-queue-test</code>）</td><td>67</td><td class="pass">不合格 0</td></tr>
+<tr><td>応答検証と局所回復（<code>--r122-response-test</code>）</td><td>25</td><td class="pass">不合格 0</td></tr>
+<tr><td>統合・公開・intent・revision（<code>--r122-publish-test</code>）</td><td>24</td><td class="pass">不合格 0</td></tr>
+<tr><td>読取API（<code>--r122-read-test</code>）</td><td>29</td><td class="pass">不合格 0</td></tr>
+<tr><td><b>本体へ直接（<code>--r122-native-test</code>）</b></td><td><b>29</b></td><td class="pass">不合格 0</td></tr>
+<tr><td>OPIと推定確定オッズ（<code>--r122-market-test</code>）</td><td>18</td><td class="pass">不合格 0</td></tr>
+<tr><td>本番の経路で作った入力（<code>--r122-prod-input</code>）</td><td>9</td><td class="pass">不合格 0</td></tr>
+<tr><td>監査行→凍結保存→読戻し（<code>--r122-acq-test</code>）</td><td>13</td><td class="pass">不合格 0</td></tr>
+<tr><td>異常例32本（<code>--r122-invalid-cases</code>）</td><td>32</td><td class="pass">不一致 0</td></tr>
+<tr><td><b>合計</b></td><td><b>799</b></td><td class="pass"><b>不合格 0</b></td></tr>
+</table>
+<p class="small">合格件数が多いことは、正しさの証明ではありません。<b>誤った期待値や未検査の処理は合格数からは分かりません。</b>そのため上の対応表では、試験IDを添えられないものを「未実装」と書いています。</p>
+
+<h2>8. まだできていないこと</h2>
+<table>
+<tr><th>項目</th><th>いまの状態</th></tr>
+<tr><td>実AIの呼び出し</td><td class="miss"><b>一度もしていません。</b>送信文は264KB〜311KB。180秒で返るかは<b>未測定</b>です</td></tr>
+<tr><td>本番の凍結入力</td><td class="miss"><b>0件です。</b>いまは <code>BAGANRIKI_R122_PROMPT=shadow</code>／<code>QUEUE=0</code></td></tr>
+<tr><td>参照根拠の意味検証</td><td class="miss">参照IDの実在・所有馬・SIGNAL／CONTEXT の検査は未実装</td></tr>
+<tr><td>採点の再計算</td><td class="miss">未実装（辞書は正本どおり保持）</td></tr>
+<tr><td>応答JSONの厳密読込</td><td class="miss">重複キー・任意精度・サイズ・指数範囲は未検査</td></tr>
+<tr><td>異常例の経路</td><td class="hold">訂正→順位→統合までは未接続</td></tr>
+<tr><td>基本・詳細設計書／工程表</td><td class="miss">これから更新します</td></tr>
+<tr><td>回収率・人気薄捕捉率</td><td class="miss">性能は未検証です</td></tr>
+</table>
+<p>COLLECT_ONLY、<code>model_version=null</code>、<code>buy_recommended=false</code> は継続します。人気帯配分、根拠のある人気薄の保持、元値不変、取消・期限の条件は緩めていません。</p>
+
+<h2>9. ご判断をお願いしたいこと</h2>
+<p>どれも<b>こちらで勝手に決めたくない</b>ものです。A／Bでお選びいただければ、その形で入れます。</p>
+
+<div class="ab">
+<div class="q">① 投票締切の「1分前」の秒</div>
+<div class="o"><p class="small">JRA公式の「当日発売のインターネット投票は各レース発走時刻の1分前」を正本として <code>T−60秒</code> で導出しています。公式表記に<b>秒の記載がありません。</b></p></div>
+<div class="o"><b>A：<code>T−60秒</code> ちょうど</b><p>いまの実装。発走10:05:00なら締切10:04:00。AIに使える時間は<b>180秒</b>。</p></div>
+<div class="o"><b>B：発走時刻の分の0秒（最大59秒前倒し）</b><p>発走10:05:30なら締切10:04:00。安全側ですが、AIの時間が最大<b>121秒</b>まで縮みます。</p></div>
+<div class="o"><p class="small">どちらでも <code>.env</code> の <code>BAGANRIKI_SALES_CLOSE_OFFSET_SEC</code> で切り替わります。<b>公式に秒の記載が無いことが根拠なので、仕様としてどちらを正本にするかのご判断をいただきたいです。</b></p></div>
+</div>
+
+<div class="ab">
+<div class="q">② 過去走を何走まで載せるか</div>
+<div class="o"><p class="small">送信文の大きさが応答時間に直接きいてきます。実測（13頭のレース）です。</p>
+<table><tr><th></th><th>送信文</th><th>過去走</th></tr>
+<tr><td>5走（いま）</td><td>263,891バイト</td><td>223件</td></tr>
+<tr><td>1走</td><td>約150KB</td><td>約45件</td></tr>
+<tr><td>0走</td><td>127,762バイト</td><td>0件</td></tr></table>
+<p class="small">いちばん重いのは最初の1走です。</p></div>
+<div class="o"><b>A：5走のまま</b><p>H1 能力適性の材料がいちばん厚い。応答時間のリスクは高い。</p></div>
+<div class="o"><b>B：まず1走で始めて、応答時間を見てから増やす</b><p>H1が薄くなりますが、180秒に収まる見込みが立ちやすい。</p></div>
+<div class="o"><p class="small"><code>BAGANRIKI_PAST_RUNS_MAX</code> で切り替わります。<b>実AIを呼んでいないので、どちらが180秒に収まるかは分かりません。</b>そこを承知のうえでのご判断になります。</p></div>
+</div>
+
+<div class="ab">
+<div class="q">③ 10月24日・25日をどう動かすか</div>
+<div class="o"><p class="small">どちらも非公開検証です。違うのは「商品の予想を止めるかどうか」です。</p></div>
+<div class="o"><b>A：shadow のまま（いまの設定）</b><p>r12.2の入力を組んで凍結・coverage・取得監査まで実測し、<b>AIへ送る本文は旧版のまま</b>。商品の予想は落ちません。r12.2の応答は得られません。</p></div>
+<div class="o"><b>B：旗を1にする</b><p>r12.2の本文で実送信します。<b>入力が作れないレースは予想が止まります。</b>実AIの応答時間が分かります。</p></div>
+<div class="o"><p class="small">こちらとしては<b>Aを推します。</b>24・25日に初めて実地で動かす段で、商品を落とす側に賭けたくありません。応答時間は、1レースだけ手で呼ぶ形でも測れます。</p></div>
+</div>
+
+<h2>10. 次回の提出物について</h2>
+<p>005でいただいた8項目の、いまの進み方です。</p>
+<table>
+<tr><th>#</th><th>提出物</th><th>状態</th></tr>
+<tr><td>1</td><td>現物に合わせた対応表</td><td class="pass">このカルテの0章</td></tr>
+<tr><td>2</td><td>更新コードの現物・SHA-256・差分</td><td class="pass">同梱。差分が0バイトだった件は、生成の失敗でした。今回は中身のある差分を付けます</td></tr>
+<tr><td>3</td><td>実DB形式の監査読込→原ペイロード照合→pick→assemble→凍結保存→読戻し</td><td class="pass"><code>--r122-acq-test</code> 13項目</td></tr>
+<tr><td>4</td><td>16頭のZ境界例、16→15・14→13・9→8・全頭取消の本体試験</td><td class="pass">R122-Z01／N-15〜N-29</td></tr>
+<tr><td>5</td><td>救済・未知馬拒否・対象外拒否・row_valid・証明なし+5禁止・正常14出力</td><td class="pass">R-03〜R-21／R122-R03／P-06〜P-08</td></tr>
+<tr><td>6</td><td>729件＋4件を本体へ直接／異常32本の呼出経路</td><td class="hold">前半は N-01〜N-04 で完了。<b>後半は訂正→統合まで未接続</b></td></tr>
+<tr><td>7</td><td>固定対象の元値指紋／REPLAYとPRODUCTIONの分離試験</td><td class="pass"><code>--r122-fingerprint</code>／<code>--r122-acq-test</code></td></tr>
+<tr><td>8</td><td>採点辞書に合う接続表・設計書・33レース比較・是正込み工程表</td><td class="hold">接続表はこのカルテの6章。<b>設計書と工程表は未着手</b>、33レース比較はCSVあり</td></tr>
+</table>
+
+<hr>
+<div class="box warn">
+<p><b>最後に、工程と公開日について。</b></p>
+<p class="small">今回見つかった4件を含め、「修正済み」と書いて直っていなかった分の見積りを入れ直します。<b>公開日はまだ約束できません。</b>時刻A案の追加0.5日が別枠か既存工数と重なるかも、工程表を作り直すときに明記します。</p>
+<p class="small">お手数をおかけしていますが、現物を1行ずつ見ていただいているおかげで、こちらの思い込みが毎回つぶれています。ありがとうございます。</p>
+</div>
+</body></html>

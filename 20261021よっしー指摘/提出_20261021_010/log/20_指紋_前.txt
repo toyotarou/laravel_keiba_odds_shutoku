@@ -1,0 +1,24 @@
+════════════════════════════════════════════════════════
+ r12.2 元値の指紋（読むだけ・DBへの書き込み0件）
+════════════════════════════════════════════════════════
+  実行時刻 : 2026-10-21T14:02:11+09:00
+  方法     : 列ごとに「N」または「V<バイト数>:<値>」で書き、
+             主キー id を先頭に入れて、主キー順に SHA-256 を逐次計算
+  読取     : REPEATABLE READ の一貫した読取（最後にロールバック）
+
+  t_horse_odds_finder_odds             8283行  id 1〜8300
+      行の指紋 417519301a5a618c473fb7c9eff88d3ee72179884f5b8430143102db423167b2
+      主キーの指紋 21c341918060b2d8184954f5936520593d6d31fe9db24e2509045e08bd6aa219
+  t_horse_odds_finder_horses            922行  id 1〜939
+      行の指紋 614c98ec0cdcc0738d36a57efd11dee12f8385d0d0030f7600dfa21ad11863a3
+      主キーの指紋 9ad6fd64d772bccf5f7b47172b3ccab0d68f4e8bc17576c4a2a637f78fafe68d
+  t_horse_odds_finder_races              72行  id 1〜73
+      行の指紋 440a7d424fbe70b74592482a3caf0827edc90deca6372b1c7396396197c7faa9
+      主キーの指紋 dacfd4e3c9c5185676cad12c589d96dbe9a7a7964aa32dfb4f6dc50da86eb18e
+  t_horse_odds_finder_race_results      916行  id 1〜916
+      行の指紋 41164b3b5752df074c571480eac3a8a5a09a8e89a84ed8ed022f2fbbd8f8af64
+      主キーの指紋 5891d4ca476d4b6939ec4c130f5df37093ea116cddc3b155e6f58b9575502f26
+
+  書き出しました: /var/www/horse_odds_finder/storage/logs/r122_fingerprint_20261021_140211.json
+  次回はこれを渡して突き合わせます:
+    php artisan keiba:ai-analysis-compensate --r122-fingerprint=/var/www/horse_odds_finder/storage/logs/r122_fingerprint_20261021_140211.json

@@ -1,0 +1,67 @@
+--- /home/centos/baganriki_20261018/before_v55_20261020_192005/SummaryFukuPopularityRankAverage.php	2026-08-28 14:06:30.851714689 +0900
++++ app/Console/Commands/SummaryFukuPopularityRankAverage.php	2026-10-21 06:24:34.925964776 +0900
+@@ -44,6 +44,15 @@
+ 
+     public function handle(): void
+     {
++        // ══════════════════════════════════════════════════════════════
++        // @ANCHOR-20261020-R122-REALTIME  算出時刻を記録します
++        // ══════════════════════════════════════════════════════════════
++        //   r12.2 は「無い時刻は作らない」方針です（時刻A案）。
++        //   この表に算出時刻が無いと、情報上限より前に利用できた証拠が
++        //   無いことになり、OPI を予想の材料に使えません。
++        //   ここで<b>実際に集計した時刻</b>を書きます。後付けはしません。
++        $computedAt = now()->format('Y-m-d H:i:s.u');
++
+         // Laravelフレームワーク起動時のオーバーヘッドを考慮してメモリ上限を引き上げる
+         ini_set('memory_limit', '512M');
+ 
+@@ -127,7 +136,21 @@
+         // 【ブロック 4】新レコードなし → 早期終了
+         // ─────────────────────────────────────────────────────────────────
+         if ($newSummary->isEmpty()) {
+-            $this->warn('追加対象のレコードがありません。処理を終了します。');
++            $this->warn('追加対象のレコードがありません。');
++            // ═════════════════════════════════════════════════════════════
++            // @ANCHOR-20261020-R122-COMPUTEDAT  算出時刻だけは残します
++            // ═════════════════════════════════════════════════════════════
++            //   理由は SummaryPopularityRankAverage と同じです。
++            //   新しいレース結果が無い日はDBに1行も書かずに終わる作りだったので、
++            //   <b>算出時刻（computed_at）が永久に入りませんでした。</b>
++            //   値は1つも変えず、算出時刻だけを入れ直します。
++            //   集計期間の終わり（end_date）は触りません。
++            if (!$isFirstRun) {
++                $touched = DB::table('t_horse_odds_finder_fuku_popularity_rank_average')
++                    ->update(['computed_at' => $computedAt]);
++                $this->info("  値は変えずに、算出時刻だけ入れ直しました（{$touched} 行・{$computedAt}）");
++                $this->info('  ※ 集計期間の終わり（end_date）は変えていません');
++            }
+             $this->info('========== keiba:summaryFukuPopularityRankAverage 終了 ' . date('Y-m-d H:i:s') . ' ==========');
+             $this->info('');
+             (new WebPushService())->sendPushNotifierDeveloperNews(
+@@ -155,7 +178,8 @@
+             if (!$hasNewData && $hasExisting) {
+                 DB::table('t_horse_odds_finder_fuku_popularity_rank_average')
+                     ->where('popularity_rank', $rank)
+-                    ->update(['end_date' => $newEndDate]);
++                    ->update(['end_date' => $newEndDate,
++                              'computed_at' => $computedAt]);
+                 continue;
+             }
+ 
+@@ -181,6 +205,7 @@
+                         'odds_average' => (string) $totalAverage,
+                         'count'        => $totalCount,
+                         'end_date'     => $newEndDate,
++                        'computed_at'  => $computedAt,
+                     ]);
+ 
+             } else {
+@@ -196,6 +221,7 @@
+                     'count'           => $totalCount,
+                     'start_date'      => $newData->min_date,
+                     'end_date'        => $newEndDate,
++                    'computed_at'     => $computedAt,
+                 ]);
+             }
+ 

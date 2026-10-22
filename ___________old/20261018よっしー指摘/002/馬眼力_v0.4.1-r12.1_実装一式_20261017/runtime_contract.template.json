@@ -1,0 +1,86 @@
+{
+  "prompt_version": "baganriki-v041-r12-1-quota-20261017",
+  "candidate_route_ready": false,
+  "purchase_ready": false,
+  "live_learning_ready": false,
+  "time_policy": {
+    "anchor_kind": null,
+    "anchor_source": null,
+    "sampling_policy_id": null,
+    "safety_margin_ms": null,
+    "verified": false
+  },
+  "source_adapter": {
+    "field_catalog_version": null,
+    "formula_catalog_version": null,
+    "legacy_gap_type_version": null,
+    "class_normalization_version": null,
+    "x6_definition": "x6-bd-top3-v1",
+    "binding_tests_passed": false
+  },
+  "model_api": {
+    "model_id": null,
+    "generation_parameters": null,
+    "max_output_tokens": null,
+    "N18_initial_and_correction_latency_ms": null,
+    "verified": false
+  },
+  "validation": {
+    "schema_engine": null,
+    "schema_draft": "2020-12",
+    "standard_schema_tests_passed": false,
+    "php_reference_equivalence_passed": false,
+    "publication_race_tests_passed": false,
+    "ui_evidence_provenance_passed": false,
+    "ui_live_counts_and_expiry_passed": false,
+    "concurrent_save_cancel_during_validation_passed": false,
+    "php_exact_numeric_roundtrip_passed": false,
+    "live_update_rollback_passed": false,
+    "monotonic_event_time_passed": false
+  },
+  "purchase": {
+    "policy_id": null,
+    "ticket_types": null,
+    "formula": null,
+    "required_inputs": null,
+    "missing_input_policy": null,
+    "budget": null,
+    "price_time": null,
+    "refund_policy": null,
+    "recovery_mode_policy": null,
+    "verified": false
+  },
+  "learning": {
+    "stage": "COLLECT_ONLY",
+    "manifest": null,
+    "shadow_isolated": false
+  },
+  "note": "ローカル試験結果は別ファイル。本テンプレートのfalseは本番の受入。実証なしにtrueへ変えない。",
+  "implementation": {
+    "kind": "Python core + PHP bridge + single-host SQLite",
+    "local_acceptance_results": "verification_results.json",
+    "php_local_results": "php_bridge_results.json",
+    "production_php_version": null,
+    "python_path": null,
+    "db_path": null,
+    "db_timestamp_columns": null,
+    "new_api_route": null,
+    "ui_connected": false,
+    "release": "r12.1",
+    "journal_tests": "journal_results.json",
+    "concurrency_tests": "r10_regression_results.json",
+    "boundary_tests": [
+      "r11_regression_results.json",
+      "r12_regression_results.json"
+    ],
+    "quota_tests": "quota_revision_results.json"
+  },
+  "durable_worker": {
+    "shared_persistent_db_verified": false,
+    "sdk_retries_disabled": false,
+    "restart_test_passed": false,
+    "aggregation_intent_persisted": false,
+    "deadline_aggregation_job_configured": false,
+    "unknown_outcome_policy": "do_not_regrant"
+  }
+}

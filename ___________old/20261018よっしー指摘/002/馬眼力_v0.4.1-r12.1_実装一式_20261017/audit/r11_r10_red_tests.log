@@ -1,0 +1,328 @@
+test_context_does_not_turn_missing_signal_into_known_score (__main__.R11Tests.test_context_does_not_turn_missing_signal_into_known_score) ... FAIL
+test_context_with_real_signal_keeps_supported_hole (__main__.R11Tests.test_context_with_real_signal_keeps_supported_hole) ... ok
+test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) ... 
+  test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='2026-10-17 14:54:00+09:00') ... FAIL
+  test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='2026-W42-6T14:54:00+09:00') ... FAIL
+  test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='20261017T145400+0900') ... FAIL
+  test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='2026-10-17T14:54:00+09:00:00.1') ... FAIL
+  test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='2026-10-17T14:54:00.0000000+09:00') ... FAIL
+  test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='2026-10-17T14:54+09:00') ... FAIL
+  test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='2026-10-17T14:54:00,1+09:00') ... FAIL
+test_derived_context_is_not_individual_signal (__main__.R11Tests.test_derived_context_is_not_individual_signal) ... FAIL
+test_exact_reply_deadline_is_still_accepted (__main__.R11Tests.test_exact_reply_deadline_is_still_accepted) ... ok
+test_future_submicrosecond_source_rejected (__main__.R11Tests.test_future_submicrosecond_source_rejected) ... FAIL
+test_install_rejects_unreadable_snapshot_without_creating_row (__main__.R11Tests.test_install_rejects_unreadable_snapshot_without_creating_row) ... FAIL
+test_invalid_live_close_is_not_persisted (__main__.R11Tests.test_invalid_live_close_is_not_persisted) ... FAIL
+test_invalid_receipt_cannot_be_saved (__main__.R11Tests.test_invalid_receipt_cannot_be_saved) ... FAIL
+test_late_precise_correction_preserves_valid_initial (__main__.R11Tests.test_late_precise_correction_preserves_valid_initial) ... ok
+test_late_seventh_fractional_digit_cannot_be_adopted (__main__.R11Tests.test_late_seventh_fractional_digit_cannot_be_adopted) ... ERROR
+test_nested_nonselect_code_does_not_crash_other_role (__main__.R11Tests.test_nested_nonselect_code_does_not_crash_other_role) ... 
+  test_nested_nonselect_code_does_not_crash_other_role (__main__.R11Tests.test_nested_nonselect_code_does_not_crash_other_role) (value=[]) ... ERROR
+  test_nested_nonselect_code_does_not_crash_other_role (__main__.R11Tests.test_nested_nonselect_code_does_not_crash_other_role) (value={}) ... ERROR
+  test_nested_nonselect_code_does_not_crash_other_role (__main__.R11Tests.test_nested_nonselect_code_does_not_crash_other_role) (value=[1]) ... ERROR
+  test_nested_nonselect_code_does_not_crash_other_role (__main__.R11Tests.test_nested_nonselect_code_does_not_crash_other_role) (value={'code': 'BAND_QUOTA'}) ... ERROR
+test_nested_nonselect_repair_preserves_initial_holes (__main__.R11Tests.test_nested_nonselect_repair_preserves_initial_holes) ... FAIL
+test_only_bad_context_evidence_is_removed (__main__.R11Tests.test_only_bad_context_evidence_is_removed) ... FAIL
+test_prepare_rejects_unreadable_numbers (__main__.R11Tests.test_prepare_rejects_unreadable_numbers) ... 
+  test_prepare_rejects_unreadable_numbers (__main__.R11Tests.test_prepare_rejects_unreadable_numbers) (value='100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000') ... FAIL
+  test_prepare_rejects_unreadable_numbers (__main__.R11Tests.test_prepare_rejects_unreadable_numbers) (value='1.11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111') ... FAIL
+  test_prepare_rejects_unreadable_numbers (__main__.R11Tests.test_prepare_rejects_unreadable_numbers) (value='1E+309') ... FAIL
+  test_prepare_rejects_unreadable_numbers (__main__.R11Tests.test_prepare_rejects_unreadable_numbers) (value='1E-309') ... FAIL
+test_supported_numeric_boundaries_roundtrip_exactly (__main__.R11Tests.test_supported_numeric_boundaries_roundtrip_exactly) ... ok
+test_valid_timestamp_precision_and_offset_aliases (__main__.R11Tests.test_valid_timestamp_precision_and_offset_aliases) ... ERROR
+
+======================================================================
+ERROR: test_late_seventh_fractional_digit_cannot_be_adopted (__main__.R11Tests.test_late_seventh_fractional_digit_cannot_be_adopted)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 41, in test_late_seventh_fractional_digit_cannot_be_adopted
+    self.assertEqual(out['audit']['1st']['status'],'AI_FAILURE');self.assertIn('SINGLE_AI',out['status_flags'])
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+KeyError: 'status'
+
+======================================================================
+ERROR: test_nested_nonselect_code_does_not_crash_other_role (__main__.R11Tests.test_nested_nonselect_code_does_not_crash_other_role) (value=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 23, in test_nested_nonselect_code_does_not_crash_other_role
+    out=self.resolve(obj,True)
+        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 18, in resolve
+    return e.resolve(self.i,responses,[],f.NOW)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/engine.py", line 427, in resolve
+    issues,_=diagnose(current,x,order,methods)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/engine.py", line 292, in diagnose
+    reason_ok=(isinstance(reason,dict) and reason.get('code') in allowed
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: unhashable type: 'list'
+
+======================================================================
+ERROR: test_nested_nonselect_code_does_not_crash_other_role (__main__.R11Tests.test_nested_nonselect_code_does_not_crash_other_role) (value={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 23, in test_nested_nonselect_code_does_not_crash_other_role
+    out=self.resolve(obj,True)
+        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 18, in resolve
+    return e.resolve(self.i,responses,[],f.NOW)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/engine.py", line 427, in resolve
+    issues,_=diagnose(current,x,order,methods)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/engine.py", line 292, in diagnose
+    reason_ok=(isinstance(reason,dict) and reason.get('code') in allowed
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: unhashable type: 'dict'
+
+======================================================================
+ERROR: test_nested_nonselect_code_does_not_crash_other_role (__main__.R11Tests.test_nested_nonselect_code_does_not_crash_other_role) (value=[1])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 23, in test_nested_nonselect_code_does_not_crash_other_role
+    out=self.resolve(obj,True)
+        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 18, in resolve
+    return e.resolve(self.i,responses,[],f.NOW)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/engine.py", line 427, in resolve
+    issues,_=diagnose(current,x,order,methods)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/engine.py", line 292, in diagnose
+    reason_ok=(isinstance(reason,dict) and reason.get('code') in allowed
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: unhashable type: 'list'
+
+======================================================================
+ERROR: test_nested_nonselect_code_does_not_crash_other_role (__main__.R11Tests.test_nested_nonselect_code_does_not_crash_other_role) (value={'code': 'BAND_QUOTA'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 23, in test_nested_nonselect_code_does_not_crash_other_role
+    out=self.resolve(obj,True)
+        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 18, in resolve
+    return e.resolve(self.i,responses,[],f.NOW)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/engine.py", line 427, in resolve
+    issues,_=diagnose(current,x,order,methods)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/engine.py", line 292, in diagnose
+    reason_ok=(isinstance(reason,dict) and reason.get('code') in allowed
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: unhashable type: 'dict'
+
+======================================================================
+ERROR: test_valid_timestamp_precision_and_offset_aliases (__main__.R11Tests.test_valid_timestamp_precision_and_offset_aliases)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 62, in test_valid_timestamp_precision_and_offset_aliases
+    self.assertEqual(a,r.timestamp('2026-10-17t05:54:00.123456z'))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r10/reference.py", line 261, in timestamp
+    t=datetime.fromisoformat(text.replace('Z','+00:00'))
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: Invalid isoformat string: '2026-10-17t05:54:00.123456z'
+
+======================================================================
+FAIL: test_context_does_not_turn_missing_signal_into_known_score (__main__.R11Tests.test_context_does_not_turn_missing_signal_into_known_score)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 136, in test_context_does_not_turn_missing_signal_into_known_score
+    self.assertIsNone(scores['scores']['H1']);self.assertIn('H1',issues)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 5 is not None
+
+======================================================================
+FAIL: test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='2026-10-17 14:54:00+09:00')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 57, in test_datetime_grammar_is_consistent
+    with self.subTest(value=value),self.assertRaises(ValueError):r.timestamp(value)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='2026-W42-6T14:54:00+09:00')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 57, in test_datetime_grammar_is_consistent
+    with self.subTest(value=value),self.assertRaises(ValueError):r.timestamp(value)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='20261017T145400+0900')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 57, in test_datetime_grammar_is_consistent
+    with self.subTest(value=value),self.assertRaises(ValueError):r.timestamp(value)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='2026-10-17T14:54:00+09:00:00.1')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 57, in test_datetime_grammar_is_consistent
+    with self.subTest(value=value),self.assertRaises(ValueError):r.timestamp(value)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='2026-10-17T14:54:00.0000000+09:00')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 57, in test_datetime_grammar_is_consistent
+    with self.subTest(value=value),self.assertRaises(ValueError):r.timestamp(value)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='2026-10-17T14:54+09:00')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 57, in test_datetime_grammar_is_consistent
+    with self.subTest(value=value),self.assertRaises(ValueError):r.timestamp(value)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_datetime_grammar_is_consistent (__main__.R11Tests.test_datetime_grammar_is_consistent) (value='2026-10-17T14:54:00,1+09:00')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 57, in test_datetime_grammar_is_consistent
+    with self.subTest(value=value),self.assertRaises(ValueError):r.timestamp(value)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_derived_context_is_not_individual_signal (__main__.R11Tests.test_derived_context_is_not_individual_signal)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 121, in test_derived_context_is_not_individual_signal
+    self.assertEqual(valid,[]);self.assertTrue(issues)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [{'evidence_id': 'ability10', 'family': 'a[268 chars]e']}] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+{'evidence_id': 'ability10', 'family': 'ability', 'dependency_group': 'h10_past_performance_None', 'source_refs': ['h10_derived_context'], 'facts': [{'source_ref': 'h10_derived_context', 'value': Decimal('2.0')}], 'observation': '架空の過去指数2', 'interpretation': '能力の比較材料', 'verified_roots': ['h10_past_performance']}
+
++ []
+- [{'dependency_group': 'h10_past_performance_None',
+-   'evidence_id': 'ability10',
+-   'facts': [{'source_ref': 'h10_derived_context', 'value': Decimal('2.0')}],
+-   'family': 'ability',
+-   'interpretation': '能力の比較材料',
+-   'observation': '架空の過去指数2',
+-   'source_refs': ['h10_derived_context'],
+-   'verified_roots': ['h10_past_performance']}]
+
+======================================================================
+FAIL: test_future_submicrosecond_source_rejected (__main__.R11Tests.test_future_submicrosecond_source_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 50, in test_future_submicrosecond_source_rejected
+    with self.assertRaises(ValueError):e.prepare(seed,f.REQUEST)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_install_rejects_unreadable_snapshot_without_creating_row (__main__.R11Tests.test_install_rejects_unreadable_snapshot_without_creating_row)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 98, in test_install_rejects_unreadable_snapshot_without_creating_row
+    with self.assertRaises(ValueError):s.install(self.i,1)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_invalid_live_close_is_not_persisted (__main__.R11Tests.test_invalid_live_close_is_not_persisted)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 84, in test_invalid_live_close_is_not_persisted
+    with self.assertRaises(ValueError):s.update_live('race',0,[],f.NOW.replace('+09:00','.0000001+09:00'))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_invalid_receipt_cannot_be_saved (__main__.R11Tests.test_invalid_receipt_cannot_be_saved)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 74, in test_invalid_receipt_cannot_be_saved
+    with self.assertRaises(ValueError):s.complete(grant['token'],f.text(f.output(self.i)),at,True)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_nested_nonselect_repair_preserves_initial_holes (__main__.R11Tests.test_nested_nonselect_repair_preserves_initial_holes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 29, in test_nested_nonselect_repair_preserves_initial_holes
+    self.assertEqual(plan['repair_scope']['horses'],[])
+AssertionError: Lists differ: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] != []
+
+First list contains 13 additional elements.
+First extra element 0:
+1
+
+- [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
++ []
+
+======================================================================
+FAIL: test_only_bad_context_evidence_is_removed (__main__.R11Tests.test_only_bad_context_evidence_is_removed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 133, in test_only_bad_context_evidence_is_removed
+    self.assertEqual([x['evidence_id'] for x in valid],[good['evidence_id']]);self.assertTrue(issues)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['ability10', 'bad_context'] != ['ability10']
+
+First list contains 1 additional elements.
+First extra element 1:
+'bad_context'
+
+- ['ability10', 'bad_context']
++ ['ability10']
+
+======================================================================
+FAIL: test_prepare_rejects_unreadable_numbers (__main__.R11Tests.test_prepare_rejects_unreadable_numbers) (value='100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 91, in test_prepare_rejects_unreadable_numbers
+    with self.assertRaises(ValueError):e.prepare(seed,f.REQUEST)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_prepare_rejects_unreadable_numbers (__main__.R11Tests.test_prepare_rejects_unreadable_numbers) (value='1.11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 91, in test_prepare_rejects_unreadable_numbers
+    with self.assertRaises(ValueError):e.prepare(seed,f.REQUEST)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_prepare_rejects_unreadable_numbers (__main__.R11Tests.test_prepare_rejects_unreadable_numbers) (value='1E+309')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 91, in test_prepare_rejects_unreadable_numbers
+    with self.assertRaises(ValueError):e.prepare(seed,f.REQUEST)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_prepare_rejects_unreadable_numbers (__main__.R11Tests.test_prepare_rejects_unreadable_numbers) (value='1E-309')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r11/test_r11_regressions.py", line 91, in test_prepare_rejects_unreadable_numbers
+    with self.assertRaises(ValueError):e.prepare(seed,f.REQUEST)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 17 tests in 4.894s
+
+FAILED (failures=19, errors=6)

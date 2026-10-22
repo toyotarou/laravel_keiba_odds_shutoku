@@ -44,6 +44,15 @@ class SummaryFukuPopularityRankAverage extends Command
 
     public function handle(): void
     {
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-REALTIME  算出時刻を記録します
+        // ══════════════════════════════════════════════════════════════
+        //   r12.2 は「無い時刻は作らない」方針です（時刻A案）。
+        //   この表に算出時刻が無いと、情報上限より前に利用できた証拠が
+        //   無いことになり、OPI を予想の材料に使えません。
+        //   ここで<b>実際に集計した時刻</b>を書きます。後付けはしません。
+        $computedAt = now()->format('Y-m-d H:i:s.u');
+
         // Laravelフレームワーク起動時のオーバーヘッドを考慮してメモリ上限を引き上げる
         ini_set('memory_limit', '512M');
 
@@ -127,7 +136,83 @@ class SummaryFukuPopularityRankAverage extends Command
         // 【ブロック 4】新レコードなし → 早期終了
         // ─────────────────────────────────────────────────────────────────
         if ($newSummary->isEmpty()) {
-            $this->warn('追加対象のレコードがありません。処理を終了します。');
+            $this->warn('追加対象のレコードがありません。');
+            // ═════════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-COMPUTEDAT  算出時刻だけは残します
+            // ═════════════════════════════════════════════════════════════
+            //   理由は SummaryPopularityRankAverage と同じです。
+            //   新しいレース結果が無い日はDBに1行も書かずに終わる作りだったので、
+            //   <b>算出時刻（computed_at）が永久に入りませんでした。</b>
+            // ═════════════════════════════════════════════════════════
+            // @ANCHOR-20261021-R122-COMMENTFIX  10月21日010の5章①
+            // ═════════════════════════════════════════════════════════
+            //   ご指摘：
+            //     「古い説明コメント『NULLならverified_atと同時刻を入れる』
+            //       が残っているため、現在の仕様と区別して整理すると
+            //       誤読を防げます。」
+            //   そのとおりです。下の2行は10月20日の作りの説明で、
+            //   いまの作りと食い違っていました。コメントアウトして残します。
+            //
+            // ──【10月20日の説明。いまは当てはまりません】───────────
+            //   値は1つも変えず、算出時刻だけを入れ直します。
+            //   集計期間の終わり（end_date）は触りません。
+            // ────────────────────────────────────────────────────────
+            //
+            //   【いまの作り】このブロックは何も算出していません。
+            //   「end_date より後の新規データが無い」ことを確かめただけです。
+            //   ですので<b>computed_at は1行も触りません。</b>
+            //     computed_at  実際に値を算出した時刻。ここでは書きません
+            //     verified_at  その値がこの時刻に存在し、使えたことの確認
+            //     end_date     集計期間の終わり。ここでは触りません
+            //   computed_at が NULL の行は、<b>件数だけ数えて報告します。</b>
+            if (!$isFirstRun) {
+                // ═════════════════════════════════════════════════════
+                // @ANCHOR-20261021-R122-VERIFIEDAT  10月21日008のご指摘8
+                // ═════════════════════════════════════════════════════
+                //   【説明が間違っていました】
+                //   ここは「古い結果を再集計して一致を比べる」処理では
+                //   ありません。end_date より後の新規データが無いことを
+                //   確かめているだけです。
+                //   ですので「もう一度集計して同じ値を確認した」は誤りです。
+                //
+                //   【もう1つ、こちらのほうが重い】
+                //   新規結果が無いだけで computed_at を毎回上書きすると、
+                //   <b>いつ実際に算出したかという証拠が消えます。</b>
+                //   r12.2 は「情報上限より前に利用可能だった証拠」を見るので、
+                //   証拠そのものを毎晩書き換えてはいけません。
+                //
+                //   【いま】意味の違う3つを分けます。
+                //     computed_at  実際に値を算出した時刻。<b>ここでは触りません</b>
+                //     verified_at  その値がこの時刻に存在し、使えたことの確認
+                //     end_date     集計期間の終わり。ここでは触りません
+                // ═════════════════════════════════════════════════════
+                // @ANCHOR-20261021-R122-NOFILL  10月21日009・010のご指摘
+                // ═════════════════════════════════════════════════════
+                //   computed_at が NULL の行を、いまの時刻で埋めていました。
+                //   いつ算出したかの証拠を<b>こちらで作ってしまいます。</b>
+                //   埋めるのをやめ、<b>件数だけ数えて報告します。</b>
+                //   埋まっていない行は、次に実際に集計したときに入ります。
+                $tbl = 't_horse_odds_finder_fuku_popularity_rank_average';
+                // ──【旧】NULL の行を今の時刻で埋めていました ───────────
+                // $firstTime = DB::table($tbl)->whereNull('computed_at')
+                //                ->update(['computed_at' => $computedAt]);
+                // ────────────────────────────────────────────────────────
+                $firstTime = (int) DB::table($tbl)->whereNull('computed_at')->count();
+                $verified  = DB::table($tbl)
+                               ->update(['verified_at' => $computedAt]);
+                $this->info("  新規データはありません。値は1つも変えていません。");
+                if ($firstTime > 0) {
+                    $this->info("  算出時刻（computed_at）が入っていない行が {$firstTime} 行"
+                              . " あります。<b>ここでは埋めません。</b>"
+                              . "次に実際に集計したときに入ります");
+                } else {
+                    $this->info("  算出時刻（computed_at）が入っていない行はありません");
+                }
+                $this->info("  {$verified} 行の verified_at を更新しました"
+                          . "（この時刻に、この値が使えることを確かめた、の意味）");
+                $this->info('  ※ computed_at（実際に算出した時刻）と'
+                          . ' end_date（集計期間の終わり）は1行も変えていません');
+            }
             $this->info('========== keiba:summaryFukuPopularityRankAverage 終了 ' . date('Y-m-d H:i:s') . ' ==========');
             $this->info('');
             (new WebPushService())->sendPushNotifierDeveloperNews(
@@ -155,7 +240,8 @@ class SummaryFukuPopularityRankAverage extends Command
             if (!$hasNewData && $hasExisting) {
                 DB::table('t_horse_odds_finder_fuku_popularity_rank_average')
                     ->where('popularity_rank', $rank)
-                    ->update(['end_date' => $newEndDate]);
+                    ->update(['end_date' => $newEndDate,
+                              'computed_at' => $computedAt]);
                 continue;
             }
 
@@ -181,6 +267,7 @@ class SummaryFukuPopularityRankAverage extends Command
                         'odds_average' => (string) $totalAverage,
                         'count'        => $totalCount,
                         'end_date'     => $newEndDate,
+                        'computed_at'  => $computedAt,
                     ]);
 
             } else {
@@ -196,6 +283,7 @@ class SummaryFukuPopularityRankAverage extends Command
                     'count'           => $totalCount,
                     'start_date'      => $newData->min_date,
                     'end_date'        => $newEndDate,
+                    'computed_at'     => $computedAt,
                 ]);
             }
 

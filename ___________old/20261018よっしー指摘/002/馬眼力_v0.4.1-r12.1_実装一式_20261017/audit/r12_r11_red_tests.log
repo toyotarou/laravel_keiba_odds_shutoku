@@ -1,0 +1,212 @@
+test_bad_cancellation_update_keeps_previous_state (__main__.R12Tests.test_bad_cancellation_update_keeps_previous_state) ... 
+  test_bad_cancellation_update_keeps_previous_state (__main__.R12Tests.test_bad_cancellation_update_keeps_previous_state) (value={}) ... FAIL
+  test_bad_cancellation_update_keeps_previous_state (__main__.R12Tests.test_bad_cancellation_update_keeps_previous_state) (value=()) ... FAIL
+  test_bad_cancellation_update_keeps_previous_state (__main__.R12Tests.test_bad_cancellation_update_keeps_previous_state) (value={1: 'cancelled'}) ... FAIL
+  test_bad_cancellation_update_keeps_previous_state (__main__.R12Tests.test_bad_cancellation_update_keeps_previous_state) (value='') ... FAIL
+test_clock_rollback_cannot_reserve_correction (__main__.R12Tests.test_clock_rollback_cannot_reserve_correction) ... FAIL
+test_commit_clock_rollback_is_not_published (__main__.R12Tests.test_commit_clock_rollback_is_not_published) ... FAIL
+test_deadline_overflow_is_controlled (__main__.R12Tests.test_deadline_overflow_is_controlled) ... ERROR
+test_earlier_past_close_still_valid_and_stops_calls (__main__.R12Tests.test_earlier_past_close_still_valid_and_stops_calls) ... ok
+test_forward_clock_and_identical_time_can_publish (__main__.R12Tests.test_forward_clock_and_identical_time_can_publish) ... ok
+test_large_and_precise_fact_values_roundtrip_through_store (__main__.R12Tests.test_large_and_precise_fact_values_roundtrip_through_store) ... ERROR
+test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) ... 
+  test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) (value={}) ... FAIL
+  test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) (value=()) ... FAIL
+  test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) (value={1: 'cancelled'}) ... FAIL
+  test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) (value='') ... ERROR
+  test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) (value=None) ... ERROR
+  test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) (value=False) ... ERROR
+test_text_numeric_and_boolean_fact_types_remain_distinct (__main__.R12Tests.test_text_numeric_and_boolean_fact_types_remain_distinct) ... 
+  test_text_numeric_and_boolean_fact_types_remain_distinct (__main__.R12Tests.test_text_numeric_and_boolean_fact_types_remain_distinct) (kind='string') ... ERROR
+  test_text_numeric_and_boolean_fact_types_remain_distinct (__main__.R12Tests.test_text_numeric_and_boolean_fact_types_remain_distinct) (kind='boolean') ... ERROR
+  test_text_numeric_and_boolean_fact_types_remain_distinct (__main__.R12Tests.test_text_numeric_and_boolean_fact_types_remain_distinct) (kind='null') ... ERROR
+test_unrepresentable_live_deadline_does_not_poison_state (__main__.R12Tests.test_unrepresentable_live_deadline_does_not_poison_state) ... FAIL
+test_valid_cancellation_keeps_frozen_bands_and_holes (__main__.R12Tests.test_valid_cancellation_keeps_frozen_bands_and_holes) ... ok
+test_verification_clock_rollback_is_not_published (__main__.R12Tests.test_verification_clock_rollback_is_not_published) ... FAIL
+
+======================================================================
+ERROR: test_deadline_overflow_is_controlled (__main__.R12Tests.test_deadline_overflow_is_controlled)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 28, in test_deadline_overflow_is_controlled
+    with self.assertRaises(ValueError):r.publication_deadline(f.NOW,'0001-01-01T00:00:00Z',1000)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r11/reference.py", line 588, in publication_deadline
+    return min(timestamp(publish_deadline),timestamp(live_close)-timedelta(milliseconds=safety_margin_ms))
+                                           ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+OverflowError: date value out of range
+
+======================================================================
+ERROR: test_large_and_precise_fact_values_roundtrip_through_store (__main__.R12Tests.test_large_and_precise_fact_values_roundtrip_through_store)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 84, in test_large_and_precise_fact_values_roundtrip_through_store
+    self.assertEqual(facts[no]['value'],value);self.assertEqual(facts[no]['value_type'],'number')
+                                                                ~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'value_type'
+
+======================================================================
+ERROR: test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) (value='')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 36, in test_non_array_cancellation_is_rejected
+    with self.subTest(value=bad),self.assertRaises(ValueError):r.cancellation_view(self.i['runners'],bad,self.i['mode'])
+                                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r11/reference.py", line 581, in cancellation_view
+    active=[copy.deepcopy(h) for h in runners if h['horse_no'] not in cancelled]
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'in <string>' requires string as left operand, not int
+
+======================================================================
+ERROR: test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) (value=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 36, in test_non_array_cancellation_is_rejected
+    with self.subTest(value=bad),self.assertRaises(ValueError):r.cancellation_view(self.i['runners'],bad,self.i['mode'])
+                                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r11/reference.py", line 580, in cancellation_view
+    if any(not exact_int(no) for no in cancelled) or not set(cancelled)<=valid_numbers: raise ValueError('unknown cancellation')
+                                       ^^^^^^^^^
+TypeError: 'NoneType' object is not iterable
+
+======================================================================
+ERROR: test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) (value=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 36, in test_non_array_cancellation_is_rejected
+    with self.subTest(value=bad),self.assertRaises(ValueError):r.cancellation_view(self.i['runners'],bad,self.i['mode'])
+                                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/80907d699186/baganriki_r11/reference.py", line 580, in cancellation_view
+    if any(not exact_int(no) for no in cancelled) or not set(cancelled)<=valid_numbers: raise ValueError('unknown cancellation')
+                                       ^^^^^^^^^
+TypeError: 'bool' object is not iterable
+
+======================================================================
+ERROR: test_text_numeric_and_boolean_fact_types_remain_distinct (__main__.R12Tests.test_text_numeric_and_boolean_fact_types_remain_distinct) (kind='string')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 96, in test_text_numeric_and_boolean_fact_types_remain_distinct
+    self.assertEqual(out['facts'][0]['value'],value);self.assertEqual(out['facts'][0]['value_type'],kind)
+                                                                      ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'value_type'
+
+======================================================================
+ERROR: test_text_numeric_and_boolean_fact_types_remain_distinct (__main__.R12Tests.test_text_numeric_and_boolean_fact_types_remain_distinct) (kind='boolean')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 96, in test_text_numeric_and_boolean_fact_types_remain_distinct
+    self.assertEqual(out['facts'][0]['value'],value);self.assertEqual(out['facts'][0]['value_type'],kind)
+                                                                      ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'value_type'
+
+======================================================================
+ERROR: test_text_numeric_and_boolean_fact_types_remain_distinct (__main__.R12Tests.test_text_numeric_and_boolean_fact_types_remain_distinct) (kind='null')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 96, in test_text_numeric_and_boolean_fact_types_remain_distinct
+    self.assertEqual(out['facts'][0]['value'],value);self.assertEqual(out['facts'][0]['value_type'],kind)
+                                                                      ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'value_type'
+
+======================================================================
+FAIL: test_bad_cancellation_update_keeps_previous_state (__main__.R12Tests.test_bad_cancellation_update_keeps_previous_state) (value={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 40, in test_bad_cancellation_update_keeps_previous_state
+    with self.assertRaises(ValueError):self.s.update_live('race',0,bad)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_bad_cancellation_update_keeps_previous_state (__main__.R12Tests.test_bad_cancellation_update_keeps_previous_state) (value=())
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 40, in test_bad_cancellation_update_keeps_previous_state
+    with self.assertRaises(ValueError):self.s.update_live('race',0,bad)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_bad_cancellation_update_keeps_previous_state (__main__.R12Tests.test_bad_cancellation_update_keeps_previous_state) (value={1: 'cancelled'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 40, in test_bad_cancellation_update_keeps_previous_state
+    with self.assertRaises(ValueError):self.s.update_live('race',0,bad)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_bad_cancellation_update_keeps_previous_state (__main__.R12Tests.test_bad_cancellation_update_keeps_previous_state) (value='')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 41, in test_bad_cancellation_update_keeps_previous_state
+    self.assertEqual(self.s.read('race')['live_state']['state_revision'],0)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_clock_rollback_cannot_reserve_correction (__main__.R12Tests.test_clock_rollback_cannot_reserve_correction)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 59, in test_clock_rollback_cannot_reserve_correction
+    self.assertFalse(grant['granted']);self.assertEqual(grant['reason'],'CLOCK_ROLLBACK')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_commit_clock_rollback_is_not_published (__main__.R12Tests.test_commit_clock_rollback_is_not_published)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 49, in test_commit_clock_rollback_is_not_published
+    with self.assertRaises(ValueError):self.s.publish('race',1,0,0,'clock',f.responses(self.p))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) (value={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 36, in test_non_array_cancellation_is_rejected
+    with self.subTest(value=bad),self.assertRaises(ValueError):r.cancellation_view(self.i['runners'],bad,self.i['mode'])
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) (value=())
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 36, in test_non_array_cancellation_is_rejected
+    with self.subTest(value=bad),self.assertRaises(ValueError):r.cancellation_view(self.i['runners'],bad,self.i['mode'])
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_non_array_cancellation_is_rejected (__main__.R12Tests.test_non_array_cancellation_is_rejected) (value={1: 'cancelled'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 36, in test_non_array_cancellation_is_rejected
+    with self.subTest(value=bad),self.assertRaises(ValueError):r.cancellation_view(self.i['runners'],bad,self.i['mode'])
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_unrepresentable_live_deadline_does_not_poison_state (__main__.R12Tests.test_unrepresentable_live_deadline_does_not_poison_state)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 24, in test_unrepresentable_live_deadline_does_not_poison_state
+    with self.assertRaises(ValueError):self.s.update_live('race',0,[1],'0001-01-01T00:00:00Z')
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_verification_clock_rollback_is_not_published (__main__.R12Tests.test_verification_clock_rollback_is_not_published)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/80907d699186/baganriki_r12/test_r12_regressions.py", line 54, in test_verification_clock_rollback_is_not_published
+    with self.assertRaises(ValueError):self.s.publish('race',1,0,0,'clock',f.responses(self.p))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 12 tests in 4.276s
+
+FAILED (failures=11, errors=8)

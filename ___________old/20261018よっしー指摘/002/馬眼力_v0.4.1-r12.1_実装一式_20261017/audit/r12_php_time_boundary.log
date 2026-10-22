@@ -1,0 +1,3 @@
+(node:225) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+{"php_version":"8.5.10","time_boundary":{"invalid_timestamps_rejected":"PASSED","exact_microseconds_and_alias":"PASSED","worker_rejects_before_reserving_or_calling":"PASSED","view_rejects_unsupported_precision":"PASSED","view_exact_and_next_microsecond":"PASSED"},"invalid_timestamp_cases":12}

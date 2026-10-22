@@ -1,0 +1,11 @@
+test_R1_correction_preserves_unrelated_band_order (__main__.R7AuditRegressions.test_R1_correction_preserves_unrelated_band_order) ... ok
+test_R2_complete_band_cannot_claim_evidence_mode (__main__.R7AuditRegressions.test_R2_complete_band_cannot_claim_evidence_mode) ... ok
+test_R3_public_candidate_flag_mismatch_requests_correction (__main__.R7AuditRegressions.test_R3_public_candidate_flag_mismatch_requests_correction) ... ok
+test_R4_live_close_keeps_configured_margin (__main__.R7AuditRegressions.test_R4_live_close_keeps_configured_margin) ... ok
+test_R5_sales_close_anchor_matches_frozen_close (__main__.R7AuditRegressions.test_R5_sales_close_anchor_matches_frozen_close) ... ok
+test_R6_coverage_manifest_survives_adapter_and_snapshot (__main__.R7AuditRegressions.test_R6_coverage_manifest_survives_adapter_and_snapshot) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 3.061s
+
+OK

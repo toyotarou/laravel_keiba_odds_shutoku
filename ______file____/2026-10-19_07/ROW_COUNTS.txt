@@ -1,0 +1,9 @@
+t	n
+odds	8283
+odds_get_timing	647
+horses	922
+races	72
+race_results	916
+ai_analysis	504
+ai_analysis2	648
+ai_merge_result	241

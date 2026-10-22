@@ -1,0 +1,107 @@
+# 今回の変更箇所（アンカー別の行番号）
+
+## @ANCHOR-20261020-R122-PROMPT
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:1374:        // @ANCHOR-20261020-R122-PROMPT  r12.2 の本文へ全文置換（機能フラグ）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:4497:        // ── 送信文（@ANCHOR-20261020-R122-PROMPT）────────────────────────
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:4845:        // @ANCHOR-20261020-R122-PROMPT  N=6 なので X6 は構造的非該当（FALSE）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:9192:        // @ANCHOR-20261020-R122-PROMPT  r12.2 の本文へ全文置換（機能フラグ）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15014:     * @ANCHOR-20261020-R122-PROMPT  r12.2 の race_id（YYYYMMDD-回-場-日-R）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15025:     * @ANCHOR-20261020-R122-PROMPT  INPUT_JSON の材料を正本から集める
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15285:     * @ANCHOR-20261020-R122-PROMPT  十進数の文字列を JSON の数値へ
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15298:     * @ANCHOR-20261020-R122-PROMPT  送信文（system＋INPUT_JSON）を1組にする
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15964:        // @ANCHOR-20261020-R122-PROMPT  N<7 は構造的非該当で FALSE
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16290:            // @ANCHOR-20261020-R122-PROMPT  base_quota は INPUT_JSON の必須キー
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16325:        // @ANCHOR-20261020-R122-PROMPT  構造調整の前の表の値を base_quota として残す
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16841:        // @ANCHOR-20261020-R122-PROMPT  キーを全階層で昇順にそろえます
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:20641: * @ANCHOR-20261020-R122-PROMPT  r12.2 の両AI本文（1st・2nd）と INPUT_JSON
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:20707:     * @ANCHOR-20261020-R122-PROMPT  10月20日004のご指摘3
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:20955:            // @ANCHOR-20261020-R122-PROMPT  指数表記を展開して桁を数えます
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:201:                           // @ANCHOR-20261020-R122-PROMPT  r12.2の両AI本文（1st・2nd）の全文置換
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:396:        // @ANCHOR-20261020-R122-PROMPT  r12.2の両AI本文の設置と送信文の検査
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:12215:     * @ANCHOR-20261020-R122-PROMPT  同じファイルの中のクラスを読ませる一手間
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:12237:     * @ANCHOR-20261020-R122-PROMPT  配布された両AI本文を storage へ入れる
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:12293:     * @ANCHOR-20261020-R122-PROMPT  送信文の検査（AIへは送りません・費用0円）
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:12443:                    // @ANCHOR-20261020-R122-PROMPT  件数は数えて出します（34と書いた誤りの再発防止）
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:12558:     * @ANCHOR-20261020-R122-PROMPT  合成ケースの文脈を生payloadから作ります
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:12628:     * @ANCHOR-20261020-R122-PROMPT  2つの INPUT_JSON の違いを1行ずつにします
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:12676:     * @ANCHOR-20261020-R122-PROMPT  本番DBの保存済みレースで組み立てを試します
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:12755:     * @ANCHOR-20261020-R122-PROMPT  JSON Schema（2020-12の必要な語彙だけ）
+
+## @ANCHOR-20261020-R122-AUDIT
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:208:                           // @ANCHOR-20261020-R122-AUDIT  お願い②（A案）の取得監査
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:390:        // @ANCHOR-20261020-R122-AUDIT  取得監査の記録の確認
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:12958:     * @ANCHOR-20261020-R122-AUDIT  取得監査の記録の確認（書き込みは残しません）
+/var/www/horse_odds_finder/app/Console/Commands/ImportKeibaOdds.php:33: *   【ブロック 11】r12.2 取得監査の記録（@ANCHOR-20261020-R122-AUDIT）
+/var/www/horse_odds_finder/app/Console/Commands/ImportKeibaOdds.php:201:            // @ANCHOR-20261020-R122-AUDIT  要求を出す直前の実時刻
+/var/www/horse_odds_finder/app/Console/Commands/ImportKeibaOdds.php:228:            // @ANCHOR-20261020-R122-AUDIT  受信し終えた実時刻（= observed_at）
+/var/www/horse_odds_finder/app/Console/Commands/ImportKeibaOdds.php:235:                // @ANCHOR-20261020-R122-AUDIT  取れなかったことも残します
+/var/www/horse_odds_finder/app/Console/Commands/ImportKeibaOdds.php:370:            // @ANCHOR-20261020-R122-AUDIT
+/var/www/horse_odds_finder/app/Console/Commands/ImportKeibaOdds.php:437:     * @ANCHOR-20261020-R122-AUDIT  いまの実時刻（マイクロ秒まで）
+/var/www/horse_odds_finder/app/Console/Commands/ImportKeibaOdds.php:449:     * @ANCHOR-20261020-R122-AUDIT  取得監査を1行残す（お願い②・A案）
+
+## @ANCHOR-20261020-R122-X6
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:4874:        // @ANCHOR-20261020-R122-X6  B案：基準率が未合意のあいだは必ずUNKNOWN
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15980:            // @ANCHOR-20261020-R122-X6  B案の経路をここで閉じます
+
+## @ANCHOR-20261020-R122-INVALID
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:210:                           // @ANCHOR-20261020-R122-INVALID  異常例32本（入力23・出力9）
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:378:        // @ANCHOR-20261020-R122-INVALID  異常例32本の突き合わせ
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:13133:     * @ANCHOR-20261020-R122-INVALID  異常例32本の突き合わせ
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:13301:     * @ANCHOR-20261020-R122-INVALID  入力の意味検証
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:13466:     * @ANCHOR-20261020-R122-INVALID  出力の意味検証
+
+## @ANCHOR-20261020-R122-FREEZE
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15321:     * @ANCHOR-20261020-R122-FREEZE  凍結入力の保存（snapshot）
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:212:                           // @ANCHOR-20261020-R122-FREEZE  凍結入力の保存
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:384:        // @ANCHOR-20261020-R122-FREEZE  凍結入力の保存
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:13599:     * @ANCHOR-20261020-R122-FREEZE  凍結入力の保存を走らせる
+
+## @ANCHOR-20261020-R122-MODE
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:2169:     * @ANCHOR-20261020-R122-MODE  r12.2 では使いません。
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:2555:    //       （@ANCHOR-20261020-R122-MODE  r12.2 で廃止。UNKNOWNでMIXEDを流用しません）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:4237:            // @ANCHOR-20261020-R122-MODE  r12.2 で期待値が変わった2件
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:4264:        // ── @ANCHOR-20261020-R122-MODE  r12.2 で足した試験 ──────────────────
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16106:                // @ANCHOR-20261020-R122-MODE  r12.2：不明が増えると UNRESOLVED になり、
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16136:        // @ANCHOR-20261020-R122-MODE  r12.2 の mode 判定（2026-10-20 受領の指定）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16205:            // @ANCHOR-20261020-R122-MODE  配分に使うmode。停止時は null です。
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16216:     * @ANCHOR-20261020-R122-MODE  S の値から星（1〜5）
+
+## @ANCHOR-20261020-R122-QUOTA
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:2179:     * @ANCHOR-20261020-R122-QUOTA  2026-10-20 受領の r12.2 で C7 混戦が変わりました。
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:4244:            // @ANCHOR-20261020-R122-QUOTA  C7混戦が 4/2/1 から 3/3/1 へ変わりました
+
+## @ANCHOR-20261020-R122-ALLOC
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:4229:            // @ANCHOR-20261020-R122-ALLOC  構造調整が入って期待値が変わった1件
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:4247:            // @ANCHOR-20261020-R122-ALLOC  N<=3 は C/0/0（旧実装は quota=null）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16264:     * @ANCHOR-20261020-R122-ALLOC  r12.2（2026-10-20 受領）で足したこと
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16295:                                    . '（@ANCHOR-20261020-R122-ALLOC）',
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16346:     * @ANCHOR-20261020-R122-ALLOC  帯ごとの実在頭数（A=1〜6人気／B=7〜10／D=11以下）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16354:     * @ANCHOR-20261020-R122-ALLOC  構造上の実在馬不足だけを調整します。
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16392:     * @ANCHOR-20261020-R122-ALLOC  2ndの配分
+
+## @ANCHOR-20261020-R122-EXACT
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:4667:        // @ANCHOR-20261020-R122-EXACT  丸めずに比べられているかの検算
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:4710:        // @ANCHOR-20261020-R122-EXACT2  10月20日の確認結果②への追加検算
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15523:    // @ANCHOR-20261020-R122-EXACT  任意精度の十進数で、丸めずに比べます
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15698:            // @ANCHOR-20261020-R122-EXACT  元値（十進数の文字列）をそのまま持ちます。
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15713:            // @ANCHOR-20261020-R122-EXACT  判定はすべて元値のたすき掛けで行います
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15775:                // @ANCHOR-20261020-R122-EXACT  元値と、元値で出した判定
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15815:        // @ANCHOR-20261020-R122-EXACT  判定は $pairs[k]['exact']（元値で出した結果）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15914:        // @ANCHOR-20261020-R122-EXACT  短縮率も割り算せずに比べます。
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16914:     * @ANCHOR-20261020-R122-EXACT  10月20日の確認結果②への対応。
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16955:        // @ANCHOR-20261020-R122-EXACT  点は分数のまま持ちます（max も比較も整数で）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:21301:     * 丸めません（@ANCHOR-20261020-R122-EXACT と同じ扱い）。
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:9774:        // @ANCHOR-20261020-R122-EXACT  本番側との突き合わせ用
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:9943:                // @ANCHOR-20261020-R122-EXACT  本番側の判定と突き合わせます
+/var/www/horse_odds_finder/app/Console/Commands/SummaryAiAnalysisCompensate.php:10586:     * @ANCHOR-20261020-R122-EXACT  本番側の信号判定と突き合わせる
+
+## @ANCHOR-20261020-REFACTOR
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:154:    // @ANCHOR-20261020-REFACTOR-ML  切り出した BaganrikiMl から参照するため public にしました。
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:2565:    // @ANCHOR-20261020-REFACTOR  v0.4-X 信号判定（三値・ペア・X1〜X6・Z・mode）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:2598:    // @ANCHOR-20261020-REFACTOR  v0.4-X 配分（目標頭数・3帯quota・構造調整）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:13001:    // @ANCHOR-20261020-REFACTOR-ML  馬ブロックの数値読み取り（断層学習の入力づくり）
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:14592:    // @ANCHOR-20261020-REFACTOR-ML  機械学習（断層学習）の計算一式
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:15505: * @ANCHOR-20261020-REFACTOR  v0.4-X / r12.2 の信号判定
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:16231: * @ANCHOR-20261020-REFACTOR  v0.4-X / r12.2 の配分
+/var/www/horse_odds_finder/app/Http/Controllers/Api/AiController.php:17313: * @ANCHOR-20261020-REFACTOR-ML  機械学習（断層学習）の計算
+

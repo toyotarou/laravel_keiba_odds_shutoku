@@ -151,7 +151,9 @@ class AiController extends Controller
      *   ③ _saveMlSnapshot() の params.recovery_low_thresh（学習用メタデータ）
      *   @ANCHOR-20260926-B12-RECOVERY-THRESHOLD
      */
-    private const B12_RECOVERY_LOW_THRESH = 40.0;
+    // @ANCHOR-20261020-REFACTOR-ML  切り出した BaganrikiMl から参照するため public にしました。
+    //   値も使い方も変えていません（Block12のハード除外閾値）。
+    public const B12_RECOVERY_LOW_THRESH = 40.0;
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
@@ -1194,6 +1196,14 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
                 'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
             ]);
         }
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-RESUME  10月20日007のご指摘6-1
+        // ══════════════════════════════════════════════════════════════
+        //   【ご指摘のとおりでした】情報上限の前に呼ばれて凍結を断ったあと、
+        //   旧AIの予想がここにキャッシュされると、<b>次のアクセスは
+        //   この行で終わり</b>、固定入力を作り直す機会がありませんでした。
+        //   いまは応答を返したあとに1回だけやり直します（画面は遅くなりません）。
+        $this->r122AfterCached($date, $kaisuu, $basho, $day, $race);
 
 // DBの analysis_text には PICKUP: 行が含まれているので、レスポンスでは除去して返す
 
@@ -1243,6 +1253,8 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
                     'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
                 ]);
             }
+            // @ANCHOR-20261020-R122-RESUME  ロック後のキャッシュ返却でも同じ
+            $this->r122AfterCached($date, $kaisuu, $basho, $day, $race);
             return response()->json(['data' => [
                 'date'          => $date,
                 'kaisuu'        => $kaisuu,
@@ -1368,7 +1380,147 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
         //   アプリからのHTTPリクエストではこれ以上延ばせない。
         //   H/V依頼はコマンドからの研究用途だけなので、ONのときだけ延ばす。
         //   OFF（本番）のときは90秒のまま、1バイトも挙動が変わらない。
-        $aiTimeout = self::v04HvPrompt() ? 240 : 90;
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-PROMPT  r12.2 の本文へ全文置換（機能フラグ）
+        // ══════════════════════════════════════════════════════════════════
+        // 根拠：server_contract_r12.2.txt 6章・9章／prompts/prompt_1st.txt
+        //
+        //   BAGANRIKI_R122_PROMPT=1 のときだけ、
+        //     system … 配布された prompt_1st.txt の全文
+        //     user   … Laravel が作る INPUT_JSON 1個
+        //   へ入れ替えます。既定（0）ではここを素通りし、1バイトも変わりません。
+        //
+        //   作れないときは<b>旧本文へ落ちません</b>。送信を止めます。
+        //   契約11.2「正本が特定できないレースは公開しない」に合わせます。
+        //   （中途半端な入力でAIを呼ぶと、根拠のない候補が出てしまいます）
+        // @ANCHOR-20261020-R122-SHADOW  shadow のときは本文を差し替えません。
+        //   入力を作って凍結保存だけして、旧本文で送ります。
+        if (BaganrikiPrompt::enabled() && !BaganrikiPrompt::sending()) {
+            $this->r122ShadowRecord($date, $kaisuu, $basho, $day, $race);
+        }
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-WIRE  10月20日006のご指摘6-4（設定の食い違い）
+        // ══════════════════════════════════════════════════════════════════
+        //   「PROMPT=1だけにしてQUEUE=0のままなら、予約処理をskipし、
+        //     新契約の期限・公開を一式で保証できません。」
+        //   そのとおりです。本文だけ r12.2 にして、枠・期限・公開が
+        //   旧のままという状態を<b>設定で作れないようにします</b>。
+        //   旧本文のまま（0）や shadow のときは何も起きません。
+        $r122wire = self::r122WireConfig();
+        if (!$r122wire['ok']) {
+            \Log::error('[R122-WIRE] 設定が食い違っているので1st AIを呼びません', [
+                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho,
+                'day'  => $day,  'race'   => $race,
+                'code' => $r122wire['code'], 'reason' => $r122wire['reason'],
+                'BAGANRIKI_R122_PROMPT' => $r122wire['prompt'],
+                'BAGANRIKI_R122_QUEUE'  => $r122wire['queue'],
+            ]);
+            $this->_saveEmptyFirstAiAnalysis($date, $kaisuu, $basho, $day, $race,
+                                             $raceRow, 'r122_config_mismatch');
+            return response()->json(['data' => [
+                'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
+                'day'  => $day,  'race'   => $race, 'analysis_text' => '',
+            ]]);
+        }
+        if ($r122wire['code'] === 'QUEUE_SHADOW') {
+            \Log::error('[R122-WIRE] 枠が shadow の段です（契約10章の停止条件は効きません）', [
+                'reason' => $r122wire['reason'],
+            ]);
+        }
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261023-R122-SEPARATE  対象レースでなければ旧本文のまま（003 P-02）
+        // ══════════════════════════════════════════════════════════════════
+        //   【見つかったこと】PROMPT=1 のとき、ここで<b>全レース</b>の本文を
+        //   r12.2 へ置き換えていました。対象レース（TARGETS）の確認が無く、
+        //   旧画面は「馬番：…」行しか読めないので、全レースで候補が
+        //   出なくなるおそれがありました。
+        //   【いま】対象レースでないときは、この置き換えを通らず旧本文で送ります。
+        //   旧来の予想はそのまま返ります。
+        //   【旧】if (BaganrikiPrompt::sending()) {
+        $r122Tg1 = BaganrikiPrompt::sending()
+            ? self::r122TargetCheck(self::r122RaceId($date, $kaisuu, $basho, $day, $race))
+            : ['ok' => false];
+        if (BaganrikiPrompt::sending() && !$r122Tg1['ok']) {
+            \Log::error('[R122-TARGET] 対象レースではないので旧本文で送ります（1st）', [
+                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho,
+                'day'  => $day,  'race'   => $race,
+                'code' => $r122Tg1['code'] ?? null,
+            ]);
+        }
+        if (BaganrikiPrompt::sending() && $r122Tg1['ok']) {
+            $r122 = $this->r122AssembleSend($date, $kaisuu, $basho, $day, $race, '1st');
+            if (!$r122['ok']) {
+                \Log::error('[INPUT_INVALID] r12.2の送信文を作れないため1st AIを呼びません', [
+                    'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho,
+                    'day'  => $day,  'race'   => $race,
+                    'code' => $r122['code'], 'reason' => $r122['reason'],
+                ]);
+                // ══════════════════════════════════════════════════════
+                // @ANCHOR-20261020-R122-RESUME  10月20日007のご指摘6-1
+                // ══════════════════════════════════════════════════════
+                //   情報上限に達していないだけ（TOO_EARLY）のときは、
+                //   <b>空回答をキャッシュしません。</b>残してしまうと
+                //   次のアクセスがキャッシュ返却で終わり、上限到達後に
+                //   やり直せなくなります。「待っているだけ」と
+                //   「作れなかった」を分けます。
+                if ((string) $r122['code'] === 'TOO_EARLY') {
+                    return response()->json(['data' => [
+                        'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
+                        'day'  => $day,  'race'   => $race, 'analysis_text' => '',
+                    ]]);
+                }
+                $this->_saveEmptyFirstAiAnalysis($date, $kaisuu, $basho, $day, $race,
+                                                 $raceRow, 'r122_input_invalid');
+                return response()->json(['data' => [
+                    'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
+                    'day'  => $day,  'race'   => $race, 'analysis_text' => '',
+                ]]);
+            }
+            $prompt              = $r122['user'];
+            $firstAiSystemPrompt = $r122['system'];
+            self::recordPromptHash('1st_system', $firstAiSystemPrompt);
+            self::recordPromptHash('1st', $prompt);
+            \Log::info('[R122-PROMPT] 1st AI へ r12.2 の本文で送ります', [
+                'race_id'       => $r122['race_id'],
+                'system_sha256' => $r122['system_sha256'],
+                'snapshot_hash' => $r122['snapshot_hash'],
+                'user_bytes'    => $r122['user_bytes'],
+            ]);
+
+            // @ANCHOR-20261020-R122-QUEUE  予約を確定してから送ります。
+            //   すでに枠があるとき（前回が途中で落ちた等）は<b>送りません</b>。
+            //   契約10章「予約済み枠を重複キュー・期限切れ・再起動で再発行しない」
+            $r122q1 = $this->r122QueueReserve($date, $kaisuu, $basho, $day, $race,
+                                              '1st', $r122);
+            // @ANCHOR-20261020-R122-SHADOW  shadow のときは止めません（記録だけ諦めます）
+            if (!$r122q1['skip'] && !$r122q1['ok'] && $r122q1['shadow']) {
+                \Log::error('[R122-QUEUE] 枠を取れませんでした（shadow なので送信は止めません）', [
+                    'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho,
+                    'day'  => $day,  'race'   => $race,
+                    'code' => $r122q1['code'], 'reason' => $r122q1['reason'],
+                ]);
+            }
+            if (!$r122q1['skip'] && !$r122q1['ok'] && !$r122q1['shadow']) {
+                \Log::error('[R122-QUEUE] 枠を予約できないため1st AIを呼びません', [
+                    'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho,
+                    'day'  => $day,  'race'   => $race,
+                    'code' => $r122q1['code'], 'reason' => $r122q1['reason'],
+                ]);
+                $this->_saveEmptyFirstAiAnalysis($date, $kaisuu, $basho, $day, $race,
+                                                 $raceRow, 'r122_queue_blocked');
+                return response()->json(['data' => [
+                    'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
+                    'day'  => $day,  'race'   => $race, 'analysis_text' => '',
+                ]]);
+            }
+        }
+
+        // @ANCHOR-20261020-R122-DEADLINE  予約がとれているときは
+        //   応答期限まで残っている時間から待ち時間を決めます。
+        //   固定の90秒・240秒だと、短すぎて切るか、期限を過ぎてから
+        //   返ってきたものを遅着で捨てることになります。
+        $aiTimeout = $this->r122AiTimeout(self::v04HvPrompt() ? 240 : 90,
+                                          $r122q1 ?? null);
         try {
             $aiResponse = $this->anthropic->sendWithRetry(
                 prompt:      $prompt,
@@ -1391,6 +1543,11 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
                 'H/V依頼'       => self::v04HvPrompt() ? 'あり（出力が約4倍になる）' : 'なし',
                 'message' => $e->getMessage(),
             ]);
+            // @ANCHOR-20261020-R122-QUEUE  届いたかどうか分からないので結果不明にします
+            if (isset($r122q1)) {
+                $this->r122QueueFail($r122q1,
+                    '1st AI の通信失敗・待ち時間切れ（届いたかどうか分かりません）', true);
+            }
             $this->_saveEmptyFirstAiAnalysis($date, $kaisuu, $basho, $day, $race, $raceRow, 'connection_error');
             return response()->json(['data' => [
                 'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
@@ -1406,6 +1563,11 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
                 'body'   => mb_substr((string) $aiResponse->body(), 0, 1000),
                 'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
             ]);
+            // @ANCHOR-20261020-R122-QUEUE  明確な失敗が返ったので FAILED にします
+            if (isset($r122q1)) {
+                $this->r122QueueFail($r122q1,
+                    '1st AI の API エラー status=' . $aiResponse->status(), false);
+            }
             $this->_saveEmptyFirstAiAnalysis($date, $kaisuu, $basho, $day, $race, $raceRow, 'api_error');
             return response()->json(['data' => [
                 'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
@@ -1426,6 +1588,8 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
 
         // @ANCHOR-20261006-AI-ELAPSED
         $aiElapsed1st = round(microtime(true) - $aiElapsedStart, 2);
+        // @ANCHOR-20261017-ELAPSED-LEVEL  info では .env の LOG_LEVEL=error に捨てられる
+        //   第43章9節で直したのと同じ落とし穴なので error に戻す（内容は変えない）
         \Log::error('[AI_ELAPSED] 1st AI 応答時間', [
             'race'       => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
             // 出走頭数はプロンプトの記録行から読む（この位置では変数が無いため）
@@ -1436,6 +1600,40 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
         ]);
 
         $rawText = $this->anthropic->extractText($aiResponse);
+
+        // @ANCHOR-20261020-R122-QUEUE  原応答と complete を保存します。
+        //   complete は「途中で切れていない」かつ「本文が空でない」ことです。
+        //   complete=false の本文はそのまま残しますが、選出には使いません。
+        if (isset($r122q1)) {
+            $this->r122QueueReceive($r122q1, $rawText,
+                ($aiStopReason === null || $aiStopReason === 'end_turn')
+                && trim($rawText) !== '');
+            // ══════════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-WIRE  10月20日006のご指摘6-4
+            // ══════════════════════════════════════════════════════════════
+            //   ご指摘のとおり、ここから先が繋がっていませんでした。
+            //   原応答を保存したあと、検証・訂正・公開を始めます。
+            //   ・応答を返したあとに動かします（app()->terminating()）。
+            //     画面の待ち時間を増やさないためです。公開期限
+            //     （発走120秒前）までには間に合う位置です。
+            //   ・2nd AI の先読みより先に登録するので、先に動きます。
+            //   ・ここで例外が出ても予想は返します（中で囲んでいます）。
+            if (!self::$dryRunNoPersist) {
+                $wireSelf = $this;
+                $wireQ    = $r122q1;
+                $wireD = $date; $wireK = $kaisuu; $wireB = $basho;
+                $wireY = $day;  $wireR = $race;
+                app()->terminating(function () use ($wireSelf, $wireQ, $wireD,
+                                                    $wireK, $wireB, $wireY, $wireR) {
+                    $t = microtime(true);
+                    $wireSelf->r122AfterReceive($wireD, $wireK, $wireB, $wireY,
+                                                $wireR, '1st', $wireQ);
+                    \Log::error('[R122-WIRE] 1st の後処理にかかった時間', [
+                        '秒' => round(microtime(true) - $t, 2),
+                    ]);
+                });
+            }
+        }
 
 // $pickupHorse  = $parsePickupHorses($rawText);
 // $analysisText = trim(preg_replace('/^PICKUP:.+$/mu', '', $rawText));
@@ -1981,6 +2179,8 @@ $analysisText = trim($rawText);
                                                    self::V04_RESEARCH_EXTREME_DEFAULT) ? 'true' : 'false',
             'BAGANRIKI_V04_ML_STAGE'         => self::v04MlStage(),
             'BAGANRIKI_V04_HV_PROMPT'        => self::v04HvPrompt()        ? 'true' : 'false',
+            // @ANCHOR-20261017-LABEL-FIX
+            'BAGANRIKI_LABEL_FIX'            => self::labelFix()           ? 'true' : 'false',
         ];
     }
 
@@ -2073,6 +2273,32 @@ $analysisText = trim($rawText);
     public const V04_ML_STAGE_DEFAULT         = 'COLLECT_ONLY';
     public const V04_HV_PROMPT_DEFAULT        = false;
 
+    // ══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261017-LABEL-FIX  AIへ渡すラベルの直し（既定OFF）
+    // ══════════════════════════════════════════════════════════════════════
+    // 10月17日 東京9R の照合検証報告（よっしーさん）§8への対応です。
+    //   「この計算では、比較する時間幅が3分と6分で異なり、区間も重なっている。
+    //     さらに直前変化率が負であることを要求しない」
+    //   「『流入ランク』の短縮率は正が短縮、『直前流入』の変化率は正が上昇で、
+    //     同じ文面内の符号の意味が逆になっている」
+    //   「これを変更する場合は、事前に影響範囲を確認して別版で再検算し、
+    //     週末の据え置き検証結果と混在させない」
+    //
+    // ■ 直すもの（2つとも【AIへ渡す入力のラベル】の話で、DB元値は触りません）
+    //   (1) 直前3分の加速・減速判定を、同じ時間幅（12→9分 と 9→6分）で比べる
+    //       いまは 3分幅（9→6分）と 6分幅（12→6分）を引き算していて、
+    //       区間も重なっています。そのため【単勝オッズが上がっている馬でも
+    //       「直前加速」と出ます】（10/17 東京9R の2番・8番が実例）。
+    //   (2) 同じ馬のブロックの中で「＋」の意味が逆になっているのを直す
+    //       短縮率は「＋＝買われた」、直前流入の変化率は「＋＝売られた」でした。
+    //       どちらも数値のうしろに方向を言葉で書きます。
+    //
+    // ■ 既定OFFにしてある理由
+    //   ONにすると送信文が変わるので、10月17日・18日の据え置き検証と
+    //   混ざってしまいます。比較が終わるまでOFFのままにします。
+    //   OFFのときは1バイトも変わりません（従来と同じ文面になります）。
+    public const LABEL_FIX_DEFAULT            = false;
+
     /** 付録D signal_thresholds_research_only。検証済みの本番値ではない */
     public const V04_THRESHOLDS = [
         'win_wall'                       => 2.00,
@@ -2091,11 +2317,27 @@ $analysisText = trim($rawText);
     ];
     public const V04_MODE_FIRM_MAX   = 1;   // S<=1 → FIRM
     public const V04_MODE_MIXED_MAX  = 3;   // 2<=S<=3 → MIXED、S>=4 → VOLATILE
-    public const V04_UNKNOWN_COUNT_AT_LEAST = 3;   // 不明が3信号以上なら mode=UNKNOWN
+    /**
+     * 不明が3信号以上なら mode=UNKNOWN、という旧規則の閾値。
+     *
+     * @ANCHOR-20261020-R122-MODE  r12.2 では使いません。
+     *   r12.2 は「可能なmodeが一つならそのmode、複数ならUNKNOWN」だけで決めます
+     *   （server_contract_r12.2 5章／詳細設計書5.2）。不明の件数は条件に入りません。
+     *   定数は旧ログとの照合のために残します。
+     */
+    public const V04_UNKNOWN_COUNT_AT_LEAST = 3;
 
-    /** 付録D quota_by_target。[A, B, D] */
+    /**
+     * 付録D quota_by_target。[A, B, D]
+     *
+     * @ANCHOR-20261020-R122-QUOTA  2026-10-20 受領の r12.2 で C7 混戦が変わりました。
+     *   変更計画書v1.2 第3章／詳細設計書6章／config/r122_contract.json の base_quota は
+     *   いずれも C7 MIXED = 3/3/1 です（「C7混戦の人気側3頭＋穴側4頭を維持する」）。
+     *   【旧】7 => [... 'MIXED' => [4, 2, 1] ...]  ← 人気側4頭。r12.2で使いません。
+     *   他の行（C4〜C6、C7のFIRM・VOLATILE）は r12.2 と同じ値でした。
+     */
     public const V04_QUOTA_BY_TARGET = [
-        7 => ['FIRM' => [5, 2, 0], 'MIXED' => [4, 2, 1], 'VOLATILE' => [3, 3, 1]],
+        7 => ['FIRM' => [5, 2, 0], 'MIXED' => [3, 3, 1], 'VOLATILE' => [3, 3, 1]],
         6 => ['FIRM' => [4, 2, 0], 'MIXED' => [3, 2, 1], 'VOLATILE' => [3, 2, 1]],
         5 => ['FIRM' => [4, 1, 0], 'MIXED' => [3, 2, 0], 'VOLATILE' => [2, 2, 1]],
         4 => ['FIRM' => [3, 1, 0], 'MIXED' => [2, 2, 0], 'VOLATILE' => [2, 1, 1]],
@@ -2371,6 +2613,38 @@ $analysisText = trim($rawText);
     private static ?bool $v04HvPromptOverride = null;
     public static function v04ForceHvPrompt(?bool $v): void { self::$v04HvPromptOverride = $v; }
 
+    /**
+     * @ANCHOR-20261017-LABEL-FIX  符号の意味を言葉で書く（短縮率用）
+     *   短縮率 =（計測前 − 6分前）÷ 計測前 × 100 なので、正なら【オッズが短縮】。
+     *   AIが読み違えないよう、数値のうしろに方向を書きます。
+     */
+    private static function wordShrink(?float $v): string
+    {
+        if ($v === null) return '';
+        if ($v > 0.0)  return '（＝オッズ短縮・買われた）';
+        if ($v < 0.0)  return '（＝オッズ上昇・売られた）';
+        return '（＝変化なし）';
+    }
+
+    /**
+     * @ANCHOR-20261017-LABEL-FIX  符号の意味を言葉で書く（変化率用）
+     *   変化率 =（6分前 − 9分前）÷ 9分前 × 100 なので、正なら【オッズが上昇】。
+     *   短縮率とは正負の意味が逆です。ここを混ぜると評価が逆になります。
+     */
+    private static function wordChange(?float $v): string
+    {
+        if ($v === null) return '';
+        if ($v > 0.0)  return '（上昇・売られた）';
+        if ($v < 0.0)  return '（下落・買われた）';
+        return '（変化なし）';
+    }
+
+    /** @ANCHOR-20261017-LABEL-FIX  ラベルの直しを使うか（既定OFF） */
+    private static function labelFix(): bool
+    {
+        return self::v04Bool('BAGANRIKI_LABEL_FIX', self::LABEL_FIX_DEFAULT);
+    }
+
     private static function v04HvPrompt(): bool
     {
         if (self::$v04HvPromptOverride !== null) return self::$v04HvPromptOverride;
@@ -2391,6 +2665,8 @@ $analysisText = trim($rawText);
             'BAGANRIKI_V04_RESEARCH_EXTREME' => self::v04Extreme()  ? '有効' : '無効（既定）',
             'BAGANRIKI_V04_ML_STAGE'         => self::v04MlStage(),
             'BAGANRIKI_V04_HV_PROMPT'        => self::v04HvPrompt() ? '有効' : '無効（既定）',
+            // @ANCHOR-20261017-LABEL-FIX
+            'BAGANRIKI_LABEL_FIX'            => self::labelFix()     ? '有効' : '無効（既定）',
         ];
     }
 
@@ -2430,6 +2706,7 @@ $analysisText = trim($rawText);
     //       成立0・不明1（＝どう転んでも2件に届かない）を不明にしていた。
     //     ⑤不明がある場合 S は null（確定値を出さない）。S_min/S_max だけを出す。
     //     ⑥mode=UNKNOWN のときの配分ラベルを allocation_mode=MIXED_PROVISIONAL
+    //       （@ANCHOR-20261020-R122-MODE  r12.2 で廃止。UNKNOWNでMIXEDを流用しません）
     //       として明示する（配分自体はMIXEDを流用するが、別物として記録する）。
     //
     // 【この一式は本番に出さない】
@@ -2438,478 +2715,63 @@ $analysisText = trim($rawText);
     //   BAGANRIKI_V04_ENABLED=false の間は選出・表示・DBに一切影響しない。
     // ═════════════════════════════════════════════════════════════════════════
 
-    /** @ANCHOR-20261013-V04-CORE  有効な観測値か（0・負・欠損・真偽値は不可） */
-    private static function v04Valid($x): bool
-    {
-        if (is_bool($x) || $x === null) return false;
-        if (!is_numeric($x)) return false;
-        return ((float) $x) > 0;
-    }
+    // ─────────────────────────────────────────────────────────────
+    // @ANCHOR-20261020-REFACTOR  v0.4-X 信号判定（三値・ペア・X1〜X6・Z・mode）
+    //   中身は同じファイル下部の BaganrikiSignals へ移しました。
+    //   呼び出し側（9箇所）を書き換えずに済むよう、
+    //   ここは受け渡しだけの薄い入口として残します。動きは変えていません。
+    // ─────────────────────────────────────────────────────────────
+    private static function v04Valid($x) : bool
+    { return BaganrikiSignals::v04Valid($x); }
 
-    /**
-     * @ANCHOR-20261013-V04-CORE  三値のOR集約（付録F tri_any と同一）
-     *   1つでも成立 → TRUE。成立し得る未観測が残る → UNKNOWN。
-     *   対象が空（構造的非該当）→ FALSE。
-     * @param array $conditions true / false / null の列
-     */
-    private static function v04TriAny(array $conditions): string
-    {
-        $unknown = false;
-        foreach ($conditions as $v) {
-            if ($v === true)  return 'TRUE';
-            if ($v === null)  $unknown = true;
-        }
-        return $unknown ? 'UNKNOWN' : 'FALSE';
-    }
+    private static function v04TriAny(array $conditions) : string
+    { return BaganrikiSignals::v04TriAny($conditions); }
 
-    /**
-     * @ANCHOR-20261013-V04-CORE  三値の件数集約（付録F tri_at_least と同一）
-     *   成立数が n 以上 → TRUE
-     *   成立数＋不明数が n に届かない → FALSE（欠損を自動でFALSEにするのではなく、
-     *     「どう転んでも届かない」と断定できる場合だけFALSE）
-     *   それ以外 → UNKNOWN
-     */
-    private static function v04TriAtLeast(array $conditions, int $n): string
-    {
-        $t = 0; $u = 0;
-        foreach ($conditions as $v) {
-            if ($v === true) $t++;
-            elseif ($v === null) $u++;
-        }
-        if ($t >= $n)      return 'TRUE';
-        if ($t + $u < $n)  return 'FALSE';
-        return 'UNKNOWN';
-    }
+    private static function v04TriAtLeast(array $conditions, int $n) : string
+    { return BaganrikiSignals::v04TriAtLeast($conditions, $n); }
 
-    /**
-     * @ANCHOR-20261013-V04-CORE  6分前人気で固定した隣接馬番ペアの W(k,t) / P(k,t)
-     *
-     * 02-1「6分前人気で h[k],h[k+1] の隣接馬番ペアを固定。各時点では順位k/k+1の
-     *   別の馬へ差し替えず、同じh番号のオッズで比率を計算する」
-     *   W(k,t)=win(h[k+1],t)/win(h[k],t)、P(k,t)=place_min(h[k+1],t)/place_min(h[k],t)
-     *   0・負・欠損・取消は計算不可（null）。
-     *   21分前に順位が入れ替わっていてW<1になっても、同じ馬の実測が有効なら
-     *   比率は残し rank_crossed=true を別記する（別の馬に差し替えない）。
-     *
-     * @param array $pHorses 6分前単勝人気の昇順に並んだ出走馬
-     * @return array k（1..N-1）=> ペア情報
-     */
-    private static function v04Pairs(array $pHorses): array
-    {
-        $T = [21, 18, 15, 12, 9, 6];
+    private static function v04Pairs(array $pHorses) : array
+    { return BaganrikiSignals::v04Pairs($pHorses); }
 
-        $ratio = static function (array $u, array $l, string $key, int $t): ?float {
-            $uv = $u[$key][$t] ?? null;
-            $lv = $l[$key][$t] ?? null;
-            if (!self::v04Valid($uv) || !self::v04Valid($lv)) return null;
-            return (float) $lv / (float) $uv;          // 下側 ÷ 上側
-        };
+    private static function v04DeriveFlags(int $N, array $pairs, array $pHorses, ?array $similar = null) : array
+    { return BaganrikiSignals::v04DeriveFlags($N, $pairs, $pHorses, $similar); }
 
-        $pairs = [];
-        $cnt   = count($pHorses);
-        for ($i = 0; $i < $cnt - 1; $i++) {
-            $u = $pHorses[$i];
-            $l = $pHorses[$i + 1];
-            $k = $i + 1;                               // 位置番号（付録Fのkと同じ）
+    private static function v04MissingReason(array $each) : array
+    { return BaganrikiSignals::v04MissingReason($each); }
 
-            $W = []; $P = [];
-            foreach ($T as $t) {
-                $W[$t] = $ratio($u, $l, 'tan_series',      $t);
-                $P[$t] = $ratio($u, $l, 'fuku_min_series', $t);
-            }
+    private static function v04ScoreMode(int $s) : string
+    { return BaganrikiSignals::v04ScoreMode($s); }
 
-            $w21 = $W[21]; $w6 = $W[6]; $p6 = $P[6];
+    private static function v04Classify(array $flags) : array
+    { return BaganrikiSignals::v04Classify($flags); }
 
-            // 壁の出現／消滅／拡大／縮小（欠損は不明のまま）
-            $appear = $vanish = $expand = $shrink = null;
-            $shrinkRate = null;
-            if ($w21 !== null && $w6 !== null) {
-                $appear     = ($w21 <  2.0 && $w6 >= 2.0);
-                $vanish     = ($w21 >= 2.0 && $w6 <  2.0);
-                $shrinkRate = ($w21 > 0) ? (($w21 - $w6) / $w21) : null;
-                $expand     = ($w6 > $w21);
-                $shrink     = ($w6 < $w21);
-            }
-            // 単複の一致／不一致（単勝壁 W>=2.00、複勝補強 P>=1.50）
-            $agree = ($w6 !== null && $p6 !== null) ? (($w6 >= 2.0) === ($p6 >= 1.5)) : null;
+    private static function v04StarOfS(int $s) : int
+    { return BaganrikiSignals::v04StarOfS($s); }
 
-            // 順位入替：21分前に下側の単勝が上側より安い（W<1）状態だったか
-            $crossed = ($w21 !== null) ? ($w21 < 1.0) : null;
+    // ─────────────────────────────────────────────────────────────
+    // @ANCHOR-20261020-REFACTOR  v0.4-X 配分（目標頭数・3帯quota・構造調整）
+    //   中身は同じファイル下部の BaganrikiAllocation へ移しました。
+    //   呼び出し側（6箇所）を書き換えずに済むよう、
+    //   ここは受け渡しだけの薄い入口として残します。動きは変えていません。
+    // ─────────────────────────────────────────────────────────────
+    private static function v04TargetCount(int $N) : int
+    { return BaganrikiAllocation::v04TargetCount($N); }
 
-            $missing = [];
-            foreach ($T as $t) {
-                if ($W[$t] === null) $missing[] = "W{$t}";
-                if ($P[$t] === null) $missing[] = "P{$t}";
-            }
+    private static function v04Allocation(int $N, array $classification) : array
+    { return BaganrikiAllocation::v04Allocation($N, $classification); }
 
-            $pairs[$k] = [
-                'k'            => $k,
-                'upper_num'    => (int) ($u['num'] ?? 0),
-                'lower_num'    => (int) ($l['num'] ?? 0),
-                'upper_pop'    => (int) ($u['popularity'] ?? 0),
-                'lower_pop'    => (int) ($l['popularity'] ?? 0),
-                'W'            => array_map(static fn($v) => $v === null ? null : round($v, 4), $W),
-                'P'            => array_map(static fn($v) => $v === null ? null : round($v, 4), $P),
-                '出現'         => $appear,
-                '消滅'         => $vanish,
-                '拡大'         => $expand,
-                '縮小'         => $shrink,
-                '縮小率'       => $shrinkRate === null ? null : round($shrinkRate, 4),
-                '単複一致'     => $agree,
-                '単勝壁6分'    => $w6  === null ? null : ($w6  >= 2.0),
-                '単勝壁21分'   => $w21 === null ? null : ($w21 >= 2.0),
-                '複勝補強6分'  => $p6  === null ? null : ($p6  >= 1.5),
-                'rank_crossed' => $crossed,
-                'missing'      => $missing,
-            ];
-        }
-        return $pairs;
-    }
+    private static function v04BandCapacity(int $N) : array
+    { return BaganrikiAllocation::v04BandCapacity($N); }
 
-    /**
-     * @ANCHOR-20261013-V04-CORE  X1〜X6・Z の三値判定（付録F derive_flags と同一）
-     *
-     * 02-2 の表。閾値はすべて研究初期値であり検証済みの本番値ではない。
-     *   X1 境界弱化(+2)   k<=6 で W(k,21)>=2.00 かつ（W(k,6)<2.00 または 縮小20%以上）
-     *   X2 単複乖離(+1)   k<=10 で W(k,6)>=2.00 かつ P(k,6)<1.50
-     *   X3 中位接近(+1)   k=3,4,5,6 が全て有効で max W(k,6) < 1.50。N<7 は構造的非該当
-     *   X4 穴側の絶対支持(+1) 7番人気以下の異なる2頭以上で複勝最小が
-     *                      21→6分に5%以上短縮、または9→6分に3%以上短縮
-     *   X5 中穴の壁(+1)   k=7..min(10,N-1) で W(k,6)>=2.00。該当境界が無ければFALSE
-     *   X6 類似統計(+1)   有効50レース以上かつ基準率より10pp以上高い。
-     *                      基準率が未定義・未提供なら必ずUNKNOWN（0%で埋めない）
-     *   Z  安定上位(-2)   k=1..min(5,N-1) の異なる2境界以上で
-     *                      W(k,21)>=2.00 かつ W(k,6)>=2.00 かつ P(k,6)>=1.50
-     *
-     * @param  int        $N        取消を反映した実出走頭数
-     * @param  array      $pairs    v04Pairs() の戻り
-     * @param  array      $pHorses  出走馬（popularity / fuku_min_series を持つ）
-     * @param  array|null $similar  ['sample_size'=>int|null, 'delta_pp'=>float|null]
-     * @return array      ['flags'=>[X1..Z=>'TRUE'|'FALSE'|'UNKNOWN'], 'evidence'=>[...]]
-     */
-    private static function v04DeriveFlags(int $N, array $pairs, array $pHorses, ?array $similar = null): array
-    {
-        $thr  = self::V04_THRESHOLDS;
-        $maxK = max(0, $N - 1);
-        $at   = static fn(int $k, int $t, string $v) => $pairs[$k][$v][$t] ?? null;
+    private static function v04StructuralAdjust(int $N, array $q) : array
+    { return BaganrikiAllocation::v04StructuralAdjust($N, $q); }
 
-        // ── X1 境界弱化 ─────────────────────────────────────────────────────
-        //   上側の21分前が有効で壁未満なら、6分前が欠損でもFALSEと断定できる。
-        $x1 = static function (int $k) use ($at, $thr) {
-            $w21 = $at($k, 21, 'W'); $w6 = $at($k, 6, 'W');
-            if (self::v04Valid($w21) && $w21 < $thr['win_wall']) return false;
-            if (!self::v04Valid($w21) || !self::v04Valid($w6))   return null;
-            return ($w21 >= $thr['win_wall'])
-                && ($w6 < $thr['win_wall'] || (($w21 - $w6) / $w21) >= $thr['win_wall_shrink_fraction']);
-        };
-        $x1Each = []; $x1Ev = [];
-        for ($k = 1; $k <= min($maxK, 6); $k++) {
-            $x1Each[$k] = $x1($k);
-            if ($x1Each[$k] === true) {
-                $x1Ev[] = ['k' => $k, 'W21' => $at($k, 21, 'W'), 'W6' => $at($k, 6, 'W'),
-                           '縮小率' => $pairs[$k]['縮小率'] ?? null,
-                           '馬番' => [$pairs[$k]['upper_num'] ?? null, $pairs[$k]['lower_num'] ?? null]];
-            }
-        }
-        $X1 = self::v04TriAny($x1Each);
+    private static function v04SecondQuota(int $N, array $q1) : array
+    { return BaganrikiAllocation::v04SecondQuota($N, $q1); }
 
-        // ── X2 単複乖離 ─────────────────────────────────────────────────────
-        //   単勝が壁未満と分かる、または複勝が補強済みと分かる時点でFALSE。
-        $x2 = static function (int $k) use ($at, $thr) {
-            $w = $at($k, 6, 'W'); $p = $at($k, 6, 'P');
-            if (self::v04Valid($w) && $w < $thr['win_wall'])   return false;
-            if (self::v04Valid($p) && $p >= $thr['place_wall']) return false;
-            if (!self::v04Valid($w) || !self::v04Valid($p))     return null;
-            return ($w >= $thr['win_wall']) && ($p < $thr['place_wall']);
-        };
-        $x2Each = []; $x2Ev = [];
-        for ($k = 1; $k <= min($maxK, 10); $k++) {
-            $x2Each[$k] = $x2($k);
-            if ($x2Each[$k] === true) {
-                $x2Ev[] = ['k' => $k, 'W6' => $at($k, 6, 'W'), 'P6' => $at($k, 6, 'P'),
-                           '馬番' => [$pairs[$k]['upper_num'] ?? null, $pairs[$k]['lower_num'] ?? null]];
-            }
-        }
-        $X2 = self::v04TriAny($x2Each);
+    private static function v04Band(int $pop) : string
+    { return BaganrikiAllocation::v04Band($pop); }
 
-        // ── X3 中位接近 ─────────────────────────────────────────────────────
-        //   AND条件なので、1つでも「有効かつ1.50以上」ならFALSE、
-        //   4つとも有効で全て1.50未満ならTRUE、残りはUNKNOWN。
-        //   N<7 は k=3..6 の境界が揃わないので構造的非該当＝FALSE。
-        $x3Vals = [];
-        if ($N < 7) {
-            $X3 = 'FALSE';
-            $x3Note = "N={$N}（<7）のため k=3..6 の境界が成立せず構造的非該当";
-        } else {
-            $anyOver = false; $allValid = true;
-            foreach ([3, 4, 5, 6] as $k) {
-                $w = $at($k, 6, 'W');
-                $x3Vals[$k] = $w;
-                if (self::v04Valid($w) && $w >= $thr['middle_close_upper_bound']) $anyOver = true;
-                if (!self::v04Valid($w)) $allValid = false;
-            }
-            $X3    = $anyOver ? 'FALSE' : ($allValid ? 'TRUE' : 'UNKNOWN');
-            $x3Note = $anyOver ? 'k=3..6のいずれかが1.50以上' : ($allValid ? '4境界すべて1.50未満' : '欠損あり');
-        }
-
-        // ── X4 穴側の絶対支持 ────────────────────────────────────────────────
-        //   相対的な流入順位は証拠にしない。各馬の複勝最小の絶対短縮率だけで見る。
-        $x4Runner = static function (array $r) use ($thr) {
-            $p21 = $r['fuku_min_series'][21] ?? null;
-            $p9  = $r['fuku_min_series'][9]  ?? null;
-            $p6  = $r['fuku_min_series'][6]  ?? null;
-            if (!self::v04Valid($p6)) return null;
-            $v21 = self::v04Valid($p21) ? ((($p21 - $p6) / $p21) >= $thr['place_shorten_21_to_6_fraction']) : null;
-            $v9  = self::v04Valid($p9)  ? ((($p9  - $p6) / $p9)  >= $thr['place_shorten_9_to_6_fraction'])  : null;
-            if ($v21 === true || $v9 === true) return true;
-            if ($v21 === null || $v9 === null) return null;
-            return false;
-        };
-        $x4Each = []; $x4Ev = []; $x4Unknown = [];
-        foreach ($pHorses as $h) {
-            if ((int) ($h['popularity'] ?? 10000) < 7) continue;
-            $v = $x4Runner($h);
-            $x4Each[] = $v;
-            $p21 = $h['fuku_min_series'][21] ?? null;
-            $p9  = $h['fuku_min_series'][9]  ?? null;
-            $p6  = $h['fuku_min_series'][6]  ?? null;
-            $row = ['num' => (int) ($h['num'] ?? 0), '人気' => (int) ($h['popularity'] ?? 0),
-                    '複勝21' => $p21, '複勝9' => $p9, '複勝6' => $p6,
-                    '21→6短縮率' => (self::v04Valid($p21) && self::v04Valid($p6)) ? round(($p21 - $p6) / $p21, 4) : null,
-                    '9→6短縮率'  => (self::v04Valid($p9)  && self::v04Valid($p6)) ? round(($p9  - $p6) / $p9,  4) : null];
-            if ($v === true)      $x4Ev[] = $row;
-            elseif ($v === null)  $x4Unknown[] = $row;
-        }
-        $X4 = self::v04TriAtLeast($x4Each, 2);
-
-        // ── X5 中穴の壁 ─────────────────────────────────────────────────────
-        //   k=7..min(10,N-1)。該当境界自体が存在しなければ（空集合）FALSE。
-        $x5Each = []; $x5Ev = [];
-        for ($k = 7; $k <= min($maxK, 10); $k++) {
-            $w = $at($k, 6, 'W');
-            $x5Each[$k] = self::v04Valid($w) ? ($w >= $thr['win_wall']) : null;
-            if ($x5Each[$k] === true) {
-                $x5Ev[] = ['k' => $k, 'W6' => $w,
-                           '馬番' => [$pairs[$k]['upper_num'] ?? null, $pairs[$k]['lower_num'] ?? null]];
-            }
-        }
-        $X5 = self::v04TriAny($x5Each);
-
-        // ── X6 類似統計 ─────────────────────────────────────────────────────
-        //   基準率（X6_baseline）が未合意のため、通常は $similar=null で UNKNOWN。
-        //   07章Bでよっしーに確認中の未決事項。0%で埋めてはいけない。
-        if ($similar === null
-            || ($similar['sample_size'] ?? null) === null
-            || ($similar['delta_pp']    ?? null) === null) {
-            $X6 = 'UNKNOWN';
-            $x6Note = '同条件比較基準率が未定義・未提供（07章B）のため不明。0%で埋めない';
-        } elseif ((int) $similar['sample_size'] < $thr['similar_min_races']) {
-            $X6 = 'FALSE';
-            $x6Note = "有効母数 {$similar['sample_size']} レースが最低条件 {$thr['similar_min_races']} に未達";
-        } else {
-            $X6 = ((float) $similar['delta_pp'] >= $thr['similar_3in_delta_pp']) ? 'TRUE' : 'FALSE';
-            $x6Note = "有効母数 {$similar['sample_size']} / 基準率との差 {$similar['delta_pp']}pp";
-        }
-
-        // ── Z 安定上位 ──────────────────────────────────────────────────────
-        $z = static function (int $k) use ($at, $thr) {
-            $w21 = $at($k, 21, 'W'); $w6 = $at($k, 6, 'W'); $p6 = $at($k, 6, 'P');
-            if (self::v04Valid($w21) && $w21 < $thr['win_wall'])   return false;
-            if (self::v04Valid($w6)  && $w6  < $thr['win_wall'])   return false;
-            if (self::v04Valid($p6)  && $p6  < $thr['place_wall']) return false;
-            if (!self::v04Valid($w21) || !self::v04Valid($w6) || !self::v04Valid($p6)) return null;
-            return ($w21 >= $thr['win_wall']) && ($w6 >= $thr['win_wall']) && ($p6 >= $thr['place_wall']);
-        };
-        $zEach = []; $zEv = [];
-        for ($k = 1; $k <= min($maxK, 5); $k++) {
-            $zEach[$k] = $z($k);
-            if ($zEach[$k] === true) {
-                $zEv[] = ['k' => $k, 'W21' => $at($k, 21, 'W'), 'W6' => $at($k, 6, 'W'), 'P6' => $at($k, 6, 'P'),
-                          '馬番' => [$pairs[$k]['upper_num'] ?? null, $pairs[$k]['lower_num'] ?? null]];
-            }
-        }
-        $Z = self::v04TriAtLeast($zEach, 2);
-
-        return [
-            'flags'    => ['X1' => $X1, 'X2' => $X2, 'X3' => $X3, 'X4' => $X4,
-                           'X5' => $X5, 'X6' => $X6, 'Z'  => $Z],
-            'evidence' => [
-                'X1' => ['value' => $X1, '対象k' => array_keys($x1Each), '成立' => $x1Ev,
-                         'missing_reason' => self::v04MissingReason($x1Each)],
-                'X2' => ['value' => $X2, '対象k' => array_keys($x2Each), '成立' => $x2Ev,
-                         'missing_reason' => self::v04MissingReason($x2Each)],
-                'X3' => ['value' => $X3, 'W6' => $x3Vals, 'note' => $x3Note],
-                'X4' => ['value' => $X4, '成立頭数' => count($x4Ev), '成立' => $x4Ev,
-                         '不明' => $x4Unknown, '必要件数' => 2],
-                'X5' => ['value' => $X5, '対象k' => array_keys($x5Each), '成立' => $x5Ev,
-                         'missing_reason' => self::v04MissingReason($x5Each)],
-                'X6' => ['value' => $X6, 'note' => $x6Note, 'similar' => $similar],
-                'Z'  => ['value' => $Z, '対象k' => array_keys($zEach), '成立' => $zEv,
-                         '必要件数' => 2, 'missing_reason' => self::v04MissingReason($zEach)],
-            ],
-        ];
-    }
-
-    /** @ANCHOR-20261013-V04-CORE  三値列のうち不明だった位置を記録する */
-    private static function v04MissingReason(array $each): array
-    {
-        $out = [];
-        foreach ($each as $k => $v) { if ($v === null) $out[] = $k; }
-        return empty($out) ? [] : ['不明だったk' => $out, '理由' => 'オッズ欠損・取消・0以下のため比率が計算不可'];
-    }
-
-    /** @ANCHOR-20261013-V04-CORE  Sからモードへ（付録F score_mode と同一） */
-    private static function v04ScoreMode(int $s): string
-    {
-        if ($s <= self::V04_MODE_FIRM_MAX)  return 'FIRM';
-        if ($s <= self::V04_MODE_MIXED_MAX) return 'MIXED';
-        return 'VOLATILE';
-    }
-
-    /**
-     * @ANCHOR-20261013-V04-CORE  S・S_min・S_max と mode（付録F classify と同一）
-     *
-     * S = 2*X1 + X2 + X3 + X4 + X5 + X6 - 2*Z（既知TRUE=1、FALSE=0）。
-     *   これは確率ではなく研究用の離散指数。
-     * 不明がある場合は各不明を0/1に振った全組合せを数え上げ、
-     *   ・不明が3信号以上
-     *   ・不明の振り方でFIRM/MIXED/VOLATILEの境界をまたぐ
-     * のいずれかなら mode=UNKNOWN。不明が1〜2で全組合せが同じモードなら
-     * そのモードを付し、mode_has_unknown=true を必ず立てる。
-     */
-    private static function v04Classify(array $flags): array
-    {
-        $w = self::V04_SIGNAL_WEIGHTS;
-        if (array_keys($w) !== array_keys($flags)) {
-            // 付録Fの assert 相当。信号キーの取り違えを早い段階で落とす。
-            $flags = array_merge(array_fill_keys(array_keys($w), 'UNKNOWN'),
-                                 array_intersect_key($flags, $w));
-        }
-        // ══════════════════════════════════════════════════════════════════
-        // @ANCHOR-20261014-ABNORMAL-INPUT  知らない値で例外を投げない
-        // ══════════════════════════════════════════════════════════════════
-        // 【旧実装の問題】
-        //   TRUE / FALSE / UNKNOWN 以外の値が1つでも入ると
-        //   InvalidArgumentException を投げていました。
-        //   10月14日（5回目）のご指摘で追加した異常入力試験（AB-T02）で
-        //   見つかりました。信号は v04DeriveFlags() が作るので通常は
-        //   3値しか入りませんが、例外が外へ出るとレースが止まります。
-        //   「候補不足や欠損でレースを止めない」という方針
-        //   （@ANCHOR-20260928-NO-RACE-STOP）に反します。
-        // 【この変更】
-        //   知らない値は【不明（UNKNOWN）】に倒し、\Log::error で必ず表に出します。
-        //   仕様の禁止事項「不明値を0点・不振・条件未達として扱うこと」を守るため、
-        //   FALSE には倒しません。例外は投げません。
-        $badTri = [];
-        foreach ($flags as $k => $v) {
-            if (!in_array($v, ['TRUE', 'FALSE', 'UNKNOWN'], true)) {
-                $badTri[$k] = var_export($v, true);
-                $flags[$k]  = 'UNKNOWN';
-            }
-        }
-        if (!empty($badTri)) {
-            \Log::error('[V04_CLASSIFY] 知らない信号値を不明として扱った（@ANCHOR-20261014-ABNORMAL-INPUT）', [
-                '対象'   => $badTri,
-                '対処'   => 'UNKNOWNへ倒した（FALSEには倒さない）',
-                '影響'   => 'mode=UNKNOWN になり、配分はMIXED_PROVISIONALで記録のみ',
-            ]);
-        }
-
-        $unknown = [];
-        $fixed   = 0;
-        foreach ($flags as $k => $v) {
-            if ($v === 'UNKNOWN') { $unknown[] = $k; continue; }
-            if ($v === 'TRUE')    $fixed += $w[$k];
-        }
-
-        $sMin = $fixed; $sMax = $fixed;
-        foreach ($unknown as $k) {
-            // ZのUNKNOWNはマイナス方向に作用する → S_min では Z=1、S_max では Z=0
-            $sMin += min(0, $w[$k]);
-            $sMax += max(0, $w[$k]);
-        }
-
-        // 不明の全組合せ（2^u、u<=7なので最大128通り）で判定が揺れるか確認する
-        $modes = [];
-        $u     = count($unknown);
-        for ($mask = 0; $mask < (1 << $u); $mask++) {
-            $val = $fixed;
-            foreach ($unknown as $i => $k) { if ($mask & (1 << $i)) $val += $w[$k]; }
-            $modes[self::v04ScoreMode((int) $val)] = true;
-        }
-
-        $mode = ($u >= self::V04_UNKNOWN_COUNT_AT_LEAST || count($modes) > 1)
-            ? 'UNKNOWN'
-            : array_key_first($modes);
-
-        return [
-            'mode'             => $mode,
-            'S'               => empty($unknown) ? $fixed : null,
-            'S_min'            => $sMin,
-            'S_max'            => $sMax,
-            'unknown_features' => $unknown,
-            'mode_has_unknown' => !empty($unknown),
-            'allocation_mode'  => ($mode === 'UNKNOWN') ? 'MIXED_PROVISIONAL' : $mode,
-            '取り得るmode'     => array_keys($modes),
-        ];
-    }
-
-    /** @ANCHOR-20261013-V04-CORE  候補数（付録F target_count と同一） */
-    private static function v04TargetCount(int $N): int
-    {
-        // @ANCHOR-20261014-ABNORMAL-INPUT  負の頭数で例外を投げない
-        //   異常入力試験（AB-T05）で見つかりました。出走頭数は呼び出し側で
-        //   DB照合済みですが、例外が外へ出るとレースが止まります。
-        //   0頭として扱い、\Log::error で表に出します。
-        if ($N < 0) {
-            \Log::error('[V04_TARGET] 出走頭数が負（@ANCHOR-20261014-ABNORMAL-INPUT）', [
-                'N' => $N, '対処' => '0頭として扱う（目標数0・候補を作らない）',
-            ]);
-            return 0;
-        }
-        if ($N <= 8) return min($N, 4);
-        if ($N <= 13) return 5;
-        if ($N <= 15) return 6;
-        return 7;
-    }
-
-    /**
-     * @ANCHOR-20261013-V04-CORE  3帯 quota(A,B,D)（付録F allocation と同一）
-     *   target_count が 4 未満のときは3帯配分を無理に作らない（quota=null）。
-     *   MIXED_PROVISIONAL は配分表のMIXEDを流用するが、ラベルは別に残す。
-     */
-    private static function v04Allocation(int $N, array $classification): array
-    {
-        $cap = self::v04TargetCount($N);
-        if ($cap < 4) {
-            return ['target_count' => $cap, 'quota' => null,
-                    'quota_note'   => 'N<=3: no artificial 3-band quota（当該実在馬の帯のみ、目標数以下で評価）'];
-        }
-        $mode = $classification['allocation_mode'];
-        if ($mode === 'MIXED_PROVISIONAL') $mode = 'MIXED';
-        $q = self::V04_QUOTA_BY_TARGET[$cap][$mode] ?? null;
-        if ($q === null) {
-            return ['target_count' => $cap, 'quota' => null,
-                    'quota_note'   => "配分表に target_count={$cap} / mode={$mode} が無い"];
-        }
-        if (array_sum($q) !== $cap) {
-            throw new \RuntimeException("quota sum mismatch: {$cap} vs " . array_sum($q));
-        }
-        return [
-            'target_count' => $cap,
-            'quota'        => ['A' => $q[0], 'B' => $q[1], 'D' => $q[2]],
-            'quota_note'   => 'SHADOW ONLY; do not force Tier-C to fill physically impossible bands',
-            '使用配分モード' => $mode,
-        ];
-    }
-
-    /** @ANCHOR-20261013-V04-CORE  6分前人気 → 帯（A=1〜6／B=7〜10／D=11以下） */
-    private static function v04Band(int $pop): string
-    {
-        if ($pop >= 1 && $pop <= 6)  return 'A';
-        if ($pop >= 7 && $pop <= 10) return 'B';
-        return 'D';
-    }
 
     /**
      * ═════════════════════════════════════════════════════════════════════════
@@ -4518,15 +4380,26 @@ $analysisText = trim($rawText);
             ['E-T01', 16, ['X1'=>'TRUE','X2'=>'TRUE','X3'=>'TRUE'], 'VOLATILE', 4, 4, 4, [], false, 'VOLATILE', 7, ['A'=>3,'B'=>3,'D'=>1]],
             ['E-T02', 15, ['X1'=>'TRUE','X2'=>'TRUE','X3'=>'TRUE'], 'VOLATILE', 4, 4, 4, [], false, 'VOLATILE', 6, ['A'=>3,'B'=>2,'D'=>1]],
             ['E-T03', 11, ['X1'=>'TRUE','X2'=>'TRUE','X3'=>'TRUE'], 'VOLATILE', 4, 4, 4, [], false, 'VOLATILE', 5, ['A'=>2,'B'=>2,'D'=>1]],
-            ['E-T04',  8, ['X1'=>'TRUE','X2'=>'TRUE','X3'=>'TRUE'], 'VOLATILE', 4, 4, 4, [], false, 'VOLATILE', 4, ['A'=>2,'B'=>1,'D'=>1]],
+            // @ANCHOR-20261020-R122-ALLOC  構造調整が入って期待値が変わった1件
+            //   N=8 は 11番人気以下（D帯）に馬がいません。
+            //   【旧】配分表の素の値 2/1/1 をそのまま期待していました。
+            //   r12.2 は「構造上の実在馬不足」を D→B→A の順に移すので 2/2/0 です。
+            //   先方の付録Aでも、N=7・VOLATILE は素の 2/1/1 ではなく 3/1/0 になっています
+            //   （D帯もB帯も埋まらないぶんがAへ移る）。同じ規則です。
+            ['E-T04',  8, ['X1'=>'TRUE','X2'=>'TRUE','X3'=>'TRUE'], 'VOLATILE', 4, 4, 4, [], false, 'VOLATILE', 4, ['A'=>2,'B'=>2,'D'=>0]],
             ['E-T05', 16, ['X6'=>'UNKNOWN'], 'FIRM', null, 0, 1, ['X6'], true, 'FIRM', 7, ['A'=>5,'B'=>2,'D'=>0]],
-            ['E-T06', 16, ['X1'=>'UNKNOWN','X2'=>'TRUE'], 'UNKNOWN', null, 1, 3, ['X1'], true, 'MIXED_PROVISIONAL', 7, ['A'=>4,'B'=>2,'D'=>1]],
-            ['E-T07', 16, ['X4'=>'UNKNOWN','X5'=>'UNKNOWN','X6'=>'UNKNOWN'], 'UNKNOWN', null, 0, 3, ['X4','X5','X6'], true, 'MIXED_PROVISIONAL', 7, ['A'=>4,'B'=>2,'D'=>1]],
+            // @ANCHOR-20261020-R122-MODE  r12.2 で期待値が変わった2件
+            //   【旧】どちらも allocation_mode='MIXED_PROVISIONAL'、quota=[4,2,1]。
+            //   r12.2 では「不明がX6だけ」でないので UNRESOLVED、配分を作りません。
+            ['E-T06', 16, ['X1'=>'UNKNOWN','X2'=>'TRUE'], 'UNKNOWN', null, 1, 3, ['X1'], true, null, 7, null],
+            ['E-T07', 16, ['X4'=>'UNKNOWN','X5'=>'UNKNOWN','X6'=>'UNKNOWN'], 'UNKNOWN', null, 0, 3, ['X4','X5','X6'], true, null, 7, null],
             ['E-T08', 16, ['Z'=>'UNKNOWN'], 'FIRM', null, -2, 0, ['Z'], true, 'FIRM', 7, ['A'=>5,'B'=>2,'D'=>0]],
             ['E-T09', 16, ['Z'=>'TRUE'], 'FIRM', -2, -2, -2, [], false, 'FIRM', 7, ['A'=>5,'B'=>2,'D'=>0]],
-            ['E-T10', 16, ['X1'=>'TRUE','X2'=>'TRUE'], 'MIXED', 3, 3, 3, [], false, 'MIXED', 7, ['A'=>4,'B'=>2,'D'=>1]],
-            ['E-T11', 16, ['X4'=>'TRUE','X6'=>'TRUE'], 'MIXED', 2, 2, 2, [], false, 'MIXED', 7, ['A'=>4,'B'=>2,'D'=>1]],
-            ['E-T12',  3, [], 'FIRM', 0, 0, 0, [], false, 'FIRM', 3, null],
+            // @ANCHOR-20261020-R122-QUOTA  C7混戦が 4/2/1 から 3/3/1 へ変わりました
+            ['E-T10', 16, ['X1'=>'TRUE','X2'=>'TRUE'], 'MIXED', 3, 3, 3, [], false, 'MIXED', 7, ['A'=>3,'B'=>3,'D'=>1]],
+            ['E-T11', 16, ['X4'=>'TRUE','X6'=>'TRUE'], 'MIXED', 2, 2, 2, [], false, 'MIXED', 7, ['A'=>3,'B'=>3,'D'=>1]],
+            // @ANCHOR-20261020-R122-ALLOC  N<=3 は C/0/0（旧実装は quota=null）
+            ['E-T12',  3, [], 'FIRM', 0, 0, 0, [], false, 'FIRM', 3, ['A'=>3,'B'=>0,'D'=>0]],
         ];
         foreach ($cases as [$id, $N, $over, $mode, $S, $sMin, $sMax, $unk, $hasUnk, $allocMode, $cap, $quota]) {
             $cls = self::v04Classify($F($over));
@@ -4541,6 +4414,1041 @@ $analysisText = trim($rawText);
             $check($id, 'target_count',     $alc['target_count'],     $cap);
             $check($id, 'quota',            $alc['quota'],            $quota);
         }
+
+        // ── @ANCHOR-20261020-R122-MODE  r12.2 で足した試験 ──────────────────
+        //   ①X6だけ不明で S0=1 → 暫定MIXED、S0=3 → 暫定VOLATILE
+        //   ②正式modeはUNKNOWNのまま、星は出さない
+        //   ③X6以外の不明が混ざったら暫定にしない（UNRESOLVED）
+        //   ④構造調整（実在しない帯の枠を移す）と2ndの配分
+        $r122 = [
+            // id, N, 信号の上書き, 期待 mode_status, 期待 allocation_mode,
+            //                       期待 S0, 期待 1st, 期待 2nd, 期待 display_rating
+            ['R122-01', 16, ['X5'=>'TRUE','X6'=>'UNKNOWN'],
+             'PROVISIONAL', 'MIXED',    1, ['A'=>3,'B'=>3,'D'=>1], ['A'=>1,'B'=>3,'D'=>1], null],
+            ['R122-02', 16, ['X1'=>'TRUE','X2'=>'TRUE','X6'=>'UNKNOWN'],
+             'PROVISIONAL', 'VOLATILE', 3, ['A'=>3,'B'=>3,'D'=>1], ['A'=>1,'B'=>3,'D'=>1], null],
+            ['R122-03', 16, ['X6'=>'UNKNOWN'],
+             'CONFIRMED',   'FIRM',     0, ['A'=>5,'B'=>2,'D'=>0], ['A'=>3,'B'=>2,'D'=>0], null],
+            ['R122-04', 16, ['X5'=>'TRUE','Z'=>'UNKNOWN','X6'=>'UNKNOWN'],
+             'UNRESOLVED',  null,    null, null, null, null],
+            // N=10 は C5。VOLATILEの基本 2/2/1 から、D帯が無いので1枠をBへ
+            ['R122-05', 10, ['X1'=>'TRUE','X2'=>'TRUE','X6'=>'UNKNOWN'],
+             'PROVISIONAL', 'VOLATILE', 3, ['A'=>2,'B'=>3,'D'=>0], ['A'=>2,'B'=>3,'D'=>0], null],
+            // 全部FALSEなら S=0 で FIRM 確定。星は S が一意なので出る
+            ['R122-06', 16, [],
+             'CONFIRMED',   'FIRM',     0, ['A'=>5,'B'=>2,'D'=>0], ['A'=>3,'B'=>2,'D'=>0], 1],
+        ];
+        foreach ($r122 as [$id, $N, $over, $st, $am, $s0, $q1, $q2, $star]) {
+            $cls = self::v04Classify($F($over));
+            $alc = self::v04Allocation($N, $cls);
+            $check($id, 'mode_status',      $cls['mode_status'],      $st);
+            $check($id, 'allocation_mode',  $cls['allocation_mode'],  $am);
+            $check($id, 'S0',               $cls['S0'],               $s0);
+            $check($id, 'display_rating',   $cls['display_rating'],   $star);
+            $check($id, 'quota',            $alc['quota'],            $q1);
+            $check($id, 'quota_2nd',        $alc['quota_2nd'],        $q2);
+            if ($st === 'PROVISIONAL') {
+                $check($id, 'mode=UNKNOWNのまま', $cls['mode'], 'UNKNOWN');
+                $check($id, 'mode_policy_id', $cls['mode_policy_id'], 'X6_ONLY_UPPER_MODE_V1');
+                $check($id, 'selection_enabled', $cls['selection_enabled'], true);
+            }
+            if ($st === 'UNRESOLVED') {
+                $check($id, 'selection_enabled', $cls['selection_enabled'], false);
+            }
+        }
+        // 構造調整の移動記録に reason を必ず入れる（契約5章）
+        $mv = self::v04Allocation(10, ['allocation_mode' => 'VOLATILE'])['quota_adjustments'];
+        $check('R122-07', '移動記録の件数',   count($mv), 1);
+        $check('R122-07', '移動記録のreason', $mv[0]['reason'] ?? null, 'BAND_CAPACITY');
+        $check('R122-07', '移動元',           $mv[0]['requested_band'] ?? null, 'D');
+        $check('R122-07', '移動先',           $mv[0]['actual_band'] ?? null, 'B');
+
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-TEST  r12.2 の実装一式の試験
+        //   詳細設計書13章の T01〜T05／D01〜D04／Q03 と、
+        //   時刻・採用バッチ・凍結集合・順位・応答検証・表示の検算です。
+        //   DBもAIも触りません。
+        // ══════════════════════════════════════════════════════════════════
+        $T = static fn(string $s) => BaganrikiTime::us($s);
+
+        // ── 時刻契約 ────────────────────────────────────────────────────
+        $anchor = $T('2026-10-17T15:00:00+09:00');
+        $check('R122-T00', 'cutoff_at = T−360秒',
+            BaganrikiTime::toJst(BaganrikiTime::cutoff($anchor)),
+            '2026-10-17T14:54:00.000000+09:00');
+        $check('R122-T00', 'input_freeze_at = T−330秒',
+            BaganrikiTime::toJst(BaganrikiTime::inputFreeze($anchor)),
+            '2026-10-17T14:54:30.000000+09:00');
+        $check('R122-T00', '6分前の予定',
+            BaganrikiTime::toJst(BaganrikiTime::slotScheduled($anchor, 6)),
+            '2026-10-17T14:54:00.000000+09:00');
+        $check('R122-T00', '6分前の期限（+30秒）',
+            BaganrikiTime::toJst(BaganrikiTime::slotDeadline($anchor, 6)),
+            '2026-10-17T14:54:30.000000+09:00');
+        $check('R122-T00', '9分前の期限（+120秒）',
+            BaganrikiTime::toJst(BaganrikiTime::slotDeadline($anchor, 9)),
+            '2026-10-17T14:53:00.000000+09:00');
+        $check('R122-T00', '30分前は予想入力スロットでない',
+            BaganrikiTime::slotDeadline($anchor, 30), null);
+
+        $sales = $T('2026-10-17T14:59:00+09:00');
+        $check('R122-T00', 'publish_deadline = 締切−60秒',
+            BaganrikiTime::toJst(BaganrikiTime::publishDeadline($sales)),
+            '2026-10-17T14:58:00.000000+09:00');
+        $check('R122-T00', 'reply_deadline = 公開期限−30秒',
+            BaganrikiTime::toJst(BaganrikiTime::replyDeadline($sales)),
+            '2026-10-17T14:57:30.000000+09:00');
+        $eff = BaganrikiTime::effectiveDeadlines($sales, $T('2026-10-17T14:58:00+09:00'));
+        $check('R122-T00', '締切前倒しは即反映',
+            BaganrikiTime::toJst($eff['publish']), '2026-10-17T14:57:00.000000+09:00');
+        $eff2 = BaganrikiTime::effectiveDeadlines($sales, $T('2026-10-17T15:30:00+09:00'));
+        $check('R122-T00', '延長で猶予を増やさない',
+            BaganrikiTime::toJst($eff2['publish']), '2026-10-17T14:58:00.000000+09:00');
+        $check('R122-T00', '小数秒7桁は拒否',
+            BaganrikiTime::us('2026-10-17T14:54:30.1234567+09:00'), null);
+        $check('R122-T00', 'タイムゾーン無しは拒否',
+            BaganrikiTime::us('2026-10-17T14:54:30'), null);
+        $check('R122-T00', '小文字のt/zは許容',
+            BaganrikiTime::us('2026-10-17t05:54:30z') !== null, true);
+
+        // ── T01〜T05 取得境界 ───────────────────────────────────────────
+        $mkB = static function (string $sch, string $req, string $res, string $av,
+                                string $frz = '2026-10-17T14:54:30+09:00') {
+            return ['slot_scheduled_at' => $sch, 'request_started_at' => $req,
+                    'response_received_at' => $res, 'available_at' => $av,
+                    'input_freeze_at' => $frz];
+        };
+        $check('R122-T01', '6分前 +30秒ちょうどは採用',
+            BaganrikiTime::acceptBatch(6, $mkB('2026-10-17T14:54:00+09:00',
+                '2026-10-17T14:54:00+09:00','2026-10-17T14:54:01+09:00',
+                '2026-10-17T14:54:30+09:00'))['ok'], true);
+        $r = BaganrikiTime::acceptBatch(6, $mkB('2026-10-17T14:54:00+09:00',
+                '2026-10-17T14:54:00+09:00','2026-10-17T14:54:01+09:00',
+                '2026-10-17T14:54:30.000001+09:00'));
+        $check('R122-T01', '1マイクロ秒後は不採用', $r['ok'], false);
+        $check('R122-T01', 'その理由コード', $r['code'], 'ACQUISITION_DEADLINE_EXCEEDED');
+        $check('R122-T02', '9分前 +120秒ちょうどは採用',
+            BaganrikiTime::acceptBatch(9, $mkB('2026-10-17T14:51:00+09:00',
+                '2026-10-17T14:51:00+09:00','2026-10-17T14:51:01+09:00',
+                '2026-10-17T14:53:00+09:00'))['ok'], true);
+        $check('R122-T02', '9分前 その1マイクロ秒後は不採用',
+            BaganrikiTime::acceptBatch(9, $mkB('2026-10-17T14:51:00+09:00',
+                '2026-10-17T14:51:00+09:00','2026-10-17T14:51:01+09:00',
+                '2026-10-17T14:53:00.000001+09:00'))['ok'], false);
+        $check('R122-T03', '受信は期限内だが利用可能が期限後 → 不採用',
+            BaganrikiTime::acceptBatch(9, $mkB('2026-10-17T14:51:00+09:00',
+                '2026-10-17T14:51:00+09:00','2026-10-17T14:52:00+09:00',
+                '2026-10-17T14:54:00+09:00'))['ok'], false);
+        $check('R122-T04', '要求開始が予定より前 → 不採用',
+            BaganrikiTime::acceptBatch(9, $mkB('2026-10-17T14:51:00+09:00',
+                '2026-10-17T14:50:59+09:00','2026-10-17T14:51:01+09:00',
+                '2026-10-17T14:51:02+09:00'))['code'], 'REQUEST_BEFORE_SCHEDULE');
+        $check('R122-T04', '時計逆行 → 不採用',
+            BaganrikiTime::acceptBatch(9, $mkB('2026-10-17T14:51:00+09:00',
+                '2026-10-17T14:51:05+09:00','2026-10-17T14:51:01+09:00',
+                '2026-10-17T14:51:06+09:00'))['code'], 'CLOCK_REVERSED');
+        $check('R122-T05', '情報上限を超えた到着 → 不採用',
+            BaganrikiTime::acceptBatch(21, [
+                'slot_scheduled_at'=>'2026-10-17T14:39:00+09:00',
+                'request_started_at'=>'2026-10-17T14:39:00+09:00',
+                'response_received_at'=>'2026-10-17T14:39:01+09:00',
+                'available_at'=>'2026-10-17T14:55:00+09:00',
+                'input_freeze_at'=>'2026-10-17T14:54:30+09:00'])['ok'], false);
+
+        // ── 採用バッチの選び方 ─────────────────────────────────────────
+        $mk = static function (string $id, string $av, string $res, array $vals = []) {
+            return ['batch_id'=>$id,'slot_scheduled_at'=>'2026-10-17T14:51:00+09:00',
+                    'request_started_at'=>'2026-10-17T14:51:00+09:00',
+                    'response_received_at'=>$res,'available_at'=>$av,
+                    'input_freeze_at'=>'2026-10-17T14:54:30+09:00','values'=>$vals];
+        };
+        $p = BaganrikiAcquisition::pick(9, [
+            $mk('b','2026-10-17T14:52:00+09:00','2026-10-17T14:51:30+09:00'),
+            $mk('a','2026-10-17T14:51:30+09:00','2026-10-17T14:51:20+09:00'),
+        ], [1,2]);
+        $check('R122-A01', 'available_at の早い方を採用', $p['batch']['batch_id'], 'a');
+        $p = BaganrikiAcquisition::pick(9, [
+            $mk('b','2026-10-17T14:52:00+09:00','2026-10-17T14:51:40+09:00'),
+            $mk('a','2026-10-17T14:52:00+09:00','2026-10-17T14:51:40+09:00'),
+        ], [1,2]);
+        $check('R122-A01', '同時刻は batch_id のバイト順', $p['batch']['batch_id'], 'a');
+        $p = BaganrikiAcquisition::pick(9, [
+            array_merge($mk('x','2026-10-17T14:52:00+09:00','2026-10-17T14:51:40+09:00'),
+                        ['committed'=>false]),
+            $mk('y','2026-10-17T14:52:30+09:00','2026-10-17T14:51:50+09:00'),
+        ], [1,2]);
+        $check('R122-A01', '未確定の監査行は採用しない', $p['batch']['batch_id'], 'y');
+        // 6分前は同じバッチに全活動馬の単勝が要る
+        //   6分前の予定は 14:54:00、猶予は30秒なので期限は 14:54:30
+        $mk6 = static function (string $id, string $av, string $res, array $vals) {
+            return ['batch_id'=>$id,'slot_scheduled_at'=>'2026-10-17T14:54:00+09:00',
+                    'request_started_at'=>'2026-10-17T14:54:00+09:00',
+                    'response_received_at'=>$res,'available_at'=>$av,
+                    'input_freeze_at'=>'2026-10-17T14:54:30+09:00','values'=>$vals];
+        };
+        $p6 = BaganrikiAcquisition::pick(6, [
+            $mk6('c','2026-10-17T14:54:10+09:00','2026-10-17T14:54:05+09:00',
+                [1=>['win'=>'2.1'],2=>['win'=>'3.4']]),
+        ], [1,2,3]);
+        $check('R122-A02', '6分前に1頭欠けたら採用しない', $p6['status'], 'UNAVAILABLE');
+        $check('R122-A02', 'その理由コード', $p6['code'], 'FREEZE_ODDS_MISSING');
+        $p6b = BaganrikiAcquisition::pick(6, [
+            $mk6('c','2026-10-17T14:54:10+09:00','2026-10-17T14:54:05+09:00',
+                [1=>['win'=>'2.1'],2=>['win'=>'3.4'],3=>['win'=>'9.9']]),
+        ], [1,2,3]);
+        $check('R122-A02', '揃っていれば採用', $p6b['status'], 'ADOPTED');
+        $check('R122-A02', '「取消」は使える値にしない',
+            BaganrikiAcquisition::usableDecimal('取消'), false);
+        $check('R122-A02', '0 は使える値にしない',
+            BaganrikiAcquisition::usableDecimal('0.0000'), false);
+        $aud = BaganrikiAcquisition::buildAudit([6=>$p6b, 9=>$p]);
+        $check('R122-A03', '採用スロットは ADOPTED', $aud['6']['status'], 'ADOPTED');
+        $check('R122-A03', '欠損スロットは UNAVAILABLE', $aud['21']['status'], 'UNAVAILABLE');
+        $check('R122-A03', '欠損の理由は空にしない', $aud['21']['reason'] !== '', true);
+
+        // ── D01〜D04 集合と頭数 ────────────────────────────────────────
+        $s = BaganrikiSnapshot::checkSets(null, 10, [1,2,3,4,5,6,7,8,9]);
+        $check('R122-D01', '出馬表欠損で停止', $s['code'], 'ENTRY_MISSING');
+        $check('R122-D01', '9頭立てとして進まない', $s['frozen_count'], null);
+        $s = BaganrikiSnapshot::checkSets([1,2,3,4,5,6,7,8,9,10], 11, [1,2,3]);
+        $check('R122-D01', '宣言頭数が合わない', $s['code'], 'ENTRY_SET_MISMATCH');
+        $s = BaganrikiSnapshot::checkSets([1,2,3], 3, [1,2,3,99]);
+        $check('R122-D01', '出馬表に無い馬番', $s['code'], 'ENTRY_SET_MISMATCH');
+        $s = BaganrikiSnapshot::checkSets([1,2,3,4,5,6,7,8,9,10], 10, [1,2,3,4,5,6,7,8,9,10],
+                                          [], [], [7]);
+        $check('R122-D04', '取消矛盾は CANCEL_CONFLICT', $s['code'], 'CANCEL_CONFLICT');
+        $check('R122-D04', 'active_count は null', $s['active_count'], null);
+        $s = BaganrikiSnapshot::checkSets([1,2,3,4,5,6,7,8], 8, [1,2,3,4,5,6,7,8], [], [7]);
+        $check('R122-D03', '凍結後の取消は N に残す', $s['frozen_count'], 8);
+        $check('R122-D03', 'active_count だけ減る', $s['active_count'], 7);
+        $s = BaganrikiSnapshot::checkSets([1,2,3,4,5,6,7,8,9], 9, [1,2,3,4,5,6,7,8], [5]);
+        $check('R122-D03', '凍結前の取消は N から外す', $s['frozen_count'], 8);
+
+        // ── 凍結順位 ───────────────────────────────────────────────────
+        $fr = BaganrikiSnapshot::frozenRank([3=>'2.1', 1=>'2.1', 2=>'1.5']);
+        $check('R122-F01', '単勝の昇順', $fr['rank'][2], 1);
+        $check('R122-F01', '同値は馬番の小さい順', $fr['rank'][1], 2);
+        $check('R122-F01', '同値の後ろ', $fr['rank'][3], 3);
+        $check('R122-F01', '読めない値は停止',
+            BaganrikiSnapshot::frozenRank([1=>'取消'])['code'], 'FREEZE_ODDS_MISSING');
+        $check('R122-F01', '十進数は1万倍の整数',
+            BaganrikiSnapshot::scale('2.1'), 21000);
+        // @ANCHOR-20261020-R122-DEC  10月20日006のご指摘6-1
+        //   scale は1万倍の整数なので5桁を表せません。だから判定から外しました。
+        $check('R122-F01', 'scale（表示用）は5桁を表せない',
+            BaganrikiSnapshot::scale('2.12345'), null);
+        $check('R122-F01', '凍結順位は5桁でも読める',
+            BaganrikiSnapshot::decOrNull('2.12345'), '2.12345');
+        $check('R122-F01', '20桁の小数でも読める',
+            BaganrikiSnapshot::decOrNull('1.12345678901234567890'),
+            '1.1234567890123456789');
+        $check('R122-F01', '0は受け取らない', BaganrikiSnapshot::decOrNull('0'), null);
+        $check('R122-F01', '取消は受け取らない', BaganrikiSnapshot::decOrNull('取消'), null);
+        $check('R122-F01', '1.00001 と 1.00000 の大小がつく',
+            BaganrikiSnapshot::cmpDec('1.00001', '1.00000'), 1);
+        $check('R122-F01', '桁数が違っても正しく比べる',
+            BaganrikiSnapshot::cmpDec('9.9', '10'), -1);
+        $check('R122-F01', '同じ値は0', BaganrikiSnapshot::cmpDec('2.10', '2.1'), 0);
+        $fr5 = BaganrikiSnapshot::frozenRank(
+            [1 => '2.12345', 2 => '2.12346', 3 => '2.1234', 4 => '10']);
+        $check('R122-F01', '5桁の小数でも凍結順位が出る', $fr5['ok'], true);
+        $check('R122-F01', '5桁目の違いで順位がつく', $fr5['rank'],
+            [3 => 1, 1 => 2, 2 => 3, 4 => 4]);
+
+        // ── 共通JSONとhash ─────────────────────────────────────────────
+        $base = ['race_id'=>'R1','mode'=>'UNKNOWN','x'=>['a'=>'1.0']];
+        $c1 = BaganrikiSnapshot::commonJson($base + ['ai_role'=>'1st','role_cap'=>7,
+                'role_quota'=>['A'=>3,'B'=>3,'D'=>1],'snapshot_hash'=>'zzz','request_at'=>'t']);
+        $c2 = BaganrikiSnapshot::commonJson($base + ['ai_role'=>'2nd','role_cap'=>5,
+                'role_quota'=>['A'=>1,'B'=>3,'D'=>1],'snapshot_hash'=>'yyy','request_at'=>'u']);
+        $check('R122-H01', '両roleで共通JSONが一致', $c1['json'], $c2['json']);
+        $check('R122-H01', 'hashも一致', $c1['hash'], $c2['hash']);
+        $check('R122-H01', 'hash方式', $c1['hash_method'], 'exact-common-payload-sha256-r8');
+        $check('R122-H01', 'role情報が混ざっていない',
+            strpos((string) $c1['json'], 'role_quota'), false);
+
+        // ── 送信文（@ANCHOR-20261020-R122-PROMPT）────────────────────────
+        $check('R122-P01', 'キー順の正規化（数字キーも文字列として昇順）',
+            BaganrikiPrompt::canonical(['b'=>1,'a'=>['d'=>2,'c'=>[3,1]],'10'=>'x','9'=>'y']),
+            '{"10":"x","9":"y","a":{"c":[3,1],"d":2},"b":1}');
+        $check('R122-P01', '配列の順は変えない',
+            BaganrikiPrompt::canonical([['n'=>2],['n'=>1]]), '[{"n":2},{"n":1}]');
+        $check('R122-P01', '非ASCIIはエスケープしない',
+            BaganrikiPrompt::canonical(['k'=>'あ/い']), '{"k":"あ/い"}');
+        $check('R122-P01', '小数秒が0なら付けない',
+            BaganrikiPrompt::rfc3339((int) BaganrikiTime::us('2026-10-17T15:00:00+09:00')),
+            '2026-10-17T15:00:00+09:00');
+        $check('R122-P01', '小数秒があれば残す',
+            BaganrikiPrompt::rfc3339((int) BaganrikiTime::us('2026-10-17T15:00:00.5+09:00')),
+            '2026-10-17T15:00:00.500000+09:00');
+        $check('R122-P01', '索引キー（スロットあり）',
+            BaganrikiPrompt::indexKey(['scope'=>'HORSE','field'=>'win_odds',
+                'horse_nos'=>[3],'slot_offset'=>6]), 'horse/3/win_odds/6');
+        $check('R122-P01', '索引キー（スロットなし）',
+            BaganrikiPrompt::indexKey(['scope'=>'HORSE','field'=>'past_performance',
+                'horse_nos'=>[3],'slot_offset'=>null]), 'horse/3/past_performance/None');
+        $pp1 = BaganrikiPrompt::commonHash(['race_id'=>'R','ai_role'=>'1st',
+            'role_cap'=>7,'role_quota'=>['A'=>3,'B'=>3,'D'=>1],'snapshot_hash'=>'zzz']);
+        $pp2 = BaganrikiPrompt::commonHash(['race_id'=>'R','ai_role'=>'2nd',
+            'role_cap'=>5,'role_quota'=>['A'=>1,'B'=>3,'D'=>1],'snapshot_hash'=>'yyy']);
+        $check('R122-P01', '両roleで共通hashが一致', $pp1['hash'], $pp2['hash']);
+        $check('R122-P01', '共通本文はrole情報を含まない', $pp1['json'], '{"race_id":"R"}');
+        $check('R122-P01', 'hash方式名', $pp1['hash_version'],
+            'exact-common-payload-sha256-r8');
+        $check('R122-P01', 'NaNは送らない',
+            BaganrikiPrompt::encode(['x'=>NAN])['ok'], false);
+        $check('R122-P01', '129桁の整数は送らない（指数表記も展開して数える）',
+            BaganrikiPrompt::tooLongNumber(['x'=>(float) str_repeat('9', 129)]) !== null, true);
+        $check('R122-P01', '普通のオッズは桁あふれにしない',
+            BaganrikiPrompt::tooLongNumber(['x'=>2.1, 'y'=>11, 'z'=>1234.5678]), null);
+        $check('R122-P01', '投票締切が無ければ送信文を作らない',
+            BaganrikiPrompt::buildInput(['race_id'=>'R','anchor_at'=>'2026-10-17T15:00:00+09:00',
+                'sales_close_at'=>null], '1st')['code'], 'SALES_CLOSE_UNRESOLVED');
+        $check('R122-P01', '6分前の監査が無ければ送信文を作らない',
+            BaganrikiPrompt::buildInput(['race_id'=>'R','anchor_at'=>'2026-10-17T15:00:00+09:00',
+                'sales_close_at'=>'2026-10-17T14:59:00+09:00','audit'=>[]],
+                '1st')['code'], 'COLLECTION_AUDIT_MISSING');
+        $check('R122-P01', 'roleは1stか2ndだけ',
+            BaganrikiPrompt::buildInput(['race_id'=>'R'], '3rd')['code'], 'ROLE_INVALID');
+        $check('R122-P01', '本文が空なら送らない',
+            count(BaganrikiPrompt::selfCheck(['role'=>'1st','system'=>'','user'=>'{}',
+                'input'=>[]])) > 0, true);
+        // ── @ANCHOR-20261020-R122-Z  10月20日005のご指摘3の16頭の例 ──────
+        //   単勝 10 / 19.9999 / 39.9997 / 44 … 複勝 1 / 1.5 / 2.25 / 2.3 …
+        //   境界1は 19.9999/10 = 1.99999 < 2、境界2も 2 未満。
+        //   4桁に丸めると両方 2.0000 になり、Zが成立してしまう例です。
+        //   元値 → ペア → 全信号 → mode → 配分 まで通します。
+        $zTan  = ['10','19.9999','39.9997','44','48','52','56','60','64','68',
+                  '72','76','80','84','88','92'];
+        $zFuku = ['1','1.5','2.25','2.3','2.4','2.5','2.6','2.7','2.8','2.9',
+                  '3','3.1','3.2','3.3','3.4','3.5'];
+        $zHorses = [];
+        foreach ($zTan as $i => $t) {
+            $ts = []; $fs = [];
+            foreach ([21, 18, 15, 12, 9, 6] as $tt) {
+                $ts[$tt] = $t; $fs[$tt] = $zFuku[$i];
+            }
+            $zHorses[] = ['num' => $i + 1, 'popularity' => $i + 1,
+                          'tan_series' => $ts, 'fuku_min_series' => $fs];
+        }
+        $zPairs = self::v04Pairs($zHorses);
+        $zFlags = self::v04DeriveFlags(16, $zPairs, $zHorses, null)['flags'];
+        $check('R122-Z01', 'Z（元値は2未満なので成立しない）', $zFlags['Z'],  'FALSE');
+        $check('R122-Z01', 'X1', $zFlags['X1'], 'FALSE');
+        $check('R122-Z01', 'X2', $zFlags['X2'], 'FALSE');
+        $check('R122-Z01', 'X3', $zFlags['X3'], 'TRUE');
+        $check('R122-Z01', 'X4', $zFlags['X4'], 'FALSE');
+        $check('R122-Z01', 'X5', $zFlags['X5'], 'FALSE');
+        $check('R122-Z01', 'X6（N>=7で基準率未定義）', $zFlags['X6'], 'UNKNOWN');
+        $zCls = self::v04Classify($zFlags);
+        $check('R122-Z01', 'S_min', $zCls['S_min'], 1);
+        $check('R122-Z01', 'S_max', $zCls['S_max'], 2);
+        $check('R122-Z01', 'mode',            $zCls['mode'],            'UNKNOWN');
+        $check('R122-Z01', 'mode_status',     $zCls['mode_status'],     'PROVISIONAL');
+        $check('R122-Z01', 'allocation_mode', $zCls['allocation_mode'], 'MIXED');
+        $check('R122-Z01', 'mode_policy_id',  $zCls['mode_policy_id'],  'X6_ONLY_UPPER_MODE_V1');
+        $zAlloc = self::v04Allocation(16, $zCls);
+        $check('R122-Z01', 'target_count', $zAlloc['target_count'], 7);
+        $check('R122-Z01', '1stの配分 A', $zAlloc['quota']['A'], 3);
+        $check('R122-Z01', '1stの配分 B', $zAlloc['quota']['B'], 3);
+        $check('R122-Z01', '1stの配分 D', $zAlloc['quota']['D'], 1);
+        $check('R122-Z01', '2ndの配分 A', $zAlloc['quota_2nd']['A'], 1);
+        $check('R122-Z01', '2ndの配分 B', $zAlloc['quota_2nd']['B'], 3);
+        $check('R122-Z01', '2ndの配分 D', $zAlloc['quota_2nd']['D'], 1);
+        // 丸めたら 2.0000 になることも、同じ入力で示しておきます
+        $check('R122-Z01', '表示用のW21は丸めると2.0000',
+            number_format((float) $zPairs[1]['W'][21], 4, '.', ''), '2.0000');
+        $check('R122-Z01', '元値の比は2未満', $zPairs[1]['exact']['W21>=2'], false);
+
+        // ── @ANCHOR-20261020-R122-DIGITS  桁数と代替経路 ──────────────
+        $check('R122-E07', '小数5桁も受け取る',
+            BaganrikiAcquisition::usableDecimal('2.12345'), true);
+        $check('R122-E07', '小数20桁も受け取る',
+            BaganrikiAcquisition::usableDecimal('1.12345678901234567890'), true);
+        $check('R122-E07', '129桁の整数は受け取らない',
+            BaganrikiAcquisition::usableDecimal(str_repeat('9', 129)), false);
+        $check('R122-E07', '0は受け取らない', BaganrikiAcquisition::usableDecimal('0'), false);
+        $check('R122-E07', '普通のオッズは数値になる', self::r122NumValue('2.1'), 2.1);
+        $check('R122-E07', '整数はintになる', self::r122NumValue('11'), 11);
+        $check('R122-E07', '丸めが起きる桁は数値にしない',
+            is_string(self::r122NumValue('1.12345678901234567890')), true);
+        $check('R122-E07', '19桁の整数は数値にしない',
+            is_string(self::r122NumValue('1234567890123456789')), true);
+        $check('R122-E07', '本番のペアは代替経路へ落ちない',
+            self::v04DeriveFlags(16,
+                [1 => ['raw' => ['Wn'=>[],'Wd'=>[],'Pn'=>[],'Pd'=>[]],
+                       'W' => [21=>2.5, 6=>2.5], 'P' => [6=>2.5]]],
+                [], null)['flags']['Z'], 'UNKNOWN');
+
+        // ── @ANCHOR-20261020-R122-DIGITS2  10月20日006のご指摘6-1 ──────────
+        //   PHPの数値で正確に持てない値を、登録から落とさずに
+        //   十進数の文字列のまま持てているかを見ます。
+        $longDec = '1.99999999999999999999';          // 20桁。floatでは2.0になります
+        $check('R122-E08', '20桁の小数はPHPの数値にしない',
+            is_string(self::r122NumValue($longDec)), true);
+        $check('R122-E08', '20桁の小数は十進数の形として受け取れる',
+            BaganrikiSnapshot::decOrNull($longDec), $longDec);
+        $check('R122-E08', '20桁の小数は2未満と正しく比べられる（floatなら2.0になる）',
+            BaganrikiSnapshot::cmpDec($longDec, '2'), -1);
+        //   PHPの表示設定（serialize_precision）に左右されない形で見ます。
+        $check('R122-E08', 'floatを通すと2と見分けが付かなくなることの確認',
+            ((float) $longDec === 2.0), true);
+        // 文字列のまま登録した値を、信号の経路がそのまま受け取れるか
+        $regE08 = ['h1_win_odds_6' => [
+                       'source_ref' => 'h1_win_odds_6', 'value' => $longDec,
+                       'scope' => 'HORSE', 'horse_nos' => [1],
+                       'applicable_horse_nos' => [], 'field' => 'win_odds',
+                       'slot_offset' => 6]];
+        $hE08 = BaganrikiPrompt::horsesForSignals($regE08, [1 => 1]);
+        $check('R122-E08', '信号の経路が20桁の小数を桁落ちなく受け取る',
+            $hE08[0]['tan_series'][6] ?? null, $longDec);
+        $check('R122-E08', '十進数の形でないものは受け取らない',
+            BaganrikiSnapshot::decOrNull('2.1e3'), null);
+        $check('R122-E08', '129桁は受け取らない',
+            BaganrikiSnapshot::decOrNull('1.' . str_repeat('9', 129)), null);
+        // 十進数文字列への変換で桁が減らないこと（旧は小数12桁で切れていた）
+        $check('R122-E08', '十進数文字列への変換で文字列は素通り',
+            BaganrikiPrompt::numToDecimalString('0.1234567890123456'),
+            '0.1234567890123456');
+        //   PHPの表示設定に左右されない形で見ます。
+        //   「戻せること」が確かめたい性質です（旧は12桁で切れて戻せなかった）。
+        $check('R122-E08', '13桁目以降を落とさない（floatへ戻して一致する）',
+            ((float) BaganrikiPrompt::numToDecimalString(0.1234567890123456)
+             === 0.1234567890123456), true);
+        $check('R122-E08', '整数はそのまま',
+            BaganrikiPrompt::numToDecimalString(11), '11');
+        $check('R122-E08', '指数表記は十進数へ直す',
+            BaganrikiPrompt::numToDecimalString(1.0E-7), '0.0000001');
+        $check('R122-E08', '大きい指数も十進数へ直す',
+            BaganrikiPrompt::numToDecimalString(1.0E+20),
+            '100000000000000000000');
+        $check('R122-E08', '読めない指数表記は作り話をしない',
+            BaganrikiPrompt::expToDecimal('abc'), '');
+        // scale() が判定経路から消えていること（いまは試験の2か所だけ）
+        $srcE08 = (string) file_get_contents(
+            (new \ReflectionClass(self::class))->getFileName());
+        //   コメント行（【旧】…と書き残した説明）は数えません。
+        $check('R122-E08', 'scale() の呼び出しはこの試験の2か所だけ'
+                         . '（判定経路からは消しました）',
+            preg_match_all(
+                '/^(?!\s*(?:\/\/|\*)).*?(?:self|BaganrikiSnapshot)::scale\(/m',
+                $srcE08), 2);
+
+        // ── @ANCHOR-20261020-R122-STRICTJSON  JSONの厳密読込（005のご指摘7-3）──
+        $J = static fn(string $t) => BaganrikiJson::strict($t);
+        $check('R122-J02', '普通のJSONは通る', $J('{"a":1,"b":[1,2]}')['ok'], true);
+        $check('R122-J02', '値は json_decode と同じ',
+            $J('{"a":1,"b":[1,2,{"c":null}]}')['value'],
+            json_decode('{"a":1,"b":[1,2,{"c":null}]}', true));
+        $check('R122-J02', '同じ階層の重複キーは拒否',
+            $J('{"a":1,"a":2}')['code'], 'JSON_DUPLICATE_KEY');
+        $check('R122-J02', '別の階層の同じキーは通る',
+            $J('{"h":[{"n":1},{"n":1}]}')['ok'], true);
+        $check('R122-J02', '指数が大きすぎる（1e400）',
+            $J('{"a":1e400}')['code'], 'JSON_EXPONENT_RANGE');
+        $check('R122-J02', '指数が小さすぎる（1e-400）',
+            $J('{"a":1e-400}')['code'], 'JSON_EXPONENT_RANGE');
+        $check('R122-J02', '指数308ちょうどは通る', $J('{"a":1e308}')['ok'], true);
+        $check('R122-J02', '指数-308ちょうどは通る', $J('{"a":1e-308}')['ok'], true);
+        $check('R122-J02', '有効桁128はちょうど通る',
+            $J('{"a":' . str_repeat('9', 128) . '}')['ok'], true);
+        $check('R122-J02', '有効桁129は拒否',
+            $J('{"a":' . str_repeat('9', 129) . '}')['code'], 'JSON_TOO_MANY_DIGITS');
+        $check('R122-J02', '先頭の0は有効桁に数えない',
+            $J('{"a":0.' . str_repeat('0', 20) . '1}')['ok'], true);
+        $check('R122-J02', '先頭0の整数（011）は拒否',
+            $J('{"a":011}')['code'], 'JSON_INVALID');
+        $check('R122-J02', '小数点から始まる数値は拒否',
+            $J('{"a":.5}')['code'], 'JSON_INVALID');
+        $check('R122-J02', 'NaN は拒否', $J('{"a":NaN}')['code'], 'JSON_INVALID');
+        $check('R122-J02', '末尾の読点は拒否', $J('[1,2,]')['code'], 'JSON_INVALID');
+        $check('R122-J02', '文字列の中の生の改行は拒否',
+            $J("{\"a\":\"x\ny\"}")['code'], 'JSON_INVALID');
+        $check('R122-J02', '後ろに余分な文字があれば拒否',
+            $J('{"a":1} xx')['code'], 'JSON_TRAILING');
+        $check('R122-J02', '64階層ちょうどは通る',
+            $J(str_repeat('[', 64) . str_repeat(']', 64))['ok'], true);
+        $check('R122-J02', '65階層は拒否',
+            $J(str_repeat('[', 65) . str_repeat(']', 65))['code'], 'JSON_TOO_DEEP');
+        $check('R122-J02', '4MiB超は拒否',
+            $J('{"a":"' . str_repeat('x', 4194304) . '"}')['code'], 'JSON_TOO_LARGE');
+        $check('R122-J02', 'UTF-8でない本文は拒否',
+            $J("\xff\xfe")['code'], 'JSON_NOT_UTF8');
+        $check('R122-J02', '生の日本語は通る', $J('{"a":"あ"}')['ok'], true);
+        // 応答の読込口（extract）が厳密読込を通っていること
+        $mkR = static fn(string $body) =>
+            BaganrikiResponse::BEGIN . $body . BaganrikiResponse::END;
+        $check('R122-J02', 'extract は重複キーを拒否する',
+            BaganrikiResponse::extract($mkR('{"a":1,"a":2}'))['ok'], false);
+        $check('R122-J02', 'その理由が読める',
+            strpos((string) BaganrikiResponse::extract(
+                $mkR('{"a":1,"a":2}'))['reason'], 'JSON_DUPLICATE_KEY') !== false, true);
+        $check('R122-J02', 'extract は普通の応答を通す',
+            BaganrikiResponse::extract($mkR('{"a":1}'))['json'], ['a' => 1]);
+
+        // ── @ANCHOR-20261020-R122-NUMEXACT  10月20日007のご指摘7 ──────────
+        //   【方針を直しました】
+        //   走査を通った数値は<b>落としません</b>。契約9章は有効桁128桁
+        //   まで許しているので、長いだけで拒否すると正しい応答を
+        //   落としてしまいます（R122-J02「有効桁128はちょうど通る」）。
+        //   そのかわり、PHPの数値では丸まる（または無限大になる）ものは
+        //   <b>原表現の十進数文字列のまま持ちます。</b>丸めた別の値に
+        //   すり替えない、というのが007のご指摘7の趣旨です。
+        //   値の型は使う側が見ます。採点は整数と決まっているので、
+        //   文字列で来れば SCORES_RANGE で落ちます（下のJ04で確認）。
+        $N3 = static fn(string $t) => BaganrikiJson::strict($t);
+        $check('R122-J03', '普通の整数は通る',   $N3('{"a":11}')['ok'], true);
+        $check('R122-J03', '普通の小数は通る',   $N3('{"a":2.1}')['ok'], true);
+        $check('R122-J03', '0 は通る',            $N3('{"a":0}')['ok'], true);
+        $check('R122-J03', '負の小数も通る',     $N3('{"a":-0.25}')['ok'], true);
+        $check('R122-J03', '末尾0の小数も通る',  $N3('{"a":2.10}')['ok'], true);
+        $check('R122-J03', '指数つきの小さい数も通る',
+            $N3('{"a":1.0e-7}')['ok'], true);
+        $check('R122-J03', '安全に持てる整数は通る',
+            $N3('{"a":9007199254740991}')['ok'], true);
+        $check('R122-J03', '1e308 は有限なので通る', $N3('{"a":1e308}')['ok'], true);
+        $check('R122-J03', '普通の数はそのまま数値で返る',
+            $N3('{"a":2.1,"b":[1,2]}')['value'], ['a' => 2.1, 'b' => [1, 2]]);
+        $check('R122-J03', '普通の数は丸め扱いにしない',
+            $N3('{"a":2.1,"b":[1,2]}')['stats']['inexact'], 0);
+        $check('R122-J03', '数値トークンの数を数えている',
+            $N3('{"a":2.1,"b":[1,2]}')['stats']['numbers'], 3);
+
+        // 20桁の小数：通す。ただし値は原表現の文字列。
+        $j20 = $N3('{"a":1.99999999999999999999}');
+        $check('R122-J04', '20桁の小数は通す', $j20['ok'], true);
+        $check('R122-J04', '20桁の小数は原表現の文字列で持つ',
+            $j20['value'], ['a' => '1.99999999999999999999']);
+        $check('R122-J04', '丸まったことを控えている', $j20['stats']['inexact'], 1);
+        $check('R122-J04', 'その原表現も控えている',
+            $j20['stats']['inexact_decimals'], ['1.99999999999999999999']);
+
+        // PHP整数を超える整数：通す。値は文字列。
+        $j21 = $N3('{"a":12345678901234567890}');
+        $check('R122-J04', 'PHP整数を超える整数は通す', $j21['ok'], true);
+        $check('R122-J04', 'それも原表現の文字列で持つ',
+            $j21['value'], ['a' => '12345678901234567890']);
+
+        // 2e308：倍精度では無限大。無限大にせず、十進数に展開して持つ。
+        $j22 = $N3('{"a":2e308}');
+        $check('R122-J04', '2e308 も通す', $j22['ok'], true);
+        $check('R122-J04', '2e308 を無限大にしない',
+            is_string($j22['value']['a'] ?? null), true);
+        $check('R122-J04', '2e308 は309桁の十進数になる',
+            strlen((string) ($j22['value']['a'] ?? '')), 309);
+        $check('R122-J04', '2e308 の先頭は 2',
+            substr((string) ($j22['value']['a'] ?? ''), 0, 1), '2');
+
+        // 有効桁128（契約9章の上限）：ちょうど通る。
+        $d128 = '1.' . str_repeat('9', 127);
+        $j23  = $N3('{"a":' . $d128 . '}');
+        $check('R122-J04', '有効桁128は通る', $j23['ok'], true);
+        $check('R122-J04', '有効桁128は原表現のまま持つ',
+            $j23['value'], ['a' => $d128]);
+
+        // 混在しても、丸まらない数はそのまま数値のまま。
+        $j24 = $N3('{"a":11,"b":1.99999999999999999999,"c":2.5}');
+        $check('R122-J04', '混在：丸まらない整数は整数のまま',
+            $j24['value']['a'] ?? null, 11);
+        $check('R122-J04', '混在：丸まらない小数は小数のまま',
+            $j24['value']['c'] ?? null, 2.5);
+        $check('R122-J04', '混在：丸まる数だけ文字列になる',
+            $j24['value']['b'] ?? null, '1.99999999999999999999');
+        $check('R122-J04', '混在：ほかの位置はずれていない',
+            array_keys((array) $j24['value']), ['a', 'b', 'c']);
+
+        // extract も通す（読めるものは読む）。
+        $check('R122-J04', '丸まる数値でも extract は読める',
+            BaganrikiResponse::extract($mkR('{"a":1.99999999999999999999}'))['ok'],
+            true);
+        $check('R122-J04', 'extract も原表現の文字列で渡す',
+            BaganrikiResponse::extract(
+                $mkR('{"a":1.99999999999999999999}'))['json'],
+            ['a' => '1.99999999999999999999']);
+        // 採点に来たら、整数でないので採点の検査が落とします。
+        //   （$srcE08 はこのファイル自身の中身です。診断の条件そのものを見ます）
+        //   2 は「診断の中の1か所」＋「いまのこの行」です。
+        //   診断から条件が消えれば 1 になって落ちます。
+        $check('R122-J04', '採点は整数しか受け取らない条件が診断に入っている',
+            substr_count($srcE08, 'if (!is_int($v) || $v < 0 || $v > $mx)'), 2);
+
+        // ── @ANCHOR-20261021-R122-NUMTYPE / UNESCAPE  10月21日008のご指摘6 ──
+        //   (1) 数値と文字列を区別して持ち、再保存でも型が変わらないこと
+        //   (2) \uXXXX を復号してから重複キーを見ること
+        $N5 = static fn(string $t) => BaganrikiJson::strict($t);
+        $RS = static fn(array $r) => BaganrikiJson::reserialize($r['value'],
+                                                                $r['number_paths']);
+
+        $n1 = $N5('{"a":1.99999999999999999999}');      // JSON上は数値
+        $n2 = $N5('{"a":"1.99999999999999999999"}');    // JSON上は文字列
+        $check('R122-J05', '丸まる数値もそのまま値は読める',
+            $n1['value'], ['a' => '1.99999999999999999999']);
+        $check('R122-J05', '最初から文字列の方も同じ値に見える',
+            $n2['value'], ['a' => '1.99999999999999999999']);
+        $check('R122-J05', 'しかし数値だった位置は控えている',
+            $n1['stats']['number_paths'], 1);
+        $check('R122-J05', '文字列だった位置は控えない',
+            $n2['stats']['number_paths'], 0);
+        $check('R122-J05', '再保存すると数値は数値に戻る',
+            $RS($n1), '{"a":1.99999999999999999999}');
+        $check('R122-J05', '再保存しても文字列は文字列のまま',
+            $RS($n2), '{"a":"1.99999999999999999999"}');
+        $check('R122-J05', 'AIが引用符付きで返した数は数値に変えない',
+            $n2['number_paths'], []);
+
+        $n3 = $N5('{"a":11,"b":1.99999999999999999999,"c":"2.5","d":2.5}');
+        $check('R122-J05', '混在：再保存で型が入れ替わらない',
+            $RS($n3), '{"a":11,"b":1.99999999999999999999,"c":"2.5","d":2.5}');
+        $n4 = $N5('{"horses":[{"scores":{"H1":12345678901234567890}}]}');
+        $check('R122-J05', '入れ子でも数値の位置が分かる',
+            $n4['stats']['number_paths'], 1);
+        $check('R122-J05', '入れ子でも再保存で数値に戻る',
+            $RS($n4), '{"horses":[{"scores":{"H1":12345678901234567890}}]}');
+        $check('R122-J05', '有効桁128も再保存で数値に戻る',
+            $RS($N5('{"a":1.' . str_repeat('9', 127) . '}')),
+            '{"a":1.' . str_repeat('9', 127) . '}');
+
+        // 閾値の両側（採点は整数だけを受け取ります）
+        $n5 = $N5('{"a":18,"b":18.0000000000000000001}');
+        $check('R122-J05', '満点ちょうどは整数のまま',
+            is_int($n5['value']['a'] ?? null), true);
+        $check('R122-J05', '満点をわずかに超える数は整数にならない',
+            is_int($n5['value']['b'] ?? null), false);
+
+        // (2) \uXXXX を復号してから重複キーを見ます
+        $check('R122-J05', 'エスケープした同じキーの重複を見つける',
+            $N5('{"a":1,"\u0061":2}')['code'], 'JSON_DUPLICATE_KEY');
+        $check('R122-J05', '素のままの重複も、これまでどおり見つける',
+            $N5('{"a":1,"a":2}')['code'], 'JSON_DUPLICATE_KEY');
+        $check('R122-J05', '違うキーなら通す',
+            $N5('{"a":1,"\u0062":2}')['ok'], true);
+        $check('R122-J05', 'エスケープを復号した値になる',
+            $N5('{"\u99ac":1}')['value'], ['馬' => 1]);
+        $check('R122-J05', '代理対も組み立てる',
+            $N5('{"a":"\ud83d\ude00"}')['value'], ['a' => '😀']);
+        $check('R122-J05', '上位代理だけなら断る',
+            $N5('{"a":"\ud83d"}')['code'], 'JSON_BAD_SURROGATE');
+        $check('R122-J05', '下位代理だけでも断る',
+            $N5('{"a":"\ude00"}')['code'], 'JSON_BAD_SURROGATE');
+        // extract も型の印を引き継ぎます
+        $ex5 = BaganrikiResponse::extract($mkR('{"a":1.99999999999999999999}'));
+        $check('R122-J05', 'extract も型の印を引き継ぐ',
+            count((array) ($ex5['number_paths'] ?? [])), 1);
+        $check('R122-J05', 'extract の結果も再保存で数値に戻る',
+            BaganrikiJson::reserialize($ex5['json'],
+                (array) $ex5['number_paths']),
+            '{"a":1.99999999999999999999}');
+
+        $check('R122-P01', 'coverageは7区分そろえる',
+            array_keys(BaganrikiPrompt::coverageOf(null)),
+            BaganrikiPrompt::COVERAGE_KEYS);
+        $check('R122-P01', '入れていない区分はUNAVAILABLEと理由',
+            BaganrikiPrompt::coverageOf(null)['OPI']['status'], 'UNAVAILABLE');
+
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-CLOSE  投票締切の正本と、そこから出る期限
+        // ══════════════════════════════════════════════════════════════════
+        //   JRA公式「発売時間・発売締切時刻」の当日インターネット投票は
+        //   各レース発走時刻の1分前です（発走時刻と同一視しません）。
+        //     sales_close_at   = T − 60秒
+        //     publish_deadline = sales_close_at − 60秒 = T − 120秒
+        //     reply_deadline   = publish_deadline − 30秒 = T − 150秒
+        //   取得の最後（6分前）と入力の凍結（T−330秒）より後に来ることを
+        //   ここで確かめます。並びが崩れると送れません。
+        $TT = BaganrikiTime::us('2026-10-18T10:05:00+09:00');
+        $SC = BaganrikiTime::salesCloseFromPost((int) $TT);
+        $check('R122-CL01', '投票締切は発走の60秒前',
+            $SC, (int) $TT - 60 * 1000000);
+        $check('R122-CL02', '発走時刻と同一視しない', ($SC === (int) $TT), false);
+        $check('R122-CL03', '公開期限は発走の120秒前',
+            BaganrikiTime::publishDeadline((int) $SC), (int) $TT - 120 * 1000000);
+        $check('R122-CL04', '応答期限は発走の150秒前',
+            BaganrikiTime::replyDeadline((int) $SC), (int) $TT - 150 * 1000000);
+        $check('R122-CL05', '入力の凍結は応答期限より前',
+            BaganrikiTime::inputFreeze((int) $TT)
+                < BaganrikiTime::replyDeadline((int) $SC), true);
+        $check('R122-CL06', '6分前の取得期限は入力の凍結より前',
+            BaganrikiTime::slotDeadline((int) $TT, 6)
+                <= BaganrikiTime::inputFreeze((int) $TT), true);
+        $check('R122-CL07', '既定の前倒しは60秒',
+            BaganrikiTime::salesCloseOffsetSec(), 60);
+        $check('R122-CL08', '出どころの名前',
+            BaganrikiTime::SALES_CLOSE_SOURCE, 'JRA_INTERNET_1MIN_BEFORE_POST');
+
+        // ── 順位と統合 ─────────────────────────────────────────────────
+        $check('R122-R01', '順位点 K=8 r=1', BaganrikiRanking::rankScore(8, 1), 100.0);
+        $check('R122-R01', '順位点 K=8 r=8', BaganrikiRanking::rankScore(8, 8), 12.5);
+        $check('R122-R02', '全頭completeならSCORE',
+            BaganrikiRanking::bandBasis([['score_state'=>'complete'],['score_state'=>'complete']]),
+            'SCORE');
+        $check('R122-R02', 'partialが混ざればEVIDENCE',
+            BaganrikiRanking::bandBasis([['score_state'=>'complete'],['score_state'=>'partial']]),
+            'EVIDENCE');
+        $ev = BaganrikiRanking::rankWithin([
+            ['num'=>5,'score'=>99,'independent_groups'=>1],
+            ['num'=>3,'score'=>10,'independent_groups'=>2],
+        ], 'EVIDENCE');
+        $check('R122-R02', 'EVIDENCEでは点数を順位キーにしない', $ev[3], 1);
+        $sc = BaganrikiRanking::rankWithin([
+            ['num'=>5,'score'=>99,'independent_groups'=>1],
+            ['num'=>3,'score'=>10,'independent_groups'=>2],
+        ], 'SCORE');
+        $check('R122-R02', 'SCOREでは点数順', $sc[5], 1);
+        $mg = BaganrikiRanking::merge([
+            '1st'=>[7=>['r'=>1,'K'=>4,'public'=>true,'groups'=>2],
+                    9=>['r'=>2,'K'=>4,'public'=>false,'groups'=>1]],
+            '2nd'=>[7=>['r'=>2,'K'=>4,'public'=>true,'groups'=>2],
+                    9=>['r'=>1,'K'=>4,'public'=>false,'groups'=>1]],
+        ]);
+        // @ANCHOR-20261020-R122-PROOF  証明が無ければ加点しません
+        //   【旧期待値】証明を渡さずに 5.0 / 105.0 を正解にしていました。
+        //     $check('R122-R03', '両AIの原公開一致で+5', $mg[0]['bonus'], 5.0);
+        $check('R122-R03', '証明が無ければ加点しない', $mg[0]['bonus'], 0.0);
+        $check('R122-R03', '証明が無ければ100点のまま', $mg[0]['score'], 100.0);
+        $check('R122-R03', '加点しなかった理由を残す',
+            $mg[0]['no_bonus_reason'], '両roleの原公開を証明できないため加点しません');
+        $h64 = str_repeat('a', 64);
+        $mgP = BaganrikiRanking::merge([
+            '1st'=>[7=>['r'=>1,'K'=>4,'public'=>true,'groups'=>2],
+                    9=>['r'=>2,'K'=>4,'public'=>false,'groups'=>1]],
+            '2nd'=>[7=>['r'=>2,'K'=>4,'public'=>true,'groups'=>2],
+                    9=>['r'=>1,'K'=>4,'public'=>false,'groups'=>1]],
+        ], ['1st'=>[7=>$h64], '2nd'=>[7=>$h64]]);
+        $check('R122-R03', '両AIの証明がそろえば+5', $mgP[0]['bonus'], 5.0);
+        $check('R122-R03', '統合点は両roleの最大＋加点', $mgP[0]['score'], 105.0);
+        $check('R122-R03', '片側だけなら加点しない', $mgP[1]['bonus'], 0.0);
+        $mgH = BaganrikiRanking::merge([
+            '1st'=>[7=>['r'=>1,'K'=>4,'public'=>true,'groups'=>2]],
+            '2nd'=>[7=>['r'=>2,'K'=>4,'public'=>true,'groups'=>2]],
+        ], ['1st'=>[7=>$h64], '2nd'=>[7=>'みじかい']]);
+        $check('R122-R03', '片側の証明が不正なら加点しない', $mgH[0]['bonus'], 0.0);
+
+        // ── Q03 評価後の不足 ───────────────────────────────────────────
+        $f = BaganrikiRanking::fillShortfall(['A'=>3,'B'=>3,'D'=>1], ['A'=>6,'B'=>4,'D'=>0]);
+        $check('R122-Q03', 'D不足はBだけから補う', $f['quota']['B'], 4);
+        $check('R122-Q03', 'Aへ流さない', $f['quota']['A'], 3);
+        $check('R122-Q03', 'Dは0になる', $f['quota']['D'], 0);
+        $f2 = BaganrikiRanking::fillShortfall(['A'=>3,'B'=>3,'D'=>1], ['A'=>6,'B'=>1,'D'=>3]);
+        $check('R122-Q03', 'B不足はDだけから補う', $f2['quota']['D'], 3);
+        $check('R122-Q03', 'このときもAは増えない', $f2['quota']['A'], 3);
+
+        // ── 取消後の公開quota ──────────────────────────────────────────
+        $ac = BaganrikiRanking::afterCancellation(
+            [1=>'A',2=>'A',3=>'A',4=>'A',5=>'A',6=>'A',7=>'B',8=>'B',9=>'B',10=>'B',11=>'D'],
+            [11], ['A'=>3,'B'=>3,'D'=>1]);
+        $check('R122-P03', '取消で active_count が減る', $ac['active_count'], 10);
+        $check('R122-P03', 'D枠はBへ移る', $ac['live_quota']['B'], 4);
+        $check('R122-P03', '人気を詰め直さない（Aは変わらない）', $ac['live_quota']['A'], 3);
+
+        // ── 応答の検証 ─────────────────────────────────────────────────
+        $exp = ['prompt_version'=>'baganriki-v041-r12-2-20261020',
+                'schema_version'=>'baganriki-v041-r12-2','race_id'=>'R1','ai_role'=>'1st',
+                'snapshot_hash'=>'h','role_cap'=>7,'role_quota'=>['A'=>3,'B'=>3,'D'=>1],
+                'mode'=>'UNKNOWN','mode_status'=>'PROVISIONAL','allocation_mode'=>'MIXED',
+                'mode_policy_id'=>'X6_ONLY_UPPER_MODE_V1'];
+        $check('R122-V01', '一致すれば採用',
+            BaganrikiResponse::checkEnvelope($exp, $exp)['ok'], true);
+        $envBad = $exp; $envBad['allocation_mode'] = 'VOLATILE';
+        $check('R122-V01', 'allocation_mode 不一致は応答ごと不採用',
+            BaganrikiResponse::checkEnvelope($envBad, $exp)['ok'], false);
+        $envBad2 = $exp; $envBad2['mode'] = 'MIXED';
+        $check('R122-V01', 'AIが暫定を確定へ書き換えたら不採用',
+            BaganrikiResponse::checkEnvelope($envBad2, $exp)['ok'], false);
+        $iso = BaganrikiResponse::isolateHorses(
+            [['num'=>1],['num'=>2],['num'=>2],['num'=>99]], [1,2,3]);
+        $check('R122-V02', '正常な馬は残る', count($iso['kept']), 2);
+        $check('R122-V02', '重複は隔離', isset($iso['isolated'][2]), true);
+        $check('R122-V02', '未知馬は隔離', isset($iso['isolated'][99]), true);
+        $check('R122-V02', '欠落は不足として返す', $iso['missing'], [3]);
+        // @ANCHOR-20261020-R122-NULLQUOTA  選出停止の応答を弾かないこと
+        $expNull = ['prompt_version'=>'baganriki-v041-r12-2-20261020',
+                    'schema_version'=>'baganriki-v041-r12-2','race_id'=>'R1',
+                    'ai_role'=>'1st','snapshot_hash'=>'h','mode'=>'UNKNOWN',
+                    'mode_status'=>'UNRESOLVED','allocation_mode'=>null,
+                    'mode_policy_id'=>'BASE_TRI_STATE_V1',
+                    'role_cap'=>0,'role_quota'=>null];
+        $check('R122-V01', '選出停止（role_quota=null）の応答は採用できる',
+            BaganrikiResponse::checkEnvelope($expNull, $expNull)['ok'], true);
+        $nq = $expNull; $nq['role_quota'] = ['A'=>3,'B'=>3,'D'=>1];
+        $check('R122-V01', '停止なのに枠を返したら不採用',
+            BaganrikiResponse::checkEnvelope($nq, $expNull)['ok'], false);
+        $nq2 = $expNull; $nq2['role_quota'] = null;
+        $exp2 = $expNull; $exp2['role_quota'] = ['A'=>3,'B'=>3,'D'=>1];
+        $check('R122-V01', '枠があるのにnullを返したら不採用',
+            BaganrikiResponse::checkEnvelope($nq2, $exp2)['ok'], false);
+        $first = [1=>['independent_groups'=>2,'score_state'=>'complete'],
+                  2=>['independent_groups'=>1,'score_state'=>'partial']];
+        // @ANCHOR-20261020-R122-ROWVALIDREQ  10月20日007のご指摘4
+        //   row_valid を渡さない呼び方を断るようにしたので、試験でも渡します。
+        //   渡さないと「row_valid が無い」で落ちて、見たい検査を
+        //   通らないまま合格してしまうためです。
+        $check('R122-V03', '根拠を全部消す訂正は採用しない',
+            BaganrikiResponse::acceptCorrection($first,
+                [1=>['independent_groups'=>0,'score_state'=>'complete']],
+                null, null, [], null, [1=>true])['ok'], false);
+        $check('R122-V03', 'completeをpartialへ悪化させる訂正は採用しない',
+            BaganrikiResponse::acceptCorrection($first,
+                [1=>['independent_groups'=>2,'score_state'=>'partial']],
+                null, null, [], null, [1=>true])['ok'], false);
+        $check('R122-V03', '凍結集合にない馬番を足す訂正は採用しない',
+            BaganrikiResponse::acceptCorrection($first,
+                [5=>['independent_groups'=>1,'score_state'=>'complete']],
+                null, null, [1,2,3], null, [5=>true])['ok'], false);
+        // @ANCHOR-20261020-R122-REPAIR  初回から漏れた実在馬は救済します
+        $rs = BaganrikiResponse::acceptCorrection($first,
+                [3=>['independent_groups'=>1,'score_state'=>'complete']],
+                null, null, [1,2,3], null, [3=>true]);
+        $check('R122-V03', '凍結集合にいる欠落馬は救済する', $rs['ok'], true);
+        $check('R122-V03', '救済した馬番を返す', $rs['rescued'], [3]);
+        $apR = BaganrikiResponse::applyCorrection($first,
+                [3=>['independent_groups'=>1,'score_state'=>'complete']], $rs);
+        $check('R122-V03', '救済した馬が結果へ入る', $apR[3]['score_state'], 'complete');
+        // repair_scope の対象外は採用しない
+        $check('R122-V03', 'repair_scopeの対象外を変える訂正は採用しない',
+            BaganrikiResponse::acceptCorrection($first,
+                [2=>['independent_groups'=>2,'score_state'=>'complete']],
+                null, null, [1,2,3], ['horses'=>[1]], [2=>true])['ok'], false);
+        $check('R122-V03', 'repair_scopeの対象内なら採用する',
+            BaganrikiResponse::acceptCorrection($first,
+                [1=>['independent_groups'=>2,'score_state'=>'complete']],
+                null, null, [1,2,3], ['horses'=>[1]], [1=>true])['ok'], true);
+
+        // ── @ANCHOR-20261020-R122-RESTATE  10月20日007のご指摘4 ──────────
+        //   訂正は常に全頭を返します。未変更の正常行の再掲を
+        //   「対象外を変えようとしている」と誤判定しないこと。
+        $fixAll = [1=>['independent_groups'=>2,'score_state'=>'complete'],
+                   2=>$first[2]];
+        $rst = BaganrikiResponse::acceptCorrection($first, $fixAll,
+                null, null, [1,2], ['horses'=>[1]], [1=>true, 2=>true]);
+        $check('R122-V05', '全頭返す訂正を受け入れる（未変更の再掲）',
+            $rst['ok'], true);
+        $check('R122-V05', '対象の馬だけ当てる', $rst['applied'], [1]);
+        $check('R122-V05', '未変更の再掲は再掲として分ける', $rst['restated'], [2]);
+        $apRst = BaganrikiResponse::applyCorrection($first, $fixAll, $rst);
+        $check('R122-V05', '対象外の馬は初回のまま',
+            ($apRst[2] ?? null) === ($first[2] ?? null), true);
+        // 再掲のふりをして中身を変えていたら拒否します
+        $fixSneak = $fixAll;
+        $fixSneak[2] = ['independent_groups'=>9,'score_state'=>'complete'];
+        $check('R122-V05', '対象外の行を本当に変える訂正は拒否',
+            BaganrikiResponse::acceptCorrection($first, $fixSneak,
+                null, null, [1,2], ['horses'=>[1]], [1=>true,2=>true])['ok'], false);
+        // キーの並びが違うだけの再掲は同じ中身として扱います
+        $check('R122-V05', 'キーの並びが違うだけなら同じ中身',
+            BaganrikiResponse::sameHorseRow(['a'=>1,'b'=>['x'=>1,'y'=>2]],
+                                            ['b'=>['y'=>2,'x'=>1],'a'=>1]), true);
+        $check('R122-V05', '中身が違えば別物',
+            BaganrikiResponse::sameHorseRow(['a'=>1], ['a'=>2]), false);
+        // @ANCHOR-20261020-R122-ROWVALIDREQ  row_valid を渡さない呼び方は断る
+        $check('R122-V05', 'row_valid を渡さない訂正は採用しない',
+            BaganrikiResponse::acceptCorrection($first,
+                [1=>['independent_groups'=>2,'score_state'=>'complete']],
+                null, null, [1,2], ['horses'=>[1]])['ok'], false);
+        // @ANCHOR-20261020-R122-RESCUESCOPE  救済も horses の対象であること
+        $check('R122-V05', '救済馬が horses の対象外なら採用しない',
+            BaganrikiResponse::acceptCorrection($first,
+                [3=>['independent_groups'=>1,'score_state'=>'complete']],
+                null, null, [1,2,3], ['horses'=>[1]], [3=>true])['ok'], false);
+        // row_valid=false の行は当てない
+        $rv = BaganrikiResponse::acceptCorrection($first,
+                [1=>['independent_groups'=>2,'score_state'=>'complete'],
+                 2=>['independent_groups'=>2,'score_state'=>'complete']],
+                null, null, [1,2,3], null, [1=>true, 2=>false]);
+        $check('R122-V03', 'row_valid=false は適用しない', $rv['skipped'], [2]);
+        $check('R122-V03', 'row_valid=true だけ適用する', $rv['applied'], [1]);
+        $apV = BaganrikiResponse::applyCorrection($first,
+                [1=>['independent_groups'=>2,'score_state'=>'complete'],
+                 2=>['independent_groups'=>9,'score_state'=>'complete']], $rv);
+        $check('R122-V03', 'row_valid=false の行は初回のまま',
+            $apV[2]['independent_groups'], 1);   // 初回の値（$first[2]）のまま
+        $check('R122-V03', '受領時刻が初回より前なら採用しない',
+            BaganrikiResponse::acceptCorrection($first, [],
+                '2026-10-17T14:57:00+09:00','2026-10-17T14:56:59+09:00')['ok'], false);
+        $check('R122-V03', '同一時刻は許容',
+            BaganrikiResponse::acceptCorrection($first, [],
+                '2026-10-17T14:57:00+09:00','2026-10-17T14:57:00+09:00')['ok'], true);
+        $ap = BaganrikiResponse::applyCorrection($first,
+                [2=>['independent_groups'=>2,'score_state'=>'complete']]);
+        $check('R122-V03', '対象外の正常行は初回のまま',
+            $ap[1]['independent_groups'], 2);
+        $check('R122-V03', '訂正した行は差し替わる',
+            $ap[2]['score_state'], 'complete');
+        $check('R122-V04', 'BEGIN/ENDが無ければ不採用',
+            BaganrikiResponse::extract('{"a":1}')['ok'], false);
+        $okRaw = BaganrikiResponse::BEGIN . '{"a":1}' . BaganrikiResponse::END;
+        $check('R122-V04', '挟まれたJSONを読む',
+            BaganrikiResponse::extract($okRaw)['json']['a'], 1);
+
+        // ── 表示 ───────────────────────────────────────────────────────
+        $check('R122-U01', '全頭取消は CANCELLED',
+            BaganrikiPublicView::state(false, true, false, false), 'CANCELLED');
+        $check('R122-U01', '公開済みは PUBLISHED',
+            BaganrikiPublicView::state(true, false, false, true), 'PUBLISHED');
+        $check('R122-U01', '入力不正は期限前でも UNAVAILABLE',
+            BaganrikiPublicView::state(false, false, true, false), 'UNAVAILABLE');
+        $check('R122-U01', '未公開で期限超過は UNAVAILABLE',
+            BaganrikiPublicView::state(false, false, false, true), 'UNAVAILABLE');
+        $check('R122-U01', '処理中で期限内は PENDING',
+            BaganrikiPublicView::state(false, false, false, false), 'PENDING');
+        $check('R122-U01', '暫定MIXEDの表示',
+            BaganrikiPublicView::provisionalLabel('MIXED'), '混戦として暫定選出');
+        $check('R122-U01', '暫定VOLATILEの表示',
+            BaganrikiPublicView::provisionalLabel('VOLATILE'), '波乱として暫定選出');
+        $dto = BaganrikiPublicView::build(['mode_status'=>'PROVISIONAL',
+            'allocation_mode'=>'MIXED','display_rating'=>3]);
+        $check('R122-U01', '暫定では星を出さない', $dto['display_rating'], null);
+        $check('R122-U01', '購入推奨は常にfalse', $dto['buy_recommended'], false);
+        $check('R122-U01', '学習段階は COLLECT_ONLY', $dto['learning_stage'], 'COLLECT_ONLY');
+        $check('R122-U01', 'model_version は null', $dto['model_version'], null);
+
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-EXACT  丸めずに比べられているかの検算
+        //   10月20日の確認結果 R122-02 への対応です。
+        //   小数4桁に固定していた方式をやめ、桁数の上限を決めずに
+        //   元値のまま比べるようにしました。切り捨ても不必要な拒否もしません。
+        // ══════════════════════════════════════════════════════════════════
+        $E = static fn($num, $den, int $p, int $q) => BaganrikiSignals::cmpRatio($num, $den, $p, $q);
+        // W>=2（下側 ÷ 上側 が 2以上か）
+        $check('R122-E01', '4.0/2.0 は 2 以上',        $E('4.0','2.0',2,1) >= 0, true);
+        $check('R122-E01', '3.9/2.0 は 2 未満',        $E('3.9','2.0',2,1) >= 0, false);
+        $check('R122-E01', '4.00001/2 は 2 以上',      $E('4.00001','2',2,1) >= 0, true);
+        $check('R122-E01', '3.99999/2 は 2 未満',      $E('3.99999','2',2,1) >= 0, false);
+        // P<1.50
+        $check('R122-E02', '2.9/2.0 は 1.50 未満',     $E('2.9','2.0',3,2) < 0, true);
+        $check('R122-E02', '3.0/2.0 は 1.50 未満でない', $E('3.0','2.0',3,2) < 0, false);
+        // 21→6 の縮小率 >= 0.20 ⇔ 4×W21 >= 5×W6
+        $check('R122-E03', '縮小ちょうど20%は成立',
+            BaganrikiSignals::cmpProd(4, ['5.0','1.0'], 5, ['4.0','1.0']) >= 0, true);
+        $check('R122-E03', '縮小19%は不成立',
+            BaganrikiSignals::cmpProd(4, ['5.0','1.0'], 5, ['4.05','1.0']) >= 0, false);
+        // 複勝の短縮 >= 0.05 ⇔ 19×前 >= 20×後
+        $check('R122-E04', '複勝ちょうど5%は成立',
+            BaganrikiSignals::cmpProd(19, ['2.0'], 20, ['1.9']) >= 0, true);
+        $check('R122-E04', '複勝4.9%は不成立',
+            BaganrikiSignals::cmpProd(19, ['2.0'], 20, ['1.902']) >= 0, false);
+        // 桁の扱い
+        $check('R122-E05', '小数第5位を拒否しない',
+            BaganrikiSignals::decNorm('1.00001') !== null, true);
+        $check('R122-E05', '小数第5位を切り捨てない',
+            $E('1.00001','1.00000',1,1) > 0, true);
+        $check('R122-E05', '129桁は制御されたエラー',
+            BaganrikiSignals::decNorm(str_repeat('9', 129)), null);
+        $check('R122-E05', '「取消」は数値にしない',
+            BaganrikiSignals::decNorm('取消'), null);
+        $check('R122-E05', '0 は有効なオッズにしない',
+            self::v04Valid('0.0000'), false);
+        // 大きな積でも float へ落ちない
+        $check('R122-E06', '30桁×30桁は60桁',
+            strlen(BaganrikiSignals::bigMul(str_repeat('9',30), str_repeat('9',30))), 60);
+        $check('R122-E06', '巨大な値でも大小が壊れない',
+            BaganrikiSignals::cmpProd(1, [str_repeat('9',30).'.5'],
+                                      1, [str_repeat('9',30).'.4']) > 0, true);
+
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-EXACT2  10月20日の確認結果②への追加検算
+        //   ・順位点を分数のまま比べているか
+        //   ・閾値の「直前・ちょうど・直後」で判定が変わるか
+        //   ・手で組んだ入力でも、元値の経路と同じ答えになるか
+        //   ・128桁と調整後指数の範囲
+        // ══════════════════════════════════════════════════════════════════
+
+        // ── 順位点（割り切れない K で丸めに負けないこと）────────────────
+        //   K=3, r=1 → 100  ／ r=2 → 200/3 = 66.666…  ／ r=3 → 100/3 = 33.333…
+        $rp = static fn(int $K, int $r) => BaganrikiRanking::rankScoreParts($K, $r);
+        $check('R122-S01', 'K=3 r=2 は分数のまま', $rp(3, 2), ['n' => 200, 'd' => 3]);
+        $check('R122-S01', 'K=7 r=3 は分数のまま', $rp(7, 3), ['n' => 500, 'd' => 7]);
+        // 200/3 と 500/7 は小数にすると 66.666… と 71.428…
+        $check('R122-S01', '500/7 > 200/3',
+            BaganrikiRanking::cmpScore($rp(7, 3), $rp(3, 2)) > 0, true);
+        // 加点 +5 は分数のまま足す（200/3 + 5 = 215/3）
+        $check('R122-S01', '+5 を分数で足す',
+            BaganrikiRanking::addScore($rp(3, 2), 5), ['n' => 215, 'd' => 3]);
+        // 丸めると同点に見えるが、分数では差がつく組み合わせ
+        //   K=3 r=2 → 200/3 ＝ 66.6666…   ／ K=9 r=4 → 600/9 ＝ 66.6666…（同値）
+        $check('R122-S01', '200/3 と 600/9 は同値',
+            BaganrikiRanking::cmpScore($rp(3, 2), $rp(9, 4)), 0);
+        //   K=3 r=2（200/3）と K=16 r=6（1100/16=68.75）は後者が上
+        $check('R122-S01', '1100/16 > 200/3',
+            BaganrikiRanking::cmpScore($rp(16, 6), $rp(3, 2)) > 0, true);
+
+        // ── 閾値の直前・ちょうど・直後 ───────────────────────────────────
+        //   W>=2.00（下側÷上側）。上側を 1 に固定して下側を動かします。
+        foreach ([['1.9999999999', false], ['2', true], ['2.0000000001', true]] as $cse) {
+            [$v, $want] = $cse;
+            $check('R122-S02', "W={$v} が 2.00 以上か",
+                BaganrikiSignals::cmpRatio($v, '1', 2, 1) >= 0, $want);
+        }
+        //   P<1.50
+        foreach ([['1.4999999999', true], ['1.5', false], ['1.5000000001', false]] as $cse) {
+            [$v, $want] = $cse;
+            $check('R122-S02', "P={$v} が 1.50 未満か",
+                BaganrikiSignals::cmpRatio($v, '1', 3, 2) < 0, $want);
+        }
+        //   W<1.50（X3の条件）
+        foreach ([['1.4999999999', true], ['1.5', false]] as $cse) {
+            [$v, $want] = $cse;
+            $check('R122-S02', "W={$v} が 1.50 未満か",
+                BaganrikiSignals::cmpRatio($v, '1', 3, 2) < 0, $want);
+        }
+        //   縮小率 0.20（4×W21 >= 5×W6）。W21=5 に対し W6 が 4 ちょうどで成立
+        foreach ([['4', true], ['4.0000000001', false], ['3.9999999999', true]] as $cse) {
+            [$w6, $want] = $cse;
+            $check('R122-S02', "W21=5 W6={$w6} で縮小20%以上か",
+                BaganrikiSignals::cmpProd(4, ['5'], 5, [$w6]) >= 0, $want);
+        }
+        //   複勝短縮 0.05（19×前 >= 20×後）。前=2.0 に対し 後=1.9 ちょうどで成立
+        foreach ([['1.9', true], ['1.9000000001', false], ['1.8999999999', true]] as $cse) {
+            [$p6, $want] = $cse;
+            $check('R122-S02', "複勝 21=2.0 6={$p6} で5%以上か",
+                BaganrikiSignals::cmpProd(19, ['2.0'], 20, [$p6]) >= 0, $want);
+        }
+        //   複勝短縮 0.03（97×前 >= 100×後）。前=1.0 に対し 後=0.97 ちょうどで成立
+        foreach ([['0.97', true], ['0.9700000001', false]] as $cse) {
+            [$p6, $want] = $cse;
+            $check('R122-S02', "複勝 9=1.0 6={$p6} で3%以上か",
+                BaganrikiSignals::cmpProd(97, ['1.0'], 100, [$p6]) >= 0, $want);
+        }
+
+        // ── 手で組んだ入力と、元値の経路が同じ答えになること ───────────
+        //   元値 上=2.0 下=4.0 → W=2.0ちょうど。手組みでは W に 2.0 を直接渡します。
+        $phA = [
+            ['num' => 1, 'popularity' => 1,
+             'tan_series'      => [21 => '2.5', 18 => '2.4', 15 => '2.3', 12 => '2.2', 9 => '2.1', 6 => '2.0'],
+             'fuku_min_series' => [21 => '1.2', 18 => '1.2', 15 => '1.2', 12 => '1.2', 9 => '1.2', 6 => '1.2']],
+            ['num' => 2, 'popularity' => 2,
+             'tan_series'      => [21 => '6.25', 18 => '6.0', 15 => '5.75', 12 => '5.5', 9 => '5.25', 6 => '4.0'],
+             'fuku_min_series' => [21 => '1.44', 18 => '1.44', 15 => '1.44', 12 => '1.44', 9 => '1.44', 6 => '1.44']],
+        ];
+        $pairsReal = BaganrikiSignals::v04Pairs($phA);
+        $flagsReal = BaganrikiSignals::v04DeriveFlags(7, $pairsReal, $phA, null);
+        // 同じ比の値だけを持つ「手組み」の pairs を作ります（exact キーなし）
+        $pairsHand = [1 => [
+            'k' => 1, 'upper_num' => 1, 'lower_num' => 2,
+            'W' => $pairsReal[1]['W'], 'P' => $pairsReal[1]['P'],
+        ]];
+        $flagsHand = BaganrikiSignals::v04DeriveFlags(7, $pairsHand, $phA, null);
+        foreach (['X1', 'X2', 'X3', 'X4', 'X5', 'Z'] as $sg) {
+            $check('R122-S03', "{$sg} が元値の経路と手組みで一致",
+                $flagsHand['flags'][$sg], $flagsReal['flags'][$sg]);
+        }
+
+        // ── 桁の範囲 ─────────────────────────────────────────────────────
+        //   整数部・小数部それぞれ1〜128桁、有効桁の合計128桁まで。
+        //   平たい十進数しか受け取らないので、調整後指数は −128〜+127 の内側に収まり、
+        //   契約の −308〜308 を外れません。指数表記は切り捨てず拒否します。
+        $check('R122-S04', '小数部128桁は読める',
+            BaganrikiSignals::decNorm('1.' . str_repeat('1', 127)) !== null, true);
+        $check('R122-S04', '有効桁129桁は拒否',
+            BaganrikiSignals::decNorm('1.' . str_repeat('1', 128)), null);
+        $check('R122-S04', '整数部128桁は読める',
+            BaganrikiSignals::decNorm(str_repeat('9', 128)) !== null, true);
+        $check('R122-S04', '指数表記は切り捨てず拒否',
+            BaganrikiSignals::decNorm('1.5e3'), null);
+        $check('R122-S04', '符号つきは拒否（オッズは正のみ）',
+            BaganrikiSignals::decNorm('-1.5'), null);
+        $check('R122-S04', '128桁どうしでも大小がつく',
+            BaganrikiSignals::cmpProd(1, [str_repeat('9', 127) . '8'],
+                                      1, [str_repeat('9', 127) . '7']) > 0, true);
 
         // ── 付録F test() の検算 ─────────────────────────────────────────────
         $check('F-tri', 'tri_at_least([T,U],2)',   self::v04TriAtLeast([true, null], 2), 'UNKNOWN');
@@ -4572,7 +5480,11 @@ $analysisText = trim($rawText);
         $check('F-derive', 'X2', $d['flags']['X2'], 'TRUE');
         $check('F-derive', 'X3（N<7は構造的非該当）', $d['flags']['X3'], 'FALSE');
         $check('F-derive', 'X5（対象境界なし）',      $d['flags']['X5'], 'FALSE');
-        $check('F-derive', 'X6（基準率未定義）',      $d['flags']['X6'], 'UNKNOWN');
+        // @ANCHOR-20261020-R122-PROMPT  N=6 なので X6 は構造的非該当（FALSE）
+        //   【旧期待値】'UNKNOWN'。本番側に N<7 の分岐が無かったころの値です。
+        $check('F-derive', 'X6（N<7は構造的非該当）',  $d['flags']['X6'], 'FALSE');
+        $check('F-derive', 'X6（N>=7で基準率未定義）',
+               self::v04DeriveFlags(16, $pairs, [], null)['flags']['X6'], 'UNKNOWN');
 
         // ── 05章B の T01〜T24 ───────────────────────────────────────────────
         // T01〜T11・T21 はモードと配分が付録Eと同じ内容なので上の結果を引き継ぐ。
@@ -4596,11 +5508,21 @@ $analysisText = trim($rawText);
                self::v04DeriveFlags(16, [], $runnersU, null)['flags']['X4'], 'UNKNOWN');
 
         // T21 類似基準率が未定義 → X6=UNKNOWN（0%埋め禁止）
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-X6  B案：基準率が未合意のあいだは必ずUNKNOWN
+        // ══════════════════════════════════════════════════════════════
+        //   【旧期待値】消さずに残します。基準率（07章B）が決まり
+        //     V04_X6_BASELINE に値が入ってから、この表に戻ります。
+        //     $check('B-T21', 'X6=FALSE（母数49件は最低条件未達）', …, 'FALSE');
+        //     $check('B-T21', 'X6=TRUE（母数50件・差10pp）',        …, 'TRUE');
         $check('B-T21', 'X6=UNKNOWN', self::v04DeriveFlags(16, [], [], null)['flags']['X6'], 'UNKNOWN');
-        $check('B-T21', 'X6=FALSE（母数49件は最低条件未達）',
-               self::v04DeriveFlags(16, [], [], ['sample_size' => 49, 'delta_pp' => 30.0])['flags']['X6'], 'FALSE');
-        $check('B-T21', 'X6=TRUE（母数50件・差10pp）',
-               self::v04DeriveFlags(16, [], [], ['sample_size' => 50, 'delta_pp' => 10.0])['flags']['X6'], 'TRUE');
+        $check('B-T21', 'X6=UNKNOWN（母数49件を渡されても旧判定へ進まない）',
+               self::v04DeriveFlags(16, [], [], ['sample_size' => 49, 'delta_pp' => 30.0])['flags']['X6'], 'UNKNOWN');
+        $check('B-T21', 'X6=UNKNOWN（母数50件・差10ppでも旧判定へ進まない）',
+               self::v04DeriveFlags(16, [], [], ['sample_size' => 50, 'delta_pp' => 10.0])['flags']['X6'], 'UNKNOWN');
+        $check('B-T21', 'X6=FALSE（N<7は構造的非該当）',
+               self::v04DeriveFlags(6, [], [], ['sample_size' => 50, 'delta_pp' => 10.0])['flags']['X6'], 'FALSE');
+        $check('B-T21', '基準率は未合意のまま', self::V04_X6_BASELINE, null);
 
         // T12 下位候補のFRO=FALSE、能力+断層でTier A → 新v0.4候補比較に入る
         $t12 = self::v04HorseEvidence(
@@ -5579,11 +6501,51 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             $last3minFukuRate = null;
         }
 
-        // 加速・減速判定: 後半フェーズ（12→6分前）変化率 vs 直前3分（9→6分前）変化率を比較
-        // 直前加速: last3min がより大きく下落（負方向に大きい）→ 直前に勢いよく買われた
-        // 直前減速: last3min が半2Rateより負方向が小さい       → 勢いが落ちた
-        // 横ばい  : 差が ±2.0ポイント以内
-        if ($last3minTanRate !== null && $half2Rate !== null) {
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261017-ACCEL  直前3分の加速・減速判定（10/17 東京9R §8）
+        // ══════════════════════════════════════════════════════════════════
+        // 【旧実装の問題（よっしーさんのご指摘どおりでした）】
+        //   直前変化率 =（W6−W9）÷W9 … 3分幅
+        //   後半変化率 =（W6−W12）÷W12 … 6分幅
+        //   この2つを引き算していました。幅が違い、しかも区間が重なっています
+        //   （9→6分は12→6分の中に入っています）。
+        //   さらに直前変化率が負（＝オッズ下落＝買われた）であることを
+        //   求めていないので、【オッズが上がっている馬でも「直前加速」】に
+        //   なります。10月17日 東京9R の実送信文がその実例です。
+        //     2番 … 複勝 -4.8% / 単勝 +3.2% / 判定: 直前加速
+        //     8番 … 複勝 +6.0% / 単勝 +8.9% / 判定: 直前加速（両方上昇）
+        //
+        // 【直し方】同じ3分幅どうしで比べ、方向を別に書きます。
+        //   12→9分の変化率 と 9→6分の変化率 を比べて「勢い」を見る
+        //   9→6分が下落か上昇かを「方向」として別に書く
+        //   これで「上昇しているのに加速」という表示が出なくなります。
+        //
+        // BAGANRIKI_LABEL_FIX が無効（既定）のときは、従来の判定のままです。
+        $mid3minTanRate = ($odds12 !== null && $odds9 !== null && $odds12 > 0)
+            ? round(($odds9 - $odds12) / $odds12 * 100, 1)
+            : null;
+        $h['mid3min_tan_rate'] = $mid3minTanRate;
+
+        if (self::labelFix()) {
+            if ($last3minTanRate === null) {
+                $accelLabel = null;
+            } else {
+                $dirWord = ($last3minTanRate < 0.0) ? '下落（買われた）'
+                         : (($last3minTanRate > 0.0) ? '上昇（売られた）' : '変化なし');
+                if ($mid3minTanRate === null) {
+                    $accelLabel = $dirWord . '・勢いは判定不可（12分前オッズなし）';
+                } else {
+                    $accelDiff = $last3minTanRate - $mid3minTanRate;
+                    if ($accelDiff < -2.0) {
+                        $accelLabel = $dirWord . '・直前3分は下落方向へ強まった';
+                    } elseif ($accelDiff > 2.0) {
+                        $accelLabel = $dirWord . '・直前3分は上昇方向へ強まった';
+                    } else {
+                        $accelLabel = $dirWord . '・勢いは横ばい';
+                    }
+                }
+            }
+        } elseif ($last3minTanRate !== null && $half2Rate !== null) {
             $accelDiff = $last3minTanRate - $half2Rate; // 負なら last3min の方が大きく下落
             if ($accelDiff < -2.0) {
                 $accelLabel = '直前加速';
@@ -5951,23 +6913,27 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
 
         // 単勝・複勝流入ランク表示（相対資金流入 E-1）
         if ($h['tan_inflow_rank'] !== null) {
+            // @ANCHOR-20261017-LABEL-FIX  短縮率の符号の意味を言葉で書く
             $tanInflowLine = sprintf(
-                '  単勝流入ランク: %d位/%d頭中（%s）  ※短縮率: %+.1f%%',
+                '  単勝流入ランク: %d位/%d頭中（%s）  ※短縮率: %+.1f%%%s',
                 $h['tan_inflow_rank'],
                 $h['tan_inflow_group_size'],
                 $h['inflow_group'],
-                $h['tan_shrink_rate']
+                $h['tan_shrink_rate'],
+                self::labelFix() ? self::wordShrink((float) $h['tan_shrink_rate']) : ''
             );
         } else {
             $tanInflowLine = sprintf('  単勝流入ランク: データなし（%s）', $h['inflow_group']);
         }
         if ($h['fuku_inflow_rank'] !== null) {
+            // @ANCHOR-20261017-LABEL-FIX  短縮率の符号の意味を言葉で書く
             $fukuInflowLine = sprintf(
-                '  複勝流入ランク: %d位/%d頭中（%s）  ※短縮率: %+.1f%%',
+                '  複勝流入ランク: %d位/%d頭中（%s）  ※短縮率: %+.1f%%%s',
                 $h['fuku_inflow_rank'],
                 $h['fuku_inflow_group_size'],
                 $h['inflow_group'],
-                $h['fuku_shrink_rate']
+                $h['fuku_shrink_rate'],
+                self::labelFix() ? self::wordShrink((float) $h['fuku_shrink_rate']) : ''
             );
         } else {
             $fukuInflowLine = sprintf('  複勝流入ランク: データなし（%s）', $h['inflow_group']);
@@ -6017,12 +6983,39 @@ private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, 
             $fukuRateStr = $h['last3min_fuku_rate'] !== null
                 ? sprintf('%+.1f%%', $h['last3min_fuku_rate'])
                 : 'データなし';
-            $last3minLine = sprintf(
-                '  直前流入（9→6分前）: 複勝 %s / 単勝 %s / 判定: %s',
-                $fukuRateStr,
-                $tanRateStr,
-                $h['accel_label']
-            );
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261017-LABEL-FIX  変化率の符号の意味を言葉で書く
+            // ══════════════════════════════════════════════════════════
+            // 「流入ランクの短縮率」は正が買われた、「直前流入の変化率」は
+            // 正が売られた、で意味が逆でした。同じ馬のブロックの中で
+            // 符号の意味が入れ替わるので、AIが読み違えて当然の形でした。
+            // ONのときは、名前を「直前のオッズ変化」に変え、数値のうしろに
+            // 方向を言葉で書き、比較に使った12→9分の値も並べます。
+            if (self::labelFix()) {
+                $midRateStr = ($h['mid3min_tan_rate'] ?? null) !== null
+                    ? sprintf('%+.1f%%%s', $h['mid3min_tan_rate'],
+                              self::wordChange((float) $h['mid3min_tan_rate']))
+                    : 'データなし';
+                $last3minLine = sprintf(
+                    '  直前のオッズ変化（9→6分前）: 複勝 %s%s / 単勝 %s%s'
+                    . '  ／ ひとつ前の3分（12→9分前）の単勝 %s  ／ 判定: %s',
+                    $fukuRateStr,
+                    ($h['last3min_fuku_rate'] !== null)
+                        ? self::wordChange((float) $h['last3min_fuku_rate']) : '',
+                    $tanRateStr,
+                    ($h['last3min_tan_rate'] !== null)
+                        ? self::wordChange((float) $h['last3min_tan_rate']) : '',
+                    $midRateStr,
+                    $h['accel_label']
+                );
+            } else {
+                $last3minLine = sprintf(
+                    '  直前流入（9→6分前）: 複勝 %s / 単勝 %s / 判定: %s',
+                    $fukuRateStr,
+                    $tanRateStr,
+                    $h['accel_label']
+                );
+            }
         } else {
             $last3minLine = '  直前流入（9→6分前）: データなし（9分前オッズ未取得）';
         }
@@ -8833,6 +9826,117 @@ SYSTEM;
                 $b7SecondAiFailed = true;
             }
         }
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-PROMPT  r12.2 の本文へ全文置換（機能フラグ）
+        // ══════════════════════════════════════════════════════════════════
+        // 根拠：server_contract_r12.2.txt 6章・9章／prompts/prompt_2nd.txt
+        //
+        //   1st側と同じ扱いです。system を prompt_2nd.txt の全文、
+        //   user を INPUT_JSON 1個へ入れ替えます（role_cap=min(5,C)）。
+        //
+        //   【ここで入れ替える理由】この手前にある条件B・C・Dの先読みと
+        //   配分の読み戻しは、旧本文の文面から読んでいます。送信文だけを
+        //   差し替えれば、統合側の既存の流れを壊さずに本文を置換できます。
+        //   <b>統合側（_mergeAiResults）を r12.2 の応答キーへ合わせる作業は
+        //   まだ残っています</b>（残作業「実AI接続」。14_残作業と日程に記載）。
+        // @ANCHOR-20261020-R122-SHADOW  shadow のときは本文を差し替えません
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-WIRE2  10月20日007のご指摘6-4
+        // ══════════════════════════════════════════════════════════════════
+        //   【旧】旗の食い違いの検査を<b>1stにしか入れていませんでした。</b>
+        //     PROMPT=1／QUEUE=0 のまま2ndを直接呼ぶと、予約は skip=true で
+        //     返り、本文だけ r12.2 に置き換わったまま送れてしまいます。
+        //     「この組み合わせを作れなくした」は1stの話でしかありませんでした。
+        //   【いま】両roleの送信入口に同じ検査を置きます。
+        $r122wire2 = self::r122WireConfig();
+        if (!$r122wire2['ok']) {
+            \Log::error('[R122-WIRE] 設定が食い違っているので2nd AIを呼びません', [
+                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho,
+                'day'  => $day,  'race'   => $race,
+                'code' => $r122wire2['code'], 'reason' => $r122wire2['reason'],
+                'BAGANRIKI_R122_PROMPT' => $r122wire2['prompt'],
+                'BAGANRIKI_R122_QUEUE'  => $r122wire2['queue'],
+            ]);
+            return response()->json(['data' => [
+                'date'              => $date,
+                'kaisuu'            => $kaisuu,
+                'basho_code'        => $basho,
+                'day'               => $day,
+                'race'              => $race,
+                'analysis_text'     => '',
+                'merged_horses'     => [],
+                'upset_race'        => 0,
+            ]]);
+        }
+        // @ANCHOR-20261023-R122-SEPARATE  対象レースでなければ旧本文のまま（2nd・003 P-02）
+        //   【旧】if (BaganrikiPrompt::sending()) {
+        $r122Tg2 = BaganrikiPrompt::sending()
+            ? self::r122TargetCheck(self::r122RaceId($date, $kaisuu, $basho, $day, $race))
+            : ['ok' => false];
+        if (BaganrikiPrompt::sending() && !$r122Tg2['ok']) {
+            \Log::error('[R122-TARGET] 対象レースではないので旧本文で送ります（2nd）', [
+                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho,
+                'day'  => $day,  'race'   => $race,
+                'code' => $r122Tg2['code'] ?? null,
+            ]);
+        }
+        if (BaganrikiPrompt::sending() && $r122Tg2['ok']) {
+            $r122b = $this->r122AssembleSend($date, $kaisuu, $basho, $day, $race, '2nd');
+            if (!$r122b['ok']) {
+                \Log::error('[INPUT_INVALID] r12.2の送信文を作れないため2nd AIを呼びません', [
+                    'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho,
+                    'day'  => $day,  'race'   => $race,
+                    'code' => $r122b['code'], 'reason' => $r122b['reason'],
+                ]);
+                return response()->json(['data' => [
+                    'date'              => $date,
+                    'kaisuu'            => $kaisuu,
+                    'basho_code'        => $basho,
+                    'day'               => $day,
+                    'race'              => $race,
+                    'analysis_text'     => '',
+                    'merged_horses'     => [],
+                    'upset_race'        => 0,
+                    'upset_race_status' => '0',
+                    'race_metrics'      => null,
+                ]]);
+            }
+            $oddsData     = $r122b['user'];
+            $systemPrompt = $r122b['system'];
+            \Log::info('[R122-PROMPT] 2nd AI へ r12.2 の本文で送ります', [
+                'race_id'       => $r122b['race_id'],
+                'system_sha256' => $r122b['system_sha256'],
+                'snapshot_hash' => $r122b['snapshot_hash'],
+                'user_bytes'    => $r122b['user_bytes'],
+            ]);
+
+            // @ANCHOR-20261020-R122-QUEUE  予約を確定してから送ります。
+            //   保存済み回答を使い回すとき（$maxRetries=0）は送らないので
+            //   枠も取りません。
+            if ($maxRetries > 0) {
+                $r122q2 = $this->r122QueueReserve($date, $kaisuu, $basho, $day, $race,
+                                                  '2nd', $r122b);
+                if (!$r122q2['skip'] && !$r122q2['ok'] && $r122q2['shadow']) {
+                    // @ANCHOR-20261020-R122-SHADOW  記録だけ諦めて送ります
+                    \Log::error('[R122-QUEUE] 枠を取れませんでした（shadow なので2nd AIは送ります）', [
+                        'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho,
+                        'day'  => $day,  'race'   => $race,
+                        'code' => $r122q2['code'], 'reason' => $r122q2['reason'],
+                    ]);
+                }
+                if (!$r122q2['skip'] && !$r122q2['ok'] && !$r122q2['shadow']) {
+                    \Log::error('[R122-QUEUE] 枠を予約できないため2nd AIを呼びません', [
+                        'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho,
+                        'day'  => $day,  'race'   => $race,
+                        'code' => $r122q2['code'], 'reason' => $r122q2['reason'],
+                    ]);
+                    // 1st AI 単独で続けます（正常な他AIを失わない：契約6章）
+                    $maxRetries       = 0;
+                    $b7SecondAiFailed = true;
+                }
+            }
+        }
+
         for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             $aiElapsed2ndStart = microtime(true);   // @ANCHOR-20261006-AI-ELAPSED
             // ══════════════════════════════════════════════════════════════
@@ -8853,10 +9957,11 @@ SYSTEM;
                     ['role' => 'user',   'content' => $oddsData],
                 ],
             ];
-            $dsTimeout = 60;
+            // @ANCHOR-20261020-R122-DEADLINE  2nd AI も応答期限から決めます
+            $dsTimeout = $this->r122AiTimeout(60, $r122q2 ?? null);
             if (self::v04HvPrompt()) {
                 $dsPayload['max_tokens'] = 8192;   // deepseek-chat の上限
-                $dsTimeout = 120;                  // 出力が増えるぶん待つ
+                $dsTimeout = $this->r122AiTimeout(120, $r122q2 ?? null);
             }
             $response = Http::timeout($dsTimeout)->withHeaders([
                 'Authorization' => 'Bearer ' . env('DEEPSEEK_API_KEY'),
@@ -8872,6 +9977,11 @@ SYSTEM;
                 if ($attempt < $maxRetries - 1) {
                     continue; // ※ maxRetries=1 のため実質到達しない
                 }
+                // @ANCHOR-20261020-R122-QUEUE  明確な失敗が返ったので FAILED にします
+                if (isset($r122q2)) {
+                    $this->r122QueueFail($r122q2,
+                        '2nd AI の API エラー status=' . $response->status(), false);
+                }
                 // 全リトライ失敗 → 2nd AI失敗確定
                 $b7SecondAiFailed = true;
 //                 \Log::warning('[B-7] DeepSeek全リトライ失敗、1st AI単独継続', [
@@ -8881,6 +9991,7 @@ SYSTEM;
             }
 
             // @ANCHOR-20261006-AI-ELAPSED  2nd AI の応答時間も毎回記録する
+            // @ANCHOR-20261017-ELAPSED-LEVEL  同上
             \Log::error('[AI_ELAPSED] 2nd AI 応答時間', [
                 'race'     => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
                 '出走頭数' => $horseCount2nd ?? null,
@@ -8892,6 +10003,27 @@ SYSTEM;
             $analysisText = trim($result['choices'][0]['message']['content'] ?? '');
             // @ANCHOR-20261013-V04-HV-TOKENS  出力が上限で打ち切られたら必ず表に出す
             $dsFinish = $result['choices'][0]['finish_reason'] ?? null;
+            // @ANCHOR-20261020-R122-QUEUE  原応答と complete を保存します
+            if (isset($r122q2)) {
+                $this->r122QueueReceive($r122q2, $analysisText,
+                    ($dsFinish === null || $dsFinish === 'stop')
+                    && trim($analysisText) !== '');
+                // ══════════════════════════════════════════════════════════
+                // @ANCHOR-20261020-R122-WIRE  10月20日006のご指摘6-4
+                // ══════════════════════════════════════════════════════════
+                //   2nd は<b>その場で</b>通します。ここは先読み（1st の
+                //   terminating の中）か、利用者がボタンを押した経路です。
+                //   どちらでも、この後に公開期限まで待てる時間はありません。
+                //   両roleが終端になっているので、ここで公開まで行きます。
+                if (!self::$dryRunNoPersist) {
+                    $wire2 = microtime(true);
+                    $this->r122AfterReceive($date, $kaisuu, $basho, $day, $race,
+                                            '2nd', $r122q2);
+                    \Log::error('[R122-WIRE] 2nd の後処理にかかった時間', [
+                        '秒' => round(microtime(true) - $wire2, 2),
+                    ]);
+                }
+            }
             if ($dsFinish !== null && $dsFinish !== 'stop') {
                 \Log::error('[B-7] DeepSeekの回答が途中で終わっている（finish_reason）', [
                     'finish_reason' => $dsFinish,
@@ -9881,7 +11013,7 @@ SYSTEM;
             foreach (['1st', '2nd'] as $v4Who) {
                 if (($v4Contract[$v4Who]['state'] ?? 'OK') !== 'UNDETERMINED') continue;
                 // 契約違反のAIの採点は、研究用の採点としても採用しない
-                \Log::error("[CONTRACT_GATE] {$v4Who} の研究用H/V採点は契約検証で不採用（@ANCHOR-20261014-CONTRACT-GATE）", [
+                \Log::log(self::v04HvPrompt() ? 'error' : 'info', "[CONTRACT_GATE] {$v4Who} の研究用H/V採点は契約検証で不採用（@ANCHOR-20261014-CONTRACT-GATE）", [
                     'race'   => "{$date} {$kaisuu}回{$basho} {$day}日目 {$race}R",
                     'issues' => $v4Contract[$v4Who]['issues'] ?? [],
                     '扱い'   => '採点を採用しない。選出にも使わない（0点補完や推測埋めはしない）',
@@ -12597,65 +13729,17 @@ SYSTEM;
         }
     }
 
-    /**
-     * 【20260924 追加】断層パターン学習（Block 11）用：馬ブロックのテキストから数値特徴を取り出す。
-     *   プロンプトへ実際に渡した値そのものを保存するため、テーブルを引き直さずブロックから読む。
-     *   読み取れない項目は null（欠損）。0 で埋めない。
-     */
-    private function _parseHorseBlockFeatures(string $block): array
-    {
-        $f = [
-            'tan_change_rate'     => $this->_parseTanChangeRate($block),
-            'tan_inflow_rank'     => null, 'tan_inflow_group_size'  => null,
-            'fuku_inflow_rank'    => null, 'fuku_inflow_group_size' => null,
-            'inflow_group'        => null,
-            'last3min_fuku_rate'  => null, 'last3min_tan_rate' => null, 'accel_label' => null,
-            'opi'                 => null, 'est_opi' => null, 'fuku_opi' => null,
-            'est_tan_odds'        => null, 'est_tan_std' => null,
-            'est_fuku_min'        => null, 'est_fuku_max' => null, 'est_fuku_err' => null,
-        ];
-        if (preg_match('/単勝流入ランク: (\d+)位\/(\d+)頭中（([^）]+)）/u', $block, $m)) {
-            $f['tan_inflow_rank'] = (int)$m[1]; $f['tan_inflow_group_size'] = (int)$m[2]; $f['inflow_group'] = $m[3];
-        }
-        if (preg_match('/複勝流入ランク: (\d+)位\/(\d+)頭中（([^）]+)）/u', $block, $m)) {
-            $f['fuku_inflow_rank'] = (int)$m[1]; $f['fuku_inflow_group_size'] = (int)$m[2]; $f['inflow_group'] = $m[3];
-        }
-        if (preg_match('/直前流入（9→6分前）: 複勝 ([+\-][\d.]+)%|直前流入（9→6分前）: 複勝 データなし/u', $block, $m) && isset($m[1])) {
-            $f['last3min_fuku_rate'] = (float)$m[1];
-        }
-        if (preg_match('/直前流入（9→6分前）: .*単勝 ([+\-][\d.]+)%/u', $block, $m)) {
-            $f['last3min_tan_rate'] = (float)$m[1];
-        }
-        if (preg_match('/直前流入（9→6分前）: .*判定: (\S+)/u', $block, $m)) {
-            $f['accel_label'] = $m[1];
-        }
-        if (preg_match('/^\s*OPI: ([\d.]+)/mu', $block, $m))        $f['opi']      = (float)$m[1];
-        if (preg_match('/予測補正OPI: ([\d.]+)/u', $block, $m))       $f['est_opi']  = (float)$m[1];
-        if (preg_match('/複勝OPI: ([\d.]+)/u', $block, $m))           $f['fuku_opi'] = (float)$m[1];
-        if (preg_match('/推定確定オッズ: ([\d.]+)倍（±([\d.]+)）/u', $block, $m)) {
-            $f['est_tan_odds'] = (float)$m[1]; $f['est_tan_std'] = (float)$m[2];
-        }
-        if (preg_match('/推定確定複勝最小: ([\d.]+)倍\s+推定確定複勝最大: ([\d.]+)?/u', $block, $m)) {
-            $f['est_fuku_min'] = (float)$m[1];
-            $f['est_fuku_max'] = (isset($m[2]) && $m[2] !== '') ? (float)$m[2] : null;
-        }
-        if (preg_match('/補正誤差: ±([\d.]+)/u', $block, $m))          $f['est_fuku_err'] = (float)$m[1];
-        return $f;
-    }
+    // ─────────────────────────────────────────────────────────────
+    // @ANCHOR-20261020-REFACTOR-ML  馬ブロックの数値読み取り（断層学習の入力づくり）
+    //   中身は同じファイル下部の BaganrikiMl へ移しました。
+    //   呼び出し側を書き換えずに済むよう、ここは受け渡しだけの入口です。
+    //   引数も戻り値もそのまま渡しているので、動きは変わりません。
+    // ─────────────────────────────────────────────────────────────
+    private function _parseHorseBlockFeatures(...$args)
+    { return BaganrikiMl::_parseHorseBlockFeatures(...$args); }
+    private function _parseTanChangeRate(...$args)
+    { return BaganrikiMl::_parseTanChangeRate(...$args); }
 
-    /**
-     * 【20260924 追加】馬ブロックの「単勝: …倍（下落 X%）」行から、計測開始→6分前の単勝変化率を読む。
-     *   下落 X% → -X ／ 上昇 +X% → +X ／ 変化なし → 0 ／ 行が無い → null（不明）
-     */
-    private function _parseTanChangeRate(string $block): ?float
-    {
-        if (!preg_match('/^\s*単勝: .*倍（(下落 ([\d.]+)%|上昇 \+([\d.]+)%|変化なし)）/mu', $block, $m)) {
-            return null;
-        }
-        if (($m[2] ?? '') !== '') return -1.0 * (float) $m[2];
-        if (($m[3] ?? '') !== '') return (float) $m[3];
-        return 0.0;
-    }
 
     /**
      * 【20260924 追加】2nd AI のキャッシュをそのまま返してよいか。
@@ -14236,6 +15320,8862 @@ SYSTEM;
 
 
 
+    // ─────────────────────────────────────────────────────────────
+    // @ANCHOR-20261020-REFACTOR-ML  機械学習（断層学習）の計算一式
+    //   中身は同じファイル下部の BaganrikiMl へ移しました。
+    //   呼び出し側を書き換えずに済むよう、ここは受け渡しだけの入口です。
+    //   引数も戻り値もそのまま渡しているので、動きは変わりません。
+    // ─────────────────────────────────────────────────────────────
+    private function _saveMlEvaluation(...$args)
+    { return BaganrikiMl::_saveMlEvaluation(...$args); }
+    public function runMlPipeline(...$args)
+    { return BaganrikiMl::runMlPipeline(...$args); }
+    public function writeMlLabels(...$args)
+    { return BaganrikiMl::writeMlLabels(...$args); }
+    private function _trainGbdtModel(...$args)
+    { return BaganrikiMl::_trainGbdtModel(...$args); }
+    private function _gbdtBuildTree(...$args)
+    { return BaganrikiMl::_gbdtBuildTree(...$args); }
+    private function _gbdtTreePredict(...$args)
+    { return BaganrikiMl::_gbdtTreePredict(...$args); }
+    private function _predictGbdt(...$args)
+    { return BaganrikiMl::_predictGbdt(...$args); }
+    private function _vectorizeFeatures(...$args)
+    { return BaganrikiMl::_vectorizeFeatures(...$args); }
+    private function _trainMlModel(...$args)
+    { return BaganrikiMl::_trainMlModel(...$args); }
+    private function _predictMl(...$args)
+    { return BaganrikiMl::_predictMl(...$args); }
+    private function _runMlInference(...$args)
+    { return BaganrikiMl::_runMlInference(...$args); }
+    private function _calcMlLabels(...$args)
+    { return BaganrikiMl::_calcMlLabels(...$args); }
+    private function _getMlPhase(...$args)
+    { return BaganrikiMl::_getMlPhase(...$args); }
+    private function _evaluateMlModel(...$args)
+    { return BaganrikiMl::_evaluateMlModel(...$args); }
+    private function _evaluateM4Model(...$args)
+    { return BaganrikiMl::_evaluateM4Model(...$args); }
+    private function _calibrateProbabilities(...$args)
+    { return BaganrikiMl::_calibrateProbabilities(...$args); }
+    private function _compareModelVersions(...$args)
+    { return BaganrikiMl::_compareModelVersions(...$args); }
+    private function _assignTimeSeriesSplit(...$args)
+    { return BaganrikiMl::_assignTimeSeriesSplit(...$args); }
+    private function _buildModelRegistry(...$args)
+    { return BaganrikiMl::_buildModelRegistry(...$args); }
+    private function _parseRaceTimeToSeconds(...$args)
+    { return BaganrikiMl::_parseRaceTimeToSeconds(...$args); }
+    private function _buildAbilityVectors(...$args)
+    { return BaganrikiMl::_buildAbilityVectors(...$args); }
+    private function _medianOf(...$args)
+    { return BaganrikiMl::_medianOf(...$args); }
+    private function _buildCategoryDict(...$args)
+    { return BaganrikiMl::_buildCategoryDict(...$args); }
+    private function _calcBandBasedRanking(...$args)
+    { return BaganrikiMl::_calcBandBasedRanking(...$args); }
+    private function _saveMlSnapshot(...$args)
+    { return BaganrikiMl::_saveMlSnapshot(...$args); }
+
+
+    /**
+     * 馬眼力指数を返す
+     *
+     * 引数: date, kaisuu, basho_code (int), day, race
+     * 返値: [{num, name, uma_ganryoku_index}, ...]
+     */
+    public function getHorseOddsFinderBaganrikiIndex(Request $request)
+    {
+        $date      = $request->query('date');
+        $kaisuu    = $request->query('kaisuu');
+        $bashoCode = intval($request->query('basho_code'));
+        $day       = $request->query('day');
+        $race      = intval($request->query('race'));
+
+        // ─── レース存在確認 ───────────────────────────────────────────────
+        $raceRow = DB::table('t_horse_odds_finder_races')
+            ->where('date',   $date)
+            ->where('kaisuu', $kaisuu)
+            ->where('basho',  $bashoCode)
+            ->where('day',    $day)
+            ->where('race',   $race)
+            ->first();
+
+        if (!$raceRow) {
+            return response()->json(['data' => []]);
+        }
+
+        // ─── 出走馬情報の取得 ─────────────────────────────────────────────
+        $horses = DB::table('t_horse_odds_finder_horses')
+            ->where('date',   $date)
+            ->where('kaisuu', $raceRow->kaisuu)
+            ->where('basho',  $raceRow->basho)
+            ->where('day',    $raceRow->day)
+            ->where('race',   $raceRow->race)
+            ->orderBy('num')
+            ->get()
+            ->keyBy('num');
+
+        // ─── オッズ取得（999=計測前, 21分前, 6分前） ─────────────────────
+        $oddsRows = DB::table('t_horse_odds_finder_odds')
+            ->where('date',   $date)
+            ->where('kaisuu', $raceRow->kaisuu)
+            ->where('basho',  $raceRow->basho)
+            ->where('day',    $raceRow->day)
+            ->where('race',   $raceRow->race)
+            ->whereIn('minutes_before_start', [999, 21, 6])
+            ->get();
+
+        $oddsByNum = [];
+        foreach ($oddsRows as $row) {
+            if (!is_numeric($row->odds)) continue;   // 【20260924】「取消」等は人気順計算から除外
+            $num    = $row->num;
+            $timing = $row->minutes_before_start;
+            if (!isset($oddsByNum[$num])) {
+                $oddsByNum[$num] = ['tan' => [], 'fuku_min' => []];
+            }
+            $oddsByNum[$num]['tan'][$timing]      = floatval($row->odds);
+            $oddsByNum[$num]['fuku_min'][$timing] = floatval($row->fuku_min);
+        }
+
+        // ─── プロンプト用データの組み立て ────────────────────────────────
+        $promptHorses = [];
+        foreach ($oddsByNum as $num => $o) {
+            $tanBase = $o['tan'][999] ?? null;
+            $tan6    = $o['tan'][6]   ?? null;
+            if ($tanBase === null || $tan6 === null || $tanBase == 0) continue;
+
+            $name = isset($horses[$num]) ? $horses[$num]->name : '馬' . $num;
+
+            $promptHorses[] = [
+                'num'             => $num,
+                'name'            => $name,
+                'tan_series'      => $o['tan'],
+                'fuku_min_series' => $o['fuku_min'],
+                'odds_6'          => $tan6,
+                'fuku_min_6'      => $o['fuku_min'][6] ?? null,
+            ];
+        }
+
+        if (empty($promptHorses)) {
+            return response()->json(['data' => []]);
+        }
+
+        // ─── 人気順の決定（6分前の単勝オッズ昇順） ───────────────────────
+        usort($promptHorses, function ($a, $b) {
+            if ($a['odds_6'] !== $b['odds_6']) {
+                return $a['odds_6'] <=> $b['odds_6'];
+            }
+            return $a['num'] <=> $b['num'];
+        });
+        foreach ($promptHorses as $i => &$h) {
+            $h['popularity'] = $i + 1;
+        }
+        unset($h);
+
+        // ─── 人気順別過去平均単勝オッズ（OPI用） ─────────────────────────
+        $popularityAvgRows = DB::table('t_horse_odds_finder_popularity_rank_average')->get();
+        $popularityAvgMap  = [];
+        foreach ($popularityAvgRows as $row) {
+            $popularityAvgMap[(int)$row->popularity_rank] = floatval($row->odds_average);
+        }
+
+        // ─── OPI 計算（人気順別過去平均単勝オッズ ÷ 6分前単勝オッズ） ────
+        foreach ($promptHorses as &$h) {
+            $avgOdds  = $popularityAvgMap[$h['popularity']] ?? null;
+            $h['opi'] = ($avgOdds && $h['odds_6'] > 0)
+                ? round($avgOdds / $h['odds_6'], 2)
+                : null;
+        }
+        unset($h);
+
+        // ─── 複勝人気順マップの作成（fuku_min_6 昇順） ───────────────────
+        $earlyFukuTemp = array_values(
+            array_filter($promptHorses, fn($h) => isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0)
+        );
+        usort($earlyFukuTemp, fn($a, $b) => $a['fuku_min_6'] <=> $b['fuku_min_6']);
+        $fukuPopularityMap = [];
+        foreach ($earlyFukuTemp as $pos => $fh) {
+            $fukuPopularityMap[$fh['num']] = $pos + 1;
+        }
+
+        // ─── 単勝断層の事前検出 ───────────────────────────────────────────
+        $earlyTanGapAll    = [];
+        $earlyTanGapTop6   = [];
+        $earlyTanGapStrong = [];
+        for ($i = 0; $i < count($promptHorses) - 1; $i++) {
+            $eu = $promptHorses[$i];
+            $el = $promptHorses[$i + 1];
+            if (($eu['odds_6'] ?? 0) > 0 && ($el['odds_6'] ?? 0) > 0) {
+                $er = round($el['odds_6'] / $eu['odds_6'], 2);
+                if ($er >= 2.0) {
+                    $ee = ['upper_pop' => $eu['popularity'], 'lower_pop' => $el['popularity'], 'ratio' => $er];
+                    $earlyTanGapAll[] = $ee;
+                    if ($eu['popularity'] <= 6) {
+                        $earlyTanGapTop6[] = $ee;
+                        if ($er >= 2.5) $earlyTanGapStrong[] = $ee;
+                    }
+                }
+            }
+        }
+
+        // ─── 複勝断層の事前検出 ───────────────────────────────────────────
+        $earlyFukuGapDets = [];
+        for ($i = 0; $i < count($earlyFukuTemp) - 1; $i++) {
+            $eu = $earlyFukuTemp[$i];
+            $el = $earlyFukuTemp[$i + 1];
+            if (($eu['fuku_min_6'] ?? 0) > 0) {
+                $er = round($el['fuku_min_6'] / $eu['fuku_min_6'], 2);
+                if ($er >= 2.0) {
+                    $earlyFukuGapDets[] = $er;
+                }
+            }
+        }
+
+        // ─── 断層タイプの判定 ─────────────────────────────────────────────
+        $earlyTanHasGap  = count($earlyTanGapAll) > 0;
+        $earlyFukuHasGap = count($earlyFukuGapDets) > 0;
+
+        if (count($earlyTanGapTop6) >= 2) { // 【20260924】仕様どおり二重断層（2か所以上）でタイプA
+            $earlyGapType = 'A';
+        } elseif ($earlyTanHasGap !== $earlyFukuHasGap) {
+            $earlyGapType = 'E';
+        } elseif (count($earlyTanGapTop6) === 1) {
+            $earlyGapType = 'B';
+        } elseif ($earlyTanHasGap) {
+            $earlyGapType = 'C';
+        } else {
+            $earlyGapType = 'D';
+        }
+
+        // 断層補正の基準人気順（上側グループ境界）。D・E は null → 補正係数 1.00
+        $earlyPrimaryGapUpperPop = null;
+        if (in_array($earlyGapType, ['A', 'B']) && !empty($earlyTanGapTop6)) {
+            $earlyPrimaryGapUpperPop = $earlyTanGapTop6[0]['upper_pop'];
+        } elseif ($earlyGapType === 'C' && !empty($earlyTanGapAll)) {
+            $earlyPrimaryGapUpperPop = $earlyTanGapAll[0]['upper_pop'];
+        }
+
+        // ─── 馬眼力指数の算出 ─────────────────────────────────────────────
+        // 馬眼力指数 = OPI × オッズ上昇率 × 複勝支持率 × 断層補正 × 100
+        $result = [];
+        foreach ($promptHorses as $h) {
+            $umaOpi = $h['opi'];
+
+            // ② オッズ上昇率: 21分前単勝 ÷ 6分前単勝（21分前データなければ 1.0）
+            $odds21 = isset($h['tan_series'][21]) && floatval($h['tan_series'][21]) > 0
+                ? floatval($h['tan_series'][21])
+                : null;
+            $odds6  = $h['odds_6'] ?? 0;
+            $umaOddsRiseRate = ($odds21 !== null && $odds6 > 0)
+                ? round($odds21 / $odds6, 4)
+                : 1.0;
+
+            // ③ 複勝支持率: 単勝人気順 ÷ 複勝人気順
+            $fukuPop = $fukuPopularityMap[$h['num']] ?? null;
+            $umaFukuSupportRate = ($fukuPop !== null && $fukuPop > 0)
+                ? round($h['popularity'] / $fukuPop, 4)
+                : null;
+
+            // ④ 断層補正: 内側=1.10 / 外側=0.90 / D・E=1.00
+            if ($earlyPrimaryGapUpperPop !== null) {
+                $umaDansouCorr = ($h['popularity'] <= $earlyPrimaryGapUpperPop) ? 1.10 : 0.90;
+            } else {
+                $umaDansouCorr = 1.00;
+            }
+
+            // 馬眼力指数（OPI または 複勝支持率 が null なら null）
+            $umaGanryokuIndex = ($umaOpi !== null && $umaFukuSupportRate !== null)
+                ? round($umaOpi * $umaOddsRiseRate * $umaFukuSupportRate * $umaDansouCorr * 100, 1)
+                : null;
+
+            $result[] = [
+                'num'                => $h['num'],
+                'name'               => $h['name'],
+                'baganriki_index' => $umaGanryokuIndex,
+            ];
+        }
+
+        // 馬番順にソートして返す
+        usort($result, fn($a, $b) => $a['num'] <=> $b['num']);
+
+        return response()->json(['data' => $result]);
+    }
+
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-API  r12.2 の読取API
+     * ═══════════════════════════════════════════════════════════════════════
+     * GET /api/baganriki/r12-2/races/{race_id}
+     *
+     * 根拠：server_contract_r12.2.txt 8章・11章／詳細設計書 12.2
+     *
+     *   ・読み取りだけです。AIへの送信も再選出も起こしません。
+     *   ・正式公開（publication）と現在のライブ状態（live_state）を分けて返します。
+     *   ・原AI応答・予約token・内部認証情報は返しません。
+     *   ・数値は十進数文字列のまま返します（Flutter側で一律doubleにしないため）。
+     *
+     * race_id の形は `YYYYMMDD-回-場-日-R` です（例 20261018-4-08-7-9）。
+     * 既存の正本テーブルと列の対応は、詳細設計書14章の対応表に記録します。
+     */
+    public function getBaganrikiR122Race(string $race_id)
+    {
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-READGATE  非公開の読取経路（010の7章⑤）
+        // ══════════════════════════════════════════════════════════════
+        //   【見つかったこと】この読取APIには<b>認証が1つも掛かって
+        //   いませんでした。</b>さらに画面側（Flutter）の
+        //   race_content_page に、<b>誰にでも見える「r12.2」のボタン</b>が
+        //   出ています（管理者判定も debug 判定もありません）。
+        //
+        //   いまは記録が1件もないので空が返るだけです。ですが
+        //   <b>10月24日に旗を上げた瞬間、その12レースの予想が
+        //   一般の利用者に見えます。</b>「非公開の検証」になりません。
+        //   race_id は日付と場と番号なので、総当たりも簡単です。
+        //
+        //   【いま】既定で<b>閉じます。</b>.env の BAGANRIKI_R122_READ が
+        //   open のときだけ誰でも見られます。既定（key）では、
+        //   BAGANRIKI_R122_READ_KEY と一致する鍵を
+        //     ヘッダ  X-R122-Key: <鍵>
+        //     クエリ  ?r122_key=<鍵>
+        //   のどちらかで渡したときだけ中身を返します。
+        //   <b>鍵が未設定なら、誰も中身を見られません。</b>
+        //   対象レースの限定（TARGETS が空なら1レースも送らない）と
+        //   同じ考え方です。設定を入れ忘れた側が安全に倒れます。
+        //
+        //   <b>記録が在るかどうかは漏らしません。</b>race_id が何であれ
+        //   同じものを返します。
+        //
+        //   ══════════════════════════════════════════════════════════
+        //   @ANCHOR-20261021-R122-READGATE200  HTTPは 200 で返します
+        //   ══════════════════════════════════════════════════════════
+        //   【画面（Flutter）側の作りを見て決めました】
+        //   lib/data/http/client.dart は 2xx 以外を<b>すべて例外</b>に
+        //   します（49〜51行）。画面はそれを受けて
+        //     「読めませんでした  Exception: http 404 [url=https://…]」
+        //   と<b>生のエラー文字列をそのまま出します</b>
+        //   （baganriki_r122_display_alert.dart 98行）。
+        //   利用者に意味のない文字列とURLを見せることになります。
+        //
+        //   なので 404 ではなく <b>200</b> で、いつもの形のまま
+        //   state=UNAVAILABLE と理由を返します。
+        //   画面は diagnostics をそのまま並べるので（同380行）、
+        //   「この記録はまだ公開していません」と読める形で出ます。
+        //   <b>Flutter は1行も直していません。</b>作り直し不要です。
+        //
+        //   artisan（コマンド）からは素通りします。外から叩けないので
+        //   止める意味がなく、止めると試験が全部落ちます。
+        $gate = self::r122ReadGate();
+        if (!$gate['ok']) {
+            return response()->json(BaganrikiPublicView::build([
+                'race_id'     => $race_id,
+                'state'       => 'UNAVAILABLE',
+                'diagnostics' => [['code' => (string) $gate['code'],
+                                   'message' => (string) $gate['reason']]],
+            ]), 200);
+        }
+
+        $parts = explode('-', $race_id);
+        if (count($parts) !== 5) {
+            return response()->json([
+                'schema_version' => 'baganriki-v041-r12-2',
+                'race_id'        => $race_id,
+                'state'          => 'UNAVAILABLE',
+                'diagnostics'    => [['code' => 'ENTRY_SET_MISMATCH',
+                                      'message' => 'race_id の形が違います（YYYYMMDD-回-場-日-R）']],
+                'buy_recommended' => false,
+            ], 400);
+        }
+        [$ymd, $kaisuu, $basho, $day, $race] = $parts;
+        $date = substr($ymd, 0, 4) . '-' . substr($ymd, 4, 2) . '-' . substr($ymd, 6, 2);
+
+        // ── 正本のレース情報 ────────────────────────────────────────────
+        $r = \DB::table('t_horse_odds_finder_races')
+            ->where('date', $date)->where('kaisuu', $kaisuu)->where('basho', $basho)
+            ->where('day', $day)->where('race', (int) $race)->first();
+        if ($r === null) {
+            return response()->json(BaganrikiPublicView::build([
+                'race_id'     => $race_id,
+                'state'       => 'UNAVAILABLE',
+                'diagnostics' => [['code' => 'ENTRY_MISSING',
+                                   'message' => 'このレースは正本に存在しません']],
+            ]), 404);
+        }
+
+        // ── 保存済みの r12.2 の記録を読む ───────────────────────────────
+        //   まだ凍結・公開の保存を実装していない期間は、
+        //   snapshot が無い状態として PENDING / UNAVAILABLE を返します。
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-API  本番の世代（generation=0）だけを読みます
+        // ══════════════════════════════════════════════════════════════
+        // 【直した中身】
+        //   これまで orderByDesc('generation') で読んでいたので、
+        //   試験で保存した REPLAY（generation=900）があると
+        //   <b>公開APIがその試験用の記録を返してしまいました。</b>
+        //   読取APIは本番の世代だけを見ます。
+        //
+        //   3つの版と公開履歴は<b>ひとつの読取取引</b>でそろえて取ります。
+        //   書込ロックは持ちません（契約8章）。
+        $snap = null; $live = null; $pub = null; $slots = null;
+        if (\Schema::hasTable('baganriki_snapshots')) {
+            [$snap, $live, $pub, $slots] = \DB::transaction(function () use ($race_id) {
+                $s = \DB::table('baganriki_snapshots')->where('race_id', $race_id)
+                       ->where('generation', 0)->first();
+                $l = null; $p = null; $w = null;
+                if ($s !== null && \Schema::hasTable('baganriki_live_states')) {
+                    $l = \DB::table('baganriki_live_states')
+                           ->where('snapshot_id', $s->id)->first();
+                }
+                if ($s !== null && \Schema::hasTable('baganriki_publications')) {
+                    $p = \DB::table('baganriki_publications')
+                           ->where('snapshot_id', $s->id)
+                           ->orderByDesc('published_at')->first();
+                }
+                if ($s !== null && \Schema::hasTable('baganriki_ai_attempts')) {
+                    $w = BaganrikiWorker::slots((int) $s->id);
+                }
+                return [$s, $l, $p, $w];
+            });
+        }
+
+        $cancellations = ($live !== null && $live->cancellations !== null)
+            ? (json_decode((string) $live->cancellations, true) ?: []) : [];
+        $activeCount   = ($live !== null) ? $live->active_count : null;
+        $allCancelled  = ($activeCount !== null && (int) $activeCount === 0);
+
+        // 実効公開期限。投票締切の正本が無ければ期限を作らず、推測もしません。
+        $effPublish = null; $pastDeadline = false;
+        $salesClose = $snap->sales_close_at ?? null;
+        if ($salesClose !== null) {
+            // @ANCHOR-20261020-R122-API  DBの日時はDBの日時として読みます
+            $sc = BaganrikiWorker::dbUs($salesClose);
+            if ($sc !== null) {
+                $lc = ($live !== null && $live->live_close !== null)
+                    ? BaganrikiWorker::dbUs($live->live_close) : null;
+                $eff = BaganrikiTime::effectiveDeadlines($sc, $lc);
+                $effPublish   = BaganrikiTime::toJst($eff['publish']);
+                $pastDeadline = (BaganrikiTime::us(date('c')) ?? 0) > $eff['publish'];
+            }
+        }
+
+        $diag = [];
+        if ($salesClose === null) {
+            $diag[] = ['code' => 'PUBLICATION_DEADLINE_EXCEEDED',
+                       'message' => '投票締切の正本が特定できていないため公開しません'];
+        }
+        $inputInvalid = ($snap === null)
+            ? false
+            : (($snap->input_invalid_code ?? null) !== null);
+        if ($inputInvalid) {
+            $diag[] = ['code' => (string) $snap->input_invalid_code,
+                       'message' => (string) ($snap->input_invalid_reason ?? '')];
+        }
+
+        $state = BaganrikiPublicView::state(
+            $pub !== null, $allCancelled, $inputInvalid, $pastDeadline);
+        if ($snap === null) { $state = 'PENDING'; }
+
+        $pubDto = null;
+        if ($pub !== null) {
+            $pubDto = [
+                'publication_id'           => $pub->publication_id,
+                'published_at'             => $pub->published_at,
+                'prediction_target_count'  => $pub->prediction_target_count ?? null,
+                'prediction_quota'         => json_decode((string) ($pub->prediction_quota ?? 'null'), true),
+                'publication_target_count' => $pub->publication_target_count ?? null,
+                'publication_quota'        => json_decode((string) ($pub->publication_quota ?? 'null'), true),
+                // @ANCHOR-20261023-R122-COUNTS  正式公開したときの頭数（変更計画書8章「正式公開時の頭数と現在頭数を区別」）
+                //   公開時に baganriki_publications.active_count へ保存してある値です。いまの頭数は live_state.active_count。
+                'active_count'             => isset($pub->active_count) ? (int) $pub->active_count : null,
+                'candidates'               => json_decode((string) ($pub->candidates ?? '[]'), true),
+                'evidence'                 => json_decode((string) ($pub->evidence ?? '[]'), true),
+            ];
+        }
+
+        // @ANCHOR-20261020-R122-API  いまの取消を映した枠と候補数
+        //   正式公開のリストは動かしません（取消だけで再選出しません）。
+        //   取消になった馬を除いた数だけを、別の欄として返します。
+        $actualQuota = null; $availableCount = null;
+        if ($pubDto !== null) {
+            $cans = (array) ($pubDto['candidates'] ?? []);
+            $actualQuota = ['A' => 0, 'B' => 0, 'D' => 0];
+            $availableCount = 0;
+            foreach ($cans as $c) {
+                $no = (int) ($c['horse_no'] ?? 0);
+                if (in_array($no, array_map('intval', $cancellations), true)) { continue; }
+                $availableCount++;
+                $b = (string) ($c['band'] ?? '');
+                if (isset($actualQuota[$b])) { $actualQuota[$b]++; }
+            }
+        }
+        // @ANCHOR-20261020-R122-CLOSE  締切の出どころ（凍結のときの監査から）
+        $closeSrc = null;
+        if (\Schema::hasTable('baganriki_audit_events') && $snap !== null) {
+            $ce = \DB::table('baganriki_audit_events')
+                    ->where('snapshot_id', $snap->id)
+                    ->where('kind', 'SALES_CLOSE_SOURCE')
+                    ->orderByDesc('id')->first();
+            if ($ce !== null) {
+                $cd = json_decode((string) $ce->diagnostics, true);
+                if (is_array($cd)) { $closeSrc = $cd; }
+            }
+        }
+        $effReply = null;
+        if ($salesClose !== null) {
+            $sc2 = BaganrikiWorker::dbUs($salesClose);
+            if ($sc2 !== null) {
+                $lc2 = ($live !== null && $live->live_close !== null)
+                    ? BaganrikiWorker::dbUs($live->live_close) : null;
+                $eff2 = BaganrikiTime::effectiveDeadlines($sc2, $lc2);
+                $effReply = BaganrikiTime::toJst($eff2['reply']);
+            }
+        }
+
+        return response()->json(BaganrikiPublicView::build([
+            'race_id'         => $race_id,
+            'state'           => $state,
+            'response_revision'     => $live->response_revision ?? null,
+            'publication_revision'  => $live->publication_revision ?? null,
+            'latest_publication_id' => $live->latest_publication_id ?? null,
+            'actual_quota'              => $actualQuota,
+            'available_candidate_count' => $availableCount,
+            'live_close'              => $live->live_close ?? null,
+            'effective_reply_deadline' => $effReply,
+            'worker_state'    => $slots,
+            'sales_close_at'  => $snap->sales_close_at ?? null,
+            'sales_close_source' => $closeSrc,
+            'mode'            => $snap->mode            ?? null,
+            'mode_status'     => $snap->mode_status     ?? null,
+            'allocation_mode' => $snap->allocation_mode ?? null,
+            'mode_policy_id'  => $snap->mode_policy_id  ?? null,
+            'display_rating'  => $snap->display_rating  ?? null,
+            'publication'     => $pubDto,
+            'state_revision'  => $live->state_revision ?? null,
+            'cancellations'   => $cancellations,
+            'active_count'    => $activeCount,
+            'live_target_count' => $live->live_target_count ?? null,
+            'live_quota'      => ($live !== null && ($live->live_quota ?? null) !== null)
+                                 ? json_decode((string) $live->live_quota, true) : null,
+            'effective_publish_deadline' => $effPublish,
+            'collection_audit' => ($snap !== null && ($snap->collection_audit ?? null) !== null)
+                                  ? json_decode((string) $snap->collection_audit, true) : null,
+            'input_freeze_at' => $snap->input_freeze_at ?? null,
+            // @ANCHOR-20261023-R122-COUNTS  凍結したときの頭数（N）。凍結集合の馬番の数です
+            'frozen_count'    => ($snap !== null && ($snap->frozen_nums ?? null) !== null)
+                                 ? count((array) json_decode((string) $snap->frozen_nums, true)) : null,
+            'coverage'        => ($snap !== null && ($snap->coverage ?? null) !== null)
+                                 ? json_decode((string) $snap->coverage, true) : null,
+            'diagnostics'     => $diag,
+            'shortfalls'      => ($pub !== null && ($pub->shortfalls ?? null) !== null)
+                                 ? json_decode((string) $pub->shortfalls, true) : [],
+        ]));
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-PROMPT  r12.2 の race_id（YYYYMMDD-回-場-日-R）
+     * ═══════════════════════════════════════════════════════════════════════
+     */
+    public static function r122RaceId($date, $kaisuu, $basho, $day, $race): string
+    {
+        return str_replace('-', '', (string) $date) . '-' . (string) $kaisuu . '-'
+             . (string) $basho . '-' . (string) $day . '-' . (int) $race;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-PROMPT  INPUT_JSON の材料を正本から集める
+     * ═══════════════════════════════════════════════════════════════════════
+     * 根拠：server_contract_r12.2.txt 2章〜5章・11章／詳細設計書 4章・14章
+     *
+     * ■ 作り話をしないための決まり
+     *   ・投票締切 sales_close_at の正本がDBに無いので、既定では作りません
+     *     （契約11.2）。$override['sales_close_at'] に正本を渡したときだけ
+     *     時刻契約を作ります。発走時刻で代用しません。
+     *   ・取得監査の実時刻（request_started_at / response_received_at /
+     *     available_at / batch_id / raw_payload）も既定ではDBにありません。
+     *     baganriki_acquisition_batches に確定行があればそれを使います。
+     *     無ければ作りません。$override['assume_audit'] を立てたときだけ、
+     *     「予定時刻で埋めた仮の監査」で組み立て、結果に assumed を立てます
+     *     （本番送信には使いません。送信文の形を確かめる用です）。
+     *
+     * ■ 取消の扱い
+     *   このDBは取消馬のオッズ列へ「取消」「除外」の文字を入れています。
+     *   情報上限（6分前+30秒）までの時点に印があるものを正式取消とし、
+     *   凍結集合から外します。3分前・発走時だけに印があるものは
+     *   凍結後の取消なので、凍結集合には残し cancelled_post として返します。
+     *
+     * @return array ['ok','ctx','code','reason','race_id','notes']
+     */
+    public static function r122GatherContext($date, $kaisuu, $basho, $day, $race,
+                                             array $override = []): array
+    {
+        $raceId = self::r122RaceId($date, $kaisuu, $basho, $day, $race);
+        $ng = static fn(string $code, string $why) =>
+            ['ok' => false, 'ctx' => null, 'code' => $code, 'reason' => $why,
+             'race_id' => $raceId, 'notes' => []];
+        $notes = [];
+
+        // ── 正本のレース情報（発走時刻） ───────────────────────────────
+        $r = \DB::table('t_horse_odds_finder_races')
+                ->where('date', $date)->where('kaisuu', $kaisuu)
+                ->where('basho', $basho)->where('day', $day)
+                ->where('race', (int) $race)->first();
+        if ($r === null)  return $ng('ENTRY_MISSING', 'このレースは正本にありません');
+        $st = trim((string) ($r->start_time ?? ''));
+        if (!preg_match('/^\d{1,2}:\d{2}(?::\d{2})?$/', $st)) {
+            return $ng('TIME_CONTRACT_INVALID', '発走時刻を読めません: ' . $st);
+        }
+        if (strlen($st) === 5) $st .= ':00';
+        if (strlen($st) === 7) $st = '0' . $st;
+        $anchorAt = (string) $date . 'T' . $st . '+09:00';
+        $anchorUs = BaganrikiTime::us($anchorAt);
+        if ($anchorUs === null) {
+            return $ng('TIME_CONTRACT_INVALID', '発走時刻を組み立てられません: ' . $anchorAt);
+        }
+
+        // ── 出馬表（正本の馬番） ──────────────────────────────────────
+        $entryNums = [];
+        // @ANCHOR-20261020-R122-PAST  馬名も取ります（過去走を引くため）
+        $entryNames = [];
+        foreach (\DB::table('t_horse_odds_finder_horses')
+                    ->where('date', $date)->where('kaisuu', $kaisuu)
+                    ->where('basho', $basho)->where('day', $day)
+                    ->where('race', (int) $race)->get(['num', 'name']) as $h) {
+            $n = (int) $h->num;
+            if ($n > 0) {
+                $entryNums[$n] = true;
+                $nm = trim((string) ($h->name ?? ''));
+                if ($nm !== '') { $entryNames[$n] = $nm; }
+            }
+        }
+        if ($entryNums === []) {
+            return $ng('ENTRY_MISSING', '出馬表の馬番がありません（契約2章で必須）');
+        }
+        ksort($entryNums);
+        $entryNums = array_keys($entryNums);
+
+        // ── オッズ（信号に使う6時点＋取消の見張り2時点） ───────────────
+        $first = \App\Constants\Constants::ODDS_DB_FIRST;
+        $last  = \App\Constants\Constants::ODDS_DB_LAST;
+        $slots = BaganrikiTime::INPUT_SLOTS;                    // 21,18,15,12,9,6
+        $watch = BaganrikiTime::WATCH_SLOTS;                    // 3,0
+        $read  = array_merge($slots, [3, $last, $first]);
+
+        $cells = [];          // [馬番][スロット][フィールド] => 元の文字列
+        $cancelPre = [];      // 情報上限までに取消の印があった馬番
+        $cancelPost = [];     // 3分前・発走時だけに印があった馬番
+        foreach (\DB::table('t_horse_odds_finder_odds')
+                    ->where('date', $date)->where('kaisuu', $kaisuu)
+                    ->where('basho', $basho)->where('day', $day)
+                    ->where('race', (int) $race)
+                    ->whereIn('minutes_before_start', $read)
+                    ->get(['num', 'minutes_before_start', 'odds', 'fuku_min', 'fuku_max'])
+                 as $o) {
+            $n = (int) $o->num;
+            $t = (int) $o->minutes_before_start;
+            $raw = trim((string) $o->odds);
+            if ($raw === '取消' || $raw === '除外') {
+                if (in_array($t, $slots, true))      $cancelPre[$n]  = true;
+                elseif ($t === 3 || $t === $last)    $cancelPost[$n] = true;
+                continue;
+            }
+            if (!in_array($t, $slots, true)) continue;          // 将来のオッズは混ぜない
+            if (BaganrikiAcquisition::usableDecimal($o->odds)) {
+                $cells[$n][$t]['win_odds'] = trim((string) $o->odds);
+            }
+            if (BaganrikiAcquisition::usableDecimal($o->fuku_min)) {
+                $cells[$n][$t]['place_min'] = trim((string) $o->fuku_min);
+            }
+            if (BaganrikiAcquisition::usableDecimal($o->fuku_max)) {
+                $cells[$n][$t]['place_max'] = trim((string) $o->fuku_max);
+            }
+        }
+        $cancelled = array_keys($cancelPre);
+        sort($cancelled);
+        $cancelledPost = array_values(array_diff(array_keys($cancelPost), $cancelled));
+        sort($cancelledPost);
+
+        // ── 取得監査（実時刻）────────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-ACQFIX  10月20日005のご指摘2（3件とも本物）
+        // ══════════════════════════════════════════════════════════════
+        // 2-1 DBの日時を RFC3339 へ直していませんでした。
+        //     DBは「2026-10-18 15:04:00.123456」で保存します。
+        //     BaganrikiTime::us は T区切りとタイムゾーンを必須にするので、
+        //     そのまま渡すと実際の監査行が必ず TIME_UNREADABLE で落ちます。
+        //     マイクロ秒を保ったまま RFC3339（+09:00）へ変換します。
+        // 2-2 input_freeze_at を採用判定へ渡していませんでした。
+        //     acceptBatch はこのキーを必須で読みます。
+        //     正本の発走時刻から出した情報上限を渡し、
+        //     バッチが自己申告する予定時刻が正本と一致するかも検査します。
+        // 2-3 採用バッチの原値ではなく、オッズ表の共通の値を使っていました。
+        //     採用した batch_id の raw_payload を厳密に読み、
+        //     SHA-256 を再計算して payload_hash と照合し、
+        //     <b>そのバッチの値だけ</b>を入力に使います。
+        //     別のバッチの馬や値が混ざらないようにします。
+        $assumeAudit = (bool) ($override['assume_audit'] ?? false);
+        $freezeUs    = BaganrikiTime::inputFreeze($anchorUs);
+        $freezeAt    = BaganrikiPrompt::rfc3339($freezeUs);
+        $audit  = null;
+        $batchCells = [];     // 採用バッチの原値 [馬番][スロット][項目]
+        $batchCancel = [];    // 採用バッチの中の取消 [馬番] => [スロット]
+        if (\Schema::hasTable('baganriki_acquisition_batches')) {
+            $rows = \DB::table('baganriki_acquisition_batches')
+                       ->where('race_id', $raceId)->get();
+            if (count($rows) > 0) {
+                $bySlot = [];
+                foreach ($rows as $b) {
+                    $slot = (int) $b->slot;
+                    if (!in_array($slot, $slots, true)) continue;   // 3分前・発走時は入力に使わない
+                    $raw  = (string) ($b->raw_payload ?? '');
+                    $hash = (string) ($b->payload_hash ?? '');
+                    $bad  = null;
+                    if ($raw === '')                                  $bad = '原ペイロードがありません';
+                    elseif ($hash === '')                             $bad = 'payload_hash がありません';
+                    elseif (hash('sha256', $raw) !== $hash)           $bad = '原ペイロードのSHA-256が保存hashと違います';
+                    // 予定時刻は正本の発走時刻から作ったものと一致させます
+                    $schAt = BaganrikiPrompt::rfc3339(BaganrikiTime::slotScheduled($anchorUs, $slot));
+                    $decl  = self::r122DbRfc3339($b->slot_scheduled_at);
+                    if ($bad === null && $decl !== null && $decl !== $schAt) {
+                        $bad = '自己申告の予定時刻が正本の発走時刻から出した値と違います（'
+                             . $decl . ' / ' . $schAt . '）';
+                    }
+                    $vals = [];
+                    $cncl = [];
+                    if ($bad === null) {
+                        $pl = json_decode($raw, true);
+                        if (!is_array($pl)) {
+                            $bad = '原ペイロードをJSONとして読めません';
+                        } else {
+                            // ══════════════════════════════════════════
+                            // @ANCHOR-20261020-R122-PAYSET  007のご指摘5
+                            // ══════════════════════════════════════════
+                            //   【旧】馬番をキーに $vals へ<b>上書き</b>して
+                            //     いました。同じ馬番が2回出てきても気づかず、
+                            //     出馬表に無い馬番も素通りし、取消の行と数値の
+                            //     行が併存していても最後に読んだ方が勝ちます。
+                            //     005・006で求められていた集合検査が、
+                            //     この場所に入っていませんでした。
+                            //   【いま】読みながら数え、<b>理由を付けて不採用に
+                            //     します。</b>バッチごとに見るので、1つの
+                            //     バッチが汚れても他のバッチは使えます。
+                            $seenNum = []; $dupNum = []; $unkNum = []; $bothNum = [];
+                            foreach ($pl as $h) {
+                                $n = (int) ($h['num'] ?? 0);
+                                if ($n <= 0) continue;
+                                if (isset($seenNum[$n])) { $dupNum[$n] = true; }
+                                $seenNum[$n] = true;
+                                if ($entryNums !== [] && !in_array($n, $entryNums, true)) {
+                                    $unkNum[$n] = true;
+                                }
+                                $t = trim((string) ($h['tan'] ?? ''));
+                                if ($t === '取消' || $t === '除外') {
+                                    if (isset($vals[$n])) { $bothNum[$n] = true; }
+                                    $cncl[] = $n;
+                                    continue;
+                                }
+                                if (in_array($n, $cncl, true)) { $bothNum[$n] = true; }
+                                $vals[$n] = [
+                                    'win'       => BaganrikiAcquisition::usableDecimal($t) ? $t : null,
+                                    'place_min' => BaganrikiAcquisition::usableDecimal($h['fuku_min'] ?? null)
+                                                   ? trim((string) $h['fuku_min']) : null,
+                                    'place_max' => BaganrikiAcquisition::usableDecimal($h['fuku_max'] ?? null)
+                                                   ? trim((string) $h['fuku_max']) : null,
+                                ];
+                            }
+                            $why = [];
+                            if ($dupNum !== []) {
+                                $why[] = '同じ馬番が2回以上あります（'
+                                       . implode('・', array_keys($dupNum)) . '）';
+                            }
+                            if ($unkNum !== []) {
+                                $why[] = '出馬表に無い馬番があります（'
+                                       . implode('・', array_keys($unkNum)) . '）';
+                            }
+                            if ($bothNum !== []) {
+                                $why[] = '取消の行と数値の行が同じ馬番で併存しています（'
+                                       . implode('・', array_keys($bothNum)) . '）';
+                            }
+                            if ($why !== []) { $bad = implode('／', $why); }
+                            $cncl = array_values(array_unique($cncl));
+                        }
+                    }
+                    $bySlot[$slot][] = [
+                        'batch_id'             => (string) $b->batch_id,
+                        'payload_hash'         => $hash,
+                        'slot_scheduled_at'    => $schAt,
+                        'source_updated_at'    => self::r122DbRfc3339($b->source_updated_at),
+                        'request_started_at'   => self::r122DbRfc3339($b->request_started_at),
+                        'response_received_at' => self::r122DbRfc3339($b->response_received_at),
+                        'available_at'         => self::r122DbRfc3339($b->available_at),
+                        'input_freeze_at'      => $freezeAt,
+                        'committed'            => ((int) $b->committed === 1) && ($bad === null),
+                        'payload_ng'           => $bad,
+                        'values'               => $vals,
+                        'cancelled'            => $cncl,
+                    ];
+                }
+                if ($bySlot !== []) {
+                    // 6分前の全頭確認は、出馬表から「そのバッチで取消でない馬」を活動馬とします
+                    $picked = [];
+                    foreach ($slots as $slot) {
+                        $cand = $bySlot[$slot] ?? [];
+                        // ══════════════════════════════════════════════
+                        // @ANCHOR-20261020-R122-CANDCANCEL  006のご指摘3-2
+                        // ══════════════════════════════════════════════
+                        //   【本物の不具合でした】候補バッチ<b>全件</b>の取消を
+                        //   先に差し引いて活動馬を作っていました。
+                        //   期限を過ぎて不採用になるバッチの取消まで効くので、
+                        //   「同じバッチに全活動馬の単勝がそろうか」という
+                        //   6分前の検査が<b>弱まります。</b>
+                        //   例：期限内のAに16番の単勝が無く、期限外のBだけに
+                        //   16番の取消がある。16番が活動馬から落ちるので、
+                        //   Aが全頭確認を通ってしまいます。
+                        //   時刻の条件を満たしたバッチの取消だけを使います。
+                        // ══════════════════════════════════════════════
+                        // @ANCHOR-20261020-R122-COMMITFIRST  007のご指摘5
+                        // ══════════════════════════════════════════════
+                        //   【まだ残っていました】ここは acceptBatch（時刻）
+                        //   しか見ていませんでした。<b>committed を見るのは
+                        //   後段の pick です。</b>そのため、
+                        //     ・Aは時刻適合・commit済み。16番の単勝だけ欠落
+                        //     ・Bは時刻適合・<b>未commit</b>。16番取消あり
+                        //   という並びだと、Bの取消で16番が活動馬から落ち、
+                        //   Aが「全頭そろった」として採用されます。
+                        //   hash不一致で committed=false にした候補でも同じです。
+                        //   【いま】pick と<b>同じ条件</b>を先に当てます。
+                        // ══════════════════════════════════════════════
+                        // @ANCHOR-20261021-R122-PERCAND  008のご指摘4
+                        // ══════════════════════════════════════════════
+                        //   【まだ足りませんでした】commit済み・時刻適合の
+                        //   候補<b>全部</b>の取消を合算した1つの集合を、
+                        //   各バッチの全頭検査に使っていました。
+                        //   「採用され得る」は「全頭検査を通った」ではありません。
+                        //   別の候補の取消で欠損が隠れ、取消を持たない候補が
+                        //   採用され、採用判定と凍結集合が食い違います。
+                        //   【いま】合算しません。基礎集合（出馬表）だけを渡し、
+                        //   <b>その候補自身の取消</b>は pick の中で引きます。
+                        $cancelSrc = [];
+                        foreach ($cand as $cb) {
+                            if ((array) $cb['cancelled'] !== []) {
+                                $cancelSrc[] = (string) $cb['batch_id']
+                                             . '（' . implode('・',
+                                               array_map('strval', (array) $cb['cancelled']))
+                                             . '）';
+                            }
+                        }
+                        if ($cancelSrc !== []) {
+                            $notes[] = $slot . '分前の全頭検査は、候補ごとに'
+                                     . '<b>その候補自身の取消だけ</b>を引いて行いました'
+                                     . '（取消を持つ候補 ' . implode('・', $cancelSrc) . '）';
+                        }
+                        $picked[$slot] = BaganrikiAcquisition::pick($slot, $cand,
+                                                                    $entryNums, $anchorUs);
+                        if (($picked[$slot]['status'] ?? '') === 'ADOPTED') {
+                            $bt = $picked[$slot]['batch'];
+                            foreach ((array) $bt['values'] as $n => $v) {
+                                foreach (['win' => 'win_odds', 'place_min' => 'place_min',
+                                          'place_max' => 'place_max'] as $k => $f) {
+                                    if (($v[$k] ?? null) !== null) $batchCells[$n][$slot][$f] = $v[$k];
+                                }
+                            }
+                            foreach ((array) $bt['cancelled'] as $n) $batchCancel[$n][] = $slot;
+                        }
+                    }
+                    $audit = BaganrikiAcquisition::buildAudit($picked);
+                    $notes[] = 'collection_audit と原値は、採用した監査バッチの'
+                             . 'raw_payload から作りました（SHA-256照合つき）';
+                }
+            }
+        }
+        if ($audit === null) {
+            if (!$assumeAudit) {
+                return $ng('ACQUISITION_AUDIT_MISSING',
+                    '取得監査の実時刻（batch_id・request_started_at・'
+                  . 'response_received_at・available_at・raw_payload）が'
+                  . '既存DBにありません。お願い②（A案）の記録を入れてから送れます');
+            }
+            // 仮の監査。予定時刻で埋めたことを必ず残します。
+            $audit = [];
+            foreach ($slots as $slot) {
+                $has = false;
+                foreach ($entryNums as $n) {
+                    if (isset($cells[$n][$slot]['win_odds'])) { $has = true; break; }
+                }
+                if (!$has) {
+                    $audit[(string) $slot] = ['status' => 'UNAVAILABLE',
+                        'reason' => 'このスロットの単勝オッズが1頭も読めません'];
+                    continue;
+                }
+                $sch = BaganrikiTime::slotScheduled($anchorUs, $slot);
+                $audit[(string) $slot] = [
+                    'status'               => 'ADOPTED',
+                    'batch_id'             => 'ASSUMED-' . $raceId . '-' . $slot,
+                    'payload_hash'         => hash('sha256',
+                        BaganrikiPrompt::canonical(['race_id' => $raceId, 'slot' => $slot,
+                                                    'cells' => $cells]) ?? ''),
+                    'slot_scheduled_at'    => BaganrikiPrompt::rfc3339($sch),
+                    'source_updated_at'    => null,
+                    'request_started_at'   => BaganrikiPrompt::rfc3339($sch),
+                    'response_received_at' => BaganrikiPrompt::rfc3339($sch),
+                    'available_at'         => BaganrikiPrompt::rfc3339($sch),
+                ];
+            }
+            $notes[] = '【仮】collection_audit の実時刻は予定時刻で埋めました'
+                     . '（本番送信には使いません）';
+        } else {
+            // 実監査行があるときは、採用バッチの原値だけを使います
+            $cells = $batchCells;
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-CANCELSRC  10月20日006のご指摘3-1
+            // ══════════════════════════════════════════════════════════
+            //   【本物の不具合でした】数値は $batchCells へ入れ替えるのに、
+            //   <b>$cancelPre は通常オッズ表のまま残していました。</b>
+            //   通常表は後から上書きされるので、採用しなかったバッチや
+            //   情報上限より後に書かれた取消が凍結集合へ混ざります。
+            //   例：上限内の採用バッチAでは16頭が活動中。その後の期限超過
+            //   バッチBで16番が取消になり通常表の6分前行が更新される。
+            //   Aの数値を使っていても、B由来の取消で16番が消えていました。
+            //   取消は<b>情報上限までに利用可能だった採用バッチ</b>だけで決めます。
+            //   名目スロットが6だから上限内、という扱いもしません。
+            $cancelPre = [];
+            foreach ($batchCancel as $n => $sl) {
+                if (array_intersect($sl, $slots) !== []) $cancelPre[(int) $n] = true;
+            }
+            $notes[] = '取消は採用した監査バッチだけから決めました'
+                     . '（通常オッズ表の取消は凍結集合に入れていません）';
+            $cancelled = array_keys($cancelPre);
+            sort($cancelled);
+            $cancelledPost = array_values(array_diff(array_keys($cancelPost), $cancelled));
+            sort($cancelledPost);
+        }
+
+        // ── source_registry（原値のまま・丸めません）──────────────────
+        $registry = [];
+        foreach ($entryNums as $n) {
+            if (in_array($n, $cancelled, true)) continue;
+            foreach ($slots as $slot) {
+                foreach (['win_odds', 'place_min', 'place_max'] as $f) {
+                    $v = $cells[$n][$slot][$f] ?? null;
+                    if ($v === null) continue;              // 欠損は入れません
+                    $a = $audit[(string) $slot] ?? null;
+                    if ($a === null || ($a['status'] ?? '') !== 'ADOPTED') continue;
+                    // ══════════════════════════════════════════════════
+                    // @ANCHOR-20261020-R122-DIGITS2  10月20日006のご指摘6-1
+                    // ══════════════════════════════════════════════════
+                    //   【旧】PHPの数値で正確に持てない値は<b>登録から落として
+                    //     いました</b>。ご指摘のとおり、「文字列で保持した」と
+                    //     言いながら、後段で捨てていたので直っていませんでした。
+                    //   【いま】落としません。<b>元の十進数の文字列をそのまま
+                    //     value に入れます。</b>
+                    //     ・source_registry Schema の value は
+                    //       ["string","number","boolean","null"] なので、
+                    //       文字列のままでも適合します（Schemaは変えていません）。
+                    //     ・信号の計算は BaganrikiPrompt::horsesForSignals() が
+                    //       文字列をそのまま受け取り、多倍長整数のたすき掛けで
+                    //       比べます。floatを通らないので桁は落ちません。
+                    //     ・数値で持てたものは今までどおり数値で入れます
+                    //       （送信文のバイト列を変えないため）。
+                    $nv = self::r122NumValue($v);
+                    if (!is_int($nv) && !is_float($nv)) {
+                        // 元の十進数の形だけは確かめます（契約9章・最大128桁）。
+                        //   形が違うものは作り話になるので入れません。
+                        if (!preg_match('/^-?\d{1,128}(?:\.\d{1,128})?$/',
+                                        trim((string) $v))) {
+                            $notes[] = '馬番 ' . $n . ' の ' . $f . '（' . $slot
+                                     . '分前）は十進数の形ではないので登録しません'
+                                     . 'でした: ' . $v;
+                            continue;
+                        }
+                        $nv = trim((string) $v);
+                        $notes[] = '馬番 ' . $n . ' の ' . $f . '（' . $slot . '分前）は'
+                                 . 'PHPの数値では丸めが起きるので、十進数の文字列'
+                                 . 'のまま登録しました（桁は落としていません）: ' . $nv;
+                    }
+                    $ref = 'h' . $n . '_' . $f . '_' . $slot;
+                    $registry[$ref] = [
+                        'source_ref'           => $ref,
+                        'race_id'              => $raceId,
+                        'value'                => $nv,
+                        'scope'                => 'HORSE',
+                        'horse_nos'            => [$n],
+                        'applicable_horse_nos' => [],
+                        'field'                => $f,
+                        'unit'                 => 'odds',
+                        'slot_offset'          => $slot,
+                        'observed_at'          => $a['response_received_at'],
+                        'available_at'         => $a['available_at'],
+                        'computed_at'          => null,
+                        'source_kind'          => 'OBSERVED',
+                        'parents'              => [],
+                        'formula_id'           => null,
+                        'formula_version'      => null,
+                        'dependency_key'       => 'h' . $n . '_' . $f,
+                        'dependency_role'      => 'SIGNAL',
+                    ];
+                }
+            }
+        }
+        if ($registry === []) {
+            return $ng('SOURCE_REGISTRY_EMPTY', '登録できる原値がありません');
+        }
+
+        // ── オッズ以外の材料（@ANCHOR-20261020-R122-COVERAGE）─────────
+        //   断層・回収率統計・過去類似統計を載せます。
+        //   「無いから UNAVAILABLE」ではなく「有るのに繋いでいない」状態を
+        //   なくすための接続です（契約3章・10月20日004 のご判断2）。
+        $extraCov = [];
+        {
+            $win6 = [];
+            foreach ($entryNums as $n) {
+                if (in_array($n, $cancelled, true)) continue;
+                $v = $cells[$n][6]['win_odds'] ?? null;
+                if ($v !== null) $win6[$n] = $v;
+            }
+            $fr = BaganrikiSnapshot::frozenRank($win6);
+            if (($fr['ok'] ?? false) === true) {
+                $ex = self::r122ExtraRegistry(
+                    ['race_id' => $raceId, 'audit' => $audit],
+                    $fr['rank'], $cells, BaganrikiTime::inputFreeze($anchorUs));
+                foreach ($ex['registry'] as $k => $v) $registry[$k] = $v;
+                $extraCov = $ex['coverage'];
+                if ($ex['registry'] !== []) {
+                    $notes[] = '追加材料を ' . count($ex['registry']) . ' 件 載せました'
+                             . '（断層・回収率統計・過去類似統計）';
+                }
+
+                // ── @ANCHOR-20261020-R122-MARKET  OPI と推定確定オッズ ──
+                //   式はいまの商品と同じものを使います（作り直しません）。
+                //   当日を含む集計・情報上限より後に算出された集計は載せません。
+                $mp = self::r122MarketPriorRegistry($raceId, (string) $date,
+                          $fr['rank'], $cells,
+                          BaganrikiPrompt::rfc3339(BaganrikiTime::inputFreeze($anchorUs)));
+                foreach ($mp['registry'] as $k => $v) { $registry[$k] = $v; }
+                $extraCov = $mp['coverage'] + $extraCov;
+                if ($mp['registry'] !== []) {
+                    $notes[] = 'OPI と推定確定オッズを ' . count($mp['registry'])
+                             . ' 件 載せました';
+                }
+            }
+        }
+
+        // ── @ANCHOR-20261020-R122-PAST  過去走 ─────────────────────────
+        //   取消になった馬は凍結集合に残るので、過去走も載せます。
+        //   情報上限の切り方は r122PastRunsRegistry の中に書いてあります。
+        $pr = self::r122PastRunsRegistry($raceId, (string) $date, $entryNames,
+                  BaganrikiPrompt::rfc3339(BaganrikiTime::inputFreeze($anchorUs)));
+        foreach ($pr['registry'] as $k => $v) { $registry[$k] = $v; }
+        $extraCov = $pr['coverage'] + $extraCov;
+        if ($pr['registry'] !== []) {
+            $notes[] = '過去走を ' . count($pr['registry']) . ' 件 載せました'
+                     . '（' . ($pr['horses_with_past'] ?? 0) . '頭ぶん・直近5走まで）';
+        }
+
+        // ── coverage（入れていない区分は理由を書いて UNAVAILABLE）─────
+        $coverage = [
+            'past_runs'  => ['status' => 'UNAVAILABLE',
+                'reason' => '過去走は今回の入力へ入れていません（残作業・source_registry未整備）'],
+            'OPI'        => ['status' => 'UNAVAILABLE',
+                'reason' => 'OPIは今回の入力へ入れていません（残作業・source_registry未整備）'],
+            'estimated_odds' => ['status' => 'UNAVAILABLE',
+                'reason' => '推定確定オッズは今回の入力へ入れていません（残作業）'],
+            'recovery_statistics' => ['status' => 'UNAVAILABLE',
+                'reason' => '回収率統計は今回の入力へ入れていません（残作業）'],
+            'similar_statistics'  => ['status' => 'UNAVAILABLE',
+                'reason' => 'この頭数帯・人気順位の集計がありませんでした'],
+            'legacy_qualifications' => ['status' => 'UNAVAILABLE',
+                'reason' => '旧資格は r12.2 では使いません'],
+            'gap_history' => ['status' => 'UNAVAILABLE',
+                'reason' => '断層履歴は今回の入力へ入れていません（残作業）'],
+        ];
+        // 実際に載せた区分は INCLUDED と source_refs で上書きします
+        if ($extraCov !== []) {
+            $coverage = $extraCov + $coverage;
+        }
+        if (isset($override['coverage']) && is_array($override['coverage'])) {
+            $coverage = $override['coverage'] + $coverage;
+        }
+
+        $ctx = [
+            'race_id'         => $raceId,
+            'anchor_at'       => BaganrikiPrompt::rfc3339($anchorUs),
+            // @ANCHOR-20261020-R122-CLOSE  正本を渡されていなければ、
+            //   JRA公式の規則（インターネット投票は発走時刻の1分前）で出します。
+            //   発走時刻で代用しているのではありません。公開された規則から
+            //   発走時刻を起点に導いた値です。出どころは notes に残します。
+            'sales_close_at'  => $override['sales_close_at']
+                                 ?? (($d = BaganrikiTime::salesCloseFromPost($anchorUs))
+                                     === null ? null : BaganrikiPrompt::rfc3339($d)),
+            'registry'        => $registry,
+            'audit'           => $audit,
+            'coverage'        => $coverage,
+            'entry_nums'      => $entryNums,
+            'cancelled'       => $cancelled,
+            'cancelled_post'  => $cancelledPost,
+            'legacy_gap_type' => null,
+            'similar'         => $override['similar'] ?? null,
+        ];
+        // @ANCHOR-20261020-R122-CLOSE  締切の出どころを返します
+        //   （INPUT_JSON の time_contract は閉じた形なので、そこには入れません。
+        //     凍結のときに監査へ1行残します）
+        $closeSrc = isset($override['sales_close_at'])
+            ? 'OVERRIDE'
+            : (BaganrikiTime::salesCloseDerive()
+                ? BaganrikiTime::SALES_CLOSE_SOURCE
+                  . '(T-' . BaganrikiTime::salesCloseOffsetSec() . 's)'
+                : 'NOT_DERIVED');
+        return ['ok' => true, 'ctx' => $ctx, 'code' => null, 'reason' => null,
+                'race_id' => $raceId, 'notes' => $notes,
+                'sales_close_source' => $closeSrc];
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-ACQFIX  DBの日時を RFC3339（JST）へ
+     * ═══════════════════════════════════════════════════════════════════════
+     * DATETIME(6) は「2026-10-18 15:04:00.123456」の形で返ります。
+     * マイクロ秒を落とさずに「2026-10-18T15:04:00.123456+09:00」へ直します。
+     * 小数部が無ければ付けません。読めない値は null を返します（埋めません）。
+     *
+     * DBの保存タイムゾーンはサーバのローカル時刻（JST）です。
+     * ここで +09:00 を付けるのは、その前提を明示するためです。
+     */
+    public static function r122DbRfc3339($v): ?string
+    {
+        if ($v === null) return null;
+        $s = trim((string) $v);
+        if ($s === '' || strncmp($s, '0000', 4) === 0) return null;
+        if (preg_match('/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(\.\d{1,6})?/', $s, $m)) {
+            $frac = $m[3] ?? '';
+            if ($frac === '.000000' || $frac === '.0') $frac = '';
+            return $m[1] . 'T' . $m[2] . $frac . '+09:00';
+        }
+        return null;
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-PROMPT  十進数の文字列を JSON の数値へ
+     *   「2.1」→ 2.1、「11」→ 11。桁を増やしたり減らしたりしません。
+     *   読めないものは文字列のまま返します（作り話をしないため）。
+     */
+    public static function r122NumValue(string $s)
+    {
+        // @ANCHOR-20261020-R122-DIGITS  10月20日005のご指摘7-1
+        //   契約9章は「整数・小数は最大128桁」です。
+        //   【旧】'/^\d+(?:\.\d{1,4})?$/' … 小数4桁より下を黙って捨てていました。
+        if (!preg_match('/^\d{1,128}(?:\.\d{1,128})?$/', $s)) return $s;
+        if (strpos($s, '.') === false) {
+            // PHPの整数で正確に表せる範囲だけ数値にします。
+            // 超えるものは文字列のまま返し、呼び出し側が登録しません。
+            return (strlen(ltrim($s, '0')) <= 18) ? (int) $s : $s;
+        }
+        // 小数は「floatにして文字列へ戻すと元と一致する」ものだけ数値にします。
+        // 一致しないものは丸めが起きているので、数値にしません。
+        //   PHPの (string)(float) は、元へ戻せる最短の表記を返します
+        //   （serialize_precision=-1）。sprintf('%.17F') は
+        //   2.1 を '2.10000000000000009' にしてしまうので使いません。
+        $norm = rtrim(rtrim($s, '0'), '.');
+        if ($norm === '') { $norm = '0'; }
+        $back = (string) (float) $s;
+        return ($back === $norm) ? (float) $s : $s;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-PROMPT  送信文（system＋INPUT_JSON）を1組にする
+     * @ANCHOR-20261020-R122-ONEBUILD  10月20日007のご指摘2（最優先）
+     * ═══════════════════════════════════════════════════════════════════════
+     * 失敗したら ok=false を返します。<b>旧本文へ落ちません。</b>
+     *
+     * ■ ご指摘のとおりでした
+     *   【旧】送信用と保存用で r122GatherContext を<b>2回</b>呼んでいました。
+     *     ① r122AssembleSend が本文Aを作る
+     *     ② r122QueueReserve が r122Freeze を呼ぶ
+     *     ③ r122Freeze が<b>もう一度</b>組み立てて本文Bを保存する
+     *     ④ 保存した snapshot_hash と本文Aの snapshot_hash を比べる
+     *   派生の computed_at を実計算時刻へ直した（007の4-2）ので、
+     *   ①と③の時刻が違えば共通hashも違います。④で SNAPSHOT_MISMATCH に
+     *   なり、<b>自分で自分の送信を拒否します。</b>DBが動かなくても起きます。
+     *   log/02_凍結.txt に出ていた2つのhashの食い違いを、前回
+     *   「組み立てが別だから」と説明しましたが、無害ではありませんでした。
+     *
+     * ■ いまの形
+     *   <b>組み立ては1回だけです。</b>
+     *     ① 固定入力（generation=0）があるか見る
+     *     ② 無ければ r122Freeze で<b>1回だけ</b>作って固定する
+     *     ③ <b>保存した本文をそのまま読んで返す</b>（作り直しません）
+     *   1st も 2nd も 訂正も、同じ保存物を読みます。
+     *   詳細設計書7.2「両roleのJSONは保存した本文をそのまま送信する」です。
+     *
+     *   hash検査を外す・computed_at を予定時刻へ戻す・時刻をhash対象から
+     *   外す、という回避はしていません。
+     *
+     * ■ 作り直す側（試験・調査用）
+     *   保存を見ずに組み立てたいときは r122AssembleFresh() を呼びます。
+     *   <b>送信には使いません。</b>
+     */
+    public function r122AssembleSend($date, $kaisuu, $basho, $day, $race,
+                                     string $role, array $override = []): array
+    {
+        $raceId = self::r122RaceId($date, $kaisuu, $basho, $day, $race);
+        $fail = static function (string $code, string $reason)
+                use ($role, $raceId): array {
+            return ['ok' => false, 'role' => $role, 'race_id' => $raceId,
+                    'code' => $code, 'reason' => $reason,
+                    'system' => null, 'system_sha256' => null, 'user' => null,
+                    'user_bytes' => 0, 'input' => null, 'snapshot_hash' => null,
+                    'issues' => [], 'derived' => [], 'notes' => []];
+        };
+        if ($role !== '1st' && $role !== '2nd') {
+            return $fail('ROLE_INVALID', 'role は 1st か 2nd だけです（' . $role . '）');
+        }
+        if (!\Schema::hasTable('baganriki_snapshots')) {
+            return $fail('TABLE_MISSING',
+                'r12.2 のテーブルがありません（--r122-install で作ります）');
+        }
+
+        // ── ① 固定入力を探します（本番は generation=0 だけ）──────────
+        $snap = \DB::table('baganriki_snapshots')
+                  ->where('race_id', $raceId)->where('generation', 0)->first();
+
+        // ── ② 無ければ1回だけ作って固定します ────────────────────────
+        $notes = [];
+        if ($snap === null) {
+            $fz = $this->r122Freeze($date, $kaisuu, $basho, $day, $race,
+                                    $override, 'PRODUCTION', false);
+            if (!($fz['ok'] ?? false)) {
+                return $fail((string) ($fz['code'] ?? 'FREEZE_FAILED'),
+                             (string) ($fz['reason'] ?? '固定入力を作れません'));
+            }
+            $notes[] = 'このレースの固定入力をいま作りました（1回だけ）';
+            $snap = \DB::table('baganriki_snapshots')
+                      ->where('race_id', $raceId)->where('generation', 0)->first();
+        } else {
+            $notes[] = '固定済みの入力をそのまま使いました（作り直していません）';
+        }
+        if ($snap === null) {
+            return $fail('NO_SNAPSHOT', '固定入力を読み戻せません');
+        }
+
+        // ── ③ 保存した本文をそのまま読みます ─────────────────────────
+        $col  = ($role === '2nd') ? 'input_json_2nd' : 'input_json_1st';
+        $user = (string) ($snap->{$col} ?? '');
+        if ($user === '') {
+            return $fail('NO_SAVED_INPUT',
+                '固定入力に ' . $role . ' の本文が入っていません（' . $col . '）');
+        }
+        $in = json_decode($user, true);
+        if (!is_array($in)) {
+            return $fail('SAVED_INPUT_BROKEN',
+                '固定入力の ' . $role . ' 本文を読めません');
+        }
+        // 保存本文の共通hashと、snapshot_hash 列が合っているか
+        if ((string) ($in['snapshot_hash'] ?? '') !== (string) $snap->snapshot_hash) {
+            return $fail('SAVED_HASH_MISMATCH',
+                '保存本文の snapshot_hash と列の値が違います（保存が壊れています）');
+        }
+
+        // ── ④ system は配布された本文ファイルから（中身は決まっています）──
+        $sys = BaganrikiPrompt::systemBody($role);
+        if (!$sys['ok']) {
+            return $fail('PROMPT_BODY_INVALID', (string) $sys['reason']);
+        }
+
+        $asm = ['ok' => true, 'role' => $role, 'race_id' => $raceId,
+                'system' => $sys['body'], 'system_sha256' => $sys['sha256'],
+                'user' => $user, 'user_bytes' => strlen($user),
+                'input' => $in, 'snapshot_hash' => (string) $snap->snapshot_hash,
+                'code' => null, 'reason' => null, 'issues' => [],
+                'derived' => [], 'notes' => $notes,
+                // @ANCHOR-20261020-R122-ONEBUILD  保存物をそのまま送った印
+                'from_saved' => true];
+
+        // ── ⑤ 保存物でも、送る前の検査は同じように通します ───────────
+        $asm['issues'] = BaganrikiPrompt::selfCheck($asm);
+        if ($asm['issues'] !== []) {
+            $asm['ok']     = false;
+            $asm['code']   = 'SEND_SELF_CHECK_FAILED';
+            $asm['reason'] = implode('／', array_column($asm['issues'], 'reason'));
+        }
+        return $asm;
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-ONEBUILD  保存を見ずに組み立てます（試験・調査用）
+     *
+     *   <b>送信には使いません。</b>実レースの入力がどう組み上がるかを
+     *   見るための関数です（--r122-prod-input や市場試験など）。
+     *   呼ぶたびに派生の計算時刻が変わるので、2回呼べば共通hashは変わります。
+     *   それが普通です。送信経路はこの関数を通りません。
+     */
+    public function r122AssembleFresh($date, $kaisuu, $basho, $day, $race,
+                                      string $role, array $override = []): array
+    {
+        $g = self::r122GatherContext($date, $kaisuu, $basho, $day, $race, $override);
+        if (!$g['ok']) {
+            return ['ok' => false, 'role' => $role, 'race_id' => $g['race_id'],
+                    'code' => $g['code'], 'reason' => $g['reason'],
+                    'system' => null, 'system_sha256' => null, 'user' => null,
+                    'user_bytes' => 0, 'input' => null, 'snapshot_hash' => null,
+                    'issues' => [], 'derived' => [], 'notes' => $g['notes']];
+        }
+        $asm = BaganrikiPrompt::assemble($g['ctx'], $role);
+        $asm['race_id']    = $g['race_id'];
+        $asm['notes']      = $g['notes'];
+        $asm['from_saved'] = false;
+        return $asm;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-FREEZE  凍結入力の保存（snapshot）
+     * ═══════════════════════════════════════════════════════════════════════
+     * 根拠：server_contract_r12.2.txt 2章・3章・5章・11章／詳細設計書 4.4・7.2
+     *
+     * ■ 何を保存するか
+     *   両roleへ渡す共通JSONの原文と SHA-256、1st・2nd それぞれの INPUT_JSON、
+     *   凍結出走集合と凍結順位、信号・S・mode一式、配分、取得監査、coverage、
+     *   発走時刻・cutoff・input_freeze・投票締切、そして実際に保存した時刻。
+     *
+     * ■ 決めごと
+     *   ・<b>一度固定したら変えません。</b>同じ race_id・generation が既にあれば
+     *     何もせず「既存」を返します。上書きしません。
+     *   ・generation は期限の延長では増やしません（契約5章）。
+     *   ・入力が作れないときは snapshot を作りません。
+     *     代わりに baganriki_race_runs へ理由コードつきで1行残します
+     *     （「何も起きなかった」と「入力が不正だった」を区別するため）。
+     *   ・frozen_at は実際に保存した時刻です。input_freeze_at とは別物で、
+     *     予定時刻で埋めません。
+     *   ・4つの頭数（entry / acquired / frozen / active）は混ぜずに別々に出します。
+     *
+     * @param array  $override  投票締切などの差し込み（検証用）
+     * @param string $runKind   'PRODUCTION' か 'REPLAY'
+     * @param bool   $dryRun    true なら1行も書かずに結果だけ返す
+     * @return array ['ok','race_id','code','reason','skipped','snapshot_hash','counts']
+     */
+    public function r122Freeze($date, $kaisuu, $basho, $day, $race,
+                               array $override = [], string $runKind = 'PRODUCTION',
+                               bool $dryRun = false): array
+    {
+        $raceId = self::r122RaceId($date, $kaisuu, $basho, $day, $race);
+        $now    = BaganrikiPrompt::rfc3339((int) BaganrikiTime::us(date('c')));
+        $nowDb  = (new \DateTimeImmutable('now'))->format('Y-m-d H:i:s.u');
+        $runId  = 'run-' . $raceId . '-' . date('YmdHis') . '-'
+                . substr(bin2hex(random_bytes(3)), 0, 6);
+        $out = ['ok' => false, 'race_id' => $raceId, 'code' => null, 'reason' => null,
+                'skipped' => false, 'snapshot_hash' => null, 'counts' => []];
+
+        if (!\Schema::hasTable('baganriki_snapshots')
+            || !\Schema::hasTable('baganriki_race_runs')) {
+            $out['code']   = 'TABLE_MISSING';
+            $out['reason'] = 'r12.2 のテーブルがありません（--r122-install で作ります）';
+            return $out;
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-SEP  REPLAY と PRODUCTION を混ぜません
+        // ══════════════════════════════════════════════════════════════
+        // 【10月20日005のご指摘9。そのとおりでした】
+        //   snapshot の検索も一意キーも race_id＋generation だけだったので、
+        //   仮の監査・締切で保存した REPLAY を、本番の PRODUCTION が
+        //   「既存」と見て成功扱いする経路がありました。
+        //   <b>REPLAY は generation=900 の別世代に保存</b>し、
+        //   PRODUCTION は generation=0 だけを見ます。
+        //   仮置き（assume_audit／sales_close_at の差し込み）で作った入力は
+        //   PRODUCTION として保存できないようにもしました。
+        $isReplay = ($runKind === 'REPLAY');
+        $assumed  = (bool) ($override['assume_audit'] ?? false)
+                 || array_key_exists('sales_close_at', $override);
+        if ($assumed && !$isReplay) {
+            $out['code']   = 'REPLAY_ONLY';
+            $out['reason'] = '仮の監査・締切で作った入力は PRODUCTION として保存しません';
+            return $out;
+        }
+        $generation = $isReplay ? 900 : 0;
+
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-EARLY  10月20日006のご指摘3-3（本物の不具合）
+        // ══════════════════════════════════════════════════════════════
+        //   実行時刻は取っていましたが、<b>情報上限に達したかを見ずに
+        //   保存していました。</b>6分前のデータがすぐ届いて T−358秒 で
+        //   呼ばれると、上限 T−330秒 の前に固定できてしまいます。
+        //   そのあと T−340秒 に利用可能になった正式取消は、本来なら
+        //   凍結集合へ反映する対象なのに「既存」で取り逃します。
+        //   上限に達する前の凍結は、ここで断ります（待つのは呼び出し側です）。
+        //   REPLAY（再生）は過去のレースを扱うので、この検査をしません。
+        if (!$isReplay) {
+            $st = (string) ($override['start_time'] ?? '');
+            $anchorAt = null;
+            if ($st !== '') {
+                if (strlen($st) === 5) { $st .= ':00'; }
+                $anchorAt = substr((string) $date, 0, 10) . 'T' . $st . '+09:00';
+            } else {
+                $rowR = \DB::table('t_horse_odds_finder_races')
+                          ->where('date', $date)->where('kaisuu', $kaisuu)
+                          ->where('basho', $basho)->where('day', $day)
+                          ->where('race', (int) $race)->first();
+                if ($rowR !== null && ($rowR->start_time ?? '') !== '') {
+                    $s2 = (string) $rowR->start_time;
+                    if (strlen($s2) === 5) { $s2 .= ':00'; }
+                    $anchorAt = substr((string) $rowR->date, 0, 10) . 'T' . $s2 . '+09:00';
+                }
+            }
+            $anchorUs0 = ($anchorAt === null) ? null : BaganrikiTime::us($anchorAt);
+            if ($anchorUs0 !== null) {
+                $freezeUs0 = BaganrikiTime::inputFreeze($anchorUs0);
+                $nowUs0    = BaganrikiWorker::nowUs();
+                if ($nowUs0 < $freezeUs0) {
+                    $out['code']   = 'TOO_EARLY';
+                    $out['reason'] = '情報上限に達していません（いま '
+                                   . BaganrikiTime::toJst($nowUs0) . '／情報上限 '
+                                   . BaganrikiTime::toJst($freezeUs0)
+                                   . '）。上限到達後に固定します';
+                    return $out;
+                }
+            }
+        }
+
+        // ── すでに固定済みなら触りません（同じ世代だけを見ます）──────
+        $exists = \DB::table('baganriki_snapshots')
+                     ->where('race_id', $raceId)->where('generation', $generation)->first();
+        if ($exists !== null) {
+            $out['ok'] = true; $out['skipped'] = true;
+            $out['snapshot_hash'] = $exists->snapshot_hash;
+            $out['reason'] = 'すでに固定済みです（上書きしません）';
+            return $out;
+        }
+
+        // ── 材料を集めて両roleの入力を作ります ───────────────────────
+        $g = self::r122GatherContext($date, $kaisuu, $basho, $day, $race, $override);
+        $a1 = null; $a2 = null;
+        if ($g['ok']) {
+            $a1 = BaganrikiPrompt::assemble($g['ctx'], '1st');
+            $a2 = BaganrikiPrompt::assemble($g['ctx'], '2nd');
+        }
+        $bad = null;
+        if (!$g['ok'])                       $bad = [$g['code'], $g['reason']];
+        elseif (!$a1['ok'])                  $bad = [$a1['code'], $a1['reason']];
+        elseif (!$a2['ok'])                  $bad = [$a2['code'], $a2['reason']];
+        elseif ($a1['snapshot_hash'] !== $a2['snapshot_hash'])
+            $bad = ['SNAPSHOT_HASH_MISMATCH', '1stと2ndの共通hashが違います'];
+
+        // ── 4つの頭数 ────────────────────────────────────────────────
+        $entryCount = ($g['ok'] && isset($g['ctx']['entry_nums']))
+                    ? count($g['ctx']['entry_nums']) : null;
+        $acquired = \DB::table('t_horse_odds_finder_odds')
+            ->where('date', $date)->where('kaisuu', $kaisuu)->where('basho', $basho)
+            ->where('day', $day)->where('race', (int) $race)
+            ->whereIn('minutes_before_start', BaganrikiTime::INPUT_SLOTS)
+            ->distinct()->count('num');
+        $frozenCount = ($bad === null) ? (int) $a1['input']['N'] : null;
+        $activeCount = null;
+        if ($bad === null) {
+            $post = (array) ($g['ctx']['cancelled_post'] ?? []);
+            $activeCount = max(0, $frozenCount - count($post));
+        }
+        $out['counts'] = ['entry' => $entryCount, 'acquired' => (int) $acquired,
+                          'frozen' => $frozenCount, 'active' => $activeCount];
+
+        if ($dryRun) {
+            $out['ok'] = ($bad === null);
+            if ($bad !== null) { $out['code'] = $bad[0]; $out['reason'] = $bad[1]; }
+            else { $out['snapshot_hash'] = $a1['snapshot_hash']; }
+            return $out;
+        }
+
+        // ── 入力が作れないとき：race_runs だけ残します ────────────────
+        if ($bad !== null) {
+            \DB::table('baganriki_race_runs')->insert([
+                'run_id' => $runId, 'race_id' => $raceId, 'generation' => $generation,
+                'run_kind' => $runKind, 'status' => 'INPUT_INVALID',
+                'entry_count' => $entryCount, 'acquired_count' => (int) $acquired,
+                'frozen_count' => null, 'active_count' => null,
+                'invalid_code' => $bad[0], 'invalid_reason' => $bad[1],
+                'release_version' => BaganrikiPrompt::PROMPT_VERSION,
+                'created_at' => $nowDb, 'updated_at' => $nowDb,
+            ]);
+            $out['code'] = $bad[0]; $out['reason'] = $bad[1];
+            return $out;
+        }
+
+        // ── 固定して保存します ───────────────────────────────────────
+        $in   = $a1['input'];
+        $hash = BaganrikiPrompt::commonHash($in);
+        $frozenRank = [];
+        foreach ((array) $in['runners'] as $r) {
+            $frozenRank[(string) $r['horse_no']] = (int) $r['win_rank'];
+        }
+        $toDb = static function ($rfc) {
+            $us = BaganrikiTime::us($rfc);
+            if ($us === null) return null;
+            return (new \DateTimeImmutable('@' . intdiv($us, 1000000)))
+                ->setTimezone(new \DateTimeZone('Asia/Tokyo'))
+                ->format('Y-m-d H:i:s') . sprintf('.%06d', $us % 1000000);
+        };
+        $j = static fn($v) => json_encode($v,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+
+        $closeSrc = (string) ($g['sales_close_source'] ?? 'UNKNOWN');
+        \DB::transaction(function () use (
+            $raceId, $runId, $runKind, $in, $a1, $a2, $hash, $frozenRank, $nowDb,
+            $entryCount, $acquired, $frozenCount, $activeCount, $toDb, $j, $generation,
+            $closeSrc
+        ) {
+            \DB::table('baganriki_race_runs')->insert([
+                'run_id' => $runId, 'race_id' => $raceId, 'generation' => $generation,
+                'run_kind' => $runKind, 'status' => 'FROZEN',
+                'entry_count' => $entryCount, 'acquired_count' => (int) $acquired,
+                'frozen_count' => $frozenCount, 'active_count' => $activeCount,
+                'invalid_code' => null, 'invalid_reason' => null,
+                'release_version' => BaganrikiPrompt::PROMPT_VERSION,
+                'created_at' => $nowDb, 'updated_at' => $nowDb,
+            ]);
+            $snapId = \DB::table('baganriki_snapshots')->insertGetId([
+                'race_id' => $raceId, 'generation' => $generation, 'run_id' => $runId,
+                'release_version'  => BaganrikiPrompt::PROMPT_VERSION,
+                'common_json'      => $hash['json'],
+                'input_json_1st'   => $a1['user'],
+                'input_json_2nd'   => $a2['user'],
+                'snapshot_hash'    => $in['snapshot_hash'],
+                'frozen_nums'      => $j(array_map(
+                                        static fn($r) => (int) $r['horse_no'],
+                                        (array) $in['runners'])),
+                'frozen_rank'      => $j($frozenRank),
+                'mode'             => $in['mode'],
+                'mode_status'      => $in['mode_status'],
+                'allocation_mode'  => $in['allocation_mode'],
+                'mode_policy_id'   => $in['mode_policy_id'],
+                'display_rating'   => $in['display_rating'],
+                'signals'          => $j($in['signals']),
+                's_min'            => $in['S_min'],
+                's_max'            => $in['S_max'],
+                's0'               => $in['S'],
+                'target_count'     => $in['target_count'],
+                'quota_1st'        => $j($a1['input']['role_quota']),
+                'quota_2nd'        => $j($a2['input']['role_quota']),
+                'quota_adjustments' => $j($in['quota_adjustments']),
+                'collection_audit' => $j($in['collection_audit']),
+                'coverage'         => $j($in['coverage']),
+                'anchor_at'        => $toDb($in['time_contract']['anchor_at']),
+                'cutoff_at'        => $toDb($in['cutoff_at']),
+                'input_freeze_at'  => $toDb($in['input_freeze_at']),
+                'frozen_at'        => $nowDb,
+                'sales_close_at'   => $toDb($in['time_contract']['sales_close_at']),
+                'input_invalid_code'   => null,
+                'input_invalid_reason' => null,
+                'created_at'       => $nowDb,
+            ]);
+            // @ANCHOR-20261020-R122-CLOSE  投票締切の出どころを監査へ残します。
+            //   INPUT_JSON の time_contract は閉じた形なので入れられません。
+            //   どの規則で締切を決めたかは、ここで必ず追えるようにします。
+            if (\Schema::hasTable('baganriki_audit_events')) {
+                \DB::table('baganriki_audit_events')->insert([
+                    'race_id'     => $raceId,
+                    'snapshot_id' => $snapId,
+                    'kind'        => 'SALES_CLOSE_SOURCE',
+                    'happened_at' => $nowDb,
+                    'old_revision' => null, 'new_revision' => null,
+                    'diagnostics' => $j([
+                        'source'         => $closeSrc,
+                        'sales_close_at' => $in['time_contract']['sales_close_at'],
+                        'anchor_at'      => $in['time_contract']['anchor_at'],
+                        'offset_sec'     => BaganrikiTime::salesCloseOffsetSec(),
+                        'rule'           => 'JRA公式 発売時間・発売締切時刻'
+                                          . '（当日のインターネット投票は'
+                                          . '各レース発走時刻の1分前）',
+                        'rule_url'       => 'https://jra.jp/dento/a/instructions'
+                                          . '/hatsubai/jra.html',
+                    ]),
+                    'related_id'  => null,
+                ]);
+            }
+            // @ANCHOR-20261020-R122-QUEUE  ライブ状態の行をここで作ります。
+            //   state_revision / response_revision / publication_revision の
+            //   置き場所です。キューの予約・終端はここを数えます。
+            if (\Schema::hasTable('baganriki_live_states')) {
+                \DB::table('baganriki_live_states')->insertOrIgnore([
+                    'snapshot_id'           => $snapId,
+                    'cancellations'         => $j([]),
+                    'active_count'          => $activeCount,
+                    'live_target_count'     => $in['target_count'],
+                    'live_quota'            => $j($a1['input']['role_quota']),
+                    'live_close'            => null,
+                    'state_revision'        => 0,
+                    'response_revision'     => 0,
+                    'publication_revision'  => 0,
+                    'latest_publication_id' => null,
+                    'updated_at'            => $nowDb,
+                ]);
+            }
+        });
+
+        $out['ok'] = true;
+        $out['snapshot_hash'] = $in['snapshot_hash'];
+        $out['generation']    = $generation;
+        $out['run_kind']      = $runKind;
+        return $out;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-COVERAGE  オッズ以外の材料を source_registry へ載せる
+     * ═══════════════════════════════════════════════════════════════════════
+     * 根拠：server_contract_r12.2.txt 3章「利用できるデータを黙って捨てない」
+     *       10月20日004 のご判断2（A案）／21_追加材料7区分の接続表
+     *
+     * ■ 今回つなぐ3区分
+     *   gap_history          断層（21→6分前の単勝の増減率）
+     *   recovery_statistics  その増減率帯と人気帯の回収率
+     *   similar_statistics   人気順位×頭数帯の過去類似成績
+     *
+     *   この3つを先につなぐ理由は、<b>算出時刻の列を持っているから</b>です。
+     *   過去走とOPIは取得・算出時刻の列が無いので、時刻の出どころが決まるまで
+     *   載せません（接続表のA/B/Cのご判断待ち）。作り話の時刻で埋めません。
+     *
+     * ■ 由来の残し方
+     *   ・1頭ごとの増減率は <b>DERIVED</b> にし、
+     *     parents にその馬の21分前と6分前の登録IDをそのまま入れます。
+     *     どの元値から出したかが1件ずつ辿れます。
+     *   ・帯別の統計は <b>DERIVED</b> で、parents には集計元のテーブル名を入れます。
+     *     元になった18万行の履歴は入力に載せないので、個々の行IDではなく
+     *     テーブル名を由来として書きます。ここは正直に書いておきます。
+     *   ・computed_at は、集計テーブルが持っている実際の算出時刻です。
+     *
+     * ■ 情報上限
+     *   増減率は21分前と6分前の値だけから出します。3分前・発走時は使いません。
+     *   帯別統計の computed_at が input_freeze_at より後なら載せません。
+     *
+     * @param array $ctx        これまでに組み立てた文脈（registry・audit を含む）
+     * @param array $frozenRank 馬番 => 凍結人気
+     * @param array $cells      [馬番][スロット][項目] => 元の十進数文字列
+     * @param int   $freezeUs   情報上限（マイクロ秒）
+     * @return array ['registry'=>追加分, 'coverage'=>区分ごとの状態]
+     */
+    public static function r122ExtraRegistry(array $ctx, array $frozenRank,
+                                             array $cells, ?int $freezeUs): array
+    {
+        // @ANCHOR-20261020-R122-DERIVEDAT  1回の組み立てで1つの計算時刻にします
+        $buildAt = BaganrikiPrompt::rfc3339(BaganrikiWorker::nowUs());
+        $raceId = (string) ($ctx['race_id'] ?? '');
+        $add    = [];
+        $refs   = ['gap_history' => [], 'recovery_statistics' => [],
+                   'similar_statistics' => []];
+        // @ANCHOR-20261020-R122-COVERAGE  載せなかった理由を取り違えないための控え
+        //   「集計が無い」と「情報上限より後に算出された」は別の話です。
+        $late   = ['recovery_statistics' => null, 'similar_statistics' => null];
+        // @ANCHOR-20261020-R122-COVWIN  集計期間が対象レースの開催日を含んでいた控え
+        //   OPI・推定確定オッズと同じ判定を、列を持っている回収率にも当てます。
+        //   （過去類似成績の表には集計期間の列がありません。無い列は作りません）
+        $covWin = ['recovery_statistics' => null];
+        $freezeAt = ($freezeUs === null) ? null : BaganrikiPrompt::rfc3339($freezeUs);
+        $N      = count($frozenRank);
+        if ($N < 1) {
+            return ['registry' => [], 'coverage' => []];
+        }
+        // @ANCHOR-20261020-R122-COVWIN  対象レースの開催日（race_id の先頭8桁）
+        $day = '';
+        if (preg_match('/^(\d{4})(\d{2})(\d{2})-/', $raceId, $mm) === 1) {
+            $day = $mm[1] . '-' . $mm[2] . '-' . $mm[3];
+        }
+        $audit6 = $ctx['audit']['6'] ?? ($ctx['audit'][6] ?? null);
+        $obs6   = is_array($audit6) ? ($audit6['response_received_at'] ?? null) : null;
+        $av6    = is_array($audit6) ? ($audit6['available_at'] ?? null) : null;
+        if ($obs6 === null || $av6 === null) {
+            return ['registry' => [], 'coverage' => []];
+        }
+
+        // ── ① 1頭ごとの増減率（21分前 → 6分前の単勝）──────────────────
+        $gapPct = [];
+        foreach (array_keys($frozenRank) as $no) {
+            $o21 = $cells[$no][21]['win_odds'] ?? null;
+            $o6  = $cells[$no][6]['win_odds']  ?? null;
+            if ($o21 === null || $o6 === null) continue;
+            // @ANCHOR-20261020-R122-DEC  小数5桁以上でも落としません
+            //   【旧】BaganrikiSnapshot::scale は小数4桁までで、
+            //     1.23456 のオッズだと増減率を作れずに捨てていました。
+            $a = AiController::r122DecOrNull($o21);
+            $b = AiController::r122DecOrNull($o6);
+            if ($a === null || $b === null || $a <= 0) continue;
+            $pct = round((($b - $a) / $a) * 100, 4);
+            $gapPct[$no] = $pct;
+            $ref = 'h' . $no . '_odds_gap_pct_21_6';
+            $add[$ref] = [
+                'source_ref'           => $ref,
+                'race_id'              => $raceId,
+                'value'                => $pct,
+                'scope'                => 'HORSE',
+                'horse_nos'            => [(int) $no],
+                'applicable_horse_nos' => [],
+                'field'                => 'odds_gap_pct_21_6',
+                'unit'                 => 'percent',
+                'slot_offset'          => 6,
+                'observed_at'          => $obs6,
+                'available_at'         => $av6,
+                // @ANCHOR-20261020-R122-DERIVEDAT  006のご指摘4-2
+                //   【旧】今回こちらで出した増減率なのに、原オッズの
+                //     利用可能時刻を computed_at に入れていました。
+                'computed_at'          => $buildAt,
+                'source_kind'          => 'DERIVED',
+                'parents'              => ['h' . $no . '_win_odds_21', 'h' . $no . '_win_odds_6'],
+                'formula_id'           => 'ODDS_GAP_PCT_21_TO_6',
+                'formula_version'      => 'v1',
+                'dependency_key'       => 'h' . $no . '_odds_gap_pct',
+                'dependency_role'      => 'CONTEXT',
+            ];
+            $refs['gap_history'][] = $ref;
+        }
+
+        // ── ② 増減率帯 × 人気帯 の回収率 ────────────────────────────────
+        if ($gapPct !== [] && \Schema::hasTable('t_horse_odds_finder_odds_gap_recovery')) {
+            foreach (\DB::table('t_horse_odds_finder_odds_gap_recovery')->get() as $r) {
+                $gmin = (float) $r->gap_min; $gmax = (float) $r->gap_max;
+                $pmin = (int) $r->popularity_min; $pmax = (int) $r->popularity_max;
+                $hit = [];
+                foreach ($gapPct as $no => $pct) {
+                    $pop = (int) $frozenRank[$no];
+                    if ($pct < $gmin || $pct > $gmax) continue;
+                    if ($pop < $pmin || $pop > $pmax) continue;
+                    $hit[] = (int) $no;
+                }
+                if ($hit === []) continue;
+                sort($hit);
+                // @ANCHOR-20261020-R122-COVWIN  当日を含む集計でその日のレースを評価しない
+                //   この表は start_date / end_date を持っているので、
+                //   OPI・推定確定オッズとまったく同じ判定を当てます。
+                $ed = substr(str_replace('/', '-', (string) ($r->end_date ?? '')), 0, 10);
+                if ($day !== '' && $ed !== '' && strcmp($ed, $day) >= 0) {
+                    if ($covWin['recovery_statistics'] === null) {
+                        $covWin['recovery_statistics'] = $ed;
+                    }
+                    continue;
+                }
+                $c = self::r122DbTime($r->computed_at);
+                if ($c === null) continue;
+                if ($freezeUs !== null) {
+                    $cu = BaganrikiTime::us($c);
+                    if ($cu === null || $cu > $freezeUs) {
+                        // 情報上限より後に算出された集計は載せません。
+                        // 「集計が無い」のではないので、理由を分けて残します。
+                        if ($late['recovery_statistics'] === null
+                            || strcmp($c, (string) $late['recovery_statistics']) < 0) {
+                            $late['recovery_statistics'] = $c;
+                        }
+                        continue;
+                    }
+                }
+                // @ANCHOR-20261020-R122-COVWIN  使った集計の期間も残します（OPIと同じ）
+                $sd = substr(str_replace('/', '-', (string) ($r->start_date ?? '')), 0, 10);
+                foreach (['start_date' => $sd, 'end_date' => $ed] as $wf => $wv) {
+                    if ($wv === '') { continue; }
+                    $wref = 'gaprec_' . $wf;
+                    if (isset($add[$wref])) { continue; }
+                    $add[$wref] = [
+                        'source_ref'           => $wref,
+                        'race_id'              => $raceId,
+                        'value'                => $wv,
+                        'scope'                => 'RACE',
+                        'horse_nos'            => [],
+                        'applicable_horse_nos' => [],
+                        'field'                => 'gaprec_' . $wf,
+                        'unit'                 => 'date',
+                        'slot_offset'          => null,
+                        'observed_at'          => $c,
+                        'available_at'         => $c,
+                        'computed_at'          => null,
+                        'source_kind'          => 'OBSERVED',
+                        'parents'              => [],
+                        'formula_id'           => null,
+                        'formula_version'      => null,
+                        'dependency_key'       => 'gaprec_' . $wf,
+                        'dependency_role'      => 'CONTEXT',
+                    ];
+                    $refs['recovery_statistics'][] = $wref;
+                }
+                $key = self::r122Slug((string) $r->gap_band) . '_' . $pmin . '_' . $pmax;
+                foreach (['recovery_rate' => 'percent', 'win_rate' => 'percent',
+                          'sample_count'  => 'races'] as $f => $unit) {
+                    $v = $r->{$f};
+                    if ($v === null) continue;
+                    $ref = 'gaprec_' . $key . '_' . $f;
+                    $add[$ref] = [
+                        'source_ref'           => $ref,
+                        'race_id'              => $raceId,
+                        'value'                => ($f === 'sample_count') ? (int) $v : (float) $v,
+                        'scope'                => 'COHORT',
+                        'horse_nos'            => [],
+                        'applicable_horse_nos' => $hit,
+                        'field'                => 'gap_recovery_' . $f,
+                        'unit'                 => $unit,
+                        'slot_offset'          => null,
+                        'observed_at'          => $c,
+                        'available_at'         => $c,
+                        'computed_at'          => $c,
+                        'source_kind'          => 'DERIVED',
+                        'parents'              => ['t_horse_odds_finder_race_result_history'],
+                        'formula_id'           => 'SummaryOddsGapRecoveryRate',
+                        'formula_version'      => 'v1',
+                        'dependency_key'       => 'gaprec_' . $key,
+                        'dependency_role'      => 'CONTEXT',
+                    ];
+                    $refs['recovery_statistics'][] = $ref;
+                }
+            }
+        }
+
+        // ── ③ 人気順位 × 頭数帯 の過去類似成績 ──────────────────────────
+        //   頭数帯は small=8以下／medium=9〜13／large=14以上
+        if (\Schema::hasTable('t_horse_odds_finder_similar_race_stats')) {
+            $band = ($N <= 8) ? 'small' : (($N <= 13) ? 'medium' : 'large');
+            foreach (\DB::table('t_horse_odds_finder_similar_race_stats')
+                        ->where('horse_count_band', $band)->get() as $r) {
+                $pop = (int) $r->popularity_rank;
+                $hit = [];
+                foreach ($frozenRank as $no => $p) {
+                    if ((int) $p === $pop) $hit[] = (int) $no;
+                }
+                if ($hit === []) continue;
+                sort($hit);
+                $c = self::r122DbTime($r->updated_at);
+                if ($c === null) continue;
+                if ($freezeUs !== null) {
+                    $cu = BaganrikiTime::us($c);
+                    if ($cu === null || $cu > $freezeUs) {
+                        if ($late['similar_statistics'] === null
+                            || strcmp($c, (string) $late['similar_statistics']) < 0) {
+                            $late['similar_statistics'] = $c;
+                        }
+                        continue;
+                    }
+                }
+                foreach (['top3_rate' => 'rate', 'top5_rate' => 'rate',
+                          'avg_finishing_position' => 'position',
+                          'outside_rate' => 'rate', 'sample_count' => 'races',
+                          'reliability' => 'label'] as $f => $unit) {
+                    $v = $r->{$f};
+                    if ($v === null) continue;
+                    $ref = 'similar_' . $band . '_p' . $pop . '_' . $f;
+                    $val = ($f === 'sample_count') ? (int) $v
+                         : (($f === 'reliability') ? (string) $v : (float) $v);
+                    $add[$ref] = [
+                        'source_ref'           => $ref,
+                        'race_id'              => $raceId,
+                        'value'                => $val,
+                        'scope'                => 'COHORT',
+                        'horse_nos'            => [],
+                        'applicable_horse_nos' => $hit,
+                        'field'                => 'similar_' . $f,
+                        'unit'                 => $unit,
+                        'slot_offset'          => null,
+                        'observed_at'          => $c,
+                        'available_at'         => $c,
+                        'computed_at'          => $c,
+                        'source_kind'          => 'DERIVED',
+                        'parents'              => ['t_horse_odds_finder_race_result_history'],
+                        'formula_id'           => 'SummarySimilarRaceStats',
+                        'formula_version'      => 'v1',
+                        'dependency_key'       => 'similar_' . $band . '_p' . $pop,
+                        'dependency_role'      => 'CONTEXT',
+                    ];
+                    $refs['similar_statistics'][] = $ref;
+                }
+            }
+        }
+
+        // ── coverage ──────────────────────────────────────────────────
+        $cov = [];
+        $why = [
+            'gap_history'         => '21→6分前の単勝の増減率を1頭ずつ出せませんでした',
+            'recovery_statistics' => '当てはまる増減率帯・人気帯の集計がありませんでした',
+            'similar_statistics'  => 'この頭数帯・人気順位の集計がありませんでした',
+        ];
+        foreach ($refs as $k => $list) {
+            $list = array_values(array_unique($list));
+            sort($list, SORT_STRING);
+            if ($list !== []) {
+                $cov[$k] = ['status' => 'INCLUDED', 'source_refs' => $list];
+                continue;
+            }
+            // 「集計が無い」のか「情報上限より後に算出された」のか
+            // 「当日を含む集計だった」のかを分けます。
+            $reason = $why[$k];
+            if (!empty($covWin[$k])) {
+                $reason = '集計期間の終わり（' . $covWin[$k] . '）が対象レースの開催日（'
+                        . $day . '）以降です。当日を含む集計で'
+                        . 'その日のレースを評価しないためです。';
+            } elseif (!empty($late[$k])) {
+                $reason = 'この集計は情報上限より後に算出されたものしかありません'
+                        . '（いちばん早い算出時刻 ' . $late[$k]
+                        . '／情報上限 ' . ($freezeAt ?? '不明') . '）。'
+                        . '過去のレースを後から作った集計で評価しないためです。';
+            }
+            $cov[$k] = ['status' => 'UNAVAILABLE', 'reason' => $reason];
+        }
+        return ['registry' => $add, 'coverage' => $cov];
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-MICRO  DBの DATETIME が入っているタイムゾーン
+     *   10月20日005のご指摘2-1「DB列の保存タイムゾーンを明示」への対応です。
+     *   環境の既定タイムゾーンに依存させません。
+     */
+    public const DB_TIMEZONE = 'Asia/Tokyo';
+
+    /**
+     * @ANCHOR-20261020-R122-COVERAGE  DBの日時をRFC3339（JST）へ
+     *
+     * ══════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-MICRO  10月20日006のご指摘4-3（本物の不具合）
+     * ══════════════════════════════════════════════════════════════
+     *   【旧】strtotime は<b>秒の整数</b>しか返しません。
+     *     それに1,000,000を掛けていたので、
+     *     `09:34:30.000001` が `09:34:30` へ切り捨てられ、
+     *     情報上限 `09:34:30` を<b>超えているのに上限内として通り得ました。</b>
+     *     取得側の r122DbRfc3339 は小数秒を保っていたのに、
+     *     追加材料側のこの関数だけが落としていました。
+     *   【いま】小数秒を取り出して、マイクロ秒まで保ちます。
+     *     保存タイムゾーンは日本時間（DBのDATETIMEはJSTで入っています）。
+     */
+    public static function r122DbTime($v): ?string
+    {
+        if ($v === null) { return null; }
+        $s = trim((string) $v);
+        if ($s === '' || strncmp($s, '0000', 4) === 0) { return null; }
+        // DBの DATETIME / DATE をそのまま読みます（区切りは空白でもTでも可）
+        $re = '/^(\d{4})-(\d{2})-(\d{2})'
+            . '(?:[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6})\d*)?)?$/';
+        if (preg_match($re, $s, $m) !== 1) { return null; }
+        $frac = isset($m[7]) ? (int) str_pad($m[7], 6, '0') : 0;
+        $d = \DateTimeImmutable::createFromFormat(
+            'Y-m-d H:i:s',
+            $m[1] . '-' . $m[2] . '-' . $m[3] . ' '
+            . ($m[4] ?? '00') . ':' . ($m[5] ?? '00') . ':' . ($m[6] ?? '00'),
+            new \DateTimeZone(self::DB_TIMEZONE));
+        if ($d === false) { return null; }
+        // 繰上がり（2026-02-30 など）を受け取りません
+        if ($d->format('Y-m-d') !== $m[1] . '-' . $m[2] . '-' . $m[3]) { return null; }
+        return BaganrikiPrompt::rfc3339($d->getTimestamp() * 1000000 + $frac);
+    }
+
+
+    /** @ANCHOR-20261020-R122-COVERAGE  帯の名前を source_ref に使える形へ */
+    public static function r122Slug(string $s): string
+    {
+        $map = ['30%以上下落' => 'dn30', '20〜30%下落' => 'dn20', '10〜20%下落' => 'dn10',
+                '5〜10%下落' => 'dn05', '±5%以内' => 'flat', '5〜10%上昇' => 'up05',
+                '10〜20%上昇' => 'up10', '20〜30%上昇' => 'up20', '30%以上上昇' => 'up30'];
+        if (isset($map[$s])) return $map[$s];
+        $h = substr(hash('sha256', $s), 0, 8);
+        return 'band' . $h;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-QUEUE  送信の前に枠を予約します
+     * ═══════════════════════════════════════════════════════════════════════
+     * 根拠：server_contract_r12.2.txt 10章
+     *   「予約commit後に送信し、原応答とcompleteをcommitしてから訂正を開始する」
+     *
+     * ■ 流れ
+     *   ① 凍結入力（snapshot）を正本にします。無ければここで固定します。
+     *   ② 送る本文の共通hashが、固定したものと同じかを確かめます。
+     *      違えば送りません（固定後は変えない、が契約8章です）。
+     *   ③ 枠（初回=0）を予約します。すでにあれば<b>送りません</b>。
+     *   ④ 送信許可をもらいます（1回だけ）。
+     *
+     * ■ .env の BAGANRIKI_R122_QUEUE が 0（既定）のときは素通りします。
+     *   そのときは skip=true を返し、呼出側は今までどおり送ります。
+     *   1バイトも挙動が変わりません。
+     *
+     * ■ shadow のときは、ここで失敗しても<b>送信を止めません</b>。
+     *   shadow=true を返すので、呼出側は記録だけ諦めて送ります。
+     *   初めて実物で動かす日に、いまの商品を落とさないための段です。
+     *
+     * @return array ['skip'=>bool, 'ok'=>bool, 'code'=>?string, 'reason'=>?string,
+     *                'token'=>?string, 'snapshot_id'=>?int]
+     */
+    public function r122QueueReserve($date, $kaisuu, $basho, $day, $race,
+                                     string $role, array $asm): array
+    {
+        $out = ['skip' => true, 'ok' => false, 'code' => null, 'reason' => null,
+                'token' => null, 'snapshot_id' => null, 'role' => $role,
+                // @ANCHOR-20261020-R122-SHADOW  shadow のときは止めません
+                'shadow' => false, 'mode' => BaganrikiWorker::mode()];
+        if (!BaganrikiWorker::enabled()) { return $out; }
+        $out['skip'] = false;
+        $out['shadow'] = !BaganrikiWorker::blocking();
+        if (!BaganrikiWorker::ready()) {
+            $out['code']   = 'TABLE_MISSING';
+            $out['reason'] = 'キューの表がありません（--r122-install で作ります）';
+            return $out;
+        }
+        $raceId = self::r122RaceId($date, $kaisuu, $basho, $day, $race);
+
+        try {
+            // ① 凍結入力。本番は generation=0 だけを見ます（REPLAY は 900）
+            $snap = \DB::table('baganriki_snapshots')
+                      ->where('race_id', $raceId)->where('generation', 0)->first();
+            if ($snap === null) {
+                $fz = $this->r122Freeze($date, $kaisuu, $basho, $day, $race,
+                                        [], 'PRODUCTION', false);
+                if (!($fz['ok'] ?? false)) {
+                    $out['code']   = (string) ($fz['code'] ?? 'FREEZE_FAILED');
+                    $out['reason'] = (string) ($fz['reason'] ?? '凍結入力を作れません');
+                    return $out;
+                }
+                $snap = \DB::table('baganriki_snapshots')
+                          ->where('race_id', $raceId)->where('generation', 0)->first();
+            }
+            if ($snap === null) {
+                $out['code']   = 'NO_SNAPSHOT';
+                $out['reason'] = '凍結入力を読み戻せません';
+                return $out;
+            }
+
+            // ② 固定した入力と送信文が同じものか
+            if ((string) $snap->snapshot_hash !== (string) ($asm['snapshot_hash'] ?? '')) {
+                $out['code']   = 'SNAPSHOT_MISMATCH';
+                $out['reason'] = '固定した入力と送信文の共通hashが違います'
+                               . '（固定後は変えません）';
+                return $out;
+            }
+
+            // ③ 枠を予約（ライブと公開の版は見張ります。応答の版は
+            //    予約そのもので増えるので見張りに入れません）
+            $live = \DB::table('baganriki_live_states')
+                      ->where('snapshot_id', $snap->id)->first();
+            $expect = ($live === null) ? [] : [
+                'state_revision'       => (int) $live->state_revision,
+                'publication_revision' => (int) $live->publication_revision,
+            ];
+            $r = BaganrikiWorker::reserve((int) $snap->id, $role,
+                                          BaganrikiWorker::FIRST,
+                                          BaganrikiWorker::nowUs(), $expect);
+            if (!$r['ok']) {
+                $out['code']   = (string) $r['code'];
+                $out['reason'] = (string) $r['reason'];
+                $out['snapshot_id'] = (int) $snap->id;
+                return $out;
+            }
+
+            // ④ 送信許可（1回だけ）
+            $s = BaganrikiWorker::allowSend((string) $r['token'],
+                                            BaganrikiWorker::nowUs());
+            if (!$s['ok']) {
+                $out['code']   = (string) $s['code'];
+                $out['reason'] = (string) $s['reason'];
+                $out['snapshot_id'] = (int) $snap->id;
+                return $out;
+            }
+
+            $out['ok']    = true;
+            $out['code']  = 'OK';
+            $out['token'] = (string) $r['token'];
+            $out['snapshot_id'] = (int) $snap->id;
+            $out['reply_deadline'] = $r['reply_deadline'] ?? null;
+            return $out;
+        } catch (\Throwable $e) {
+            $out['code']   = 'QUEUE_EXCEPTION';
+            $out['reason'] = $e->getMessage();
+            \Log::error('[R122-QUEUE] 予約で例外', [
+                'race_id' => $raceId, 'role' => $role,
+                'message' => $e->getMessage(),
+                'at'      => $e->getFile() . ':' . $e->getLine(),
+            ]);
+            return $out;
+        }
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-DEADLINE  AIを待つ時間を応答期限から決めます
+     * ═══════════════════════════════════════════════════════════════════════
+     * 固定の秒数だと、2つとも困ったことになります。
+     *   短すぎる … 期限まで余裕があるのに、こちらが先に切ってしまう
+     *   長すぎる … 期限を過ぎてから返ってきて、遅着で捨てることになる
+     * 予約がとれているときは、<b>応答期限まで残っている時間</b>から決めます。
+     * 受領と公開のために 5秒だけ残します。
+     *
+     * 予約がない（旗が0）ときは、今までの秒数をそのまま使います。
+     *
+     * @param int   $fallback 予約が無いときに使う秒数（今までの値）
+     * @param array|null $q   r122QueueReserve の戻り
+     */
+    public static function r122AiTimeout(int $fallback, ?array $q): int
+    {
+        if (!is_array($q) || ($q['skip'] ?? true) || !($q['ok'] ?? false)) {
+            return $fallback;
+        }
+        $dl = BaganrikiTime::us((string) ($q['reply_deadline'] ?? ''));
+        if ($dl === null) { return $fallback; }
+        $left = (int) floor(($dl - BaganrikiWorker::nowUs()) / 1000000) - 5;
+        if ($left < 20)  { return 20; }    // これ以下は待っても無駄なので下限
+        if ($left > 170) { return 170; }   // 応答期限（発走150秒前）を超えて待ちません
+        return $left;
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-QUEUE  受け取った原応答を枠へ保存します。
+     *   同じ応答を2回保存しても冪等です。別の応答は保存しません。
+     *   complete=false の本文は、そのまま残して選出には使いません。
+     */
+    public function r122QueueReceive(array $q, string $raw, bool $complete): array
+    {
+        if (($q['skip'] ?? true) || !($q['ok'] ?? false)) {
+            return ['skip' => true, 'ok' => false];
+        }
+        try {
+            $r = BaganrikiWorker::receive((string) $q['token'], $raw, $complete,
+                                          BaganrikiWorker::nowUs());
+            if (!$r['ok']) {
+                \Log::error('[R122-QUEUE] 原応答を保存できません', [
+                    'role' => $q['role'] ?? null, 'snapshot_id' => $q['snapshot_id'] ?? null,
+                    'code' => $r['code'], 'reason' => $r['reason'],
+                ]);
+            } else {
+                \Log::info('[R122-QUEUE] 原応答を保存しました', [
+                    'role' => $q['role'] ?? null, 'snapshot_id' => $q['snapshot_id'] ?? null,
+                    'code' => $r['code'], 'complete' => $complete,
+                    'response_hash' => $r['response_hash'] ?? null,
+                ]);
+            }
+            return $r;
+        } catch (\Throwable $e) {
+            \Log::error('[R122-QUEUE] 受領で例外', ['message' => $e->getMessage()]);
+            return ['skip' => false, 'ok' => false, 'code' => 'QUEUE_EXCEPTION',
+                    'reason' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-QUEUE  枠を終端にします。
+     *   $unknown=true は「結果が分からない」です。再送しないための印です。
+     *   通信が切れた・待ち時間で切れた場合はこちらを使います
+     *   （向こうに届いているかどうかが分からないためです）。
+     */
+    public function r122QueueFail(array $q, string $reason, bool $unknown = false): array
+    {
+        if (($q['skip'] ?? true) || !($q['ok'] ?? false)) {
+            return ['skip' => true, 'ok' => false];
+        }
+        try {
+            $r = BaganrikiWorker::fail((string) $q['token'], $reason,
+                                       BaganrikiWorker::nowUs(), $unknown);
+            \Log::error('[R122-QUEUE] 枠を終端にしました', [
+                'role' => $q['role'] ?? null, 'snapshot_id' => $q['snapshot_id'] ?? null,
+                'status' => $r['status'] ?? null, 'unknown' => $unknown,
+                'reason' => $reason,
+            ]);
+            return $r;
+        } catch (\Throwable $e) {
+            \Log::error('[R122-QUEUE] 終端で例外', ['message' => $e->getMessage()]);
+            return ['skip' => false, 'ok' => false, 'code' => 'QUEUE_EXCEPTION',
+                    'reason' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-RESP  応答検証と局所回復（本番接続）
+     * ═══════════════════════════════════════════════════════════════════════
+     * 根拠：server_contract_r12.2.txt 6章・7章・10章
+     *
+     * ■ 通す順番（本番と同じ）
+     *   extract → checkEnvelope → isolateHorses → BaganrikiDiagnose::run
+     *
+     * ■ 何を正とするか
+     *   凍結入力（snapshot）と、予約済みの role を正とします。
+     *   <b>応答が名乗る役は照合相手を選ぶのに使いません。</b>
+     *   封筒照合は、予約した role の固定入力に対してだけ行います。
+     *
+     * ■ 局所回復
+     *   馬番欠落・重複・未知馬・局所の項目不正は、その範囲だけ隔離します。
+     *   正常な他馬はそのまま残します。
+     *   直してよい範囲は repair_scope として baganriki_validation_results に残します。
+     *
+     * @return array ['ok','stage','code','reason','accepted','needs_fix',
+     *                'repair_scope','normal','row_valid','diag']
+     */
+    /**
+     * @ANCHOR-20261020-R122-SALVAGE  採点まわりだけの指摘コード
+     *   この範囲の指摘しか無い馬は、採点欄だけを落として行は残します。
+     *   根拠・5系統・帯・順位・資格の指摘が混ざっていたら残しません。
+     */
+    public const R122_SCORE_ONLY_CODES = [
+        'SCORES_TYPE', 'SCORES_UNKNOWN_KEY', 'SCORES_MISSING', 'SCORES_RANGE',
+        'OBSERVED_SUM', 'OBSERVED_CAP', 'TOTAL_SCORE',
+        'SCORE_EVIDENCE_TYPE', 'SCORE_EVIDENCE_UNKNOWN_KEY',
+        'SCORE_EVIDENCE_MISSING', 'SCORE_WITHOUT_EVIDENCE',
+        'SCORE_NULL_WITHOUT_REASON', 'SCORE_EVIDENCE_REF_UNKNOWN',
+        'SCORE_EVIDENCE_REF_NOT_OWNED',
+    ];
+
+    public function r122InspectResponse(int $snapshotId, string $role,
+                                        int $attemptNo = 0): array
+    {
+        $out = ['ok' => false, 'stage' => 'start', 'code' => null, 'reason' => null,
+                'accepted' => false, 'needs_fix' => false,
+                'repair_scope' => null, 'normal' => [], 'row_valid' => [],
+                'diag' => null, 'attempt_id' => null,
+                // @ANCHOR-20261020-R122-COMPLETE  既定は「未完了あつかい」
+                'complete' => false, 'normal_kept' => [], 'salvaged' => []];
+
+        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+        if ($snap === null) {
+            $out['stage'] = 'snapshot'; $out['code'] = 'NO_SNAPSHOT';
+            $out['reason'] = '凍結入力がありません';
+            return $out;
+        }
+        $a = \DB::table('baganriki_ai_attempts')
+               ->where('snapshot_id', $snapshotId)->where('role', $role)
+               ->where('attempt_no', $attemptNo)->first();
+        if ($a === null) {
+            $out['stage'] = 'attempt'; $out['code'] = 'NO_ATTEMPT';
+            $out['reason'] = 'その枠がありません';
+            return $out;
+        }
+        $out['attempt_id'] = (int) $a->id;
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-COMPLETE  10月20日006のご指摘2-1（本物の不具合）
+        // ══════════════════════════════════════════════════════════════
+        //   status=RECEIVED は見ていましたが、<b>complete を見ていませんでした。</b>
+        //   契約10章は「未完了の本文は保持するが、選出へは使わない」です。
+        //   「加点しない」だけでは足りず、順位点にも候補にも入れてはいけません。
+        //   ここでは本文の検証は続け（保持するため）、
+        //   選出に使ってよいかの印だけを別に返します。
+        $out['complete'] = ((int) ($a->complete ?? 0) === 1);
+        if ((string) $a->status !== BaganrikiWorker::RECEIVED) {
+            $out['stage'] = 'attempt'; $out['code'] = 'NOT_RECEIVED';
+            $out['reason'] = '原応答を受け取っていません（' . $a->status . '）';
+            return $out;
+        }
+
+        $col = ($role === '2nd') ? 'input_json_2nd' : 'input_json_1st';
+        $src = json_decode((string) $snap->{$col}, true);
+        if (!is_array($src)) {
+            $out['stage'] = 'snapshot'; $out['code'] = 'NO_INPUT';
+            $out['reason'] = '固定入力（' . $col . '）を読めません';
+            return $out;
+        }
+
+        // ── ① 原文から封筒を取り出す ────────────────────────────────
+        $ex = BaganrikiResponse::extract((string) $a->raw_response);
+        if (!$ex['ok']) {
+            $out['stage'] = 'extract';
+            $out['code']  = (string) ($ex['code'] ?? 'AI_FAILURE');
+            $out['reason'] = (string) ($ex['reason'] ?? '');
+            $this->r122SaveValidation((int) $a->id, null, $out, null, null, null);
+            return $out;
+        }
+        $res = (array) $ex['json'];
+
+        // ── ② 封筒照合（予約した role の固定入力だけが相手）──────────
+        $env = BaganrikiResponse::checkEnvelope($res, [
+            'prompt_version'  => $src['prompt_version']  ?? null,
+            'schema_version'  => $src['schema_version']  ?? null,
+            'race_id'         => $src['race_id']         ?? null,
+            'ai_role'         => $src['ai_role']         ?? null,
+            'snapshot_hash'   => $src['snapshot_hash']   ?? null,
+            'mode'            => $src['mode']            ?? null,
+            'mode_status'     => $src['mode_status']     ?? null,
+            'allocation_mode' => $src['allocation_mode'] ?? null,
+            'mode_policy_id'  => $src['mode_policy_id']  ?? null,
+            'role_cap'        => $src['role_cap']        ?? null,
+            'role_quota'      => $src['role_quota']      ?? null,
+        ]);
+        if (!$env['ok']) {
+            $out['stage'] = 'envelope';
+            $out['code']  = (string) ($env['code'] ?? 'ENVELOPE');
+            $out['reason'] = (string) ($env['reason'] ?? '');
+            $this->r122SaveValidation((int) $a->id, null, $out, null, null, null);
+            return $out;
+        }
+
+        // ── ③ 馬ごとの隔離（正常な他馬を残す）───────────────────────
+        $frozen = [];
+        foreach ((array) ($src['runners'] ?? []) as $r) {
+            $frozen[] = (int) ($r['horse_no'] ?? 0);
+        }
+        $iso = BaganrikiResponse::isolateHorses((array) ($res['horses'] ?? []), $frozen);
+
+        // ── ④ 診断（inspect と resolve で同じ関数）──────────────────
+        $d = BaganrikiDiagnose::run($res, $src);
+
+        // 正常部分＝隔離に残り、かつ row_valid が true の行
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-SALVAGE  10月20日006のご指摘5-2
+        // ══════════════════════════════════════════════════════════════
+        //   【直した中身】row_valid=false の行を<b>まるごと</b>外していました。
+        //   そのため、採点の集計だけがおかしい馬（observed_sum が合わない等）も
+        //   正常な根拠ごと落ち、候補から消えていました。
+        //   契約は「不正な得点項目だけを null にして、正常根拠は保持する」です。
+        //
+        //   そこで、その馬の指摘が<b>採点まわりだけ</b>のときは、
+        //   採点欄だけを落として行は残します（score_status は partial）。
+        //   根拠・5系統・帯・順位の指摘がある行は、これまでどおり外します。
+        $bad = [];                       // 馬番 => その馬に付いた指摘コード
+        foreach ((array) $d['findings'] as $fd) {
+            $t = $fd['target'] ?? null;
+            if (!is_int($t) && !(is_string($t) && ctype_digit($t))) { continue; }
+            $bad[(int) $t][] = (string) ($fd['code'] ?? '');
+        }
+        $salvaged = []; $salvageDetail = [];
+        $normal = [];
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-TYPEMAP  並べ替えに型の地図を追従させます
+        // ══════════════════════════════════════════════════════════════
+        //   ご指摘（010の3-4）：
+        //     「並べ替え後のnormalにも種類が追従することが条件です。」
+        //   応答の馬の行は ["horses", 3] の位置にあります。
+        //   normal は<b>馬番をキーにしたオブジェクト</b>に組み替えるので、
+        //   位置が ["7"] に変わります。地図の経路もそのとおりに
+        //   付け替えないと、再保存で {} が [] に化けたり、
+        //   数値が文字列に化けたりします。
+        //   先に「馬番 → 応答での位置」を控えておきます。
+        $idxOf = [];
+        foreach (array_values((array) ($res['horses'] ?? [])) as $iH => $rowH) {
+            $nH = (int) (((array) $rowH)['horse_no'] ?? 0);
+            if ($nH > 0 && !isset($idxOf[$nH])) { $idxOf[$nH] = (int) $iH; }
+        }
+        $resMap = (array) ($ex['map'] ?? BaganrikiJson::emptyMap());
+        foreach ((array) $iso['kept'] as $k => $h) {
+            $no = is_int($k) ? $k : (int) ($h['horse_no'] ?? 0);
+            if ($no <= 0) { continue; }
+            if (($d['row_valid'][$no] ?? true) !== true) {
+                $codes = array_values(array_unique($bad[$no] ?? []));
+                $only  = ($codes !== [])
+                      && array_diff($codes, self::R122_SCORE_ONLY_CODES) === [];
+                // 自分のSIGNALが1系統も無い馬は、採点を外しても資格が立ちません
+                $own = (int) (($d['ref_stats'][$no]['own_signal'] ?? 0));
+                if (!$only || $own <= 0) { continue; }
+                // ══════════════════════════════════════════════════
+                // @ANCHOR-20261020-R122-SCOREKEY  10月20日007のご指摘3-2
+                // ══════════════════════════════════════════════════
+                //   【旧】observed_sum だけの誤りでも H1〜V5 を<b>全部</b>
+                //     null にし、observed_sum・observed_cap を 0 にして
+                //     いました。正常な採点項目まで消えます。
+                //     契約6章は「不正項目だけ null、合計等を再計算」です。
+                //   【いま】診断が印を付けた項目だけ null にし、
+                //     <b>残った項目から合計を計算し直します。</b>
+                //     集計欄だけの誤り（observed_sum が合わない等）なら、
+                //     採点は1項目も消えません。計算し直すだけです。
+                $badKeys = (array) (($d['bad_scores'][$no]) ?? []);
+                if (!is_array($h['scores'] ?? null)) { $h['scores'] = []; }
+                // 採点辞書に無い項目は落とします（残すと再計算が狂います）
+                foreach (array_keys($h['scores']) as $sk) {
+                    if (!array_key_exists($sk, BaganrikiDiagnose::SCORE_CAP)) {
+                        unset($h['scores'][$sk]);
+                    }
+                }
+                foreach ($badKeys as $sk) {
+                    if (array_key_exists($sk, BaganrikiDiagnose::SCORE_CAP)) {
+                        $h['scores'][$sk] = null;
+                    }
+                }
+                // 残った項目から合計を出し直します
+                $sumS = 0; $capS = 0; $nNull = 0;
+                foreach (BaganrikiDiagnose::SCORE_CAP as $sk => $mxS) {
+                    $vS = $h['scores'][$sk] ?? null;
+                    if (!array_key_exists($sk, $h['scores'])) {
+                        $h['scores'][$sk] = null;      // 欄は残します
+                        $nNull++;
+                        continue;
+                    }
+                    if ($vS === null) { $nNull++; continue; }
+                    if (!is_int($vS) || $vS < 0 || $vS > $mxS) {
+                        $h['scores'][$sk] = null; $nNull++; continue;
+                    }
+                    $sumS += $vS; $capS += $mxS;
+                }
+                $h['observed_sum'] = $sumS;
+                $h['observed_cap'] = $capS;
+                $h['total_score']  = ($nNull === 0) ? $sumS : null;
+                $h['score_status'] = ($nNull === 0) ? 'complete' : 'partial';
+                // ══════════════════════════════════════════════════════
+                // @ANCHOR-20261021-R122-METASPLIT  10月21日008のご指摘3
+                // ══════════════════════════════════════════════════════
+                //   【本物の不具合でした】
+                //   直した中身を <b>馬の行の中に</b> r122_salvage として
+                //   足していました。これは内部の監査項目で、AIの業務項目
+                //   ではありません。ところが、この行がそのまま
+                //   $first['normal'] に入り、acceptCorrection の
+                //   「範囲外の項目を変えていないか」の比較対象になります。
+                //   正しい全頭訂正に r122_salvage は入っていないので、
+                //     初回 = 配列 ／ 訂正 = 無い
+                //   となり「その範囲で直してよい項目の外を変えている」と
+                //   判定され、<b>正しい訂正が FIX_REJECTED になります。</b>
+                //   つまり「採点の救済」と「全頭訂正」を両方通すと落ちます。
+                //   別々に試していたので気づきませんでした。
+                //
+                //   【いま】馬の行には入れません。<b>別の入れ物</b>に出します。
+                //   AIが返すべき項目だけが訂正の比較対象になります。
+                //   AIに r122_salvage を返させる解決はしません（それは
+                //   内部の監査項目をAIに書かせることになります）。
+                $salvageDetail[$no] = [
+                    'nulled_scores' => array_values($badKeys),
+                    'recomputed'    => ['observed_sum' => $sumS,
+                                        'observed_cap' => $capS,
+                                        'total_score'  => $h['total_score'],
+                                        'score_status' => $h['score_status']],
+                ];
+                $salvaged[] = $no;
+            }
+            $normal[$no] = $h;
+        }
+        ksort($normal);
+        sort($salvaged);
+
+        $out['ok']           = true;
+        $out['stage']        = 'ok';
+        $out['code']         = $d['ok'] ? 'OK' : 'REPAIRABLE';
+        $out['reason']       = BaganrikiDiagnose::summary($d);
+        $out['accepted']     = ($normal !== []);
+        $out['needs_fix']    = !$d['ok'];
+        $out['repair_scope'] = $d['repair_scope'];
+        // @ANCHOR-20261020-R122-COMPLETE  未完了は選出に使いません（本文は残します）
+        $out['normal']       = ($out['complete'] === true) ? $normal : [];
+        $out['normal_kept']  = $normal;      // 保持はします（監査・訂正の材料）
+        // @ANCHOR-20261021-R122-METASPLIT  内部の監査項目はここに出します
+        //   （馬の行には入れません。訂正の比較対象にしないためです）
+        $out['salvage_detail'] = $salvageDetail;
+        if ($out['complete'] !== true) {
+            $out['reason'] = '未完了（complete=false）なので選出に使いません。'
+                           . '本文は保持しています。／' . $out['reason'];
+        }
+        $out['row_valid']    = $d['row_valid'];
+        $out['salvaged']     = $salvaged;
+        $out['diag']         = [
+            'findings'   => $d['findings'],
+            'missing'    => $d['missing'],
+            'duplicated' => $d['duplicated'],
+            'unknown'    => $d['unknown'],
+            'isolated'   => array_keys((array) $iso['isolated']),
+            'iso_missing' => (array) $iso['missing'],
+            // @ANCHOR-20261020-R122-REFCHECK  馬ごとの参照の内訳も外へ出します
+            //   （どの馬に自分のSIGNALが何件あったかを、後から数えられるように）
+            'ref_stats'  => (array) ($d['ref_stats'] ?? []),
+            // @ANCHOR-20261020-R122-SALVAGE  採点欄だけ落として残した馬
+            'salvaged'   => $salvaged,
+            // @ANCHOR-20261020-R122-SCOREKEY  馬ごとの「おかしい採点項目」
+            'bad_scores' => (array) ($d['bad_scores'] ?? []),
+        ];
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-TYPEMAP  normal の型の地図（010の3-1・3-4）
+        // ══════════════════════════════════════════════════════════════
+        //   normal は馬番をキーにしたオブジェクトです。
+        //   最上位を obj と印し、各馬の枝を応答の位置から付け替えます。
+        //   救済で計算し直した欄（observed_sum など）は、こちらで
+        //   作ったPHPの整数です。地図に載っていた古い印をそのまま使うと
+        //   「原トークンを書き戻す」ことになって値が戻ってしまうので、
+        //   encode は<b>値が地図と食い違えばいまの値を書きます</b>
+        //   （@ANCHOR-20261021-R122-TYPEMAP の sameNumberValue）。
+        $normalMap = BaganrikiJson::mapWithKind(
+            BaganrikiJson::emptyMap(), [], 'obj');
+        foreach (array_keys($normal) as $noN) {
+            if (!isset($idxOf[(int) $noN])) { continue; }
+            $normalMap = BaganrikiJson::mapMerge($normalMap,
+                BaganrikiJson::mapMove($resMap,
+                    ['horses', (int) $idxOf[(int) $noN]], [(string) $noN]));
+        }
+        $out['map']        = $resMap;        // 応答そのものの地図
+        $out['normal_map'] = $normalMap;     // 正常部分の地図（並べ替え後）
+
+        $this->r122SaveValidation((int) $a->id, $normal, $out,
+            $d['repair_scope'], self::r122FieldSources($normal),
+            self::r122RankSources($res), $normalMap);
+        return $out;
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-RESP  訂正を解決します（最大1回）
+     *   初回の原応答と complete を保存してからでないと動きません。
+     *   直してよい範囲は<b>初回の診断</b>から取ります（同じ診断関数です）。
+     *   採用できない訂正では、初回の正常部分をそのまま残します。
+     */
+    public function r122ResolveCorrection(int $snapshotId, string $role): array
+    {
+        $out = ['ok' => false, 'code' => null, 'reason' => null,
+                'merged' => [], 'applied' => [], 'rescued' => [], 'skipped' => []];
+
+        $first = $this->r122InspectResponse($snapshotId, $role, BaganrikiWorker::FIRST);
+        if (!$first['ok']) {
+            $out['code'] = 'FIRST_NOT_USABLE';
+            $out['reason'] = '初回が採用できません（' . $first['stage'] . '／'
+                           . $first['code'] . '）';
+            return $out;
+        }
+        $out['merged'] = $first['normal'];        // 何があっても初回の正常部分は残します
+        if (!$first['needs_fix']) {
+            $out['ok'] = true; $out['code'] = 'NO_FIX_NEEDED';
+            $out['reason'] = '初回に直すところがないので訂正しません';
+            return $out;
+        }
+
+        $fix = $this->r122InspectResponse($snapshotId, $role, BaganrikiWorker::FIX);
+        if (!$fix['ok']) {
+            $out['ok'] = true; $out['code'] = 'FIX_NOT_USABLE';
+            $out['reason'] = '訂正が採用できないので初回の正常部分を残します（'
+                           . $fix['stage'] . '／' . $fix['code'] . '）';
+            return $out;
+        }
+
+        $rowsA = \DB::table('baganriki_ai_attempts')
+                   ->where('snapshot_id', $snapshotId)->where('role', $role)
+                   ->whereIn('attempt_no', [BaganrikiWorker::FIRST, BaganrikiWorker::FIX])
+                   ->get()->keyBy('attempt_no');
+        $firstAt = self::r122DbRfc3339($rowsA[BaganrikiWorker::FIRST]->received_at ?? null);
+        $fixAt   = self::r122DbRfc3339($rowsA[BaganrikiWorker::FIX]->received_at ?? null);
+
+        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+        $frozen = [];
+        foreach ((array) json_decode((string) ($snap->frozen_nums ?? '[]'), true) as $n) {
+            $frozen[] = (int) $n;
+        }
+
+        // @ANCHOR-20261021-R122-TYPEMAP  型の地図も渡します（010の3-2）
+        //   どちらも「馬番をキーにした入れ物」の地図なので、
+        //   経路の先頭が馬番でそろいます。
+        $acc = BaganrikiResponse::acceptCorrection(
+            $first['normal'], $fix['normal'], $firstAt, $fixAt,
+            $frozen, $first['repair_scope'], $fix['row_valid'],
+            (array) ($first['normal_map'] ?? BaganrikiJson::emptyMap()),
+            (array) ($fix['normal_map']   ?? BaganrikiJson::emptyMap()));
+        if (($acc['ok'] ?? false) !== true) {
+            $out['ok'] = true; $out['code'] = 'FIX_REJECTED';
+            $out['reason'] = '訂正を採用しません（' . (string) ($acc['reason'] ?? '')
+                           . '）。初回の正常部分を残します';
+            return $out;
+        }
+        $out['merged']  = BaganrikiResponse::applyCorrection(
+                              $first['normal'], $fix['normal'], $acc);
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-TYPEMAP  当てた行だけ地図も差し替えます
+        // ══════════════════════════════════════════════════════════════
+        //   merged は「初回の行＋当てた行」です。地図も同じ組み方に
+        //   しないと、当てた行の型が初回のものに戻ってしまいます。
+        $mergedMap = (array) ($first['normal_map'] ?? BaganrikiJson::emptyMap());
+        $fixMapAll = (array) ($fix['normal_map']   ?? BaganrikiJson::emptyMap());
+        foreach (array_merge((array) ($acc['applied'] ?? []),
+                             (array) ($acc['rescued'] ?? [])) as $noM) {
+            $mergedMap = BaganrikiJson::mapMerge($mergedMap,
+                BaganrikiJson::mapMove($fixMapAll,
+                    [(string) (int) $noM], [(string) (int) $noM]));
+        }
+        $out['merged_map'] = $mergedMap;
+        $out['applied'] = (array) ($acc['applied'] ?? []);
+        $out['rescued'] = (array) ($acc['rescued'] ?? []);
+        $out['skipped'] = (array) ($acc['skipped'] ?? []);
+        $out['ok']   = true;
+        $out['code'] = 'FIX_APPLIED';
+        $out['reason'] = '訂正を反映しました（適用 ' . count($out['applied'])
+                       . '頭・救済 ' . count($out['rescued'])
+                       . '頭・飛ばし ' . count($out['skipped']) . '頭）';
+        return $out;
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-RESP  選出に渡す馬（訂正があればそれを使う）
+     */
+    public function r122AcceptedHorses(int $snapshotId, string $role): array
+    {
+        $has = \DB::table('baganriki_ai_attempts')
+                 ->where('snapshot_id', $snapshotId)->where('role', $role)
+                 ->where('attempt_no', BaganrikiWorker::FIX)
+                 ->where('status', BaganrikiWorker::RECEIVED)->exists();
+        if ($has) { return $this->r122ResolveCorrection($snapshotId, $role); }
+        $f = $this->r122InspectResponse($snapshotId, $role, BaganrikiWorker::FIRST);
+        return ['ok' => $f['ok'], 'code' => $f['code'], 'reason' => $f['reason'],
+                // @ANCHOR-20261020-R122-COMPLETE  未完了なら選出へ渡しません
+                'merged' => $f['normal'], 'applied' => [], 'rescued' => [],
+                'skipped' => [], 'needs_fix' => $f['needs_fix'],
+                'complete' => ($f['complete'] ?? null),
+                'repair_scope' => $f['repair_scope']];
+    }
+
+    /** @ANCHOR-20261020-R122-RESP  各馬の事実出典hash（加点の証明とは別に残します） */
+    public static function r122FieldSources(array $horses): array
+    {
+        $o = [];
+        foreach ($horses as $no => $h) {
+            $refs = [];
+            foreach ((array) ($h['evidence'] ?? []) as $e) {
+                foreach ((array) ($e['source_refs'] ?? []) as $r) { $refs[] = (string) $r; }
+            }
+            foreach ((array) ($h['family_review'] ?? []) as $fam) {
+                foreach ((array) ($fam['source_refs'] ?? []) as $r) { $refs[] = (string) $r; }
+            }
+            $refs = array_values(array_unique($refs));
+            sort($refs, SORT_STRING);
+            $o[(string) $no] = ['refs' => $refs,
+                                'hash' => hash('sha256', implode("\n", $refs))];
+        }
+        return $o;
+    }
+
+    /** @ANCHOR-20261020-R122-RESP  順位の出どころ（帯ごとの方式と並び） */
+    public static function r122RankSources(array $res): array
+    {
+        return [
+            'band_ranks'          => (array) ($res['band_ranks'] ?? []),
+            'evidence_band_ranks' => (array) ($res['evidence_band_ranks'] ?? []),
+            'public_candidates'   => (array) ($res['public_candidates'] ?? []),
+        ];
+    }
+
+    /** @ANCHOR-20261020-R122-RESP  検証の結果を残します（表が無ければ何もしません） */
+    private function r122SaveValidation(int $attemptId, ?array $normal, array $out,
+                                        ?array $scope, ?array $fieldSources,
+                                        ?array $rankSources,
+                                        ?array $normalMap = null): void
+    {
+        if (!\Schema::hasTable('baganriki_validation_results')) { return; }
+        $j = static fn($v) => ($v === null) ? null : (string) json_encode($v,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-TYPEMAP  正常部分は専用シリアライザで書きます
+        // ══════════════════════════════════════════════════════════════
+        //   ご指摘（010の3-1）：
+        //     「提示された jsonSerialize() は string型のdecimalを返します。
+        //       これを通常のjson_encodeで保存すると、JSONの数値ではなく
+        //       引用符付き文字列になります。現行 r122SaveValidation も
+        //       通常のjson_encodeです。クラスを追加するだけでは009の
+        //       問題は解消しません。」
+        //   そのとおりでした。ここが通常の json_encode のままだと、
+        //   丸まる数値（文字列で持っているもの）が<b>引用符付きで
+        //   保存されて、読み戻すと文字列になります。</b>
+        //   【いま】型の地図があるときは encode で書きます。
+        //   数値だった位置は引用符なし、{} と [] の種類もそのままです。
+        //   JSON_NUMERIC_CHECK も float への変換も使っていません。
+        //   読み戻しは BaganrikiJson::decode です（r122NormalPart）。
+        $jn = static function ($v) use ($normalMap, $j) {
+            if ($v === null) { return null; }
+            if ($normalMap === null) { return $j($v); }
+            return BaganrikiJson::encode($v, $normalMap);
+        };
+        try {
+            // @ANCHOR-20261023-R122-VALDUP  同じ応答の検証結果は1回だけ残します
+            //   10/23 の実測で、同じ応答を何度も検証する流れ（採否確定・公開判定）で
+            //   一意キー（attempt_id＋validator_version）の重複エラーが出ていました。
+            //   検証は同じ入力なら同じ結果なので、最初の1件を正とし、2回目以降は書きません。
+            if (\DB::table('baganriki_validation_results')
+                    ->where('attempt_id', $attemptId)
+                    ->where('validator_version', BaganrikiDiagnose::VERSION)->exists()) {
+                return;
+            }
+            \DB::table('baganriki_validation_results')->insert([
+                'attempt_id'        => $attemptId,
+                'validator_version' => BaganrikiDiagnose::VERSION,
+                'normal_part'       => $jn($normal),
+                'diagnostics'       => $j(['stage' => $out['stage'], 'code' => $out['code'],
+                                           'reason' => $out['reason'],
+                                           'diag' => $out['diag'] ?? null]),
+                'repair_scope'      => $j($scope),
+                'field_sources'     => $j($fieldSources),
+                'rank_sources'      => $j($rankSources),
+                'created_at'        => BaganrikiWorker::toDb(BaganrikiWorker::nowUs()),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('[R122-RESP] 検証結果を残せません', ['message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261021-R122-TYPEREAD  保存した正常部分を読み戻します（010の3-3）
+     * ═══════════════════════════════════════════════════════════════════════
+     * ご指摘：
+     *   「保存後も通常のjson_decodeで読み戻せば、長い数値が再びfloatに
+     *     なります。診断、訂正比較、normal保存、再読込、公開用の一致確認まで
+     *     同じ型保持方式を通してください。」
+     *
+     *   そのとおりです。保存を専用シリアライザにしても、読むほうが
+     *   json_decode なら、そこで型が落ちます。
+     *   <b>読み戻しも専用パーサ（BaganrikiJson::decode）に統一します。</b>
+     *   返すのは「値」と「型の地図」の両方です。
+     *
+     * @return array ['ok','code','reason','value','map','raw']
+     */
+    public function r122NormalPart(int $attemptId): array
+    {
+        $out = ['ok' => false, 'code' => null, 'reason' => null,
+                'value' => null, 'map' => BaganrikiJson::emptyMap(), 'raw' => null];
+        if (!\Schema::hasTable('baganriki_validation_results')) {
+            $out['code'] = 'TABLE_MISSING';
+            return $out;
+        }
+        $r = \DB::table('baganriki_validation_results')
+               ->where('attempt_id', $attemptId)
+               ->orderByDesc('id')->first(['normal_part']);
+        if ($r === null) {
+            $out['code'] = 'NO_ROW';
+            $out['reason'] = 'その枠の検証結果がありません';
+            return $out;
+        }
+        $raw = $r->normal_part;
+        if ($raw === null || (string) $raw === '') {
+            $out['code'] = 'NO_NORMAL';
+            $out['reason'] = '正常部分が保存されていません';
+            return $out;
+        }
+        $out['raw'] = (string) $raw;
+        // @ANCHOR-20261021-R122-TYPEREAD  json_decode は使いません
+        $d = BaganrikiJson::decode((string) $raw);
+        if (!$d['ok']) {
+            $out['code'] = (string) $d['code'];
+            $out['reason'] = (string) $d['reason'];
+            return $out;
+        }
+        $out['ok'] = true;
+        $out['code'] = 'OK';
+        $out['value'] = $d['value'];
+        $out['map'] = (array) $d['map'];
+        return $out;
+    }
+
+    /**
+     * @ANCHOR-20261021-R122-TYPEREAD  保存した正常部分が、いまの値と同じか
+     *
+     *   保存 → 読戻し で型も値も落ちていないことを、その場で確かめます。
+     *   「公開用の一致確認」までこの比較1本で通します（010の3-3）。
+     *
+     * @return array ['ok','same','where','reason']
+     */
+    public function r122NormalRoundTrip(int $attemptId, array $normal,
+                                        array $normalMap): array
+    {
+        $rd = $this->r122NormalPart($attemptId);
+        if (!$rd['ok']) {
+            return ['ok' => false, 'same' => false, 'where' => null,
+                    'reason' => '読み戻せません（' . (string) $rd['code'] . '）'];
+        }
+        $r = BaganrikiJson::same($normal, $normalMap,
+                                 $rd['value'], $rd['map'], true);
+        return ['ok' => true, 'same' => (bool) $r['same'],
+                'where' => $r['where'], 'reason' => $r['reason']];
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-PUB  統合・公開・intent・revision（本番接続）
+     * ═══════════════════════════════════════════════════════════════════════
+     * 根拠：server_contract_r12.2.txt 7章・8章・10章・11章
+     *
+     * ■ 通す順番
+     *   ① 読取（書込ロックを持ちません）
+     *      3つの版（state／response／publication）と、両roleの検証済み全頭評価。
+     *      ここで「検証開始時刻」を取ります。
+     *   ② 統合（BaganrikiRanking::merge）
+     *      rank_score=100×(K−r+1)/K の max。同点は 両AIの原公開一致あり →
+     *      独立根拠群数の多い順 → 馬番昇順。
+     *      <b>両AIの検証済み原公開候補だと証明できたときだけ +5。</b>
+     *   ③ 枠を先に全帯ぶん予約し、D不足はB、B不足はD、A不足はB→D で埋めます。
+     *      馬番は重複させません。
+     *   ④ 「検証完了時刻」を取り、intent_hash を作ります。
+     *   ⑤ <b>短いトランザクション</b>で live_state と intent をロックし、
+     *      3つの版・現在時刻・期限をもう一度見ます。
+     *      古い処理は拒否。同じ intent の再実行は同じ publication_id。
+     *   ⑥ 「commit直前時刻」を取り、
+     *      検証開始 <= 検証完了 <= commit直前 を確かめます。
+     *
+     * ■ 加点の証明について
+     *   訂正版または初回の<b>完全な原応答</b>が、公開に使う全頭の実効内容・
+     *   帯順位・公開リスト・馬別フラグ・非選出理由と一致すると確かめられた
+     *   ときだけ、その role の証明として使います。
+     *   初回と訂正が混ざった行は証明できないので加点しません。
+     *
+     * @param array $opt ['now_us'=>int, 'job_id'=>string, 'handed'=>array]
+     * @return array
+     */
+    public function r122Publish(int $snapshotId, array $opt = []): array
+    {
+        $out = ['ok' => false, 'code' => null, 'reason' => null,
+                'publication_id' => null, 'reused' => false,
+                'candidates' => [], 'quota' => null, 'shortfalls' => [],
+                'intent_hash' => null, 'job_id' => null,
+                'used' => [], 'proof' => [],
+                // @ANCHOR-20261020-R122-BANDKEEP  どの帯の順位をどこから採ったか
+                'rank_source' => [], 'rank_fallback' => [], 'rank_notes' => []];
+
+        $t0 = (int) ($opt['now_us'] ?? BaganrikiWorker::nowUs());   // 検証開始時刻
+
+        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+        if ($snap === null) {
+            $out['code'] = 'NO_SNAPSHOT'; $out['reason'] = '凍結入力がありません';
+            return $out;
+        }
+        // 原応答手渡しは、ジャーナルがあるレースでは受け付けません（契約10章）
+        if (!empty($opt['handed'])) {
+            $hasJournal = \DB::table('baganriki_ai_attempts')
+                            ->where('snapshot_id', $snapshotId)->exists();
+            if ($hasJournal) {
+                $out['code'] = 'HANDED_REFUSED';
+                $out['reason'] = 'ジャーナルがあるレースでは原応答の手渡しを受け付けません';
+                return $out;
+            }
+        }
+
+        BaganrikiWorker::ensureLive($snapshotId, $t0);
+        $live = \DB::table('baganriki_live_states')
+                  ->where('snapshot_id', $snapshotId)->first();      // ロックしません
+        $readRev = [
+            'state'       => ($live === null) ? 0 : (int) $live->state_revision,
+            'response'    => ($live === null) ? 0 : (int) $live->response_revision,
+            'publication' => ($live === null) ? 0 : (int) $live->publication_revision,
+        ];
+        // 呼出側が整合した読取取引で3つの版を取っているときは、その値を使います。
+        //   （読取→検証→保存を分けて行う呼び方のためです。保存の直前に
+        //     もう一度見比べて、古ければ保存しません）
+        if (isset($opt['read_revisions']) && is_array($opt['read_revisions'])) {
+            foreach (['state', 'response', 'publication'] as $k) {
+                if (array_key_exists($k, $opt['read_revisions'])) {
+                    $readRev[$k] = (int) $opt['read_revisions'][$k];
+                }
+            }
+        }
+        $out['used'] = $readRev;
+
+        // ── 期限（実効）──────────────────────────────────────────────
+        $dl = BaganrikiWorker::deadlines($snap, $live);
+        if (!$dl['ok']) {
+            $out['code'] = (string) $dl['code']; $out['reason'] = (string) $dl['reason'];
+            return $out;
+        }
+        if ($t0 > $dl['publish']) {
+            $out['code'] = 'DEADLINE_PASSED';
+            $out['reason'] = '実効の公開期限を過ぎています';
+            return $out;
+        }
+
+        // ── 全頭取消 ────────────────────────────────────────────────
+        $cancelled = (array) json_decode((string) ($live->cancellations ?? '[]'), true);
+        $cancelled = array_map('intval', $cancelled);
+        $frozenBand = [];
+        $src1 = json_decode((string) $snap->input_json_1st, true);
+        foreach ((array) ($src1['runners'] ?? []) as $r) {
+            $frozenBand[(int) $r['horse_no']] = (string) ($r['band'] ?? '');
+        }
+        $activeNums = array_values(array_diff(array_keys($frozenBand), $cancelled));
+        if ($activeNums === []) {
+            $out['code'] = 'ALL_CANCELLED'; $out['reason'] = '全頭取消です';
+            return $out;
+        }
+
+        // ── ① 両roleの検証済み全頭評価（読取だけ）────────────────────
+        $per = []; $proofHash = []; $accepted = [];
+        foreach (['1st', '2nd'] as $role) {
+            $a = $this->r122AcceptedHorses($snapshotId, $role);
+            if (!($a['ok'] ?? false) || ($a['merged'] ?? []) === []) { continue; }
+            // @ANCHOR-20261020-R122-COMPLETE  未完了は選出に使いません（契約10章）
+            if (($a['complete'] ?? null) === false) { continue; }
+            $accepted[$role] = $a;
+            $srcCol = ($role === '2nd') ? 'input_json_2nd' : 'input_json_1st';
+            $src = json_decode((string) $snap->{$srcCol}, true);
+            $resUsed = $this->r122ResponseUsed($snapshotId, $role, $a);
+            if ($resUsed['proof'] !== null) { $proofHash[$role] = $resUsed['proof']; }
+            // @ANCHOR-20261020-R122-BANDKEEP  帯ごとの順位の出どころを残します
+            $out['rank_source'][$role] = (array) ($resUsed['rank_source'] ?? []);
+            if ((array) ($resUsed['fallback'] ?? []) !== []) {
+                $out['rank_fallback'][$role] = (array) $resUsed['fallback'];
+            }
+            foreach ((array) ($resUsed['rank_notes'] ?? []) as $rn) {
+                $out['rank_notes'][] = $role . '：' . (string) $rn;
+            }
+            $rows = [];
+            foreach ((array) $a['merged'] as $num => $h) {
+                $num = (int) $num;
+                if (in_array($num, $cancelled, true)) { continue; }   // 取消は入れません
+                // ══════════════════════════════════════════════════════
+                // @ANCHOR-20261020-R122-ELIG  10月20日006のご指摘2-2
+                // ══════════════════════════════════════════════════════
+                //   【本物の不具合でした】取消は除いていたのに、
+                //   <b>資格の検査がありませんでした。</b>
+                //   NO_EVIDENCE や UNVERIFIED の馬も band_ranks に馬番さえ
+                //   あれば順位点に入り、「適格馬の数」として不足判定にも
+                //   使われていました。全頭 NO_EVIDENCE のレースで
+                //   候補7頭が出てしまいます（本来は候補0です）。
+                //
+                //   ここで見るのは<b>意味検証を通ったあとの資格</b>です。
+                //   診断が eligibility と family_review・自分のSIGNALの整合を
+                //   見たうえで残した行なので、この値が実効資格になります。
+                //   採点が partial でも、個別SIGNALが1系統あれば ELIGIBLE が
+                //   立つので落ちません（新しい下限や複数系統必須は足しません）。
+                $elig = (string) ($h['eligibility'] ?? '');
+                if ($elig !== 'ELIGIBLE') { continue; }
+                $band = $frozenBand[$num] ?? ($h['band'] ?? '');
+                // ══════════════════════════════════════════════════════
+                // @ANCHOR-20261020-R122-FROZENK  10月20日006のご指摘3-4
+                // ══════════════════════════════════════════════════════
+                //   【本物の不具合でした】Kを残存頭数で数え直し、
+                //   順位配列からも取消馬を抜いて r を詰めていました。
+                //   凍結A帯6頭の2位は 100×5/6＝83.33点ですが、
+                //   上位が取消になると5頭の1位＝100点に変わっていました。
+                //   契約7章は「凍結帯頭数Kと帯内順位rで統合し、
+                //   統合後に取消馬を除き、最新頭数で公開枠を調整する」です。
+                //   <b>Kとrは凍結時のまま。</b>取消で動かすのは公開枠だけです。
+                $K = 0;
+                foreach ($frozenBand as $n2 => $b2) {
+                    if ($b2 === $band) { $K++; }          // 取消で減らしません
+                }
+                $order = array_map('intval',
+                    (array) ($resUsed['band_ranks'][$band] ?? []));
+                // 取消馬を抜いて詰め直すことはしません（rは凍結時の位置）
+                $r = array_search($num, $order, true);
+                if ($r === false) { continue; }    // 順位の分からない馬は入れません
+                $sup = 0;
+                foreach ((array) ($h['family_review'] ?? []) as $fam) {
+                    if (($fam['status'] ?? '') === 'SUPPORTED') { $sup++; }
+                }
+                $rows[$num] = [
+                    'r' => (int) $r + 1, 'K' => max(1, $K),
+                    'public' => in_array($num,
+                        array_map('intval', (array) ($resUsed['public_candidates'] ?? [])), true),
+                    'groups' => $sup,
+                ];
+            }
+            if ($rows !== []) { $per[$role] = $rows; }
+        }
+        if ($per === []) {
+            $out['code'] = 'NO_RESPONSE';
+            $out['reason'] = '検証を通った応答がありません';
+            return $out;
+        }
+
+        // ── ② 統合 ─────────────────────────────────────────────────
+        $merged = BaganrikiRanking::merge($per, $proofHash);
+        $out['proof'] = array_keys($proofHash);
+
+        // ── ③ 枠（先に全帯ぶん予約し、不足を規則どおりに移す）─────────
+        //   構造上の不足（取消で実在しなくなった帯）と、
+        //   評価後の適格馬不足は別の規則なので、2段に分けます。
+        $q0 = (array) json_decode((string) $snap->quota_1st, true);
+        $quota1st = isset($q0[0])
+            ? ['A' => (int) $q0[0], 'B' => (int) $q0[1], 'D' => (int) $q0[2]]
+            : ['A' => (int) ($q0['A'] ?? 0), 'B' => (int) ($q0['B'] ?? 0),
+               'D' => (int) ($q0['D'] ?? 0)];
+        $afterC = BaganrikiRanking::afterCancellation($frozenBand, $cancelled,
+                      $quota1st, $snap->allocation_mode);
+        if (($afterC['all_cancelled'] ?? false) === true) {
+            $out['code'] = 'ALL_CANCELLED'; $out['reason'] = '全頭取消です';
+            return $out;
+        }
+        $quota = (array) ($afterC['live_quota'] ?? $quota1st);
+        if ($quota === []) { $quota = ['A' => 0, 'B' => 0, 'D' => 0]; }
+        if (isset($quota[0])) {
+            $quota = ['A' => (int) $quota[0], 'B' => (int) $quota[1], 'D' => (int) $quota[2]];
+        }
+        // 評価後の適格馬（統合に乗った馬）の帯ごとの数
+        $avail = ['A' => 0, 'B' => 0, 'D' => 0];
+        foreach ($merged as $m) {
+            $b = $frozenBand[$m['num']] ?? '';
+            if (isset($avail[$b])) { $avail[$b]++; }
+        }
+        $fill = BaganrikiRanking::fillShortfall($quota, $avail);
+        $quota = (array) $fill['quota'];
+        $out['shortfalls'] = array_merge((array) ($afterC['shortfalls'] ?? []),
+                                         (array) $fill['shortfalls']);
+
+        $taken = []; $cands = [];
+        foreach (['A', 'B', 'D'] as $b) {
+            $want = (int) ($quota[$b] ?? 0);
+            $got = 0;
+            foreach ($merged as $m) {
+                if ($got >= $want) { break; }
+                $num = (int) $m['num'];
+                if (isset($taken[$num])) { continue; }          // 馬番は重複させません
+                if (($frozenBand[$num] ?? '') !== $b) { continue; }
+                $taken[$num] = true; $got++;
+                $cands[] = [
+                    'horse_no' => $num, 'band' => $b,
+                    'score' => $m['score'], 'bonus' => $m['bonus'],
+                    'both_public' => $m['both_public'],
+                    'bonus_proven' => $m['bonus_proven'],
+                    'independent_groups' => $m['groups'],
+                    'public_proof_hash' => $m['public_proof_hash'],
+                ];
+            }
+        }
+        $out['candidates'] = $cands;
+        $out['quota'] = $quota;
+
+        // ── ④ 検証完了時刻と intent ─────────────────────────────────
+        $t1 = BaganrikiWorker::nowUs();                     // 検証完了時刻
+        $canon = BaganrikiPrompt::canonical([
+            'snapshot_hash' => (string) $snap->snapshot_hash,
+            'quota'         => $quota,
+            'candidates'    => array_map(static fn($c) => [
+                                   'horse_no' => $c['horse_no'],
+                                   'band'     => $c['band'],
+                                   'bonus'    => $c['bonus'],
+                               ], $cands),
+            // @ANCHOR-20261020-R122-PUB  intentに入れるのは「読んだもの」だけです。
+            //   publication_revision は公開した<b>結果</b>なので入れません。
+            //   入れると、同じ計算の再実行が毎回別のintentになり、
+            //   「同じintentの再実行は同じpublication_id」が守れません。
+            'revisions'     => ['state'    => $readRev['state'],
+                                'response' => $readRev['response']],
+        ]);
+        if ($canon === null) {
+            $out['code'] = 'CANON_FAILED'; $out['reason'] = 'intentの正本を作れません';
+            return $out;
+        }
+        $intentHash = hash('sha256', $canon);
+        $jobId = (string) ($opt['job_id'] ?? ('job-' . $snapshotId . '-' . $t1 . '-'
+                 . substr(bin2hex(random_bytes(3)), 0, 6)));
+        $out['intent_hash'] = $intentHash;
+        $out['job_id'] = $jobId;
+
+        // ── ⑤ 短いトランザクション（ここだけロックします）─────────────
+        try {
+            $res = \DB::transaction(function () use ($snapshotId, $snap, $intentHash,
+                    $jobId, $readRev, $cands, $quota, $out, $t0, $t1, $cancelled,
+                    $activeNums) {
+                $live = \DB::table('baganriki_live_states')
+                          ->where('snapshot_id', $snapshotId)->lockForUpdate()->first();
+                $now = $readRev;
+                if ($live !== null) {
+                    $now = ['state' => (int) $live->state_revision,
+                            'response' => (int) $live->response_revision,
+                            'publication' => (int) $live->publication_revision];
+                }
+                // 同じ intent の再実行は同じ publication_id を返します
+                $same = \DB::table('baganriki_publication_intents')
+                          ->where('snapshot_id', $snapshotId)
+                          ->where('intent_hash', $intentHash)->lockForUpdate()->first();
+                if ($same !== null && $same->publication_id !== null) {
+                    return ['ok' => true, 'code' => 'ALREADY', 'reused' => true,
+                            'publication_id' => (string) $same->publication_id];
+                }
+                // 読んだあとに版が変わっていたら、古い計算は保存しません
+                if ($now !== $readRev) {
+                    return ['ok' => false, 'code' => 'STALE',
+                            'reason' => '読取のあとに版が変わりました（state '
+                                      . $readRev['state'] . '→' . $now['state']
+                                      . '／response ' . $readRev['response'] . '→'
+                                      . $now['response'] . '／publication '
+                                      . $readRev['publication'] . '→'
+                                      . $now['publication'] . '）'];
+                }
+                // 期限と時刻をもう一度
+                $dl = BaganrikiWorker::deadlines($snap, $live);
+                if (!$dl['ok']) {
+                    return ['ok' => false, 'code' => (string) $dl['code'],
+                            'reason' => (string) $dl['reason']];
+                }
+                $t2 = BaganrikiWorker::nowUs();              // commit直前時刻
+                if ($t2 > $dl['publish']) {
+                    return ['ok' => false, 'code' => 'DEADLINE_PASSED',
+                            'reason' => 'commit直前の検査で公開期限を過ぎています'];
+                }
+                // 検証開始 <= 検証完了 <= commit直前（1マイクロ秒でも逆行なら拒否）
+                if (!($t0 <= $t1 && $t1 <= $t2)) {
+                    return ['ok' => false, 'code' => 'CLOCK_BACKWARD',
+                            'reason' => '時刻が逆行しています'];
+                }
+
+                $pubId = 'pub-' . $snap->race_id . '-' . $snap->generation . '-'
+                       . substr($intentHash, 0, 12);
+                $intentId = \DB::table('baganriki_publication_intents')->insertGetId([
+                    'snapshot_id' => $snapshotId, 'job_id' => $jobId,
+                    'intent_hash' => $intentHash,
+                    'read_state_revision'       => $readRev['state'],
+                    'read_response_revision'    => $readRev['response'],
+                    'read_publication_revision' => $readRev['publication'],
+                    'state' => 'COMMITTED', 'publication_id' => $pubId,
+                    'created_at' => BaganrikiWorker::toDb($t2),
+                ]);
+                $j = static fn($v) => (string) json_encode($v,
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                    | JSON_PRESERVE_ZERO_FRACTION);
+                $proofs = [];
+                foreach ($cands as $c) {
+                    if ($c['public_proof_hash'] !== null) {
+                        $proofs[(string) $c['horse_no']] = $c['public_proof_hash'];
+                    }
+                }
+                \DB::table('baganriki_publications')->insert([
+                    'publication_id' => $pubId, 'snapshot_id' => $snapshotId,
+                    'intent_id' => $intentId,
+                    'published_at' => BaganrikiWorker::toDb($t2),
+                    'prediction_target_count'  => array_sum($quota),
+                    'prediction_quota'         => $j($quota),
+                    'publication_target_count' => array_sum($quota),
+                    'publication_quota'        => $j($quota),
+                    'active_count'             => count($activeNums),
+                    'candidates' => $j($cands),
+                    'evidence'   => $j(['shortfalls' => $out['shortfalls'],
+                                        'proof_roles' => $out['proof'],
+                                        'cancelled' => $cancelled]),
+                    'shortfalls' => $j($out['shortfalls']),
+                    'used_state_revision'    => $readRev['state'],
+                    'used_response_revision' => $readRev['response'],
+                    'public_proof_hash'      => $j($proofs),
+                ]);
+                \DB::table('baganriki_live_states')->where('snapshot_id', $snapshotId)
+                  ->update(['publication_revision' => $readRev['publication'] + 1,
+                            'latest_publication_id' => $pubId,
+                            'updated_at' => BaganrikiWorker::toDb($t2)]);
+                BaganrikiWorker::event((string) $snap->race_id, $snapshotId,
+                    'PUBLISHED', $readRev['publication'], $readRev['publication'] + 1,
+                    ['publication_id' => $pubId, 'intent_hash' => $intentHash,
+                     'job_id' => $jobId, 'candidates' => array_column($cands, 'horse_no'),
+                     'verify_started_at'  => BaganrikiTime::toJst($t0),
+                     'verify_finished_at' => BaganrikiTime::toJst($t1),
+                     'committed_at'       => BaganrikiTime::toJst($t2)],
+                    $pubId, $t2);
+                return ['ok' => true, 'code' => 'PUBLISHED', 'reused' => false,
+                        'publication_id' => $pubId];
+            });
+        } catch (\Throwable $e) {
+            if (BaganrikiWorker::isDup($e)) {
+                // 別のintentが先に入った＝こちらは stale
+                $out['code'] = 'STALE';
+                $out['reason'] = 'ほかの処理が先に保存しました';
+                return $out;
+            }
+            $out['code'] = 'PUBLISH_EXCEPTION'; $out['reason'] = $e->getMessage();
+            \Log::error('[R122-PUB] 公開で例外', ['message' => $e->getMessage(),
+                'at' => $e->getFile() . ':' . $e->getLine()]);
+            return $out;
+        }
+
+        $out['ok']     = (bool) ($res['ok'] ?? false);
+        $out['code']   = (string) ($res['code'] ?? '');
+        $out['reason'] = $res['reason'] ?? null;
+        $out['reused'] = (bool) ($res['reused'] ?? false);
+        $out['publication_id'] = $res['publication_id'] ?? null;
+        return $out;
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-PUB  公開に使った原応答を特定します
+     *   加点の証明は、<b>1本の完全な原応答</b>が公開に使う全頭と
+     *   そろっているときだけ出します。初回と訂正が混ざった行は証明しません。
+     *
+     * @return array ['band_ranks','public_candidates','proof'=>[馬番=>hash]|null,
+     *                'attempt_no'=>?int]
+     */
+    public function r122ResponseUsed(int $snapshotId, string $role, array $accepted): array
+    {
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-BANDKEEP  10月20日007のご指摘3-1（最優先）
+        // ══════════════════════════════════════════════════════════════
+        //   【旧】`if (!$inspO['ok'] || $inspO['needs_fix']) { continue; }`
+        //     1頭の observed_sum が誤っているだけで、<b>そのAIの全帯の
+        //     順位をまとめて捨てて</b>いました。r122Publish は帯順位に
+        //     居ない馬を外すので、正常な馬も候補から消えます。
+        //     片側しか応答が無ければ NO_RESPONSE、両側に小さな不備が
+        //     あれば両側とも消えます。「normalへ残った」と「候補に使える」は
+        //     別だ、というご指摘のとおりでした。
+        //
+        //   【いま】<b>帯ごとに</b>見ます。詳細設計書10.2の縮退の順です。
+        //     ① その帯に順位の指摘が無く、馬の集合が凍結入力と合っていれば
+        //        応答の順位をそのまま使う（RESPONSE）
+        //     ② 使えないときは、同じroleの<b>初回の順位</b>を使う（PREVIOUS）
+        //     ③ それも使えないときは、<b>検証済みの予備根拠順位</b>
+        //        （evidence_band_ranks）を使う（EVIDENCE_RANK）
+        //     ④ それも無ければ<b>明示縮退</b>。独立根拠群数の多い順 →
+        //        馬番昇順（EXPLICIT_FALLBACK）。RANK_RECOVERY_FALLBACK を付けます
+        //   非適格馬を戻したり、点数の下限を足したりはしていません。
+        //   加点の証明（proof）は、これまでどおり<b>直すところが無い
+        //   応答で全頭が一致したときだけ</b>です。緩めていません。
+        $o = ['band_ranks' => [], 'public_candidates' => [], 'proof' => null,
+              'attempt_no' => null,
+              // どの帯の順位をどこから採ったか（監査・APIへ出します）
+              'rank_source' => [], 'fallback' => [], 'rank_notes' => []];
+
+        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+        if ($snap === null) { return $o; }
+
+        // 凍結入力の帯（これが正本です）
+        $frozenBand = []; $bandMembers = ['A' => [], 'B' => [], 'D' => []];
+        $src1 = json_decode((string) $snap->input_json_1st, true);
+        foreach ((array) ($src1['runners'] ?? []) as $r) {
+            $n = (int) ($r['horse_no'] ?? 0);
+            $b = (string) ($r['band'] ?? '');
+            if ($n <= 0 || !isset($bandMembers[$b])) { continue; }
+            $frozenBand[$n] = $b;
+            $bandMembers[$b][] = $n;
+        }
+        foreach ($bandMembers as $b => $v) { sort($v); $bandMembers[$b] = $v; }
+
+        // 帯の順位として使えるか（集合が凍結入力と同じ・重複なし）
+        $usable = static function ($list, array $want): bool {
+            if (!is_array($list)) { return false; }
+            $g = array_map('intval', array_values($list));
+            if (count(array_unique($g)) !== count($g)) { return false; }
+            $gs = $g; sort($gs);
+            return ($gs === $want);
+        };
+
+        $mixed = ((array) ($accepted['applied'] ?? []) !== []
+               || (array) ($accepted['rescued'] ?? []) !== [])
+               && (string) ($accepted['code'] ?? '') === 'FIX_APPLIED';
+        $try = ((string) ($accepted['code'] ?? '') === 'FIX_APPLIED')
+             ? [BaganrikiWorker::FIX, BaganrikiWorker::FIRST]
+             : [BaganrikiWorker::FIRST];
+
+        // ── ① 使う応答（訂正があれば訂正、無ければ初回）──────────────
+        $useNo = null; $useRes = null; $useInsp = null; $useRow = null;
+        foreach ($try as $no) {
+            $a = \DB::table('baganriki_ai_attempts')
+                   ->where('snapshot_id', $snapshotId)->where('role', $role)
+                   ->where('attempt_no', $no)
+                   ->where('status', BaganrikiWorker::RECEIVED)->first();
+            if ($a === null) { continue; }
+            // @ANCHOR-20261020-R122-COMPLETE  未完了は順位にも使いません
+            if ((int) ($a->complete ?? 0) !== 1) { continue; }
+            $ex = BaganrikiResponse::extract((string) $a->raw_response);
+            if (!$ex['ok']) { continue; }
+            $insp = $this->r122InspectResponse($snapshotId, $role, (int) $no);
+            if (!$insp['ok']) { continue; }
+            $useNo = (int) $no; $useRes = (array) $ex['json'];
+            $useInsp = $insp; $useRow = $a;
+            break;
+        }
+        if ($useNo === null) { return $o; }
+        $o['attempt_no'] = $useNo;
+
+        // ── ② 初回の順位（②の縮退と、対象外の帯の保持に使います）────
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-BANDSCOPE  10月21日008のご指摘3（後半）
+        // ══════════════════════════════════════════════════════════════
+        //   【本物の不具合でした】
+        //   acceptCorrection は<b>馬の行しか比べていません。</b>
+        //   band_ranks のような top の項目は比べていません。
+        //   そのため「別の馬を直す訂正」が、初回では正常だった帯の
+        //   並びを<b>黙って変えて</b>も通り、FIX_APPLIED なら
+        //   その変えた並びが使われていました。
+        //   【いま】訂正で直してよい帯（初回の repair_scope.rank_bands）
+        //   だけを、訂正の並びで上書きできます。
+        //   それ以外の帯は<b>初回の並びを保持</b>します。
+        //   変えようとしていた場合は、そのことを記録に残します。
+        $prevRanks = [];
+        $allowBands = [];      // 訂正で順位を変えてよい帯
+        $prevSeen   = false;   // 初回の応答を読めたか
+        if ($useNo === BaganrikiWorker::FIX) {
+            $p = \DB::table('baganriki_ai_attempts')
+                   ->where('snapshot_id', $snapshotId)->where('role', $role)
+                   ->where('attempt_no', BaganrikiWorker::FIRST)
+                   ->where('status', BaganrikiWorker::RECEIVED)->first();
+            if ($p !== null && (int) ($p->complete ?? 0) === 1) {
+                $pe = BaganrikiResponse::extract((string) $p->raw_response);
+                if ($pe['ok']) {
+                    $prevSeen = true;
+                    $pi = $this->r122InspectResponse($snapshotId, $role,
+                              BaganrikiWorker::FIRST);
+                    $pBad = self::r122BadBands($pi['repair_scope'] ?? null);
+                    // @ANCHOR-20261021-R122-BANDSCOPE  直してよい帯はこれだけ
+                    $allowBands = $pBad;
+                    foreach (['A', 'B', 'D'] as $b) {
+                        if (in_array($b, $pBad, true)) { continue; }
+                        $lst = ((array) $pe['json'])['band_ranks'][$b] ?? null;
+                        if ($usable($lst, $bandMembers[$b])) {
+                            $prevRanks[$b] = array_map('intval', array_values($lst));
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── ③ 帯ごとに順位を決めます ─────────────────────────────────
+        $badBands = self::r122BadBands($useInsp['repair_scope'] ?? null);
+        $resBands = (array) ($useRes['band_ranks'] ?? []);
+        $evBands  = (array) ($useRes['evidence_band_ranks'] ?? []);
+        $merged   = (array) ($accepted['merged'] ?? []);
+
+        foreach (['A', 'B', 'D'] as $b) {
+            if ($bandMembers[$b] === []) { continue; }   // その帯に馬が居ません
+
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261021-R122-BANDSCOPE  訂正で直してよい帯だけ
+            // ══════════════════════════════════════════════════════════
+            //   訂正を使っていて、その帯が<b>訂正の対象ではない</b>のに
+            //   初回の並びが使えるなら、初回の並びを保持します。
+            //   訂正が違う並びを返していたら、そのことを残します
+            //   （採用はしません）。
+            if ($useNo === BaganrikiWorker::FIX && $prevSeen
+                && !in_array($b, $allowBands, true)
+                && isset($prevRanks[$b])) {
+                $o['band_ranks'][$b]  = $prevRanks[$b];
+                $o['rank_source'][$b] = 'PREVIOUS_KEPT';
+                $rl = $resBands[$b] ?? null;
+                if (is_array($rl)
+                    && array_map('intval', array_values($rl)) !== $prevRanks[$b]) {
+                    $o['rank_notes'][] = $b . '帯は訂正の対象ではないので初回の順位を'
+                                       . '保持しました（訂正は違う順位を返していました）';
+                } else {
+                    $o['rank_notes'][] = $b . '帯は訂正の対象ではないので初回の順位を'
+                                       . '保持しました';
+                }
+                continue;
+            }
+            // ①応答の順位（指摘が無く、集合が合っているとき）
+            if (!in_array($b, $badBands, true)
+                && $usable($resBands[$b] ?? null, $bandMembers[$b])) {
+                $o['band_ranks'][$b]  = array_map('intval', array_values($resBands[$b]));
+                $o['rank_source'][$b] = 'RESPONSE';
+                continue;
+            }
+            // ②初回の順位
+            if (isset($prevRanks[$b])) {
+                $o['band_ranks'][$b]  = $prevRanks[$b];
+                $o['rank_source'][$b] = 'PREVIOUS';
+                $o['rank_notes'][]    = $b . '帯は訂正の順位を使えないので初回の順位を保持しました';
+                continue;
+            }
+            // ③検証済みの予備根拠順位
+            if ($usable($evBands[$b] ?? null, $bandMembers[$b])) {
+                $o['band_ranks'][$b]  = array_map('intval', array_values($evBands[$b]));
+                $o['rank_source'][$b] = 'EVIDENCE_RANK';
+                $o['rank_notes'][]    = $b . '帯は根拠順位（evidence_band_ranks）へ切り替えました';
+                continue;
+            }
+            // ④明示縮退（独立根拠群数の多い順 → 馬番昇順）
+            $rows = [];
+            foreach ($bandMembers[$b] as $n) {
+                $h = $merged[$n] ?? null;
+                if (!is_array($h)) { continue; }
+                $sup = 0;
+                foreach ((array) ($h['family_review'] ?? []) as $fam) {
+                    if (($fam['status'] ?? '') === 'SUPPORTED') { $sup++; }
+                }
+                $rows[] = ['no' => $n, 'sup' => $sup];
+            }
+            if ($rows === []) {
+                $o['rank_source'][$b] = 'NONE';
+                $o['rank_notes'][]    = $b . '帯は使える順位が作れませんでした';
+                continue;
+            }
+            usort($rows, static function ($x, $y) {
+                if ($x['sup'] !== $y['sup']) { return $y['sup'] <=> $x['sup']; }
+                return $x['no'] <=> $y['no'];
+            });
+            $o['band_ranks'][$b]  = array_column($rows, 'no');
+            $o['rank_source'][$b] = 'EXPLICIT_FALLBACK';
+            $o['fallback'][]      = $b;
+            $o['rank_notes'][]    = $b . '帯は明示縮退（独立根拠群数の多い順→馬番昇順）です';
+        }
+
+        // ── ④ 公開リスト（表示の指摘が無いときだけ採ります）──────────
+        $rs = (array) ($useInsp['repair_scope'] ?? []);
+        $presOk = (((array) ($rs['presentation_horses'] ?? [])) === [])
+               && (($rs['public_candidates'] ?? false) !== true);
+        if ($presOk) {
+            $o['public_candidates'] = (array) ($useRes['public_candidates'] ?? []);
+        } else {
+            $o['rank_notes'][] = '公開リストに指摘があるので原公開候補は採りません';
+        }
+
+        // ── ⑤ 加点の証明（ここは緩めません）──────────────────────────
+        //   complete で、直すところが無く、公開に使う全頭がその応答の
+        //   中身と一致しているときだけです。縮退した帯があるときも出しません。
+        if (($useInsp['needs_fix'] ?? true) === false
+            && $o['fallback'] === []
+            && !($mixed && $useNo === BaganrikiWorker::FIRST)) {
+            $want = array_keys($merged);
+            $got  = array_keys((array) $useInsp['normal']);
+            sort($want); sort($got);
+            if ($want === $got && $want !== []) {
+                $same = true;
+                foreach ($want as $num) {
+                    if (($merged[$num] ?? null) !== ($useInsp['normal'][$num] ?? null)) {
+                        $same = false; break;
+                    }
+                }
+                if ($same) {
+                    $proof = [];
+                    foreach ($want as $num) {
+                        $proof[(int) $num] = (string) $useRow->response_hash;
+                    }
+                    $o['proof'] = $proof;
+                }
+            }
+        }
+        return $o;
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-BANDKEEP  順位の指摘が付いた帯の名前だけを返します
+     *   repair_scope.rank_bands には帯の名前（A/B/D）のほかに、
+     *   項目名（band_ranks / evidence_band_ranks）が入ることがあります。
+     *   帯の名前だけを取り出します。項目ごと壊れている場合は全帯を
+     *   「指摘あり」として扱います（順位そのものが読めないためです）。
+     */
+    public static function r122BadBands($scope): array
+    {
+        $t = (array) (((array) $scope)['rank_bands'] ?? []);
+        $bands = []; $wholeBroken = false;
+        foreach ($t as $x) {
+            $x = (string) $x;
+            if ($x === 'A' || $x === 'B' || $x === 'D') { $bands[] = $x; continue; }
+            if ($x === 'band_ranks' || $x === 'evidence_band_ranks') {
+                $wholeBroken = true;
+            }
+        }
+        if ($wholeBroken) { return ['A', 'B', 'D']; }
+        return array_values(array_unique($bands));
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-PAST  過去走を source_registry へ載せます
+     * ═══════════════════════════════════════════════════════════════════════
+     * 根拠：server_contract_r12.2.txt 3章・5章
+     *   「past_runs は coverage で INCLUDED または理由付き UNAVAILABLE を
+     *     必須記録。利用できるデータを黙って捨てない」
+     *
+     * ■ 正本
+     *   t_horse_odds_finder_shutsuba_history（馬名で引きます）
+     *   対象レースの<b>開催日より前</b>のレースだけを使います。
+     *   同じ日・後の日のものは入れません（結果の先読みを防ぎます）。
+     *
+     * ■ 情報上限
+     *   その行を<b>いつ手に入れたか</b>で切ります。
+     *   created_at と updated_at の<b>遅いほう</b>を available_at とし、
+     *   情報上限（入力の凍結時刻）より後のものは載せません。
+     *   後から取り直した内容で過去のレースを評価しないためです。
+     *
+     * ■ observed_at について
+     *   過去走の行には発走時刻がありません。
+     *   <b>無い時刻を作らない</b>ので、observed_at には
+     *   「こちらが手に入れた時刻」を入れ、
+     *   そのレースの開催日は past_date として別の項目で渡します。
+     *
+     * ■ 1頭あたり直近5走まで（.env で変えられます）
+     *   生の事実（着順・頭数・人気・距離・馬場・上がり3F・着差・開催日）と、
+     *   そこから出した3つのまとめ（走数・最高着順・3着内率）を載せます。
+     *
+     *   BAGANRIKI_PAST_RUNS_MAX  既定 5（0〜10）。
+     *   <b>0 にすると過去走を載せません。</b>
+     *   送信文が長くなると応答時間も伸びます。応答期限は発走の150秒前なので、
+     *   実測を見てここで絞れるようにしてあります。
+     *
+     * @param array $nums   馬番 => 馬名
+     * @return array ['registry'=>..., 'coverage'=>['past_runs'=>...]]
+     */
+    public static function r122PastRunsRegistry(string $raceId, string $date,
+                                                array $nums, ?string $freezeAt): array
+    {
+        // @ANCHOR-20261020-R122-DERIVEDAT  1回の組み立てで1つの計算時刻にします
+        //   （同じ組み立ての中で時刻がばらつくと、snapshot_hash が揺れます）
+        $buildAt = BaganrikiPrompt::rfc3339(BaganrikiWorker::nowUs());
+        $empty = static fn(string $why) => ['registry' => [],
+            'coverage' => ['past_runs' => ['status' => 'UNAVAILABLE', 'reason' => $why]]];
+
+        if (!\Schema::hasTable('t_horse_odds_finder_shutsuba_history')) {
+            return $empty('過去走の表（shutsuba_history）がありません');
+        }
+        $names = [];
+        foreach ($nums as $no => $nm) {
+            $nm = trim((string) $nm);
+            if ($nm !== '') { $names[trim((string) $nm)][] = (int) $no; }
+        }
+        if ($names === []) {
+            return $empty('出馬表に馬名がありません');
+        }
+
+        $max = self::r122PastRunsMax();
+        if ($max <= 0) {
+            return $empty('.env の BAGANRIKI_PAST_RUNS_MAX が 0 のため載せていません');
+        }
+        $freezeUs = ($freezeAt === null) ? null : BaganrikiTime::us($freezeAt);
+        $add = []; $refs = []; $late = null; $used = 0;
+
+        // 馬名ごとに、対象レースより前の開催日のものを新しい順で取ります
+        $rows = \DB::table('t_horse_odds_finder_shutsuba_history')
+                  ->whereIn('name', array_keys($names))
+                  ->where('date', '<', $date)
+                  ->orderBy('name')->orderByDesc('date')->orderBy('race')
+                  ->get(['name', 'date', 'basho_code', 'race', 'grade',
+                         'finishing_position', 'num_horses', 'gate', 'popularity',
+                         'dist', 'time', 'condition', 'last_3f', 'fin_time_diff',
+                         'created_at', 'updated_at']);
+
+        $byName = [];
+        foreach ($rows as $r) {
+            $byName[(string) $r->name][] = $r;
+        }
+
+        foreach ($names as $nm => $horseNos) {
+            $list = $byName[$nm] ?? [];
+            if ($list === []) { continue; }
+            foreach ($horseNos as $no) {
+                $i = 0; $fin = []; $parents = []; $avail = null;
+                foreach ($list as $r) {
+                    if ($i >= $max) { break; }
+                    // 手に入れた時刻（created_at と updated_at の遅いほう）
+                    $cAt = self::r122DbTime($r->created_at);
+                    $uAt = self::r122DbTime($r->updated_at);
+                    $av  = $cAt;
+                    if ($uAt !== null && ($av === null || strcmp($uAt, $av) > 0)) { $av = $uAt; }
+                    if ($av === null) { continue; }
+                    if ($freezeUs !== null) {
+                        $au = BaganrikiTime::us($av);
+                        if ($au === null || $au > $freezeUs) {
+                            if ($late === null || strcmp($av, (string) $late) < 0) { $late = $av; }
+                            continue;
+                        }
+                    }
+                    $i++;
+                    if ($avail === null || strcmp($av, $avail) > 0) { $avail = $av; }
+
+                    $pdate = substr((string) $r->date, 0, 10);
+                    $vals = [
+                        'past_date'       => ['v' => $pdate,                        'u' => 'date'],
+                        'past_finish'     => ['v' => self::r122IntOrNull($r->finishing_position), 'u' => 'rank'],
+                        'past_num_horses' => ['v' => self::r122IntOrNull($r->num_horses),         'u' => 'horses'],
+                        'past_popularity' => ['v' => self::r122IntOrNull($r->popularity),         'u' => 'rank'],
+                        'past_dist'       => ['v' => self::r122StrOrNull($r->dist),      'u' => 'text'],
+                        'past_condition'  => ['v' => self::r122StrOrNull($r->condition), 'u' => 'text'],
+                        'past_last_3f'    => ['v' => self::r122StrOrNull($r->last_3f),   'u' => 'second'],
+                        'past_time_diff'  => ['v' => self::r122StrOrNull($r->fin_time_diff), 'u' => 'second'],
+                    ];
+                    foreach ($vals as $f => $x) {
+                        if ($x['v'] === null) { continue; }
+                        $ref = 'h' . $no . '_' . $f . '_' . $i;
+                        $add[$ref] = [
+                            'source_ref'           => $ref,
+                            'race_id'              => $raceId,
+                            'value'                => $x['v'],
+                            'scope'                => 'HORSE',
+                            'horse_nos'            => [(int) $no],
+                            'applicable_horse_nos' => [],
+                            'field'                => $f . '_' . $i,
+                            'unit'                 => $x['u'],
+                            'slot_offset'          => null,
+                            // 過去走の行に発走時刻はありません。
+                            // 無い時刻は作らず、手に入れた時刻を入れます。
+                            'observed_at'          => $av,
+                            'available_at'         => $av,
+                            'computed_at'          => null,
+                            'source_kind'          => 'OBSERVED',
+                            'parents'              => [],
+                            'formula_id'           => null,
+                            'formula_version'      => null,
+                            'dependency_key'       => 'h' . $no . '_past_' . $i,
+                            'dependency_role'      => 'CONTEXT',
+                        ];
+                        $refs[] = $ref;
+                        $parents[] = $ref;
+                    }
+                    $f0 = self::r122IntOrNull($r->finishing_position);
+                    if ($f0 !== null && $f0 > 0) { $fin[] = $f0; }
+                }
+                if ($i === 0 || $avail === null || $parents === []) { continue; }
+                $used++;
+
+                // ── まとめ（走数・最高着順・3着内率）────────────────────
+                $sum = [
+                    'past_runs_count' => ['v' => $i, 'u' => 'races'],
+                ];
+                if ($fin !== []) {
+                    $top3 = 0;
+                    foreach ($fin as $x) { if ($x <= 3) { $top3++; } }
+                    $sum['past_best_finish'] = ['v' => min($fin), 'u' => 'rank'];
+                    // 割り切れるときに整数へ落ちないよう、十進数の文字列で渡します
+                    $sum['past_top3_rate'] = [
+                        'v' => number_format($top3 / count($fin), 4, '.', ''),
+                        'u' => 'ratio',
+                    ];
+                }
+                foreach ($sum as $f => $x) {
+                    $ref = 'h' . $no . '_' . $f;
+                    $add[$ref] = [
+                        'source_ref'           => $ref,
+                        'race_id'              => $raceId,
+                        'value'                => $x['v'],
+                        'scope'                => 'HORSE',
+                        'horse_nos'            => [(int) $no],
+                        'applicable_horse_nos' => [],
+                        'field'                => $f,
+                        'unit'                 => $x['u'],
+                        'slot_offset'          => null,
+                        'observed_at'          => $avail,
+                        'available_at'         => $avail,
+                        // @ANCHOR-20261020-R122-DERIVEDAT  006のご指摘4-2
+                        //   【旧】今回まとめた値なのに、過去走を手に入れた時刻を
+                        //     computed_at に入れていました。実際の計算時刻ではありません。
+                        'computed_at'          => $buildAt,
+                        'source_kind'          => 'DERIVED',
+                        'parents'              => array_values(array_unique($parents)),
+                        'formula_id'           => 'PAST_RUNS_SUMMARY',
+                        'formula_version'      => 'v1',
+                        'dependency_key'       => 'h' . $no . '_past_summary',
+                        'dependency_role'      => 'CONTEXT',
+                    ];
+                    $refs[] = $ref;
+                }
+            }
+        }
+
+        if ($refs === []) {
+            $why = '対象レースより前の過去走が見つかりませんでした';
+            if ($late !== null) {
+                $why = '過去走は情報上限より後に手に入れたものしかありません'
+                     . '（いちばん早い取得時刻 ' . $late
+                     . '／情報上限 ' . ($freezeAt ?? '不明') . '）。'
+                     . '後から取り直した内容で過去のレースを評価しないためです。';
+            }
+            return $empty($why);
+        }
+        $refs = array_values(array_unique($refs));
+        sort($refs, SORT_STRING);
+        return [
+            'registry' => $add,
+            'coverage' => ['past_runs' => ['status' => 'INCLUDED', 'source_refs' => $refs]],
+            'horses_with_past' => $used,
+        ];
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-PAST  1頭あたり何走まで載せるか
+     *   既定5。0 で載せません。10 を超える指定は10に丸めます。
+     *   送信文の長さと応答時間の兼ね合いで絞れるようにしています。
+     */
+    public static function r122PastRunsMax(): int
+    {
+        $v = env('BAGANRIKI_PAST_RUNS_MAX', null);
+        if ($v === null || !is_numeric((string) $v)) { return 5; }
+        $n = (int) $v;
+        if ($n < 0)  { return 0; }
+        if ($n > 10) { return 10; }
+        return $n;
+    }
+
+    /** @ANCHOR-20261020-R122-PAST  整数として読めるときだけ整数を返します */
+    public static function r122IntOrNull($v): ?int
+    {
+        if ($v === null) { return null; }
+        $s = trim((string) $v);
+        if ($s === '' || !preg_match('/^-?\d+$/', $s)) { return null; }
+        return (int) $s;
+    }
+
+    /** @ANCHOR-20261020-R122-PAST  空でない文字列のときだけ返します */
+    public static function r122StrOrNull($v): ?string
+    {
+        if ($v === null) { return null; }
+        $s = trim((string) $v);
+        return ($s === '') ? null : $s;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-SHADOW  入力だけ作って凍結する（送信は旧本文）
+     * ═══════════════════════════════════════════════════════════════════════
+     * BAGANRIKI_R122_PROMPT=shadow のときに呼ばれます。
+     *
+     * ■ やること
+     *   r12.2 の入力を組み立てて、作れたら PRODUCTION として凍結保存します。
+     *   <b>AIへ送る本文は触りません（旧本文のままです）。</b>
+     *   キューの枠も取りません。旧本文の応答を r12.2 の原応答として
+     *   保存してしまうと、ジャーナルが契約に合わない中身で汚れるためです。
+     *
+     * ■ 何が測れるか
+     *   ・入力が作れるレースと作れないレース（理由つき）
+     *   ・送信文の大きさ（実レースでの実寸）
+     *   ・coverage 7区分の実際の状態
+     *   ・取得監査の実時刻が入力に紐づくか
+     *   ・snapshot_hash が本番の世代で残るか
+     *
+     * ■ 何も壊しません
+     *   失敗しても例外を外に出しません。いまの商品の動きは変わりません。
+     */
+    public function r122ShadowRecord($date, $kaisuu, $basho, $day, $race): void
+    {
+        try {
+            $raceId = self::r122RaceId($date, $kaisuu, $basho, $day, $race);
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-ONEBUILD  10月20日007のご指摘2
+            // ══════════════════════════════════════════════════════════
+            //   【旧】ここで組み立ててから、あとで r122Freeze を呼んで
+            //     <b>もう一度</b>組み立てていました。派生の計算時刻が
+            //     2回で変わるので、ログに出る hash と保存された hash が
+            //     食い違います。shadow でも同じ問題が起きていました。
+            //   【いま】r122AssembleSend が、固定入力が無ければ1回だけ
+            //     作って固定し、<b>保存した本文を読んで返します</b>。
+            //     ログに出る hash は、保存されたものと同じです。
+            $asm = $this->r122AssembleSend($date, $kaisuu, $basho, $day, $race, '1st');
+            if (!($asm['ok'] ?? false)) {
+                \Log::error('[R122-SHADOW] 入力を作れません（旧本文で送ります）', [
+                    'race_id' => $raceId,
+                    'code'    => $asm['code'] ?? null,
+                    'reason'  => $asm['reason'] ?? null,
+                ]);
+                return;
+            }
+            $in = (array) $asm['input'];
+            $cov = [];
+            foreach ((array) ($in['coverage'] ?? []) as $k => $v) {
+                $cov[$k] = (string) ($v['status'] ?? '?');
+            }
+            \Log::error('[R122-SHADOW] 入力を作れました（旧本文で送ります）', [
+                'race_id'        => $raceId,
+                'N'              => $in['N'] ?? null,
+                'mode'           => ($in['mode'] ?? '') . '／' . ($in['mode_status'] ?? ''),
+                'snapshot_hash'  => $in['snapshot_hash'] ?? null,
+                'user_bytes'     => $asm['user_bytes'] ?? strlen((string) $asm['user']),
+                'registry'       => count((array) ($in['source_registry'] ?? [])),
+                'coverage'       => $cov,
+                'past_runs_max'  => self::r122PastRunsMax(),
+            ]);
+
+            // 凍結保存の状態を確かめます。
+            //   上の r122AssembleSend で固定済みなので、ここは必ず
+            //   skipped=true（既存）になります。作り直しません。
+            $fz = $this->r122Freeze($date, $kaisuu, $basho, $day, $race,
+                                    [], 'PRODUCTION', false);
+            \Log::error('[R122-SHADOW] 凍結保存', [
+                'race_id'       => $raceId,
+                'ok'            => $fz['ok'] ?? false,
+                'skipped'       => $fz['skipped'] ?? false,
+                'code'          => $fz['code'] ?? null,
+                'reason'        => $fz['reason'] ?? null,
+                'snapshot_hash' => $fz['snapshot_hash'] ?? null,
+                'counts'        => $fz['counts'] ?? null,
+                // @ANCHOR-20261020-R122-ONEBUILD  保存物を読んだ印と、hashの一致
+                'from_saved'    => $asm['from_saved'] ?? null,
+                'hash_same'     => (($asm['snapshot_hash'] ?? null) !== null
+                                    && ($asm['snapshot_hash'] ?? null)
+                                       === ($fz['snapshot_hash'] ?? null)),
+            ]);
+        } catch (\Throwable $e) {
+            // ここで落ちても、いまの商品は止めません
+            \Log::error('[R122-SHADOW] 例外（送信は続けます）', [
+                'message' => $e->getMessage(),
+                'at'      => $e->getFile() . ':' . $e->getLine(),
+            ]);
+        }
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-MARKET  OPI と推定確定オッズを source_registry へ
+     * ═══════════════════════════════════════════════════════════════════════
+     * 根拠：server_contract_r12.2.txt 3章・5章／採点辞書 V1・V3・V4
+     *
+     * ■ 正本と式（いまの商品と同じものを使います。作り直しません）
+     *   t_horse_odds_finder_popularity_rank_average       人気順位別の過去平均単勝
+     *   t_horse_odds_finder_fuku_popularity_rank_average  人気順位別の過去平均複勝最小
+     *   t_horse_odds_finder_compute_odds_correction       人気順位別の補正係数
+     *
+     *     OPI            = 過去平均単勝 ÷ 6分前単勝
+     *     複勝OPI        = 過去平均複勝最小 ÷ 6分前複勝最小
+     *     推定確定オッズ = 6分前単勝 × 補正係数
+     *     推定確定複勝   = 6分前複勝最小 × 補正係数（複勝専用の係数は未実装）
+     *     予測補正OPI    = 過去平均単勝 ÷ 推定確定オッズ
+     *
+     * ■ 使っていいかの判定（2つとも満たしたときだけ載せます）
+     *   ① 集計期間の終わり（end_date）が<b>対象レースの開催日より前</b>
+     *      当日を含む集計で、その当日のレースを評価しないためです。
+     *   ② 算出時刻（computed_at）が情報上限より前
+     *      この列が無い表は①だけで見ます。<b>無い時刻は作りません。</b>
+     *      読み取った時刻（入力の凍結時刻）を observed_at に入れ、
+     *      集計期間は start_date / end_date として別項目で渡します。
+     *
+     * ■ .env の BAGANRIKI_MARKET_PRIOR を 0 にすると載せません（既定は1）。
+     *
+     * @param array $frozenRank 馬番 => 凍結人気
+     * @param array $cells      $cells[馬番][スロット]['win_odds'|'place_min']
+     * @return array ['registry'=>..., 'coverage'=>['OPI'=>..,'estimated_odds'=>..]]
+     */
+    public static function r122MarketPriorRegistry(string $raceId, string $date,
+                                                   array $frozenRank, array $cells,
+                                                   ?string $freezeAt): array
+    {
+        $ng = static fn(string $o, string $e) => ['registry' => [], 'coverage' => [
+            'OPI'            => ['status' => 'UNAVAILABLE', 'reason' => $o],
+            'estimated_odds' => ['status' => 'UNAVAILABLE', 'reason' => $e],
+        ]];
+
+        if (!self::r122MarketPriorEnabled()) {
+            $m = '.env の BAGANRIKI_MARKET_PRIOR が 0 のため載せていません';
+            return $ng($m, $m);
+        }
+        foreach (['t_horse_odds_finder_popularity_rank_average',
+                  't_horse_odds_finder_fuku_popularity_rank_average',
+                  't_horse_odds_finder_compute_odds_correction'] as $t) {
+            if (!\Schema::hasTable($t)) {
+                $m = $t . ' がありません';
+                return $ng($m, $m);
+            }
+        }
+        if ($frozenRank === []) {
+            $m = '凍結人気が出ていないので人気順位別の集計を引けません';
+            return $ng($m, $m);
+        }
+
+        $freezeUs = ($freezeAt === null) ? null : BaganrikiTime::us($freezeAt);
+        $day = substr($date, 0, 10);
+
+        // 使っていいかを見る共通の道具
+        $check = static function ($endDate, $computedAt) use ($day, $freezeUs, $freezeAt) {
+            $ed = ($endDate === null) ? '' : substr(str_replace('/', '-', (string) $endDate), 0, 10);
+            if ($ed === '') {
+                return [false, '集計期間の終わりが分かりません', null];
+            }
+            if (strcmp($ed, $day) >= 0) {
+                return [false, '集計期間の終わり（' . $ed . '）が対象レースの開催日（'
+                             . $day . '）以降です。当日を含む集計で'
+                             . 'その日のレースを評価しないためです。', null];
+            }
+            $cAt = ($computedAt === null) ? null : self::r122DbTime($computedAt);
+            if ($cAt !== null && $freezeUs !== null) {
+                $cu = BaganrikiTime::us($cAt);
+                if ($cu === null || $cu > $freezeUs) {
+                    return [false, 'この集計は情報上限より後に算出されています（算出 '
+                                 . $cAt . '／情報上限 ' . ($freezeAt ?? '不明') . '）', null];
+                }
+            }
+            return [true, null, $cAt];
+        };
+
+        // 人気順位 => その順位の馬番
+        $byRank = [];
+        foreach ($frozenRank as $no => $rk) {
+            $byRank[(int) $rk][] = (int) $no;
+        }
+        foreach ($byRank as $rk => $list) { sort($list); $byRank[$rk] = $list; }
+
+        $add = []; $refs = ['OPI' => [], 'estimated_odds' => []];
+        $why = ['OPI' => null, 'estimated_odds' => null];
+
+        // ── 表を読む ────────────────────────────────────────────────
+        $load = static function (string $table, string $valueCol, string $countCol)
+                use ($check) {
+            $rows = []; $win = null; $bad = null; $at = null; $atSrc = null;
+            foreach (\DB::table($table)->get() as $r) {
+                // ══════════════════════════════════════════════════════
+                // @ANCHOR-20261021-R122-VERIFIEDAT  10月21日008のご指摘8
+                // ══════════════════════════════════════════════════════
+                //   computed_at（実際に算出した時刻）を正とします。
+                //   列を足す前から在った行は computed_at が無いので、
+                //   その行だけ verified_at（この時刻に使えることを確かめた）
+                //   で代えます。どちらを使ったかは下の理由文に出ます。
+                $cSrc = 'computed_at';
+                $cRaw = $r->computed_at ?? null;
+                if ($cRaw === null && property_exists($r, 'verified_at')) {
+                    $cRaw = $r->verified_at ?? null;
+                    if ($cRaw !== null) { $cSrc = 'verified_at'; }
+                }
+                [$ok, $reason, $cAt] = $check($r->end_date ?? null, $cRaw);
+                if (!$ok) { if ($bad === null) { $bad = $reason; } continue; }
+                $rk = (int) ($r->popularity_rank ?? 0);
+                if ($rk <= 0) { continue; }
+                $rows[$rk] = $r;
+                if ($at === null || ($cAt !== null && strcmp($cAt, (string) $at) > 0)) {
+                    $at = $cAt; $atSrc = $cSrc;
+                }
+                if ($win === null) {
+                    $win = ['start' => substr((string) ($r->start_date ?? ''), 0, 10),
+                            'end'   => substr((string) ($r->end_date ?? ''), 0, 10)];
+                }
+            }
+            return ['rows' => $rows, 'window' => $win, 'bad' => $bad,
+                    'computed_at' => $at,
+                    // @ANCHOR-20261021-R122-VERIFIEDAT  どちらの時刻を使ったか
+                    'time_source' => $atSrc];
+        };
+
+        $popAvg  = $load('t_horse_odds_finder_popularity_rank_average', 'odds_average', 'count');
+        $fukuAvg = $load('t_horse_odds_finder_fuku_popularity_rank_average', 'odds_average', 'count');
+        $corr    = $load('t_horse_odds_finder_compute_odds_correction', 'avg_correction_ratio', 'sample_count');
+
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-REALTIME  10月20日006のご指摘4-1（本物の不具合）
+        // ══════════════════════════════════════════════════════════════
+        //   【旧】算出時刻の無い表には $readAt（＝情報上限、無ければ現在時刻）を
+        //     observed_at / available_at として入れていました。
+        //     これは<b>真正な取得時刻の記録ではありません。</b>
+        //     「無い時刻は作らない」と書きながら、作っていました。
+        //     集計期間の終わりが開催日より前でも、その版を上限前に
+        //     利用できた証拠にはなりません。
+        //   【いま】算出時刻の列が無い表は使いません。理由を付けて外します。
+        //     列が入れば（取得・算出側で記録すれば）その日から使えます。
+        $nowAt = BaganrikiPrompt::rfc3339(BaganrikiWorker::nowUs());
+
+        $put = static function (array &$add, string $ref, $value, string $field,
+                                string $unit, array $applicable, string $at,
+                                array $parents = [], ?string $formula = null)
+                use ($raceId) {
+            $derived = ($parents !== []);
+            $add[$ref] = [
+                'source_ref'           => $ref,
+                'race_id'              => $raceId,
+                'value'                => $value,
+                'scope'                => ($applicable === []) ? 'RACE' : 'COHORT',
+                'horse_nos'            => [],
+                'applicable_horse_nos' => $applicable,
+                'field'                => $field,
+                'unit'                 => $unit,
+                'slot_offset'          => null,
+                'observed_at'          => $at,
+                'available_at'         => $at,
+                'computed_at'          => $derived ? $at : null,
+                'source_kind'          => $derived ? 'DERIVED' : 'OBSERVED',
+                'parents'              => $parents,
+                'formula_id'           => $derived ? $formula : null,
+                'formula_version'      => $derived ? 'v1' : null,
+                'dependency_key'       => $field,
+                'dependency_role'      => 'CONTEXT',
+            ];
+        };
+
+        // @ANCHOR-20261020-R122-REALTIME  算出時刻が無い表は使いません
+        //   ここで2つを<b>区別します</b>。混ぜると、直したあとも
+        //   「列がありません」と出続けて、何をすれば載るのか読めません。
+        //     列が無い   … 取得・算出側に記録する場所がまだ無い
+        //     値がNULL   … 場所はあるが、その集計がまだ1回もまわっていない
+        $noTime = []; $noTimeWhy = [];
+        $r122TblOf = [
+            'popavg'  => 't_horse_odds_finder_popularity_rank_average',
+            'fukuavg' => 't_horse_odds_finder_fuku_popularity_rank_average',
+            'corr'    => 't_horse_odds_finder_compute_odds_correction',
+        ];
+        foreach ([['popavg', $popAvg], ['fukuavg', $fukuAvg], ['corr', $corr]] as $pair) {
+            [$tag, $t] = $pair;
+            if ($t['rows'] !== [] && $t['computed_at'] === null) {
+                $noTime[$tag] = true;
+                $noTimeWhy[$tag] =
+                    \Schema::hasColumn((string) $r122TblOf[$tag], 'computed_at')
+                        ? 'value' : 'column';
+                $t['rows'] = [];                 // 使いません
+                if ($tag === 'popavg')  { $popAvg['rows']  = []; }
+                if ($tag === 'fukuavg') { $fukuAvg['rows'] = []; }
+                if ($tag === 'corr')    { $corr['rows']    = []; }
+            }
+        }
+
+        // ── ① 集計の窓（レース単位で1組ずつ）───────────────────────
+        foreach ([['popavg', $popAvg], ['fukuavg', $fukuAvg], ['corr', $corr]] as $pair) {
+            [$tag, $t] = $pair;
+            if ($t['window'] === null || $t['rows'] === []) { continue; }
+            $at = $t['computed_at'];
+            foreach (['start_date' => $t['window']['start'],
+                      'end_date'   => $t['window']['end']] as $f => $v) {
+                if ($v === '') { continue; }
+                $ref = $tag . '_' . $f;
+                $put($add, $ref, $v, $tag . '_' . $f, 'date', [], $at);
+                $refs[($tag === 'corr') ? 'estimated_odds' : 'OPI'][] = $ref;
+            }
+        }
+
+        // ── ② 人気順位ごとの集計（その順位の馬にだけ当てはまります）───
+        foreach ($byRank as $rk => $list) {
+            $at1 = $popAvg['computed_at'];
+            if (isset($popAvg['rows'][$rk])) {
+                $r = $popAvg['rows'][$rk];
+                $v = self::r122DecOrNull($r->odds_average ?? null);
+                if ($v !== null) {
+                    $ref = 'popavg_rank' . $rk . '_win_odds';
+                    $put($add, $ref, $v, 'popavg_win_odds', 'odds', $list, $at1);
+                    $refs['OPI'][] = $ref;
+                }
+                $n = self::r122IntOrNull($r->count ?? null);
+                if ($n !== null) {
+                    $ref = 'popavg_rank' . $rk . '_count';
+                    $put($add, $ref, $n, 'popavg_count', 'races', $list, $at1);
+                    $refs['OPI'][] = $ref;
+                }
+            }
+            $at2 = $fukuAvg['computed_at'];
+            if (isset($fukuAvg['rows'][$rk])) {
+                $r = $fukuAvg['rows'][$rk];
+                $v = self::r122DecOrNull($r->odds_average ?? null);
+                if ($v !== null) {
+                    $ref = 'fukuavg_rank' . $rk . '_place_min';
+                    $put($add, $ref, $v, 'fukuavg_place_min', 'odds', $list, $at2);
+                    $refs['OPI'][] = $ref;
+                }
+                $n = self::r122IntOrNull($r->count ?? null);
+                if ($n !== null) {
+                    $ref = 'fukuavg_rank' . $rk . '_count';
+                    $put($add, $ref, $n, 'fukuavg_count', 'races', $list, $at2);
+                    $refs['OPI'][] = $ref;
+                }
+            }
+            $at3 = $corr['computed_at'];
+            if (isset($corr['rows'][$rk])) {
+                $r = $corr['rows'][$rk];
+                foreach (['avg_correction_ratio' => 'ratio',
+                          'std_correction_ratio' => 'ratio'] as $f => $unit) {
+                    $v = self::r122DecOrNull($r->{$f} ?? null);
+                    if ($v === null) { continue; }
+                    $ref = 'corr_rank' . $rk . '_' . $f;
+                    $put($add, $ref, $v, 'corr_' . $f, $unit, $list, $at3);
+                    $refs['estimated_odds'][] = $ref;
+                }
+                $n = self::r122IntOrNull($r->sample_count ?? null);
+                if ($n !== null) {
+                    $ref = 'corr_rank' . $rk . '_sample_count';
+                    $put($add, $ref, $n, 'corr_sample_count', 'races', $list, $at3);
+                    $refs['estimated_odds'][] = $ref;
+                }
+            }
+        }
+
+        // ── ③ 馬ごとの値（式はいまの商品と同じ）─────────────────────
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-DERIVEDAT  10月20日006のご指摘4-2（本物の不具合）
+        // ══════════════════════════════════════════════════════════════
+        //   【旧】observed_at / available_at / computed_at の3つに
+        //     <b>同じ値（集計の算出時刻）</b>を入れていました。
+        //     推定確定オッズは「今回の6分前オッズ × 補正係数」なのに、
+        //     係数が前夜算出なら「今回のオッズを使った値が前夜に
+        //     利用可能だった」という時刻関係になります。
+        //   【いま】3つを分けます。
+        //     observed_at / available_at … <b>親のうちいちばん遅い時刻</b>
+        //       （親より過去へ戻しません）
+        //     computed_at               … この値を実際に計算した時刻
+        $later = static function (?string $a, ?string $b): ?string {
+            if ($a === null) { return $b; }
+            if ($b === null) { return $a; }
+            $ua = BaganrikiTime::us($a); $ub = BaganrikiTime::us($b);
+            if ($ua === null) { return $b; }
+            if ($ub === null) { return $a; }
+            return ($ub > $ua) ? $b : $a;
+        };
+        $putHorse = static function (array &$add, int $no, string $field, $value,
+                                     string $unit, array $parents, string $formula,
+                                     string $availAt, string $computedAt) use ($raceId) {
+            $ref = 'h' . $no . '_' . $field;
+            $add[$ref] = [
+                'source_ref'           => $ref,
+                'race_id'              => $raceId,
+                'value'                => $value,
+                'scope'                => 'HORSE',
+                'horse_nos'            => [$no],
+                'applicable_horse_nos' => [],
+                'field'                => $field,
+                'unit'                 => $unit,
+                'slot_offset'          => 6,
+                'observed_at'          => $availAt,
+                'available_at'         => $availAt,
+                'computed_at'          => $computedAt,
+                'source_kind'          => 'DERIVED',
+                'parents'              => $parents,
+                'formula_id'           => $formula,
+                'formula_version'      => 'v1',
+                'dependency_key'       => 'h' . $no . '_' . $field,
+                'dependency_role'      => 'CONTEXT',
+            ];
+            return $ref;
+        };
+
+        foreach ($frozenRank as $no => $rk) {
+            $no = (int) $no; $rk = (int) $rk;
+            // 6分前オッズが使えるようになった時刻（親のひとつ）
+            $odds6At = ($freezeAt !== null) ? $freezeAt : $nowAt;
+            $win6  = self::r122DecOrNull($cells[$no][6]['win_odds']  ?? null);
+            $fuku6 = self::r122DecOrNull($cells[$no][6]['place_min'] ?? null);
+            $pa = isset($popAvg['rows'][$rk])
+                ? self::r122DecOrNull($popAvg['rows'][$rk]->odds_average ?? null) : null;
+            $fa = isset($fukuAvg['rows'][$rk])
+                ? self::r122DecOrNull($fukuAvg['rows'][$rk]->odds_average ?? null) : null;
+            $cr = isset($corr['rows'][$rk])
+                ? self::r122DecOrNull($corr['rows'][$rk]->avg_correction_ratio ?? null) : null;
+
+            // OPI = 過去平均単勝 ÷ 6分前単勝
+            if ($pa !== null && $win6 !== null && $win6 > 0) {
+                $refs['OPI'][] = $putHorse($add, $no, 'opi',
+                    round($pa / $win6, 2), 'ratio',
+                    ['popavg_rank' . $rk . '_win_odds', 'h' . $no . '_win_odds_6'],
+                    'OPI_AVG_WIN_DIV_WIN6',
+                    $later($popAvg['computed_at'], $odds6At), $nowAt);
+            }
+            // 複勝OPI = 過去平均複勝最小 ÷ 6分前複勝最小
+            if ($fa !== null && $fuku6 !== null && $fuku6 > 0) {
+                $refs['OPI'][] = $putHorse($add, $no, 'fuku_opi',
+                    round($fa / $fuku6, 2), 'ratio',
+                    ['fukuavg_rank' . $rk . '_place_min', 'h' . $no . '_place_min_6'],
+                    'FUKU_OPI_AVG_PLACE_DIV_PLACE6',
+                    $later($fukuAvg['computed_at'], $odds6At), $nowAt);
+            }
+            // 推定確定オッズ = 6分前単勝 × 補正係数
+            $est = null;
+            if ($cr !== null && $win6 !== null && $win6 > 0) {
+                $est = round($win6 * $cr, 2);
+                $refs['estimated_odds'][] = $putHorse($add, $no, 'estimated_final_odds',
+                    $est, 'odds',
+                    ['corr_rank' . $rk . '_avg_correction_ratio', 'h' . $no . '_win_odds_6'],
+                    'EST_FINAL_ODDS_WIN6_X_RATIO',
+                    $later($corr['computed_at'], $odds6At), $nowAt);
+            }
+            // 推定確定複勝最小（複勝専用の係数は未実装なので単勝の係数を流用）
+            if ($cr !== null && $fuku6 !== null && $fuku6 > 0) {
+                $refs['estimated_odds'][] = $putHorse($add, $no, 'estimated_final_place_min',
+                    round($fuku6 * $cr, 2), 'odds',
+                    ['corr_rank' . $rk . '_avg_correction_ratio', 'h' . $no . '_place_min_6'],
+                    'EST_FINAL_PLACE_MIN_PLACE6_X_WIN_RATIO',
+                    $later($corr['computed_at'], $odds6At), $nowAt);
+            }
+            // 予測補正OPI = 過去平均単勝 ÷ 推定確定オッズ
+            if ($pa !== null && $est !== null && $est > 0) {
+                $refs['OPI'][] = $putHorse($add, $no, 'estimated_opi',
+                    round($pa / $est, 2), 'ratio',
+                    ['popavg_rank' . $rk . '_win_odds', 'h' . $no . '_estimated_final_odds'],
+                    'EST_OPI_AVG_WIN_DIV_EST_FINAL',
+                    $later($later($popAvg['computed_at'], $corr['computed_at']), $odds6At),
+                    $nowAt);
+            }
+        }
+
+        $cov = [];
+        foreach (['OPI' => [$popAvg, $fukuAvg], 'estimated_odds' => [$corr]] as $k => $src) {
+            $list = array_values(array_unique($refs[$k]));
+            sort($list, SORT_STRING);
+            if ($list !== []) {
+                $cov[$k] = ['status' => 'INCLUDED', 'source_refs' => $list];
+                continue;
+            }
+            $reason = null;
+            // @ANCHOR-20261020-R122-REALTIME  算出時刻が無いことを理由に出します
+            //   「列が無い」と「まだ値が入っていない」を分けて書きます。
+            $missCol = []; $missVal = [];
+            foreach (($k === 'OPI' ? ['popavg', 'fukuavg'] : ['corr']) as $tg) {
+                if (empty($noTime[$tg])) { continue; }
+                if (($noTimeWhy[$tg] ?? 'column') === 'value') { $missVal[] = $tg; }
+                else { $missCol[] = $tg; }
+            }
+            if ($missCol !== [] || $missVal !== []) {
+                $parts = [];
+                if ($missCol !== []) {
+                    $parts[] = '表に算出時刻（computed_at）の列がありません'
+                             . '（該当 ' . implode('・', $missCol) . '）。'
+                             . '取得・算出側で算出時刻を記録すれば、その日から使えます。';
+                }
+                if ($missVal !== []) {
+                    $parts[] = '算出時刻（computed_at）の列はありますが、'
+                             . 'まだ値が入っていません'
+                             . '（該当 ' . implode('・', $missVal) . '）。'
+                             // @ANCHOR-20261020-R122-COMPUTEDAT  10月20日に直しました
+                             //   【旧】「1回まわれば入ります」と書いていましたが、
+                             //     集計は<b>新しいレース結果が無い日はDBに
+                             //     1行も書かずに終わる</b>作りでした。
+                             //     平日は必ずそちらを通るので、永久に入りません。
+                             //     この書き方は読む人に誤った見込みを与えます。
+                             . 'その集計が次に走ったときに入ります'
+                             . '（新しいレース結果が無い日も、値は変えずに'
+                             . '算出時刻だけ入れ直すようにしました）。';
+                }
+                $reason = '情報上限より前に利用できた証拠が無いので使いません。'
+                        . implode('', $parts);
+            }
+            if ($reason === null) {
+                foreach ($src as $t) {
+                    if ($t['bad'] !== null) { $reason = $t['bad']; break; }
+                }
+            }
+            $cov[$k] = ['status' => 'UNAVAILABLE',
+                        'reason' => $reason ?? '人気順位別の集計が見つかりませんでした'];
+        }
+        return ['registry' => $add, 'coverage' => $cov];
+    }
+
+    /** @ANCHOR-20261020-R122-MARKET  .env で止められます（既定は載せる） */
+    public static function r122MarketPriorEnabled(): bool
+    {
+        $v = (string) env('BAGANRIKI_MARKET_PRIOR', '1');
+        return !in_array($v, ['0', 'false', 'off', 'no'], true);
+    }
+
+    /** @ANCHOR-20261020-R122-MARKET  十進数として読めるときだけ float を返します */
+    public static function r122DecOrNull($v): ?float
+    {
+        if ($v === null) { return null; }
+        $s = trim((string) $v);
+        if ($s === '' || !preg_match('/^-?\d+(?:\.\d+)?$/', $s)) { return null; }
+        return (float) $s;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261021-R122-SETTLE  受領の終端と、採否の確定を分けます
+     * ═══════════════════════════════════════════════════════════════════════
+     * ご指摘（010の2-4「並列化で新たに注意が必要な早すぎる公開」）：
+     *
+     *   「現行 r122PublishWhenReady は、初回statusがTERMINALで、訂正枠が
+     *     まだなければ、そのroleを終端として数えます。
+     *     TERMINALにはRECEIVEDが含まれます。
+     *     一方、初回応答をRECEIVEDにした後に、r122AfterReceiveで診断・
+     *     訂正判断が始まります。このため、単純に2roleを並列にすると、
+     *     片方が『受領済みだが訂正の要否をまだ判定していない』間に、
+     *     もう片方が両role完了とみなして公開へ進む競合が起こり得ます。
+     *     HTTP受領の終端と、診断・訂正・採否の確定は別に管理してください。」
+     *
+     * そのとおりです。いまの数え方は「HTTPが返ってきた」までしか見ていません。
+     *
+     * ■ 分けたもの
+     *   ・<b>受領の終端</b> … baganriki_ai_attempts.status が TERMINAL。
+     *                        HTTPが返った（または失敗が確定した）だけです。
+     *   ・<b>採否の確定</b> … 診断→必要な訂正→採否（r122AcceptedHorses）まで
+     *                        終わった印。baganriki_audit_events に
+     *                        kind='R122_ROLE_SETTLED' で1行入れます。
+     *
+     *   印は「対象snapshot・role・応答の版」と結び付けます。版は、その role の
+     *   初回と訂正の (attempt_no, status, response_hash, complete) から作る
+     *   SHA-256 です。印を付けたあとに訂正が届けば版が変わるので、
+     *   印は自動的に効かなくなり、もう一度待ちに戻ります。
+     *
+     *   <b>新しい表は作りません。</b>baganriki_audit_events は既にあります。
+     *   migration を増やさずに済ませています。
+     *
+     * ■ 期限との関係
+     *   期限前は「両roleの採否確定」まで待ちます。
+     *   応答期限に達したら、待つのをやめて保存済みの結果で公開判定へ進みます
+     *   （010の2-4 末尾「期限到達時だけ保存済み結果で終了させます」）。
+     */
+
+    /**
+     * その role の「応答の版」を作ります。
+     *
+     *   初回と訂正の行を attempt_no 順に並べ、状態の分かる項目だけを
+     *   連結して SHA-256 にします。行が無ければ 'none' を混ぜます。
+     *   （raw_response そのものは混ぜません。response_hash で足ります）
+     *
+     * @return string 64文字
+     */
+    public static function r122RoleVersion(int $snapshotId, string $role): string
+    {
+        $parts = [];
+        $rows = \DB::table('baganriki_ai_attempts')
+                  ->where('snapshot_id', $snapshotId)
+                  ->where('role', $role)
+                  ->orderBy('attempt_no')
+                  ->get(['attempt_no', 'status', 'response_hash', 'complete']);
+        foreach ($rows as $r) {
+            $parts[] = implode("\x1f", [
+                (string) (int) $r->attempt_no,
+                (string) $r->status,
+                (string) ($r->response_hash ?? ''),
+                (string) (int) $r->complete,
+            ]);
+        }
+        if ($parts === []) { $parts[] = 'none'; }
+        return hash('sha256', $snapshotId . "\x1e" . $role . "\x1e" . implode("\x1e", $parts));
+    }
+
+    /**
+     * 採否が確定した印を付けます（同じ版に二度は付けません）。
+     *
+     * @param array $info 印に添える内容（resolve の結果など）
+     * @return array ['marked','version','already']
+     */
+    public static function r122MarkRoleSettled(int $snapshotId, string $role,
+                                               array $info = [],
+                                               ?int $nowUs = null): array
+    {
+        $out = ['marked' => false, 'version' => null, 'already' => false];
+        if (!\Schema::hasTable('baganriki_audit_events')) { return $out; }
+
+        $ver = self::r122RoleVersion($snapshotId, $role);
+        $out['version'] = $ver;
+
+        // すでに同じ版の印があれば足しません
+        $cur = self::r122RoleSettled($snapshotId, $role);
+        if ($cur['settled']) { $out['already'] = true; return $out; }
+
+        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+        $live = \DB::table('baganriki_live_states')
+                  ->where('snapshot_id', $snapshotId)->first();
+        $now  = $nowUs !== null ? $nowUs : BaganrikiWorker::nowUs();
+
+        BaganrikiWorker::event(
+            (string) ($snap->race_id ?? ''),
+            $snapshotId,
+            'R122_ROLE_SETTLED',
+            null,
+            $live !== null ? (int) $live->response_revision : null,
+            ['role' => $role, 'version' => $ver] + $info,
+            $role,
+            $now
+        );
+        $out['marked'] = true;
+        return $out;
+    }
+
+    /**
+     * その role の採否が確定しているかを見ます。
+     *
+     *   いまの版と同じ版の印が1つでもあれば確定です。
+     *   版が違う印（訂正が後から届いた等）は確定として数えません。
+     *
+     * @return array ['settled','version','found','stale']
+     */
+    public static function r122RoleSettled(int $snapshotId, string $role): array
+    {
+        $out = ['settled' => false, 'version' => null, 'found' => 0, 'stale' => 0,
+                'by' => null];
+        if (!\Schema::hasTable('baganriki_audit_events')) {
+            // 監査表が無い環境では、印で待たせません（従来どおりの数え方）
+            $out['settled'] = true;
+            return $out;
+        }
+        $ver = self::r122RoleVersion($snapshotId, $role);
+        $out['version'] = $ver;
+
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-NOTHINGTOADOPT  採るものが無い role
+        // ══════════════════════════════════════════════════════════════
+        //   初回が FAILED（明確な失敗）か UNKNOWN_RESULT（結果不明）で、
+        //   訂正の枠も無い（または終端）なら、その role には
+        //   <b>診断も訂正も採否も、やることが残っていません。</b>
+        //   印を待っても永久に付きません（印を付けるのは
+        //   r122AfterReceive で、それは受領に成功したときだけ動きます）。
+        //   ここで待たせると、失敗した役のぶんだけ公開が応答期限まで
+        //   遅れます。公開期限は応答期限の30秒後しかありません。
+        //   なので「採るものが無い」ことを確定として数えます。
+        //   RECEIVED のときは<b>数えません</b>。それが010の2-4です。
+        $f = \DB::table('baganriki_ai_attempts')
+               ->where('snapshot_id', $snapshotId)->where('role', $role)
+               ->where('attempt_no', BaganrikiWorker::FIRST)->first();
+        if ($f !== null
+            && in_array((string) $f->status,
+                        [BaganrikiWorker::FAILED, BaganrikiWorker::UNKNOWN], true)) {
+            $x = \DB::table('baganriki_ai_attempts')
+                   ->where('snapshot_id', $snapshotId)->where('role', $role)
+                   ->where('attempt_no', BaganrikiWorker::FIX)->first();
+            if ($x === null
+                || in_array((string) $x->status, BaganrikiWorker::TERMINAL, true)) {
+                $out['settled'] = true;
+                $out['by'] = 'NOTHING_TO_ADOPT';
+                $out['first_status'] = (string) $f->status;
+                return $out;
+            }
+        }
+
+        $rows = \DB::table('baganriki_audit_events')
+                  ->where('snapshot_id', $snapshotId)
+                  ->where('kind', 'R122_ROLE_SETTLED')
+                  ->where('related_id', $role)
+                  ->orderByDesc('id')
+                  ->limit(20)
+                  ->get(['diagnostics']);
+        foreach ($rows as $r) {
+            $out['found']++;
+            $d = json_decode((string) $r->diagnostics, true);
+            if (is_array($d) && (string) ($d['version'] ?? '') === $ver) {
+                $out['settled'] = true;
+            } else {
+                $out['stale']++;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261021-R122-JOBWIRE  Job構成の土台（010の2章）
+     * ═══════════════════════════════════════════════════════════════════════
+     * app/Jobs の4本から呼ぶものを、ここに置きます。
+     * Jobの段（BAGANRIKI_R122_JOBS）が下りているあいだ、
+     * これらは<b>どこからも呼ばれません。</b>いまの経路は変わりません。
+     */
+
+    /** このレースで使う経路（JOB／SYNC）を記録する監査の種別 */
+    public const R122_PATH_KIND = 'R122_PATH_FIXED';
+
+    /**
+     * レースの処理開始時に使う経路を固定します（010の2-5）。
+     *
+     *   「旧経路を残す場合も、レースの処理開始時に使う経路を固定します。
+     *     Job失敗を理由に、送信済み・結果不明の同じ枠を旧経路から
+     *     再送してはいけません。」
+     *
+     *   すでに固定されていれば<b>上書きしません。</b>先に決めたほうが勝ちです。
+     *
+     * @return array ['path','fixed','already']
+     */
+    public static function r122FixPath(int $snapshotId, string $path): array
+    {
+        $out = ['path' => null, 'fixed' => false, 'already' => false];
+        if ($path !== 'JOB' && $path !== 'SYNC') { return $out; }
+        if (!\Schema::hasTable('baganriki_audit_events')) {
+            $out['path'] = $path;   // 監査表が無ければ記録できません
+            return $out;
+        }
+        $cur = self::r122PathOf($snapshotId);
+        if ($cur !== null) {
+            $out['path'] = $cur;
+            $out['already'] = true;
+            return $out;
+        }
+        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+        BaganrikiWorker::event(
+            (string) ($snap->race_id ?? ''), $snapshotId, self::R122_PATH_KIND,
+            null, null, ['path' => $path], $path, BaganrikiWorker::nowUs()
+        );
+        $out['path'] = $path;
+        $out['fixed'] = true;
+        return $out;
+    }
+
+    /**
+     * そのレースに固定された経路を返します。
+     *   固定されていなければ null（＝まだどちらでもない）です。
+     */
+    public static function r122PathOf(int $snapshotId): ?string
+    {
+        if (!\Schema::hasTable('baganriki_audit_events')) { return null; }
+        $r = \DB::table('baganriki_audit_events')
+               ->where('snapshot_id', $snapshotId)
+               ->where('kind', self::R122_PATH_KIND)
+               ->orderBy('id')->first(['diagnostics', 'related_id']);
+        if ($r === null) { return null; }
+        $d = json_decode((string) $r->diagnostics, true);
+        $p = is_array($d) ? (string) ($d['path'] ?? '') : '';
+        if ($p === '') { $p = (string) ($r->related_id ?? ''); }
+        return ($p === 'JOB' || $p === 'SYNC') ? $p : null;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261021-R122-TARGET12  10月24日の非公開12レースだけに限る
+     * ═══════════════════════════════════════════════════════════════════════
+     * ご指摘（010の2-5・7章⑤）：
+     *   「10月24日の非公開12レースについては、通常アクセス・キャッシュ後・
+     *     巡回・訂正の全入口で対象race_idを確認し、送信許可の直前でも
+     *     確認します。1レースの最大4回という制約だけでは、対象レース
+     *     総数12を保証できません。」
+     *
+     * ■ 決め方
+     *   .env の BAGANRIKI_R122_TARGETS に race_id を読点（,）で並べます。
+     *     BAGANRIKI_R122_TARGETS=20261024-5-05-1-1,20261024-5-05-1-2,…
+     *   <b>空のときは1つも送りません。</b>「指定が無ければ全部送る」に
+     *   しません。逆にしておくと、設定を入れ忘れた日に全レースへ
+     *   送ってしまいます。
+     *
+     * ■ どこで見るか
+     *   ・r122SendFirst（初回の送信許可の直前）
+     *   ・r122SendFix（訂正の送信許可の直前）
+     *   ・r122SweepPending（巡回が拾ったとき）
+     *   ・r122AfterCached（キャッシュ後の後始末）
+     *   ・R122RunRoleJob（待ち行列から出たとき。積まれてから時間が経つため）
+     *   同じ関数を全部から呼びます。判定を書き写しません。
+     *
+     * @return array ['ok','code','reason','count','targets']
+     */
+    // ══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261023-R122-TARGETSHORT  対象レースを「日付-場-R」でも書けます
+    // ══════════════════════════════════════════════════════════════════════
+    //   race_id（20261018-4-04-2-10）の「回」「日」は、当日朝6時の取り込みまで
+    //   DBに入らないので、前夜には書けません。そこで
+    //     BAGANRIKI_R122_TARGETS=20261024-05-11,20261024-05-12
+    //   （日付8桁-場コード2桁-レース番号）でも書けるようにしました。
+    //   取り込み後に t_horse_odds_finder_races から本来の race_id へ読み替えます。
+    //   まだ取り込み前なら、その行は一覧に出しません（＝1レースも送りません）。
+    //   本来の race_id で書いた行は、いままでどおりそのまま使います。
+    private static array $r122TargetShortCache = [];
+    public static function r122Targets(): array
+    {
+        $raw = (string) env('BAGANRIKI_R122_TARGETS', '');
+        $out = [];
+        foreach (explode(',', $raw) as $t) {
+            $t = trim($t);
+            if ($t === '') { continue; }
+            if (preg_match('/^(\d{8})-(\d{2})-(\d{1,2})$/', $t, $m)) {
+                $full = self::r122TargetShortResolve($m[1], $m[2], (int) $m[3]);
+                if ($full === null) { continue; }   // 取り込み前：送らない
+                $t = $full;
+            }
+            $out[$t] = true;
+        }
+        return array_keys($out);
+    }
+
+    /** 「日付-場-R」を本来の race_id へ。見つからなければ null */
+    public static function r122TargetShortResolve(string $ymd, string $basho, int $race): ?string
+    {
+        $key = $ymd . '-' . $basho . '-' . $race;
+        if (isset(self::$r122TargetShortCache[$key])) {
+            return self::$r122TargetShortCache[$key];
+        }
+        try {
+            $d = substr($ymd, 0, 4) . '-' . substr($ymd, 4, 2) . '-' . substr($ymd, 6, 2);
+            $r = \DB::table('t_horse_odds_finder_races')
+                    ->where('date', $d)->where('basho', $basho)
+                    ->where('race', $race)->first(['kaisuu', 'day']);
+            if ($r === null) { return null; }
+            $full = self::r122RaceId($d, (string) $r->kaisuu, $basho,
+                                     (string) $r->day, $race);
+            // 見つかったものだけ覚えます（取り込み前の空振りは毎回読み直す）
+            self::$r122TargetShortCache[$key] = $full;
+            return $full;
+        } catch (\Throwable $e) {
+            \Log::error('[R122-TARGET] 日付-場-R を読み替えられません',
+                ['target' => $key, 'message' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    public static function r122TargetCheck(string $raceId): array
+    {
+        $t = self::r122Targets();
+        $out = ['ok' => false, 'code' => null, 'reason' => null,
+                'count' => count($t), 'targets' => $t];
+
+        // 段が下りていれば、この見張りは使いません（いまの経路のまま）
+        if (!BaganrikiWorker::targetsEnforced()) {
+            $out['ok'] = true;
+            $out['code'] = 'NOT_ENFORCED';
+            $out['reason'] = '対象レースの限定は効かせていません';
+            return $out;
+        }
+        if ($t === []) {
+            $out['code'] = 'NO_TARGETS';
+            $out['reason'] = 'BAGANRIKI_R122_TARGETS が空なので1レースも送りません';
+            return $out;
+        }
+        if (!in_array($raceId, $t, true)) {
+            $out['code'] = 'NOT_TARGET';
+            $out['reason'] = $raceId . ' は検証の対象レース（' . count($t)
+                           . '件）に入っていません';
+            return $out;
+        }
+        $out['ok'] = true;
+        $out['code'] = 'TARGET';
+        $out['reason'] = $raceId . ' は検証の対象レースです';
+        return $out;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261021-R122-JOBDISPATCH  Jobを積む唯一の入口
+     * ═══════════════════════════════════════════════════════════════════════
+     * ご指摘（010の2-3）：
+     *   「通常アクセスと r122AfterCached：対象判定後、凍結がなければ
+     *     FreezeRaceJob、既にあれば不足しているroleのJobと集計Jobを
+     *     投入する短い処理にします。terminating内で長いAIのHTTP応答を
+     *     待つ形を残しません。」
+     *
+     *   ここは<b>短い処理だけ</b>です。AIのHTTP応答は待ちません。
+     *   Jobの段が下りているときは何もせず、呼び出し元は従来の経路へ進みます。
+     *
+     * @return array ['ran','code','reason','dispatched'=>[…]]
+     */
+    public function r122DispatchForRace($date, $kaisuu, $basho, $day, $race): array
+    {
+        $out = ['ran' => false, 'code' => null, 'reason' => null, 'dispatched' => []];
+        try {
+            if (!BaganrikiWorker::jobs()) {
+                $out['code'] = 'JOBS_OFF';
+                $out['reason'] = 'Jobの段が下りているので積みません';
+                return $out;
+            }
+            if (!class_exists(\App\Jobs\R122FreezeRaceJob::class)) {
+                $out['code'] = 'JOBS_MISSING';
+                $out['reason'] = 'app/Jobs が配置されていません';
+                return $out;
+            }
+            if (!\App\Jobs\R122Job::ready()) {
+                $out['code'] = 'QUEUE_TABLE_MISSING';
+                $out['reason'] = 'jobs 表がありません';
+                return $out;
+            }
+            $raceId = self::r122RaceId($date, $kaisuu, $basho, $day, $race);
+
+            // ── 対象レースの確認（ここでも見ます）────────────────────
+            $tg = self::r122TargetCheck($raceId);
+            if (!$tg['ok']) {
+                $out['code'] = (string) $tg['code'];
+                $out['reason'] = (string) $tg['reason'];
+                return $out;
+            }
+            $out['ran'] = true;
+
+            $snap = \DB::table('baganriki_snapshots')
+                      ->where('race_id', $raceId)->where('generation', 0)->first();
+
+            // ── 凍結がまだなら、凍結のJobだけ積みます ────────────────
+            if ($snap === null) {
+                \App\Jobs\R122FreezeRaceJob::dispatch(
+                    (string) $date, (string) $kaisuu, (string) $basho,
+                    (string) $day, (int) $race);
+                $out['code'] = 'FREEZE_DISPATCHED';
+                $out['dispatched'][] = 'freeze';
+                return $out;
+            }
+
+            $sid = (int) $snap->id;
+
+            // ── 旧経路で始まったレースには触りません（010の2-5）──────
+            $path = self::r122PathOf($sid);
+            if ($path === 'SYNC') {
+                $out['code'] = 'PATH_IS_SYNC';
+                $out['reason'] = 'このレースは旧経路で始まっているので積みません';
+                return $out;
+            }
+            self::r122FixPath($sid, 'JOB');
+
+            // ── 足りない role のJobを積みます ───────────────────────
+            foreach (['1st', '2nd'] as $role) {
+                $has = \DB::table('baganriki_ai_attempts')
+                         ->where('snapshot_id', $sid)->where('role', $role)
+                         ->where('attempt_no', BaganrikiWorker::FIRST)->exists();
+                if ($has) { continue; }
+                \App\Jobs\R122RunRoleJob::dispatch($sid, $role);
+                $out['dispatched'][] = 'role:' . $role;
+            }
+
+            // ── 集計も積みます（受領を待たずに期限で動く側）──────────
+            \App\Jobs\R122AggregateRaceJob::dispatch($sid, 'ENTRY');
+            $out['dispatched'][] = 'aggregate';
+            $out['code'] = 'DISPATCHED';
+            return $out;
+        } catch (\Throwable $e) {
+            // @ANCHOR-20261005-AUX-NEVER-BREAKS  記録のための処理で予想を殺しません
+            \Log::error('[R122-JOB] 積むところで例外（予想は返します）',
+                ['message' => $e->getMessage(),
+                 'at' => $e->getFile() . ':' . $e->getLine()]);
+            $out['code'] = 'EXCEPTION';
+            $out['reason'] = $e->getMessage();
+            return $out;
+        }
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261021-R122-APPLYLIVE  実状態の変更を既存の版管理へ入れます
+     * ═══════════════════════════════════════════════════════════════════════
+     * ご指摘（010の2-2 UpdateRaceLiveJob）：
+     *   「正式取消・発走時刻等の実状態変更を既存の版管理に接続し、
+     *     必要な再判定を起動します。AIの新規送信や、凍結済み本文の
+     *     無断変更は担当させません。」
+     *
+     * ■ 入れるもの
+     *   cancellations  正式取消の馬番。<b>足すだけです。</b>
+     *                  一度取消になった馬は戻しません。消す指示は受けません。
+     *   live_close     締切の前倒し。<b>延長はしません。</b>
+     *                  （表の注記「締切の前倒し。延長はしない」のとおり）
+     *
+     * ■ 入れないもの
+     *   ・凍結済み本文（input_json_1st／input_json_2nd）は1バイトも触りません。
+     *   ・anchor_at・cutoff_at・sales_close_at も触りません。これは正本です。
+     *     発走時刻が変わったときは、前倒しのぶんを live_close で表します。
+     *   ・AIへの送信はしません。
+     *
+     * ■ 版
+     *   実際に変わったときだけ state_revision を1つ増やし、
+     *   baganriki_audit_events に1行残します。
+     *   何も変わらなければ版も増やしません（毎回増やすと版の意味が薄れます）。
+     *
+     * @param array $change ['cancellations'=>int[], 'live_close_us'=>?int]
+     * @return array ['ok','code','reason','changed','state_revision',
+     *                'cancellations','live_close_us']
+     */
+    public function r122ApplyLive(int $snapshotId, array $change): array
+    {
+        $out = ['ok' => false, 'code' => null, 'reason' => null, 'changed' => [],
+                'state_revision' => null, 'cancellations' => [],
+                'live_close_us' => null];
+        try {
+            $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+            if ($snap === null) {
+                $out['code'] = 'NO_SNAPSHOT';
+                $out['reason'] = '凍結入力がありません';
+                return $out;
+            }
+            BaganrikiWorker::ensureLive($snapshotId, BaganrikiWorker::nowUs());
+
+            $res = \DB::transaction(function () use ($snapshotId, $change, $snap) {
+                $live = \DB::table('baganriki_live_states')
+                          ->where('snapshot_id', $snapshotId)
+                          ->lockForUpdate()->first();
+                if ($live === null) {
+                    return ['ok' => false, 'code' => 'NO_LIVE',
+                            'reason' => 'ライブ状態の行がありません', 'changed' => []];
+                }
+                $changed = [];
+
+                // ── ① 正式取消（足すだけ）────────────────────────────
+                $cur = (array) json_decode((string) ($live->cancellations ?? '[]'), true);
+                $cur = array_values(array_unique(array_map('intval', $cur)));
+                sort($cur);
+                $add = array_values(array_unique(array_map('intval',
+                           (array) ($change['cancellations'] ?? []))));
+                $new = $cur;
+                foreach ($add as $n) {
+                    if ($n > 0 && !in_array($n, $new, true)) { $new[] = $n; }
+                }
+                sort($new);
+                if ($new !== $cur) {
+                    $changed['cancellations'] = ['前' => $cur, '後' => $new];
+                }
+
+                // ── ② 締切の前倒し（延長はしません）──────────────────
+                $curClose = BaganrikiWorker::dbUs($live->live_close ?? null);
+                $want = $change['live_close_us'] ?? null;
+                $newClose = $curClose;
+                if ($want !== null) {
+                    $want = (int) $want;
+                    $sales = BaganrikiWorker::dbUs($snap->sales_close_at ?? null);
+                    if ($sales !== null && $want >= $sales) {
+                        // 正本より後ろへは動かしません（延長になります）
+                        $changed['live_close_rejected'] =
+                            '正本の投票締切より後ろなので入れません';
+                    } elseif ($curClose === null || $want < $curClose) {
+                        $newClose = $want;
+                        $changed['live_close'] = ['前' => $curClose, '後' => $newClose];
+                    } else {
+                        $changed['live_close_rejected'] =
+                            'いまの前倒しより後ろなので入れません（延長はしません）';
+                    }
+                }
+
+                // ── ③ 実際に変わったときだけ版を増やします ────────────
+                $realChange = isset($changed['cancellations'])
+                           || isset($changed['live_close']);
+                $rev = (int) $live->state_revision;
+                if ($realChange) {
+                    $rev = $rev + 1;
+                    $upd = ['state_revision' => $rev,
+                            'updated_at' => BaganrikiWorker::toDb(
+                                                BaganrikiWorker::nowUs())];
+                    if (isset($changed['cancellations'])) {
+                        $upd['cancellations'] = self::r122Json($new);
+                        // 有効頭数は集合矛盾のときNULLにする列です。
+                        // ここでは触りません（既存の計算に任せます）。
+                    }
+                    if (isset($changed['live_close'])) {
+                        $upd['live_close'] = BaganrikiWorker::toDb($newClose);
+                    }
+                    \DB::table('baganriki_live_states')
+                      ->where('snapshot_id', $snapshotId)
+                      ->where('state_revision', (int) $live->state_revision)
+                      ->update($upd);
+
+                    BaganrikiWorker::event(
+                        (string) $snap->race_id, $snapshotId, 'R122_LIVE_APPLIED',
+                        (int) $live->state_revision, $rev, $changed, null,
+                        BaganrikiWorker::nowUs()
+                    );
+                }
+                return ['ok' => true, 'code' => $realChange ? 'APPLIED' : 'NO_CHANGE',
+                        'reason' => $realChange ? '実状態を入れました'
+                                                : '変わるところがありません',
+                        'changed' => $changed, 'state_revision' => $rev,
+                        'cancellations' => $new, 'live_close_us' => $newClose];
+            });
+
+            $out['ok']     = (bool) ($res['ok'] ?? false);
+            $out['code']   = (string) ($res['code'] ?? '');
+            $out['reason'] = $res['reason'] ?? null;
+            $out['changed'] = (array) ($res['changed'] ?? []);
+            $out['state_revision'] = $res['state_revision'] ?? null;
+            $out['cancellations']  = (array) ($res['cancellations'] ?? []);
+            $out['live_close_us']  = $res['live_close_us'] ?? null;
+            return $out;
+        } catch (\Throwable $e) {
+            \Log::error('[R122-LIVE] 実状態を入れるところで例外',
+                ['message' => $e->getMessage(),
+                 'at' => $e->getFile() . ':' . $e->getLine()]);
+            $out['code'] = 'EXCEPTION';
+            $out['reason'] = $e->getMessage();
+            return $out;
+        }
+    }
+
+    /** JSONへ（既存の書き方にそろえます） */
+    private static function r122Json($v): string
+    {
+        return (string) json_encode($v,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261021-R122-USAGE  実モデルと使用量を残します（010の7章⑤）
+     * ═══════════════════════════════════════════════════════════════════════
+     * ご指摘：
+     *   「usageと実モデルの記録、初回24回／最大48回の費用を示すこと。」
+     *   「2nd自身のトークナイザ、実モデル、finish_reason、usage、
+     *     JSON検証結果を揃えてください。」
+     *
+     *   こちらで決めた名前ではなく、<b>応答に書かれていたモデル名</b>と
+     *   使用量をそのまま残します。
+     *   新しい表は作りません。baganriki_audit_events に1行入れます。
+     *     kind       R122_USAGE
+     *     related_id role#attempt_no
+     *     diagnostics {model, stop, usage, bytes, complete}
+     *
+     * @param array $call r122CallAi の戻り
+     */
+    public static function r122RecordUsage(int $snapshotId, string $role,
+                                           int $attemptNo, array $call): void
+    {
+        try {
+            if (!\Schema::hasTable('baganriki_audit_events')) { return; }
+            $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+            $u = $call['usage'] ?? null;
+            BaganrikiWorker::event(
+                (string) ($snap->race_id ?? ''), $snapshotId, 'R122_USAGE',
+                null, null,
+                [
+                    'role'        => $role,
+                    'attempt_no'  => $attemptNo,
+                    // 応答が名乗ったモデル（設定値ではありません）
+                    'model'       => (string) ($call['model'] ?? ''),
+                    'stop'        => $call['stop'] ?? null,
+                    'usage'       => is_array($u) ? $u : null,
+                    'raw_bytes'   => strlen((string) ($call['raw'] ?? '')),
+                    'complete'    => (bool) ($call['complete'] ?? false),
+                    'code'        => (string) ($call['code'] ?? ''),
+                ],
+                $role . '#' . $attemptNo,
+                BaganrikiWorker::nowUs()
+            );
+        } catch (\Throwable $e) {
+            // 記録で落ちても送信は止めません
+            \Log::error('[R122-USAGE] 使用量を残せません',
+                ['message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * @ANCHOR-20261021-R122-USAGE  そのレースの使用量をまとめて返します
+     *
+     *   なるへ出す「初回24回／最大48回の費用」は、ここの実測から出します。
+     *   単価は資料に書くので、ここでは<b>トークン数と実モデル</b>だけです。
+     *
+     * @return array ['rows'=>[…], 'by_model'=>[model=>['in','out','calls']]]
+     */
+    public static function r122UsageOf(int $snapshotId): array
+    {
+        $out = ['rows' => [], 'by_model' => []];
+        if (!\Schema::hasTable('baganriki_audit_events')) { return $out; }
+        $rows = \DB::table('baganriki_audit_events')
+                  ->where('snapshot_id', $snapshotId)
+                  ->where('kind', 'R122_USAGE')
+                  ->orderBy('id')->get(['diagnostics', 'happened_at']);
+        foreach ($rows as $r) {
+            $d = json_decode((string) $r->diagnostics, true);
+            if (!is_array($d)) { continue; }
+            $m = (string) ($d['model'] ?? '');
+            $u = (array) ($d['usage'] ?? []);
+            // Anthropic は input_tokens／output_tokens、
+            // DeepSeek は prompt_tokens／completion_tokens です。
+            $in  = (int) ($u['input_tokens']  ?? ($u['prompt_tokens']     ?? 0));
+            $o   = (int) ($u['output_tokens'] ?? ($u['completion_tokens'] ?? 0));
+            $d['in'] = $in; $d['out'] = $o;
+            $d['at'] = (string) $r->happened_at;
+            $out['rows'][] = $d;
+            if (!isset($out['by_model'][$m])) {
+                $out['by_model'][$m] = ['in' => 0, 'out' => 0, 'calls' => 0];
+            }
+            $out['by_model'][$m]['in']    += $in;
+            $out['by_model'][$m]['out']   += $o;
+            $out['by_model'][$m]['calls'] += 1;
+        }
+        return $out;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261021-R122-READGATE  非公開の読取経路（010の7章⑤）
+     * ═══════════════════════════════════════════════════════════════════════
+     * ご指摘（010の7章⑤）：
+     *   「12個のrace_idへの限定、<b>非公開の読取経路</b>、usageと実モデルの
+     *     記録、初回24回／最大48回の費用を示すこと。」
+     *
+     * ■ 見つかったこと
+     *   読取API（GET /api/baganriki/r12-2/races/{race_id}）に
+     *   <b>認証が1つも掛かっていませんでした。</b>
+     *   さらに画面側（Flutter）の race_content_page に、
+     *   <b>誰にでも見える「r12.2」のボタン</b>が出ています。
+     *   条件で隠していません（管理者判定も debug 判定もありません）。
+     *
+     *   いまは記録が1件もないので空が返るだけです。ですが
+     *   <b>10月24日に旗を上げた瞬間、その12レースの予想が
+     *   一般の利用者に見えます。</b>「非公開の検証」になりません。
+     *   race_id は日付と場と番号なので、総当たりも簡単です。
+     *
+     * ■ 塞ぎ方（既定は閉じる）
+     *   .env の BAGANRIKI_R122_READ で決めます。
+     *     （未設定・key） 鍵が合ったときだけ中身を返します【既定】
+     *     open           誰でも見られます
+     *     off            誰にも見せません（鍵があっても）
+     *   鍵は BAGANRIKI_R122_READ_KEY に入れ、
+     *     ヘッダ  X-R122-Key: <鍵>
+     *     クエリ  ?r122_key=<鍵>
+     *   のどちらかで渡します。
+     *   <b>鍵が未設定なら、誰も中身を見られません。</b>
+     *   対象レースの限定（TARGETS が空なら1レースも送らない）と
+     *   同じ考え方です。設定を入れ忘れた側が安全に倒れます。
+     *
+     * ■ 画面（Flutter）は作り直しません
+     *   鍵を渡さないので「まだありません」と出るだけです。
+     *   検証する側は、鍵を付けてURLを直接開けば中身を読めます。
+     *     https://…/api/baganriki/r12-2/races/20261024-5-05-1-1?r122_key=<鍵>
+     *   PWAの再ビルドを24日までに挟まずに済みます。
+     *
+     * ■ artisan（コマンド）からは素通りします
+     *   試験はコマンドから呼びます。コマンドは外から叩けないので、
+     *   ここで止める意味がありません。止めると試験が全部落ちます。
+     *
+     * @param array $opt 試験用。force_web=true で web とみなし、key で鍵を渡す
+     * @return array ['ok','code','reason','mode']
+     */
+    public static function r122ReadGate(array $opt = []): array
+    {
+        $mode = strtolower(trim((string) env('BAGANRIKI_R122_READ', 'key')));
+        if (!in_array($mode, ['key', 'open', 'off'], true)) { $mode = 'key'; }
+        $out = ['ok' => false, 'code' => null, 'reason' => null, 'mode' => $mode];
+
+        // コマンドからの呼び出しは素通りします（外から叩けないため）
+        $isWeb = (bool) ($opt['force_web'] ?? false);
+        if (!$isWeb) {
+            try {
+                if (app()->runningInConsole()) {
+                    $out['ok'] = true; $out['code'] = 'CONSOLE';
+                    return $out;
+                }
+            } catch (\Throwable $e) {
+                // 判定できないときは web とみなします（安全側）
+            }
+        }
+
+        if ($mode === 'open') {
+            $out['ok'] = true; $out['code'] = 'OPEN';
+            return $out;
+        }
+        if ($mode === 'off') {
+            $out['code'] = 'NOT_PUBLIC';
+            $out['reason'] = 'この記録はまだ公開していません';
+            return $out;
+        }
+
+        $want = (string) env('BAGANRIKI_R122_READ_KEY', '');
+        if ($want === '') {
+            // 鍵が未設定なら、誰にも見せません
+            $out['code'] = 'NOT_PUBLIC';
+            $out['reason'] = 'この記録はまだ公開していません';
+            return $out;
+        }
+
+        $got = (string) ($opt['key'] ?? '');
+        if ($got === '' && !array_key_exists('key', $opt)) {
+            try {
+                $req = request();
+                $got = (string) ($req->header('X-R122-Key') ?? '');
+                if ($got === '') { $got = (string) ($req->query('r122_key') ?? ''); }
+            } catch (\Throwable $e) {
+                $got = '';
+            }
+        }
+        if ($got === '' || !hash_equals($want, $got)) {
+            $out['code'] = 'NOT_PUBLIC';
+            $out['reason'] = 'この記録はまだ公開していません';
+            return $out;
+        }
+        $out['ok'] = true; $out['code'] = 'KEY';
+        return $out;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-WIRE  実送信の後へ接続します（6-4）
+     * ═══════════════════════════════════════════════════════════════════════
+     * 根拠：10月20日006のご指摘6-4／server_contract_r12.2.txt 6章・10章・11章
+     *
+     * ■ ご指摘のとおりでした
+     *   r122InspectResponse ／ r122ResolveCorrection ／ r122Publish は
+     *   試験Commandからしか呼ばれていませんでした。旗を1にしても、
+     *   原応答を保存したあと、誰も検証・訂正・公開を始めませんでした。
+     *   「旗を1にすれば完成経路」ではありませんでした。
+     *
+     * ■ ここで繋ぐもの（呼出経路を1本に決めます）
+     *   実ファイル : app/Http/Controllers/Api/AiController.php
+     *   呼出元①   : getHorseOddsFinderAiAnalysis()   1st の原応答保存の直後
+     *   呼出元②   : getHorseOddsFinderSecondAiOpinion() 2nd の原応答保存の直後
+     *   入口       : r122AfterReceive()
+     *   流れ       : 検証 → （必要なら）訂正を1回だけ送る → 解決 → 公開
+     *   Queue Job  : 作りません。HTTPの中で同期に通します。
+     *                理由は時間です。応答期限（発走150秒前）から
+     *                公開期限（発走120秒前）まで30秒しかないので、
+     *                別プロセスへ渡して待つ余裕がありません。
+     *                再起動後のやり直しだけ r122SweepPending() で拾います。
+     *
+     * ■ 商品を落とさないための決めごと
+     *   ・ここで例外が出ても、旧来の予想は返します（全体を try で囲みます）。
+     *   ・旗が0のときは1バイトも動きません（BaganrikiWorker::enabled()）。
+     *   ・公開は「両roleが終端になってから」です。1stだけで公開しません。
+     *     ただし応答期限を過ぎたら、来ないものを待たずに公開します。
+     */
+
+    /**
+     * @ANCHOR-20261020-R122-WIRE  訂正に使う時間の決めごと
+     *
+     *   時刻の並びは 発走T → 投票締切 T-60 → 公開期限 T-120
+     *   → 応答期限 T-150 → 入力凍結 T-330 → cutoff T-360 です。
+     *   訂正は<b>応答期限までに受け取れなければ意味がありません</b>
+     *   （過ぎて届いたものは遅着で捨てます）。
+     *   残り時間がこれ未満なら、枠を取らずに初回の正常部分で進みます。
+     */
+    public const R122_FIX_MIN_SEC      = 25;   // これ未満なら訂正を送りません
+    public const R122_FIX_MAX_WAIT     = 60;   // 訂正の待ち時間の上限（秒）
+    public const R122_SWEEP_GRACE_SEC  = 30;
+    // @ANCHOR-20261021-R122-SENDFIRST  初回のやり直しに必要な残り時間
+    public const R122_FIRST_MIN_SEC   = 40;   // これ未満なら初回を送りません
+    public const R122_FIRST_MAX_WAIT  = 170;  // 初回の待ち時間の上限（秒）   // 受領直後はやり直しで触りません
+
+    /**
+     * @ANCHOR-20261020-R122-WIRE  設定の食い違いを送信の前に止めます
+     *
+     *   006のご指摘：「PROMPT=1だけにしてQUEUE=0のままなら、予約処理を
+     *   skipし、新契約の期限・公開を一式で保証できません。」
+     *   そのとおりです。r12.2 の本文で送るなら、枠・期限・公開も
+     *   r12.2 でなければいけません。片方だけ入れるのを禁じます。
+     *
+     * @return array ['ok','code','reason','prompt','queue']
+     */
+    public static function r122WireConfig(): array
+    {
+        $p = BaganrikiPrompt::mode();      // off / shadow / on
+        $q = BaganrikiWorker::mode();      // off / shadow / on
+        $o = ['ok' => true, 'code' => 'OK', 'reason' => null,
+              'prompt' => $p, 'queue' => $q];
+        if ($p !== 'on') { return $o; }    // 旧本文のまま、または shadow なら関係ありません
+        if ($q === 'off') {
+            $o['ok']     = false;
+            $o['code']   = 'QUEUE_REQUIRED';
+            $o['reason'] = 'BAGANRIKI_R122_PROMPT=1 のときに '
+                         . 'BAGANRIKI_R122_QUEUE=0 は使えません。'
+                         . '枠・期限・公開が r12.2 になっていない状態で '
+                         . 'r12.2 の本文を送ることになるためです。'
+                         . '（QUEUE=1 にしてください）';
+            return $o;
+        }
+        if ($q === 'shadow') {
+            $o['code']   = 'QUEUE_SHADOW';
+            $o['reason'] = '枠は shadow です。枠が取れなくても送信を止めません。'
+                         . '非公開検証の段としては妥当ですが、'
+                         . '契約10章の停止条件は効いていません。';
+        }
+        return $o;
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-WIRE  訂正依頼に載せる「具体的なエラー一覧」
+     *
+     *   配布本文の【説明と訂正】は
+     *   「初回応答・同一snapshot・repair_scope・具体的なエラー一覧」
+     *   を渡すことになっています。診断の findings をそのまま渡します。
+     *   こちらの言い換えを混ぜると、直す対象がぶれるためです。
+     */
+    public static function r122FixErrorList(array $insp): array
+    {
+        $d = (array) ($insp['diag'] ?? []);
+        $errors = [];
+        foreach ((array) ($d['findings'] ?? []) as $f) {
+            $errors[] = [
+                'scope'  => (string) ($f['scope'] ?? ''),
+                'target' => $f['target'] ?? null,
+                'code'   => (string) ($f['code'] ?? ''),
+                'reason' => (string) ($f['reason'] ?? ''),
+            ];
+        }
+        return [
+            'errors'          => $errors,
+            'missing_horses'  => array_values(array_map('intval',
+                                   (array) ($d['missing'] ?? []))),
+            'duplicated_horses' => array_values(array_map('intval',
+                                   (array) ($d['duplicated'] ?? []))),
+            'unknown_horses'  => array_values(array_map('intval',
+                                   (array) ($d['unknown'] ?? []))),
+            'isolated_horses' => array_values(array_map('intval',
+                                   (array) ($d['isolated'] ?? []))),
+        ];
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-WIRE  訂正依頼の本文を組みます
+     *
+     *   system は初回と同じ本文です（別の本文を送ると別の契約になります）。
+     *   user は1個のJSONで、中身は4つだけです。
+     *     fix_request … race_id・ai_role・snapshot_hash・repair_scope・エラー一覧
+     *     first_response … 当該AIの初回応答の原文（相手AIのものは入れません）
+     *     input … 同じ凍結入力（固定後は変えません）
+     *   送る前に自分の本文も厳密読込を通します（@ANCHOR-...-STRICTJSON）。
+     *
+     * @return array ['ok','code','reason','system','user','user_bytes','sha256']
+     */
+    public function r122AssembleFix(int $snapshotId, string $role, array $insp): array
+    {
+        $out = ['ok' => false, 'code' => null, 'reason' => null,
+                'system' => null, 'user' => null, 'user_bytes' => 0, 'sha256' => null];
+
+        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+        if ($snap === null) {
+            $out['code'] = 'NO_SNAPSHOT'; $out['reason'] = '凍結入力がありません';
+            return $out;
+        }
+        $col = ($role === '2nd') ? 'input_json_2nd' : 'input_json_1st';
+        $src = json_decode((string) $snap->{$col}, true);
+        if (!is_array($src)) {
+            $out['code'] = 'NO_INPUT';
+            $out['reason'] = '凍結入力のJSONを読めません（' . $col . '）';
+            return $out;
+        }
+
+        $a = \DB::table('baganriki_ai_attempts')
+               ->where('snapshot_id', $snapshotId)->where('role', $role)
+               ->where('attempt_no', BaganrikiWorker::FIRST)->first();
+        if ($a === null || (string) $a->status !== BaganrikiWorker::RECEIVED) {
+            $out['code'] = 'FIRST_NOT_RECEIVED';
+            $out['reason'] = '初回の原応答がありません';
+            return $out;
+        }
+
+        $sys = BaganrikiPrompt::systemBody($role);
+        if (!$sys['ok']) {
+            $out['code'] = 'SYSTEM_UNUSABLE';
+            $out['reason'] = (string) $sys['reason'];
+            return $out;
+        }
+
+        $lst = self::r122FixErrorList($insp);
+        $body = [
+            'fix_request' => [
+                'race_id'       => (string) $snap->race_id,
+                'ai_role'       => $role,
+                'snapshot_hash' => (string) $snap->snapshot_hash,
+                'attempt_no'    => BaganrikiWorker::FIX,
+                'max_attempts'  => 1,
+                'repair_scope'  => (array) ($insp['repair_scope'] ?? []),
+                'errors'            => $lst['errors'],
+                'missing_horses'    => $lst['missing_horses'],
+                'duplicated_horses' => $lst['duplicated_horses'],
+                'unknown_horses'    => $lst['unknown_horses'],
+                'isolated_horses'   => $lst['isolated_horses'],
+            ],
+            // 当該AIの初回応答そのもの。原文のまま渡します（要約しません）。
+            'first_response' => (string) $a->raw_response,
+            // 同じ凍結入力。別の入力を渡すと別のレースになります。
+            'input' => $src,
+        ];
+        $enc = BaganrikiPrompt::encode($body);
+        if (!$enc['ok']) {
+            $out['code'] = 'ENCODE_FAILED';
+            $out['reason'] = (string) $enc['reason'];
+            return $out;
+        }
+        // @ANCHOR-20261020-R122-STRICTJSON  送る前に自分の本文も厳密に読みます
+        $st = BaganrikiJson::strict((string) $enc['json']);
+        if (!$st['ok']) {
+            $out['code'] = 'SELF_JSON_INVALID';
+            $out['reason'] = '訂正依頼のJSONが自分の検査を通りません（'
+                           . (string) ($st['code'] ?? '') . '）';
+            return $out;
+        }
+        $out['ok']         = true;
+        $out['code']       = 'OK';
+        $out['system']     = (string) $sys['body'];
+        $out['user']       = (string) $enc['json'];
+        $out['user_bytes'] = (int) $enc['bytes'];
+        $out['sha256']     = hash('sha256', (string) $enc['json']);
+        return $out;
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-WIRE  AIを1回だけ呼びます（roleで送り先が違います）
+     *
+     *   1st … Anthropic（AnthropicService）
+     *   2nd … DeepSeek（HTTP）
+     *   自動再試行は0です（契約10章「SDKの自動再試行は0」）。
+     *
+     * @return array ['ok','raw','complete','code','reason']
+     */
+    public function r122CallAi(string $role, string $system, string $user,
+                               int $timeout): array
+    {
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-USAGE  実モデルと使用量を残します（010の7章⑤）
+        // ══════════════════════════════════════════════════════════════
+        //   ご指摘：
+        //     「12個のrace_idへの限定、非公開の読取経路、usageと実モデルの
+        //       記録、初回24回／最大48回の費用を示すこと。」
+        //     「2ndは添付コード上でdeepseek-chat、max_tokens=8,192です。
+        //       …2nd自身のトークナイザ、実モデル、finish_reason、usage、
+        //       JSON検証結果を揃えてください。」
+        //   応答の usage と、API が名乗ったモデル名をそのまま残します。
+        //   <b>こちらで決めた名前ではなく、応答に書かれていたもの</b>です。
+        //   入れる場所は baganriki_audit_events です（新しい表は作りません）。
+        $out = ['ok' => false, 'raw' => '', 'complete' => false,
+                'code' => null, 'reason' => null,
+                'usage' => null, 'model' => null, 'stop' => null];
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261023-R122-MODELCFG  モデルと出力上限を .env で変えられるようにします
+        // ══════════════════════════════════════════════════════════════
+        //   【10/23 の実AI 18頭実測で分かったこと（003 P-07・AC05）】
+        //   ・1st：本文 878,885 バイトで claude-haiku-4-5 の受付上限（20万トークン）を
+        //     超え、API が 400 を返しました（10/21 の count_tokens 実測でも
+        //     18頭は 4.5 で約26万トークン＝上限超え、5.5 なら上限100万で収まる）。
+        //   ・2nd：max_tokens=8,192 で出力が途中で切れました（finish_reason=length）。
+        //     18頭ぶんの正常出力は約1.2万トークン（配布の正常出力14本の実測）。
+        //   【いま】次の .env で変えられます。<b>書かなければ今までと同じ</b>です。
+        //     BAGANRIKI_R122_1ST_MODEL        1st のモデル（空なら AnthropicService の既定）
+        //     BAGANRIKI_R122_1ST_MAX_TOKENS   1st の出力上限（既定 32768）
+        //     BAGANRIKI_R122_2ND_MODEL        2nd のモデル（既定 deepseek-chat）
+        //     BAGANRIKI_R122_2ND_MAX_TOKENS   2nd の出力上限（既定 8192）
+        //   旧経路（旧1st・旧2nd）の送信には一切効きません。r12.2 の送信口だけです。
+        $m1 = trim((string) env('BAGANRIKI_R122_1ST_MODEL', ''));
+        $t1 = (int) env('BAGANRIKI_R122_1ST_MAX_TOKENS', 32768);
+        $m2 = trim((string) env('BAGANRIKI_R122_2ND_MODEL', ''));
+        if ($m2 === '') { $m2 = 'deepseek-chat'; }
+        $t2 = (int) env('BAGANRIKI_R122_2ND_MAX_TOKENS', 8192);
+        // @ANCHOR-20261023-R122-THINKING  1st の「考える機能」と effort（モデル指定のときだけ）
+        //   claude-haiku-5-5 は考える機能が既定で入り、出力上限に数えられます。
+        //   10/23 の2回目の実測では 32,768 トークンを全部考える側に使い、本文が0バイトでした。
+        //     BAGANRIKI_R122_1ST_THINKING  空＝送らない（モデルの既定）／disabled／adaptive
+        //     BAGANRIKI_R122_1ST_EFFORT    空＝送らない（モデルの既定）／low／medium／high／xhigh／max
+        //   disabled は effort が high 以下のときだけ使えます（公式の説明）。
+        $th1 = strtolower(trim((string) env('BAGANRIKI_R122_1ST_THINKING', '')));
+        $ef1 = strtolower(trim((string) env('BAGANRIKI_R122_1ST_EFFORT', '')));
+        if ($t1 <= 0) { $t1 = 32768; }
+        if ($t2 <= 0) { $t2 = 8192; }
+        try {
+            if ($role === '2nd') {
+                $res = \Illuminate\Support\Facades\Http::timeout($timeout)
+                    ->withHeaders(['Authorization' => 'Bearer ' . env('DEEPSEEK_API_KEY')])
+                    ->post('https://api.deepseek.com/v1/chat/completions', [
+                        'model'    => $m2,
+                        'messages' => [
+                            ['role' => 'system', 'content' => $system],
+                            ['role' => 'user',   'content' => $user],
+                        ],
+                        'max_tokens' => $t2,
+                    ]);
+                if ($res->failed()) {
+                    $out['code']   = 'API_ERROR';
+                    // @ANCHOR-20261023-R122-MODELCFG  理由が読めるよう本文の先頭も残します
+                    $out['reason'] = '2nd AI の API エラー status=' . $res->status()
+                                   . ' ' . mb_substr((string) $res->body(), 0, 300);
+                    return $out;
+                }
+                $j   = $res->json();
+                $raw = trim((string) ($j['choices'][0]['message']['content'] ?? ''));
+                $fin = $j['choices'][0]['finish_reason'] ?? null;
+                $out['ok']       = true;
+                $out['code']     = 'OK';
+                $out['raw']      = $raw;
+                $out['complete'] = (($fin === null || $fin === 'stop') && $raw !== '');
+                // @ANCHOR-20261021-R122-USAGE  応答が名乗ったモデルと使用量
+                $out['model'] = (string) ($j['model'] ?? '');
+                $out['stop']  = ($fin === null) ? null : (string) $fin;
+                $out['usage'] = is_array($j['usage'] ?? null)
+                              ? (array) $j['usage'] : null;
+                return $out;
+            }
+            if ($m1 === '') {
+                $res = $this->anthropic->sendWithRetry(
+                    prompt:      $user,
+                    system:      $system,
+                    maxAttempts: 1,     // 仕様: 自動再試行禁止。2以上にしてはいけない
+                    sleepBase:   2,
+                    timeout:     $timeout,
+                );
+            } else {
+                // @ANCHOR-20261023-R122-MODELCFG  モデルを指定したときだけ直接送ります
+                //   AnthropicService はモデルが定数で、旧経路も同じ物を使うので触りません。
+                //   送り方（1回だけ・自動再試行なし・同じ鍵・同じ版）は AnthropicService と同じです。
+                $res = \Illuminate\Support\Facades\Http::withHeaders([
+                        'x-api-key'         => config('services.anthropic.api_key'),
+                        'anthropic-version' => '2023-06-01',
+                        'content-type'      => 'application/json',
+                    ])
+                    ->timeout($timeout)
+                    ->post('https://api.anthropic.com/v1/messages', array_merge([
+                        'model'      => $m1,
+                        'max_tokens' => $t1,
+                        'system'     => $system,
+                        'messages'   => [['role' => 'user', 'content' => $user]],
+                    ],
+                    // @ANCHOR-20261023-R122-THINKING  書いたときだけ送ります
+                    in_array($th1, ['disabled', 'adaptive'], true)
+                        ? ['thinking' => ['type' => $th1]] : [],
+                    in_array($ef1, ['low', 'medium', 'high', 'xhigh', 'max'], true)
+                        ? ['output_config' => ['effort' => $ef1]] : []));
+            }
+            if ($res->failed()) {
+                $out['code']   = 'API_ERROR';
+                // @ANCHOR-20261023-R122-MODELCFG  理由が読めるよう本文の先頭も残します
+                $out['reason'] = '1st AI の API エラー status=' . $res->status()
+                               . ' ' . mb_substr((string) $res->body(), 0, 300);
+                return $out;
+            }
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261023-R122-THINKING  本文は type=text の塊を全部つなぎます
+            // ══════════════════════════════════════════════════════════
+            //   AnthropicService::extractText は content の<b>先頭</b>だけを読みます。
+            //   考える機能が入っていると先頭は thinking の塊なので、本文があっても
+            //   空になります。text の塊だけを順につなぎます。
+            //   【旧】$raw  = trim((string) $this->anthropic->extractText($res));
+            $raw = '';
+            foreach ((array) ($res->json('content') ?? []) as $blk) {
+                if (is_array($blk) && ($blk['type'] ?? '') === 'text') {
+                    $raw .= (string) ($blk['text'] ?? '');
+                }
+            }
+            $raw = trim($raw);
+            $stop = $res->json('stop_reason');
+            $out['ok']       = true;
+            $out['code']     = 'OK';
+            $out['raw']      = $raw;
+            $out['complete'] = (($stop === null || $stop === 'end_turn') && $raw !== '');
+            // @ANCHOR-20261021-R122-USAGE  応答が名乗ったモデルと使用量
+            $out['model'] = (string) ($res->json('model') ?? '');
+            $out['stop']  = ($stop === null) ? null : (string) $stop;
+            $u = $res->json('usage');
+            $out['usage'] = is_array($u) ? (array) $u : null;
+            return $out;
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            // 届いたかどうか分からないので「結果不明」にします（再送しません）
+            $out['code']   = 'CONNECTION';
+            $out['reason'] = $e->getMessage();
+            return $out;
+        } catch (\Throwable $e) {
+            $out['code']   = 'EXCEPTION';
+            $out['reason'] = $e->getMessage();
+            return $out;
+        }
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-WIRE  訂正を1回だけ送ります
+     *
+     *   順番を守ります（契約10章）。
+     *     ① 初回の原応答と complete が保存済みか（fixAllowed）
+     *     ② 枠を予約してから送る（reserve → allowSend → 送信）
+     *     ③ 残り時間が無いなら<b>予約しません</b>（空振りの枠を残さないため）
+     *   結果不明・失敗でも初回の正常部分は残ります（resolve 側の約束）。
+     *
+     * @return array ['sent','ok','code','reason']
+     */
+    public function r122SendFix(int $snapshotId, string $role, array $insp): array
+    {
+        $out = ['sent' => false, 'ok' => false, 'code' => null, 'reason' => null];
+
+        $fa = BaganrikiWorker::fixAllowed($snapshotId, $role);
+        if (!$fa['ok']) {
+            $out['code'] = (string) $fa['code']; $out['reason'] = (string) $fa['reason'];
+            return $out;
+        }
+
+        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+        $live = \DB::table('baganriki_live_states')
+                  ->where('snapshot_id', $snapshotId)->first();
+        if ($snap === null) {
+            $out['code'] = 'NO_SNAPSHOT'; $out['reason'] = '凍結入力がありません';
+            return $out;
+        }
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-TARGET12  訂正の入口でも対象レースを見ます
+        // ══════════════════════════════════════════════════════════════
+        //   ご指摘（010の2-5）：
+        //     「通常アクセス・キャッシュ後・巡回・訂正の全入口で
+        //       対象race_idを確認し、送信許可の直前でも確認します。
+        //       1レースの最大4回という制約だけでは、対象レース総数12を
+        //       保証できません。」
+        //   訂正は1レースあたり最大1回ですが、レースの数は制限されません。
+        //   ここでも見ます。判定は全入口で同じ関数（r122TargetCheck）です。
+        $tgF = self::r122TargetCheck((string) $snap->race_id);
+        if (!$tgF['ok']) {
+            $out['code']   = (string) $tgF['code'];
+            $out['reason'] = (string) $tgF['reason'];
+            return $out;
+        }
+
+        $dl = BaganrikiWorker::deadlines($snap, $live);
+        if (!$dl['ok']) {
+            $out['code'] = (string) $dl['code']; $out['reason'] = (string) $dl['reason'];
+            return $out;
+        }
+        $now  = BaganrikiWorker::nowUs();
+        // 送って受け取って公開するのに最低どれだけ要るか。
+        //   応答期限までに受領できない見込みなら予約しません。
+        $left = (int) floor(($dl['reply'] - $now) / 1000000);
+        if ($left < self::R122_FIX_MIN_SEC) {
+            $out['code']   = 'NO_TIME_FOR_FIX';
+            $out['reason'] = '応答期限まで ' . $left . '秒しかないので訂正を送りません'
+                           . '（最低 ' . self::R122_FIX_MIN_SEC . '秒）';
+            return $out;
+        }
+
+        $asm = $this->r122AssembleFix($snapshotId, $role, $insp);
+        if (!$asm['ok']) {
+            $out['code'] = (string) $asm['code']; $out['reason'] = (string) $asm['reason'];
+            return $out;
+        }
+
+        // 版の見張り。応答の版は予約そのもので増えるので入れません。
+        $expect = ($live === null) ? [] : [
+            'state_revision'       => (int) $live->state_revision,
+            'publication_revision' => (int) $live->publication_revision,
+        ];
+        $r = BaganrikiWorker::reserve($snapshotId, $role, BaganrikiWorker::FIX,
+                                      BaganrikiWorker::nowUs(), $expect);
+        if (!$r['ok']) {
+            $out['code'] = (string) $r['code']; $out['reason'] = (string) $r['reason'];
+            return $out;
+        }
+        $s = BaganrikiWorker::allowSend((string) $r['token'], BaganrikiWorker::nowUs());
+        if (!$s['ok']) {
+            $out['code'] = (string) $s['code']; $out['reason'] = (string) $s['reason'];
+            return $out;
+        }
+
+        self::recordPromptHash($role . '_fix', (string) $asm['user']);
+        \Log::error('[R122-WIRE] 訂正を送ります', [
+            'race_id'      => (string) $snap->race_id,
+            'role'         => $role,
+            'repair_scope' => (array) ($insp['repair_scope'] ?? []),
+            'errors'       => count(self::r122FixErrorList($insp)['errors']),
+            'user_bytes'   => (int) $asm['user_bytes'],
+            'user_sha256'  => (string) $asm['sha256'],
+            '残り秒'       => $left,
+        ]);
+
+        // ══════════════════════════════════════════════════════════
+        // @ANCHOR-20261023-R122-FIXWAIT  訂正の待ち時間の上限を .env で変えられます
+        // ══════════════════════════════════════════════════════════
+        //   【10/23 の実AI 18頭実測（3回目）で分かったこと】
+        //   18頭の初回は 1st 79秒・2nd 89秒で受領。訂正を送ったところ、
+        //   上限60秒で cURL が切れて結果不明になりました（両role）。
+        //   訂正も初回とほぼ同じ分量（約2.4〜2.6万トークン）を書き直すため、
+        //   60秒では足りません。応答期限まではまだ約90秒残っていました。
+        //   【いま】BAGANRIKI_R122_FIX_MAX_WAIT（既定60）で上限を変えられます。
+        //   どんな値にしても「応答期限の5秒前」より長くは待ちません（$left − 5）。
+        //   遅着で捨てる時刻まで待つことはありません。
+        //   【旧】$wait = max(20, min(self::R122_FIX_MAX_WAIT, $left - 5));
+        $fixCap = (int) env('BAGANRIKI_R122_FIX_MAX_WAIT', self::R122_FIX_MAX_WAIT);
+        if ($fixCap <= 0) { $fixCap = self::R122_FIX_MAX_WAIT; }
+        $wait = max(20, min($fixCap, $left - 5));
+        $call = $this->r122CallAi($role, (string) $asm['system'], (string) $asm['user'],
+                                  $wait);
+        $out['sent'] = true;
+        // @ANCHOR-20261021-R122-USAGE  実モデルと使用量を残します（010の7章⑤）
+        self::r122RecordUsage($snapshotId, $role, BaganrikiWorker::FIX, $call);
+        if (!$call['ok']) {
+            // 通信失敗・待ち時間切れは「結果不明」。明確な失敗は FAILED。
+            $unknown = ($call['code'] === 'CONNECTION' || $call['code'] === 'EXCEPTION');
+            BaganrikiWorker::fail((string) $r['token'],
+                '訂正の送信が失敗しました（' . (string) $call['code'] . '）'
+                . (string) $call['reason'],
+                BaganrikiWorker::nowUs(), $unknown);
+            $out['code']   = (string) $call['code'];
+            $out['reason'] = (string) $call['reason'];
+            return $out;
+        }
+        $rc = BaganrikiWorker::receive((string) $r['token'], (string) $call['raw'],
+                                       (bool) $call['complete'],
+                                       BaganrikiWorker::nowUs());
+        if (!($rc['ok'] ?? false)) {
+            $out['code']   = (string) ($rc['code'] ?? 'RECEIVE_FAILED');
+            $out['reason'] = (string) ($rc['reason'] ?? '訂正の原応答を保存できません');
+            return $out;
+        }
+        $out['ok']     = true;
+        $out['code']   = 'OK';
+        $out['reason'] = '訂正の原応答を保存しました（complete='
+                       . ((bool) $call['complete'] ? 'true' : 'false') . '）';
+        return $out;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261021-R122-SENDFIRST  初回をやり直せるようにします（008の5）
+     * ═══════════════════════════════════════════════════════════════════════
+     * ご指摘：
+     *   「r122AfterCached は凍結と公開判定を呼びますが、初回送信を起動しません。
+     *     sweep も初回送信をしない設計です。旧キャッシュあり・初回枠なしの
+     *     レースが、上限後に凍結できただけで止まらず、両AIの初回送信へ
+     *     進む経路を示してください。」
+     *
+     * そのとおりでした。固定入力ができても、初回の送信を始める者が
+     * 誰もいませんでした。<b>画面からの呼び出しがキャッシュで終わる限り、
+     * そのレースは永久に送られません。</b>
+     *
+     * ここが、その経路です。固定入力（generation=0）から
+     *   予約（reserve）→ 送信許可（allowSend）→ 送信（r122CallAi）
+     *   → 受領（receive）→ 検証・訂正・統合・公開（r122AfterReceive）
+     * まで進めます。送信口は訂正と<b>同じ</b>ものを使います。
+     *
+     * 二重送信はしません。枠は race_id・role・attempt_no で一意なので、
+     * 画面側とこちらが同時に動いても、予約できた側だけが送ります。
+     *
+     * @return array ['sent','ok','code','reason']
+     */
+    public function r122SendFirst(int $snapshotId, string $role,
+                                  array $opt = []): array
+    {
+        $out = ['sent' => false, 'ok' => false, 'code' => null, 'reason' => null];
+        if ($role !== '1st' && $role !== '2nd') {
+            $out['code'] = 'ROLE_INVALID'; return $out;
+        }
+        $cfg = self::r122WireConfig();
+        if (!($cfg['ok'] ?? false)) {
+            $out['code'] = (string) $cfg['code'];
+            $out['reason'] = (string) $cfg['reason'];
+            return $out;
+        }
+        // @ANCHOR-20261021-R122-SENDFIRST  旗の検査
+        //   $opt['test_ignore_flags'] は<b>試験からだけ</b>渡します。
+        //   送信口を偽物に差し替えた通し試験で、旗が下りている環境でも
+        //   経路そのものを通すためのものです。
+        //   本番の呼び出し元（r122SweepPending／r122AfterCached）は
+        //   渡しません。渡していないことは試験で見張ります。
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261023-R122-SEPARATE  新経路の送信を旧本文の旗から切り離す（003 P-01）
+        // ══════════════════════════════════════════════════════════════
+        //   【見つかったこと】ここは PROMPT=1 でないと送りませんでした。
+        //   PROMPT=1 は「旧入口の本文を置き換える」旗でもあるので、
+        //   新経路だけを動かす組合せ（旧入口は旧本文のまま）が作れず、
+        //   PROMPT=shadow では凍結までで止まり、新しい予想が作られませんでした。
+        //   【いま】入力を作る段（PROMPT=shadow または 1）と枠の段（QUEUE）が
+        //   上がっていれば送ります。旧入口の本文は PROMPT=1 のときだけ置き換わります。
+        //   対象レースの確認は下の r122TargetCheck で必ず行います。
+        //   【旧】&& (!BaganrikiPrompt::sending() || !BaganrikiWorker::enabled())) {
+        if (($opt['test_ignore_flags'] ?? false) !== true
+            && (!BaganrikiPrompt::enabled() || !BaganrikiWorker::enabled())) {
+            $out['code']   = 'FLAG_OFF';
+            $out['reason'] = '本文の段か枠の段が上がっていないので初回は送りません';
+            return $out;
+        }
+        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+        if ($snap === null || (int) $snap->generation !== 0) {
+            $out['code'] = 'NO_SNAPSHOT';
+            $out['reason'] = '本番の固定入力（generation=0）がありません';
+            return $out;
+        }
+        // すでに枠があれば何もしません（作り直しません）
+        $has = \DB::table('baganriki_ai_attempts')
+                 ->where('snapshot_id', $snapshotId)->where('role', $role)
+                 ->where('attempt_no', BaganrikiWorker::FIRST)->exists();
+        if ($has) {
+            $out['code'] = 'ALREADY';
+            $out['reason'] = 'その role の初回の枠はすでにあります';
+            return $out;
+        }
+        $live = \DB::table('baganriki_live_states')
+                  ->where('snapshot_id', $snapshotId)->first();
+        $dl = BaganrikiWorker::deadlines($snap, $live);
+        if (!$dl['ok']) {
+            $out['code'] = (string) $dl['code'];
+            $out['reason'] = (string) $dl['reason'];
+            return $out;
+        }
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-TARGET12  初回の送信許可の直前（010の2-5）
+        // ══════════════════════════════════════════════════════════════
+        //   「送信許可の直前でも確認します」。
+        //   巡回や待ち行列から来たときは、拾ってから時間が経っています。
+        //   予約（reserve）の前にもう一度見ます。
+        $tgS = self::r122TargetCheck((string) $snap->race_id);
+        if (!$tgS['ok']) {
+            $out['code']   = (string) $tgS['code'];
+            $out['reason'] = (string) $tgS['reason'];
+            return $out;
+        }
+
+        $now  = BaganrikiWorker::nowUs();
+        $left = (int) floor(($dl['reply'] - $now) / 1000000);
+        if ($left < self::R122_FIRST_MIN_SEC) {
+            $out['code']   = 'NO_TIME_FOR_FIRST';
+            $out['reason'] = '応答期限まで ' . $left . '秒しかないので初回を送りません'
+                           . '（最低 ' . self::R122_FIRST_MIN_SEC . '秒）';
+            return $out;
+        }
+
+        // ── 保存した本文をそのまま使います（作り直しません）──────────
+        $col  = ($role === '2nd') ? 'input_json_2nd' : 'input_json_1st';
+        $user = (string) ($snap->{$col} ?? '');
+        if ($user === '') {
+            $out['code'] = 'NO_SAVED_INPUT';
+            $out['reason'] = '固定入力に ' . $role . ' の本文がありません';
+            return $out;
+        }
+        $in = json_decode($user, true);
+        if (!is_array($in)
+            || (string) ($in['snapshot_hash'] ?? '') !== (string) $snap->snapshot_hash) {
+            $out['code'] = 'SAVED_HASH_MISMATCH';
+            $out['reason'] = '保存本文の snapshot_hash が列の値と違います';
+            return $out;
+        }
+        $sys = BaganrikiPrompt::systemBody($role);
+        if (!$sys['ok']) {
+            $out['code'] = 'PROMPT_BODY_INVALID';
+            $out['reason'] = (string) $sys['reason'];
+            return $out;
+        }
+
+        $expect = ($live === null) ? [] : [
+            'state_revision'       => (int) $live->state_revision,
+            'publication_revision' => (int) $live->publication_revision,
+        ];
+        $r = BaganrikiWorker::reserve($snapshotId, $role, BaganrikiWorker::FIRST,
+                                      BaganrikiWorker::nowUs(), $expect);
+        if (!$r['ok']) {
+            $out['code'] = (string) $r['code']; $out['reason'] = (string) $r['reason'];
+            return $out;
+        }
+        $a = BaganrikiWorker::allowSend((string) $r['token'], BaganrikiWorker::nowUs());
+        if (!$a['ok']) {
+            $out['code'] = (string) $a['code']; $out['reason'] = (string) $a['reason'];
+            return $out;
+        }
+        self::recordPromptHash($role . '_first_resume', $user);
+        \Log::error('[R122-SENDFIRST] 初回を送ります（やり直し経路）', [
+            'race_id'     => (string) $snap->race_id,
+            'role'        => $role,
+            'user_bytes'  => strlen($user),
+            'snapshot_hash' => (string) $snap->snapshot_hash,
+            '残り秒'      => $left,
+        ]);
+
+        $wait = max(20, min(self::R122_FIRST_MAX_WAIT, $left - 5));
+        $call = $this->r122CallAi($role, (string) $sys['body'], $user, $wait);
+        $out['sent'] = true;
+        // @ANCHOR-20261021-R122-USAGE  実モデルと使用量を残します（010の7章⑤）
+        self::r122RecordUsage($snapshotId, $role, BaganrikiWorker::FIRST, $call);
+        if (!$call['ok']) {
+            $unknown = ($call['code'] === 'CONNECTION' || $call['code'] === 'EXCEPTION');
+            BaganrikiWorker::fail((string) $r['token'],
+                '初回の送信が失敗しました（' . (string) $call['code'] . '）'
+                . (string) $call['reason'],
+                BaganrikiWorker::nowUs(), $unknown);
+            $out['code'] = (string) $call['code'];
+            $out['reason'] = (string) $call['reason'];
+            return $out;
+        }
+        $rc = BaganrikiWorker::receive((string) $r['token'], (string) $call['raw'],
+                                       (bool) $call['complete'],
+                                       BaganrikiWorker::nowUs());
+        if (!($rc['ok'] ?? false)) {
+            $out['code'] = (string) ($rc['code'] ?? 'RECEIVE_FAILED');
+            $out['reason'] = (string) ($rc['reason'] ?? '初回の原応答を保存できません');
+            return $out;
+        }
+        $out['ok']   = true;
+        $out['code'] = 'OK';
+        $out['reason'] = '初回の原応答を保存しました（complete='
+                       . ((bool) $call['complete'] ? 'true' : 'false') . '）';
+
+        // 受け取ったので、検証→訂正→解決→公開まで続けます
+        $rid = (string) $snap->race_id;
+        $p = explode('-', $rid);
+        if (count($p) === 5) {
+            $d = substr($p[0], 0, 4) . '-' . substr($p[0], 4, 2) . '-' . substr($p[0], 6, 2);
+            $this->r122AfterReceive($d, $p[1], $p[2], $p[3], (int) $p[4], $role,
+                ['skip' => false, 'ok' => true, 'snapshot_id' => $snapshotId]);
+        }
+        return $out;
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-WIRE  両roleが終端になってから公開します
+     *
+     *   1stだけで公開してしまうと、2ndがこれから返ってくるのに
+     *   片側だけの統合で出したことになります。
+     *   ただし応答期限を過ぎたら、来ないものを待ちません。
+     *
+     * @return array r122Publish の戻り、または ['ok'=>false,'code'=>'WAITING'…]
+     */
+    public function r122PublishWhenReady(int $snapshotId, array $opt = []): array
+    {
+        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+        if ($snap === null) {
+            return ['ok' => false, 'code' => 'NO_SNAPSHOT',
+                    'reason' => '凍結入力がありません'];
+        }
+        $live = \DB::table('baganriki_live_states')
+                  ->where('snapshot_id', $snapshotId)->first();
+        $dl   = BaganrikiWorker::deadlines($snap, $live);
+        $now  = (int) ($opt['now_us'] ?? BaganrikiWorker::nowUs());
+
+        $settled = 0; $waiting = [];
+        foreach (['1st', '2nd'] as $role) {
+            $f = \DB::table('baganriki_ai_attempts')
+                   ->where('snapshot_id', $snapshotId)->where('role', $role)
+                   ->where('attempt_no', BaganrikiWorker::FIRST)->first();
+            if ($f === null) { $waiting[] = $role . '（枠なし）'; continue; }
+            if (in_array((string) $f->status, BaganrikiWorker::TERMINAL, true)) {
+                // 訂正の枠が予約済みで未終端なら、まだ待ちます
+                $x = \DB::table('baganriki_ai_attempts')
+                       ->where('snapshot_id', $snapshotId)->where('role', $role)
+                       ->where('attempt_no', BaganrikiWorker::FIX)->first();
+                if ($x !== null
+                    && !in_array((string) $x->status, BaganrikiWorker::TERMINAL, true)) {
+                    $waiting[] = $role . '（訂正中）';
+                    continue;
+                }
+                // ══════════════════════════════════════════════════════════
+                // @ANCHOR-20261021-R122-SETTLE  受領の終端≠採否の確定
+                // ══════════════════════════════════════════════════════════
+                //   ここまでで分かるのは「HTTPが返った」ことだけです。
+                //   TERMINAL には RECEIVED が含まれるので、
+                //   診断・訂正の要否をまだ判定していない role まで
+                //   終端として数えてしまいます（010の2-4）。
+                //   採否確定の印（R122_ROLE_SETTLED）を別に見ます。
+                $sv = self::r122RoleSettled($snapshotId, $role);
+                if (!$sv['settled']) {
+                    $waiting[] = $role . '（採否未確定）';
+                    continue;
+                }
+                $settled++;
+                continue;
+            }
+            $waiting[] = $role . '（' . (string) $f->status . '）';
+        }
+        if ($waiting !== []) {
+            // 応答期限を過ぎたら待ちません（もう届いても遅着です）
+            // ══════════════════════════════════════════════════════════════
+            // @ANCHOR-20261021-R122-ATDEADLINE  期限ぴったりも「過ぎた」と見ます
+            // ══════════════════════════════════════════════════════════════
+            //   ご指摘（010の2-3 末尾）：
+            //     「現行 r122PublishWhenReady は $now > reply の判定なので、
+            //       期限ぴったりの1回でWAITINGになって終わらないよう、
+            //       期限直後の再判定まで含めて設計してください。」
+            //   `>` だと、期限と同じマイクロ秒に来た1回が WAITING で終わり、
+            //   その後だれも呼び直さないと公開されないままになります。
+            //   `>=` にして、期限に達した時点で待つのをやめます。
+            // $late = ($dl['ok'] && $dl['reply'] !== null && $now > $dl['reply']);  // 旧
+            $late = ($dl['ok'] && $dl['reply'] !== null && $now >= $dl['reply']);
+            if (!$late) {
+                return ['ok' => false, 'code' => 'WAITING',
+                        'reason' => 'まだ終端でないroleがあります: '
+                                  . implode('・', $waiting),
+                        'settled' => $settled, 'waiting' => $waiting];
+            }
+            \Log::error('[R122-WIRE] 応答期限を過ぎたので待たずに公開します', [
+                'race_id' => (string) $snap->race_id, 'waiting' => $waiting,
+            ]);
+        }
+        return $this->r122Publish($snapshotId, $opt);
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-WIRE  原応答を保存した直後に呼ぶ入口
+     *
+     *   r122QueueReceive() が成功した直後に、roleごとに1回だけ呼びます。
+     *   ここから先は商品（旧来の予想）とは独立です。何が起きても
+     *   例外を外へ出しません。出すと予想が落ちるためです。
+     *
+     * @param array $q r122QueueReserve の戻り
+     * @return array ['ran','inspect','fix','resolve','publish']
+     */
+    public function r122AfterReceive($date, $kaisuu, $basho, $day, $race,
+                                     string $role, array $q): array
+    {
+        $out = ['ran' => false, 'inspect' => null, 'fix' => null,
+                'resolve' => null, 'publish' => null, 'settled' => null];
+        if (($q['skip'] ?? true) || !($q['ok'] ?? false)) { return $out; }
+        $sid = (int) ($q['snapshot_id'] ?? 0);
+        if ($sid <= 0) { return $out; }
+        $raceId = self::r122RaceId($date, $kaisuu, $basho, $day, $race);
+
+        try {
+            $out['ran'] = true;
+
+            // ① 初回の検証（局所回復はこの中でやります）
+            $insp = $this->r122InspectResponse($sid, $role, BaganrikiWorker::FIRST);
+            $out['inspect'] = ['ok' => $insp['ok'], 'code' => $insp['code'],
+                               'complete' => $insp['complete'],
+                               'needs_fix' => $insp['needs_fix'],
+                               'normal' => count((array) $insp['normal']),
+                               'kept' => count((array) $insp['normal_kept']),
+                               'salvaged' => (array) ($insp['salvaged'] ?? [])];
+            \Log::error('[R122-WIRE] 初回を検証しました', [
+                'race_id' => $raceId, 'role' => $role,
+                'ok' => $insp['ok'], 'code' => $insp['code'],
+                'complete' => $insp['complete'], 'needs_fix' => $insp['needs_fix'],
+                '採用できた頭数' => count((array) $insp['normal']),
+                '保持した頭数'   => count((array) $insp['normal_kept']),
+                'reason' => $insp['reason'],
+            ]);
+
+            // ② 必要なら訂正を1回だけ（最大1回は fixAllowed が見張ります）
+            if ($insp['ok'] && $insp['needs_fix'] && $insp['complete'] === true) {
+                $fx = $this->r122SendFix($sid, $role, $insp);
+                $out['fix'] = $fx;
+                \Log::error('[R122-WIRE] 訂正の結果', [
+                    'race_id' => $raceId, 'role' => $role,
+                    'sent' => $fx['sent'], 'ok' => $fx['ok'],
+                    'code' => $fx['code'], 'reason' => $fx['reason'],
+                ]);
+            }
+
+            // ③ 解決（訂正が無い・採用できないときは初回の正常部分）
+            $rv = $this->r122AcceptedHorses($sid, $role);
+            $out['resolve'] = ['ok' => $rv['ok'] ?? false, 'code' => $rv['code'] ?? null,
+                               'merged' => count((array) ($rv['merged'] ?? []))];
+
+            // ══════════════════════════════════════════════════════════════
+            // @ANCHOR-20261021-R122-SETTLE  ここで採否が確定しました（010の2-4）
+            // ══════════════════════════════════════════════════════════════
+            //   診断（①）→必要な訂正（②）→採否（③）まで終わったので、
+            //   この role の「採否確定」の印を付けます。
+            //   印には、いまの応答の版（初回と訂正の状態から作るSHA-256）を
+            //   入れます。あとから訂正が届けば版が変わり、印は効きません。
+            $mk = self::r122MarkRoleSettled($sid, $role, [
+                'resolve_ok'   => (bool) ($rv['ok'] ?? false),
+                'resolve_code' => (string) ($rv['code'] ?? ''),
+                'merged'       => count((array) ($rv['merged'] ?? [])),
+                'fix_sent'     => (bool) ($out['fix']['sent'] ?? false),
+                'inspect_code' => (string) ($insp['code'] ?? ''),
+            ]);
+            $out['settled'] = $mk;
+            \Log::error('[R122-WIRE] 採否を確定しました', [
+                'race_id' => $raceId, 'role' => $role,
+                'marked'  => $mk['marked'], 'already' => $mk['already'],
+                'version' => $mk['version'],
+            ]);
+
+            // ══════════════════════════════════════════════════════════════
+            // @ANCHOR-20261021-R122-JOBHANDOFF  公開は集計Jobへ渡します
+            // ══════════════════════════════════════════════════════════════
+            //   ご指摘（010の2-2 RunRoleJob）：
+            //     「r122AfterReceive末尾の直接公開は、roleの処理完了を
+            //       保存してAggregateRaceJobへ渡す形に変更します。」
+            //
+            //   Jobの段が上がっているときは、ここで公開まで進めません。
+            //   ③で採否確定の印を残したので、集計Jobがそれを見ます。
+            //   Jobの段が下りているときは、これまでどおりここで進めます
+            //   （いまの本番はこちらです。動きは変わりません）。
+            if (BaganrikiWorker::jobs()
+                && class_exists(\App\Jobs\R122AggregateRaceJob::class)) {
+                $out['publish'] = ['ok' => false, 'code' => 'HANDED_TO_AGGREGATE',
+                                   'publication_id' => null, 'candidates' => 0,
+                                   'reason' => '採否確定の印を残し、集計Jobへ渡しました'];
+                \Log::error('[R122-WIRE] 公開は集計Jobへ渡しました', [
+                    'race_id' => $raceId, 'role' => $role,
+                    'settled' => $mk['marked'] ?? null,
+                ]);
+                return $out;
+            }
+
+            // ④ 公開（両roleの採否が確定してから）
+            $pb = $this->r122PublishWhenReady($sid);
+            $out['publish'] = ['ok' => $pb['ok'] ?? false, 'code' => $pb['code'] ?? null,
+                               'publication_id' => $pb['publication_id'] ?? null,
+                               'candidates' => count((array) ($pb['candidates'] ?? [])),
+                               'reason' => $pb['reason'] ?? null];
+            \Log::error('[R122-WIRE] 公開の結果', [
+                'race_id' => $raceId, 'role' => $role,
+                'ok' => $pb['ok'] ?? false, 'code' => $pb['code'] ?? null,
+                'publication_id' => $pb['publication_id'] ?? null,
+                '公開候補' => count((array) ($pb['candidates'] ?? [])),
+                'reason' => $pb['reason'] ?? null,
+            ]);
+            return $out;
+        } catch (\Throwable $e) {
+            // @ANCHOR-20261005-AUX-NEVER-BREAKS  記録のための処理で予想を殺しません
+            \Log::error('[R122-WIRE] 接続で例外（予想は返します）', [
+                'race_id' => $raceId, 'role' => $role,
+                'message' => $e->getMessage(),
+                'at'      => $e->getFile() . ':' . $e->getLine(),
+            ]);
+            return $out;
+        }
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-RESUME  上限到達後にもう一度固定する（007の6-1）
+     * ═══════════════════════════════════════════════════════════════════════
+     * ご指摘：
+     *   「上限前の呼出しで保存を断った後も旧AIが動き、旧予想がキャッシュされます。
+     *     次回の通常アクセスは関数冒頭のキャッシュ返却で終わり、
+     *     r122ShadowRecord へ届かないことがあります。」
+     *
+     * そのとおりでした。TOO_EARLY で断ったあと、誰も呼び直していませんでした。
+     *
+     * ■ いまの形
+     *   ・キャッシュを返すときも、<b>固定入力が無ければここで作り直します。</b>
+     *     応答を返したあと（terminating）に動かすので、画面は遅くなりません。
+     *   ・情報上限に達していなければ、今回も作りません（TOO_EARLY のまま）。
+     *     次のアクセスでまた試します。
+     *   ・固定済みなら何もしません。
+     *   ・TOO_EARLY で止まったときは<b>空回答をキャッシュしません。</b>
+     *     空回答を残すと、上のキャッシュ返却で終わってしまい、
+     *     上限到達後に作り直せなくなるためです。
+     *
+     * @return array ['ran','code','reason','snapshot_hash']
+     */
+    public function r122ResumeFreeze($date, $kaisuu, $basho, $day, $race): array
+    {
+        $out = ['ran' => false, 'code' => null, 'reason' => null,
+                'snapshot_hash' => null];
+        try {
+            if (!BaganrikiPrompt::enabled()) {
+                $out['code'] = 'FLAG_OFF';
+                $out['reason'] = '本文の段が 0 なので何もしません';
+                return $out;
+            }
+            if (!\Schema::hasTable('baganriki_snapshots')) {
+                $out['code'] = 'TABLE_MISSING';
+                return $out;
+            }
+            $raceId = self::r122RaceId($date, $kaisuu, $basho, $day, $race);
+            $snap = \DB::table('baganriki_snapshots')
+                      ->where('race_id', $raceId)->where('generation', 0)->first();
+            if ($snap !== null) {
+                $out['code'] = 'ALREADY';
+                $out['reason'] = 'すでに固定済みです（作り直しません）';
+                $out['snapshot_hash'] = (string) $snap->snapshot_hash;
+                return $out;
+            }
+            $out['ran'] = true;
+            $fz = $this->r122Freeze($date, $kaisuu, $basho, $day, $race,
+                                    [], 'PRODUCTION', false);
+            $out['code']   = (string) ($fz['code'] ?? ($fz['ok'] ? 'OK' : 'NG'));
+            $out['reason'] = (string) ($fz['reason'] ?? '');
+            $out['snapshot_hash'] = $fz['snapshot_hash'] ?? null;
+            \Log::error('[R122-RESUME] 固定入力をやり直しました', [
+                'race_id' => $raceId,
+                'ok'      => $fz['ok'] ?? false,
+                'code'    => $out['code'],
+                'reason'  => $out['reason'],
+            ]);
+            return $out;
+        } catch (\Throwable $e) {
+            // ここで落ちても商品は止めません
+            \Log::error('[R122-RESUME] やり直しで例外', ['message' => $e->getMessage()]);
+            $out['code'] = 'EXCEPTION'; $out['reason'] = $e->getMessage();
+            return $out;
+        }
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-RESUME  キャッシュを返すときの後始末
+     *   応答を返したあとに、固定のやり直しと公開の起動を1回だけ行います。
+     *   画面の待ち時間は増えません。
+     */
+    /**
+     * @ANCHOR-20261021-R122-SENDFIRST  キャッシュを返したあとの初回送信
+     *   008のご指摘5。凍結と公開判定だけでは、初回が永久に送られません。
+     */
+    public function r122AfterCached($date, $kaisuu, $basho, $day, $race): void
+    {
+        if (!BaganrikiPrompt::enabled() && !BaganrikiWorker::enabled()) { return; }
+        if (self::$dryRunNoPersist) { return; }
+        $self = $this;
+        $d = $date; $k = $kaisuu; $b = $basho; $y = $day; $r = $race;
+        app()->terminating(function () use ($self, $d, $k, $b, $y, $r) {
+            try {
+                $self->r122ResumeFreeze($d, $k, $b, $y, $r);
+                // 固定済みなら、期限の中で公開できる状態かどうかも見ます
+                $rid = \App\Http\Controllers\Api\AiController::r122RaceId($d, $k, $b, $y, $r);
+                $sn = \DB::table('baganriki_snapshots')
+                        ->where('race_id', $rid)->where('generation', 0)->first();
+                // ══════════════════════════════════════════════════════
+                // @ANCHOR-20261021-R122-JOBENTRY  Jobの段なら積むだけです
+                // ══════════════════════════════════════════════════════
+                //   ご指摘（010の2-3）：
+                //     「通常アクセスと r122AfterCached：対象判定後、凍結が
+                //       なければFreezeRaceJob、既にあれば不足しているroleの
+                //       Jobと集計Jobを投入する短い処理にします。
+                //       terminating内で長いAIのHTTP応答を待つ形を
+                //       残しません。」
+                //   Jobの段が上がっているときは、ここで送りません。
+                //   積むだけで、この terminating はすぐ終わります。
+                if (BaganrikiWorker::jobs()) {
+                    $dp = $self->r122DispatchForRace($d, $k, $b, $y, $r);
+                    \Log::error('[R122-JOB] キャッシュ後に積みました', [
+                        'race_id' => $rid, 'code' => $dp['code'],
+                        'reason' => $dp['reason'], 'dispatched' => $dp['dispatched'],
+                    ]);
+                    return;
+                }
+                // ══════════════════════════════════════════════════════
+                // @ANCHOR-20261021-R122-TARGET12  キャッシュ後の入口（010の2-5）
+                // ══════════════════════════════════════════════════════
+                $tgC = \App\Http\Controllers\Api\AiController
+                           ::r122TargetCheck($rid);
+                if (!$tgC['ok']) {
+                    \Log::error('[R122-TARGET] 対象レースではないので送りません', [
+                        'race_id' => $rid, 'code' => $tgC['code'],
+                        'reason' => $tgC['reason'],
+                    ]);
+                    return;
+                }
+                if ($sn !== null && BaganrikiWorker::enabled()) {
+                    // @ANCHOR-20261021-R122-SENDFIRST  008のご指摘5
+                    //   凍結できただけで止めません。初回の枠が無ければ
+                    //   ここから<b>両roleの初回を送ります</b>。
+                    //   応答を返したあと（terminating）なので画面は待ちません。
+                    foreach (['1st', '2nd'] as $rl) {
+                        $ex = \DB::table('baganriki_ai_attempts')
+                                ->where('snapshot_id', (int) $sn->id)
+                                ->where('role', $rl)
+                                ->where('attempt_no', BaganrikiWorker::FIRST)
+                                ->exists();
+                        if ($ex) { continue; }
+                        $fs = $self->r122SendFirst((int) $sn->id, $rl);
+                        \Log::error('[R122-SENDFIRST] キャッシュ後の初回送信', [
+                            'race_id' => $rid, 'role' => $rl,
+                            'sent' => $fs['sent'], 'ok' => $fs['ok'],
+                            'code' => $fs['code'], 'reason' => $fs['reason'],
+                        ]);
+                    }
+                    $self->r122PublishWhenReady((int) $sn->id);
+                }
+            } catch (\Throwable $e) {
+                \Log::error('[R122-RESUME] キャッシュ後の後始末で例外',
+                    ['message' => $e->getMessage()]);
+            }
+        });
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-WIRE  再起動後のやり直し（契約10章）
+     *
+     *   「初回保存後の停止は再起動で訂正判定を再開できる」への対応です。
+     *   HTTPの途中で落ちた場合、訂正も公開も始まっていないことがあります。
+     *   まだ期限内の凍結入力を拾って、②③④だけやり直します。
+     *   送信の予約はしません（初回はもう終わっているため）。
+     *
+     *   呼び方（1分おきのcronに入れてよい形にしてあります）
+     *     php artisan keiba:ai-analysis-compensate --r122-sweep
+     *
+     * @return array ['scanned','resumed','published','rows']
+     */
+    /**
+     * @ANCHOR-20261023-R122-SWEEPFREEZE  対象レースの凍結を起こします（巡回から呼ぶ）
+     *
+     *   ・対象レースの限定が効いていないときは何もしません（全レースを凍結しない）
+     *   ・発走時刻は正本（t_horse_odds_finder_races.start_time）から読みます
+     *   ・情報上限より前は何もしません（TOO_EARLY の空振りを毎回作らない）
+     *   ・同じプロセスの中では、1レースにつき30秒に1回までしか起こしません
+     *     （--r122-sweep-watch で5秒ごとに呼ばれるため）
+     *
+     * @return array ['targets','started','skipped'=>[race_id=>理由]]
+     */
+    private static array $r122FreezeTried = [];
+    public static function r122SweepFreezeTargets(self $ctrl, int $now): array
+    {
+        $out = ['targets' => 0, 'started' => [], 'skipped' => []];
+        try {
+            if (!BaganrikiWorker::targetsEnforced()) { return $out; }
+            if (!BaganrikiPrompt::enabled()) { return $out; }
+            foreach (self::r122Targets() as $rid) {
+                $out['targets']++;
+                $p = explode('-', (string) $rid);
+                if (count($p) !== 5 || !preg_match('/^\d{8}$/', $p[0])) {
+                    $out['skipped'][$rid] = 'race_id の形が違います';
+                    continue;
+                }
+                $has = \DB::table('baganriki_snapshots')
+                         ->where('race_id', $rid)->where('generation', 0)->exists();
+                if ($has) { continue; }
+                $d = substr($p[0], 0, 4) . '-' . substr($p[0], 4, 2) . '-' . substr($p[0], 6, 2);
+                $r = \DB::table('t_horse_odds_finder_races')
+                        ->where('date', $d)->where('kaisuu', $p[1])
+                        ->where('basho', $p[2])->where('day', $p[3])
+                        ->where('race', (int) $p[4])->first(['start_time']);
+                $st = trim((string) ($r->start_time ?? ''));
+                if (!preg_match('/^\d{1,2}:\d{2}(?::\d{2})?$/', $st)) {
+                    $out['skipped'][$rid] = '発走時刻を読めません';
+                    continue;
+                }
+                if (strlen($st) === 5) { $st .= ':00'; }
+                if (strlen($st) === 7) { $st = '0' . $st; }
+                $anchorUs = BaganrikiTime::us($d . 'T' . $st . '+09:00');
+                if ($anchorUs === null) {
+                    $out['skipped'][$rid] = '発走時刻を組み立てられません';
+                    continue;
+                }
+                if ($now < BaganrikiTime::inputFreeze($anchorUs)) {
+                    $out['skipped'][$rid] = 'まだ情報上限の前です';
+                    continue;
+                }
+                if ($now >= $anchorUs) {
+                    $out['skipped'][$rid] = '発走時刻を過ぎています';
+                    continue;
+                }
+                $last = self::$r122FreezeTried[$rid] ?? null;
+                if ($last !== null && ($now - $last) < 30 * 1000000) { continue; }
+                self::$r122FreezeTried[$rid] = $now;
+                if (BaganrikiWorker::jobs()) {
+                    $dp = $ctrl->r122DispatchForRace($d, $p[1], $p[2], $p[3], (int) $p[4]);
+                    $out['started'][$rid] = 'JOB:' . (string) $dp['code'];
+                } else {
+                    $rf = $ctrl->r122ResumeFreeze($d, $p[1], $p[2], $p[3], (int) $p[4]);
+                    $out['started'][$rid] = 'SYNC:' . (string) $rf['code'];
+                }
+                \Log::error('[R122-SWEEPFREEZE] 対象レースの凍結を起こしました', [
+                    'race_id' => $rid, 'result' => $out['started'][$rid],
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // @ANCHOR-20261005-AUX-NEVER-BREAKS  巡回を止めません
+            \Log::error('[R122-SWEEPFREEZE] 例外（巡回は続けます）',
+                ['message' => $e->getMessage()]);
+        }
+        return $out;
+    }
+
+    public function r122SweepPending(array $opt = []): array
+    {
+        $out = ['scanned' => 0, 'resumed' => 0, 'published' => 0, 'rows' => [],
+                // @ANCHOR-20261021-R122-SENDFIRST  初回をやり直した件数
+                'first_sent' => 0, 'first_codes' => [],
+                // @ANCHOR-20261021-R122-JOBSWEEP  Jobを積んだ件数（010の2-3）
+                'dispatched' => 0];
+        if (!BaganrikiWorker::enabled() || !BaganrikiWorker::ready()) { return $out; }
+        $now = (int) ($opt['now_us'] ?? BaganrikiWorker::nowUs());
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261023-R122-SWEEPFREEZE  対象レースの凍結を巡回から起こす（003 P-03）
+        // ══════════════════════════════════════════════════════════════════
+        //   【見つかったこと】凍結のきっかけは「アプリが旧1stを叩いたとき」
+        //   だけでした。誰も開かないレース、開いたのが情報上限より前だった
+        //   レースは、凍結されないまま期限を過ぎていました。
+        //   【いま】対象レース（TARGETS）のうち、まだ凍結が無く、
+        //   情報上限（発走330秒前）を過ぎて発走前のものを、ここで凍結します。
+        //   Jobの段なら凍結Jobを積むだけ、そうでなければその場で凍結します。
+        //   凍結ができれば、このすぐ下の巡回が同じ回で初回の送信へ進めます。
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261023-R122-SWEEPROLE  1st と 2nd を別のプロセスで同時に回せます
+        // ══════════════════════════════════════════════════════════════════
+        //   【見つかったこと】巡回は 1st の初回→2nd の初回→訂正…を
+        //   1本のプロセスで順に待つので、2nd の初回が 1st を待ち、
+        //   訂正が応答期限に間に合わないことがありました（10/23 実測4回目）。
+        //   【いま】$opt['role'] に '1st' か '2nd' を渡すと、そのroleだけを
+        //   受け持ちます。cron に2行（1st用・2nd用）入れれば同時に進みます。
+        //   凍結は '2nd' 用では起こしません（同じレースを2本で凍結しないため。
+        //   2nd 用は、1st 用が作った凍結を次の刻みで拾います）。
+        //   渡さなければ、いままでどおり両方を1本で回します。
+        $roleOnly = (string) ($opt['role'] ?? '');
+        $roles = in_array($roleOnly, ['1st', '2nd'], true) ? [$roleOnly] : ['1st', '2nd'];
+        $out['roles'] = $roles;
+        if ($roleOnly !== '2nd') {
+            $out['freeze'] = self::r122SweepFreezeTargets($this, $now);
+        }
+        $now = (int) ($opt['now_us'] ?? BaganrikiWorker::nowUs());
+
+        // 期限内のものだけ。終わった開催を毎分なめないよう、当日前後に絞ります。
+        $snaps = \DB::table('baganriki_snapshots')
+                   ->where('generation', 0)
+                   ->whereNotNull('sales_close_at')
+                   ->whereBetween('sales_close_at', [
+                        BaganrikiWorker::toDb($now - 3600 * 1000000),
+                        BaganrikiWorker::toDb($now + 6 * 3600 * 1000000),
+                   ])
+                   ->orderBy('sales_close_at')->get();
+
+        foreach ($snaps as $snap) {
+            $out['scanned']++;
+            $sid = (int) $snap->id;
+            try {
+                $live = \DB::table('baganriki_live_states')
+                          ->where('snapshot_id', $sid)->first();
+                $dl   = BaganrikiWorker::deadlines($snap, $live);
+                // ══════════════════════════════════════════════════════
+                // いま飛んでいる送信を殺さないための見張り
+                // ══════════════════════════════════════════════════════
+                //   resume() は status=SENT を「結果不明」にします。
+                //   HTTPの中でまだAIを待っている枠も SENT なので、
+                //   <b>応答期限を過ぎてからでないと呼べません</b>。
+                //   （過ぎていれば、いま届いても遅着で捨てる時刻です）
+                if ($dl['ok'] && $dl['reply'] !== null && $now > $dl['reply']) {
+                    $rs = BaganrikiWorker::resume($sid, $now);
+                    if ((array) ($rs['unknown'] ?? []) !== []) { $out['resumed']++; }
+                }
+
+                // ══════════════════════════════════════════════════════
+                // @ANCHOR-20261021-R122-TARGET12  巡回の入口（010の2-5）
+                // ══════════════════════════════════════════════════════
+                //   対象レースでないものは、拾っても何もしません。
+                //   送信の手前で断ってもよいのですが、空振りのログが
+                //   毎分ぶん増えるので、ここで外します。
+                $tgW = self::r122TargetCheck((string) $snap->race_id);
+                if (!$tgW['ok']) {
+                    $out['rows'][] = (string) $snap->race_id . ':'
+                                   . (string) $tgW['code'];
+                    continue;
+                }
+
+                // @ANCHOR-20261023-R122-SWEEPROLE  受け持つroleだけ回します
+                // foreach (['1st', '2nd'] as $role) {   // 旧
+                foreach ($roles as $role) {
+                    // ══════════════════════════════════════════════════
+                    // @ANCHOR-20261021-R122-SENDFIRST  008のご指摘5
+                    // ══════════════════════════════════════════════════
+                    //   【足りませんでした】巡回は訂正と公開だけで、
+                    //   <b>初回の送信をする者が誰もいませんでした。</b>
+                    //   画面からの呼び出しがキャッシュで終わる限り、
+                    //   そのレースは永久に送られません。
+                    //   固定入力ができていて初回の枠が無いなら、
+                    //   ここから初回を送ります（期限内のときだけ）。
+                    //   枠は一意なので、画面側と同時でも二重には送りません。
+                    $any = \DB::table('baganriki_ai_attempts')
+                             ->where('snapshot_id', $sid)->where('role', $role)
+                             ->where('attempt_no', BaganrikiWorker::FIRST)->first();
+                    if ($any === null) {
+                        // ══════════════════════════════════════════════
+                        // @ANCHOR-20261021-R122-JOBSWEEP  010の2-3
+                        // ══════════════════════════════════════════════
+                        //   ご指摘：
+                        //     「r122SweepPending：未処理対象の発見、投入漏れ
+                        //       の回復、期限判定、集計の起動に限定し、
+                        //       r122SendFirst／r122SendFixを同期実行
+                        //       しません。」
+                        //   Jobの段が上がっているときは、ここでは送らず、
+                        //   <b>積むだけ</b>にします。巡回は1分ごとなので、
+                        //   ここでAIを待つと巡回そのものが詰まります。
+                        if (BaganrikiWorker::jobs()
+                            && class_exists(\App\Jobs\R122RunRoleJob::class)) {
+                            \App\Jobs\R122RunRoleJob::dispatch($sid, $role);
+                            $out['first_codes'][] = $role . ':JOB_DISPATCHED';
+                            $out['dispatched'] = (int) ($out['dispatched'] ?? 0) + 1;
+                            continue;
+                        }
+                        $fs = $this->r122SendFirst($sid, $role);
+                        if ($fs['sent']) { $out['first_sent']++; }
+                        $out['first_codes'][] = $role . ':' . (string) $fs['code'];
+                        continue;
+                    }
+                    $f = \DB::table('baganriki_ai_attempts')
+                           ->where('snapshot_id', $sid)->where('role', $role)
+                           ->where('attempt_no', BaganrikiWorker::FIRST)
+                           ->where('status', BaganrikiWorker::RECEIVED)->first();
+                    if ($f === null) { continue; }
+                    // 受領の直後は、HTTPの側がいま訂正を送っている最中かも
+                    // しれません。少し間を置いた枠だけを拾います
+                    //   （枠の一意キーで二重送信は防げますが、
+                    //     空振りのログを増やさないための用心です）。
+                    $recv = BaganrikiWorker::dbUs($f->received_at ?? null);
+                    if ($recv !== null
+                        && ($now - $recv) < self::R122_SWEEP_GRACE_SEC * 1000000) {
+                        continue;
+                    }
+                    // ══════════════════════════════════════════════════
+                    // @ANCHOR-20261021-R122-JOBSWEEP  訂正も同期では送りません
+                    // ══════════════════════════════════════════════════
+                    //   Jobの段が上がっているときは、巡回から訂正を
+                    //   送りません。受領まで進んでいて採否が未確定なら、
+                    //   そのroleのJobを積み直します（投入漏れの回復）。
+                    //   訂正を送るのは RunRoleJob の中だけです。
+                    if (BaganrikiWorker::jobs()) {
+                        $sv = self::r122RoleSettled($sid, $role);
+                        if (!$sv['settled']
+                            && class_exists(\App\Jobs\R122RunRoleJob::class)) {
+                            \App\Jobs\R122RunRoleJob::dispatch($sid, $role);
+                            $out['first_codes'][] = $role . ':JOB_REDISPATCHED';
+                            $out['dispatched'] = (int) ($out['dispatched'] ?? 0) + 1;
+                        }
+                        continue;
+                    }
+                    $insp = $this->r122InspectResponse($sid, $role,
+                                                       BaganrikiWorker::FIRST);
+                    if ($insp['ok'] && $insp['needs_fix']
+                        && $insp['complete'] === true) {
+                        $this->r122SendFix($sid, $role, $insp);
+                    }
+                }
+                // ══════════════════════════════════════════════════
+                // @ANCHOR-20261021-R122-NOWFRESH  10月21日009のご指摘3
+                // ══════════════════════════════════════════════════
+                //   【そのとおりでした】$now は巡回を<b>始めたときの1回だけ</b>
+                //   取っていました。この間に訂正の送信でAIを待つので、
+                //   長いときは分単位でずれます。期限の判定と公開の起動に
+                //   古い時刻を使うと、過ぎている期限を過ぎていないと見ます。
+                //   【いま】ここで取り直します。試験用の時計は opt から
+                //   渡されたときだけ使い、本番では渡しません。
+                $nowPub = isset($opt['now_us'])
+                        ? (int) $opt['now_us'] : BaganrikiWorker::nowUs();
+                $pb = $this->r122PublishWhenReady($sid, ['now_us' => $nowPub]);
+                if ($pb['ok'] ?? false) { $out['published']++; }
+                $out['rows'][] = [
+                    'race_id' => (string) $snap->race_id,
+                    'publish' => (string) ($pb['code'] ?? ''),
+                ];
+            } catch (\Throwable $e) {
+                \Log::error('[R122-WIRE] やり直しで例外', [
+                    'race_id' => (string) $snap->race_id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+        return $out;
+    }
+
+}
+
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-REFACTOR  v0.4-X / r12.2 の信号判定
+ * ═══════════════════════════════════════════════════════════════════════════
+ * AiController が1万8千行を超えて読みづらくなったので、
+ * 役割ごとに切り出しました。<b>新しいファイルは作らず、このファイルの中に置きます。</b>
+ *
+ * ここに入っているもの
+ *   ・三値論理（AND／OR／m件以上）
+ *   ・6分前人気で固定した隣接ペアの W（単勝比）と P（複勝比）
+ *   ・X1〜X6・Z の判定
+ *   ・S・S_min・S_max と mode、r12.2 の mode_status／allocation_mode／星
+ *
+ * 動きは切り出す前と同じです。閾値や配分表の定数は AiController 側に残し、
+ * ここからは AiController::V04_… で参照します（定数の正本を1か所に保つため）。
+ */
+final class BaganrikiSignals
+{
+
+    // ═════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261020-R122-EXACT  任意精度の十進数で、丸めずに比べます
+    // ═════════════════════════════════════════════════════════════════════
+    // 根拠：server_contract_r12.2.txt 2章・12章／詳細設計書8章
+    //
+    //   【直した理由】
+    //     これまで W（単勝比）と P（複勝比）を PHP の float で割り算し、
+    //     小数4桁に丸めてから閾値と比べていました。
+    //     「元値の正確な分数で比較し、表示用に丸めた比率を使用しない」
+    //     という契約に反します。境界ちょうどの馬で判定が変わり得ます。
+    //
+    //   【直し方】
+    //     割り算も float も使いません。十進数の文字列のまま、
+    //     たすき掛け（分子×相手の分母）を多倍長整数で比べます。
+    //     桁数の上限を固定していないので、小数第5位以上の値が来ても
+    //     切り捨てたり拒否したりしません。
+    //     W や P の数値は画面と監査のために今までどおり残しますが、
+    //     判定には使いません。
+
+    /** 十進数の文字列を ['d'=>数字だけの文字列, 'sc'=>小数桁数] へ。読めなければ null */
+    public static function decNorm($v): ?array
+    {
+        if ($v === null || is_bool($v)) { return null; }
+        $s = trim((string) $v);
+        if ($s === '') { return null; }
+        if (!preg_match('/^(\d{1,128})(?:\.(\d{1,128}))?$/', $s, $m)) { return null; }
+        $int  = $m[1];
+        $frac = $m[2] ?? '';
+        $d = ltrim($int . $frac, '0');
+        if ($d === '') { $d = '0'; }
+        if (strlen($d) > 128) { return null; }   // 契約の128桁上限
+        return ['d' => $d, 'sc' => strlen($frac)];
+    }
+
+    /** 数字列どうしの掛け算（多倍長。筆算と同じやり方） */
+    public static function bigMul(string $a, string $b): string
+    {
+        if ($a === '0' || $b === '0') { return '0'; }
+        $la = strlen($a); $lb = strlen($b);
+        $r = array_fill(0, $la + $lb, 0);
+        for ($i = $la - 1; $i >= 0; $i--) {
+            $ai = (int) $a[$i];
+            if ($ai === 0) { continue; }
+            $carry = 0;
+            for ($j = $lb - 1; $j >= 0; $j--) {
+                $t = $r[$i + $j + 1] + $ai * (int) $b[$j] + $carry;
+                $r[$i + $j + 1] = $t % 10;
+                $carry = intdiv($t, 10);
+            }
+            $r[$i] += $carry;
+        }
+        $s = ltrim(implode('', $r), '0');
+        return ($s === '') ? '0' : $s;
+    }
+
+    /** 数字列どうしの大小（-1 / 0 / 1） */
+    public static function bigCmp(string $a, string $b): int
+    {
+        $a = ltrim($a, '0'); $b = ltrim($b, '0');
+        if ($a === '') { $a = '0'; }
+        if ($b === '') { $b = '0'; }
+        if (strlen($a) !== strlen($b)) { return (strlen($a) < strlen($b)) ? -1 : 1; }
+        return strcmp($a, $b) <=> 0;
+    }
+
+    /**
+     * 項の積どうしを比べます。各項は十進数の文字列、k は整数の係数。
+     * 返りは -1 / 0 / 1。読めない値が混ざれば null。
+     *   例：4×W21 と 5×W6 を比べる → cmpProd(4,[l21,u6], 5,[l6,u21])
+     */
+    public static function cmpProd(int $kl, array $left, int $kr, array $right): ?int
+    {
+        $build = static function (int $k, array $xs): ?array {
+            $d = (string) abs($k); $sc = 0;
+            foreach ($xs as $x) {
+                $n = self::decNorm($x);
+                if ($n === null) { return null; }
+                $d = self::bigMul($d, $n['d']);
+                $sc += $n['sc'];
+            }
+            return ['d' => $d, 'sc' => $sc];
+        };
+        $L = $build($kl, $left);
+        $R = $build($kr, $right);
+        if ($L === null || $R === null) { return null; }
+        // 小数桁をそろえてから比べます（10の冪を掛けるだけ＝0を足すだけ）
+        $diff = $L['sc'] - $R['sc'];
+        if ($diff > 0)      { $R['d'] = ($R['d'] === '0') ? '0' : $R['d'] . str_repeat('0', $diff); }
+        elseif ($diff < 0)  { $L['d'] = ($L['d'] === '0') ? '0' : $L['d'] . str_repeat('0', -$diff); }
+        return self::bigCmp($L['d'], $R['d']);
+    }
+
+    /**
+     * 比 (num/den) と有理数 (p/q) の大小。num/den は十進数の文字列。
+     * num/den >= p/q ⇔ num×q >= den×p（den>0・q>0 のとき）
+     */
+    public static function cmpRatio($num, $den, int $p, int $q): ?int
+    {
+        return self::cmpProd($q, [$num], $p, [$den]);
+    }
+
+    /** @ANCHOR-20261013-V04-CORE  有効な観測値か（0・負・欠損・真偽値は不可） */
+    public static function v04Valid($x): bool
+    {
+        if (is_bool($x) || $x === null) return false;
+        if (!is_numeric($x)) return false;
+        return ((float) $x) > 0;
+    }
+
+    /**
+     * @ANCHOR-20261013-V04-CORE  三値のOR集約（付録F tri_any と同一）
+     *   1つでも成立 → TRUE。成立し得る未観測が残る → UNKNOWN。
+     *   対象が空（構造的非該当）→ FALSE。
+     * @param array $conditions true / false / null の列
+     */
+    public static function v04TriAny(array $conditions): string
+    {
+        $unknown = false;
+        foreach ($conditions as $v) {
+            if ($v === true)  return 'TRUE';
+            if ($v === null)  $unknown = true;
+        }
+        return $unknown ? 'UNKNOWN' : 'FALSE';
+    }
+
+    /**
+     * @ANCHOR-20261013-V04-CORE  三値の件数集約（付録F tri_at_least と同一）
+     *   成立数が n 以上 → TRUE
+     *   成立数＋不明数が n に届かない → FALSE（欠損を自動でFALSEにするのではなく、
+     *     「どう転んでも届かない」と断定できる場合だけFALSE）
+     *   それ以外 → UNKNOWN
+     */
+    public static function v04TriAtLeast(array $conditions, int $n): string
+    {
+        $t = 0; $u = 0;
+        foreach ($conditions as $v) {
+            if ($v === true) $t++;
+            elseif ($v === null) $u++;
+        }
+        if ($t >= $n)      return 'TRUE';
+        if ($t + $u < $n)  return 'FALSE';
+        return 'UNKNOWN';
+    }
+
+    /**
+     * @ANCHOR-20261013-V04-CORE  6分前人気で固定した隣接馬番ペアの W(k,t) / P(k,t)
+     *
+     * 02-1「6分前人気で h[k],h[k+1] の隣接馬番ペアを固定。各時点では順位k/k+1の
+     *   別の馬へ差し替えず、同じh番号のオッズで比率を計算する」
+     *   W(k,t)=win(h[k+1],t)/win(h[k],t)、P(k,t)=place_min(h[k+1],t)/place_min(h[k],t)
+     *   0・負・欠損・取消は計算不可（null）。
+     *   21分前に順位が入れ替わっていてW<1になっても、同じ馬の実測が有効なら
+     *   比率は残し rank_crossed=true を別記する（別の馬に差し替えない）。
+     *
+     * @param array $pHorses 6分前単勝人気の昇順に並んだ出走馬
+     * @return array k（1..N-1）=> ペア情報
+     */
+    public static function v04Pairs(array $pHorses): array
+    {
+        $T = [21, 18, 15, 12, 9, 6];
+
+        $ratio = static function (array $u, array $l, string $key, int $t): ?float {
+            $uv = $u[$key][$t] ?? null;
+            $lv = $l[$key][$t] ?? null;
+            if (!self::v04Valid($uv) || !self::v04Valid($lv)) return null;
+            return (float) $lv / (float) $uv;          // 下側 ÷ 上側
+        };
+
+        $pairs = [];
+        $cnt   = count($pHorses);
+        for ($i = 0; $i < $cnt - 1; $i++) {
+            $u = $pHorses[$i];
+            $l = $pHorses[$i + 1];
+            $k = $i + 1;                               // 位置番号（付録Fのkと同じ）
+
+            $W = []; $P = [];
+            // @ANCHOR-20261020-R122-EXACT  元値（十進数の文字列）をそのまま持ちます。
+            //   判定はこの元値で行い、$W/$P の数値は画面と監査だけに使います。
+            $raw = ['Wn' => [], 'Wd' => [], 'Pn' => [], 'Pd' => []];
+            foreach ($T as $t) {
+                $W[$t] = $ratio($u, $l, 'tan_series',      $t);
+                $P[$t] = $ratio($u, $l, 'fuku_min_series', $t);
+                $raw['Wd'][$t] = $u['tan_series'][$t]      ?? null;   // 上側＝分母
+                $raw['Wn'][$t] = $l['tan_series'][$t]      ?? null;   // 下側＝分子
+                $raw['Pd'][$t] = $u['fuku_min_series'][$t] ?? null;
+                $raw['Pn'][$t] = $l['fuku_min_series'][$t] ?? null;
+            }
+
+            $w21 = $W[21]; $w6 = $W[6]; $p6 = $P[6];
+
+            // ─────────────────────────────────────────────────────────
+            // @ANCHOR-20261020-R122-EXACT  判定はすべて元値のたすき掛けで行います
+            //   【旧】float で割った比を 2.0 や 1.5 と比べていました。
+            //   W>=2    ⇔ 下側 >= 2×上側
+            //   W<1.50  ⇔ 2×下側 <  3×上側
+            //   P>=1.50 ⇔ 2×下側 >= 3×上側
+            //   縮小率>=0.20 ⇔ 4×W21 >= 5×W6 ⇔ 4×下21×上6 >= 5×下6×上21
+            // ─────────────────────────────────────────────────────────
+            $cw = static function (int $t, int $p, int $q) use ($raw): ?int {
+                return self::cmpRatio($raw['Wn'][$t] ?? null, $raw['Wd'][$t] ?? null, $p, $q);
+            };
+            $cp = static function (int $t, int $p, int $q) use ($raw): ?int {
+                return self::cmpRatio($raw['Pn'][$t] ?? null, $raw['Pd'][$t] ?? null, $p, $q);
+            };
+            $t1 = $cw(21, 2, 1); $w21Ge2 = ($t1 === null) ? null : ($t1 >= 0);
+            $t2 = $cw(6,  2, 1); $w6Ge2  = ($t2 === null) ? null : ($t2 >= 0);
+            $t3 = $cw(6,  3, 2); $w6Lt15 = ($t3 === null) ? null : ($t3 <  0);
+            $t4 = $cp(6,  3, 2); $p6Ge15 = ($t4 === null) ? null : ($t4 >= 0);
+            $t5 = $cw(21, 1, 1); $crossed = ($t5 === null) ? null : ($t5 < 0);
+            $t6 = self::cmpProd(4, [$raw['Wn'][21] ?? null, $raw['Wd'][6]  ?? null],
+                                5, [$raw['Wn'][6]  ?? null, $raw['Wd'][21] ?? null]);
+            $shrink20 = ($t6 === null) ? null : ($t6 >= 0);
+            $t7 = self::cmpProd(1, [$raw['Wn'][6]  ?? null, $raw['Wd'][21] ?? null],
+                                1, [$raw['Wn'][21] ?? null, $raw['Wd'][6]  ?? null]);
+
+            // 壁の出現／消滅／拡大／縮小（欠損は不明のまま）
+            $appear = $vanish = $expand = $shrink = null;
+            $shrinkRate = null;
+            if ($w21Ge2 !== null && $w6Ge2 !== null) {
+                $appear = (!$w21Ge2 && $w6Ge2);
+                $vanish = ($w21Ge2 && !$w6Ge2);
+            }
+            if ($t7 !== null) { $expand = ($t7 > 0); $shrink = ($t7 < 0); }
+            // 縮小率の数値は画面と監査のためだけに残します（判定には使いません）
+            if ($w21 !== null && $w6 !== null && $w21 > 0) { $shrinkRate = ($w21 - $w6) / $w21; }
+            // 単複の一致／不一致（単勝壁 W>=2.00、複勝補強 P>=1.50）
+            $agree = ($w6Ge2 !== null && $p6Ge15 !== null) ? ($w6Ge2 === $p6Ge15) : null;
+
+            $missing = [];
+            foreach ($T as $t) {
+                if ($W[$t] === null) $missing[] = "W{$t}";
+                if ($P[$t] === null) $missing[] = "P{$t}";
+            }
+
+            $pairs[$k] = [
+                'k'            => $k,
+                'upper_num'    => (int) ($u['num'] ?? 0),
+                'lower_num'    => (int) ($l['num'] ?? 0),
+                'upper_pop'    => (int) ($u['popularity'] ?? 0),
+                'lower_pop'    => (int) ($l['popularity'] ?? 0),
+                'W'            => array_map(static fn($v) => $v === null ? null : round($v, 4), $W),
+                'P'            => array_map(static fn($v) => $v === null ? null : round($v, 4), $P),
+                '出現'         => $appear,
+                '消滅'         => $vanish,
+                '拡大'         => $expand,
+                '縮小'         => $shrink,
+                '縮小率'       => $shrinkRate === null ? null : round($shrinkRate, 4),
+                '単複一致'     => $agree,
+                '単勝壁6分'    => $w6Ge2,
+                '単勝壁21分'   => $w21Ge2,
+                '複勝補強6分'  => $p6Ge15,
+                'rank_crossed' => $crossed,
+                'missing'      => $missing,
+                // @ANCHOR-20261020-R122-EXACT  元値と、元値で出した判定
+                'raw'          => $raw,
+                'exact'        => ['W21>=2' => $w21Ge2, 'W6>=2' => $w6Ge2,
+                                   'W6<1.50' => $w6Lt15, 'P6>=1.50' => $p6Ge15,
+                                   '21→6短縮>=0.20' => $shrink20],
+            ];
+        }
+        return $pairs;
+    }
+
+    /**
+     * @ANCHOR-20261013-V04-CORE  X1〜X6・Z の三値判定（付録F derive_flags と同一）
+     *
+     * 02-2 の表。閾値はすべて研究初期値であり検証済みの本番値ではない。
+     *   X1 境界弱化(+2)   k<=6 で W(k,21)>=2.00 かつ（W(k,6)<2.00 または 縮小20%以上）
+     *   X2 単複乖離(+1)   k<=10 で W(k,6)>=2.00 かつ P(k,6)<1.50
+     *   X3 中位接近(+1)   k=3,4,5,6 が全て有効で max W(k,6) < 1.50。N<7 は構造的非該当
+     *   X4 穴側の絶対支持(+1) 7番人気以下の異なる2頭以上で複勝最小が
+     *                      21→6分に5%以上短縮、または9→6分に3%以上短縮
+     *   X5 中穴の壁(+1)   k=7..min(10,N-1) で W(k,6)>=2.00。該当境界が無ければFALSE
+     *   X6 類似統計(+1)   有効50レース以上かつ基準率より10pp以上高い。
+     *                      基準率が未定義・未提供なら必ずUNKNOWN（0%で埋めない）
+     *   Z  安定上位(-2)   k=1..min(5,N-1) の異なる2境界以上で
+     *                      W(k,21)>=2.00 かつ W(k,6)>=2.00 かつ P(k,6)>=1.50
+     *
+     * @param  int        $N        取消を反映した実出走頭数
+     * @param  array      $pairs    v04Pairs() の戻り
+     * @param  array      $pHorses  出走馬（popularity / fuku_min_series を持つ）
+     * @param  array|null $similar  ['sample_size'=>int|null, 'delta_pp'=>float|null]
+     * @return array      ['flags'=>[X1..Z=>'TRUE'|'FALSE'|'UNKNOWN'], 'evidence'=>[...]]
+     */
+    public static function v04DeriveFlags(int $N, array $pairs, array $pHorses, ?array $similar = null): array
+    {
+        $thr  = AiController::V04_THRESHOLDS;
+        $maxK = max(0, $N - 1);
+        $at   = static fn(int $k, int $t, string $v) => $pairs[$k][$v][$t] ?? null;
+
+        // ── X1 境界弱化 ─────────────────────────────────────────────────────
+        //   上側の21分前が有効で壁未満なら、6分前が欠損でもFALSEと断定できる。
+        // ─────────────────────────────────────────────────────────────
+        // @ANCHOR-20261020-R122-EXACT  判定は $pairs[k]['exact']（元値で出した結果）
+        //   【旧】丸めた $W[$t] を 2.0 と比べ、割り算で短縮率を出していました。
+        //
+        //   受入試験は $pairs を手で組み立てて渡すので 'exact' がありません。
+        //   その場合は、渡された比の値そのものを十進数の文字列として
+        //   たすき掛けで比べます（ここでも float の比較はしません）。
+        // ─────────────────────────────────────────────────────────────
+        $ex = static function (int $k, string $key) use ($pairs) {
+            if (isset($pairs[$k]['exact']) && array_key_exists($key, $pairs[$k]['exact'])) {
+                return $pairs[$k]['exact'][$key];
+            }
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-DIGITS  10月20日005のご指摘7-2
+            // ══════════════════════════════════════════════════════════
+            //   下の代替比較は float と sprintf を通ります。
+            //   <b>本番の入力からは絶対に到達させません。</b>
+            //   v04Pairs() が作ったペアには必ず 'raw'（元値）が入るので、
+            //   'raw' があるのに 'exact' が無いときは、代替へ落とさず
+            //   不明（null）として扱います。代替は、受入試験が手で組み立てた
+            //   ペア（'raw' が無いもの）専用です。
+            if (isset($pairs[$k]['raw'])) { return null; }
+            $w21 = $pairs[$k]['W'][21] ?? null;
+            $w6  = $pairs[$k]['W'][6]  ?? null;
+            $p6  = $pairs[$k]['P'][6]  ?? null;
+            $cmp = static function ($v, int $p, int $q) {
+                if (!self::v04Valid($v)) { return null; }
+                return self::cmpRatio(rtrim(rtrim(sprintf('%.12F', (float) $v), '0'), '.') ?: '0',
+                                      '1', $p, $q);
+            };
+            switch ($key) {
+                case 'W21>=2':
+                    $c = $cmp($w21, 2, 1); return ($c === null) ? null : ($c >= 0);
+                case 'W6>=2':
+                    $c = $cmp($w6, 2, 1);  return ($c === null) ? null : ($c >= 0);
+                case 'W6<1.50':
+                    $c = $cmp($w6, 3, 2);  return ($c === null) ? null : ($c < 0);
+                case 'P6>=1.50':
+                    $c = $cmp($p6, 3, 2);  return ($c === null) ? null : ($c >= 0);
+                case '21→6短縮>=0.20':
+                    // (W21−W6)/W21 >= 0.20 ⇔ 4×W21 >= 5×W6
+                    if (!self::v04Valid($w21) || !self::v04Valid($w6)) { return null; }
+                    $f = static fn($v) => rtrim(rtrim(sprintf('%.12F', (float) $v), '0'), '.') ?: '0';
+                    $c = self::cmpProd(4, [$f($w21)], 5, [$f($w6)]);
+                    return ($c === null) ? null : ($c >= 0);
+            }
+            return null;
+        };
+        $x1 = static function (int $k) use ($ex) {
+            $w21Ge2 = $ex($k, 'W21>=2');
+            $w6Ge2  = $ex($k, 'W6>=2');
+            $shrink = $ex($k, '21→6短縮>=0.20');
+            if ($w21Ge2 === false) return false;          // 21分前が壁未満なら確定でFALSE
+            if ($w21Ge2 === null)  return null;
+            if ($w6Ge2 === false)  return true;           // 壁が消えた
+            if ($w6Ge2 === null || $shrink === null) return null;
+            return $shrink;                               // 壁は残るが20%以上縮んだか
+        };
+        $x1Each = []; $x1Ev = [];
+        for ($k = 1; $k <= min($maxK, 6); $k++) {
+            $x1Each[$k] = $x1($k);
+            if ($x1Each[$k] === true) {
+                $x1Ev[] = ['k' => $k, 'W21' => $at($k, 21, 'W'), 'W6' => $at($k, 6, 'W'),
+                           '縮小率' => $pairs[$k]['縮小率'] ?? null,
+                           '馬番' => [$pairs[$k]['upper_num'] ?? null, $pairs[$k]['lower_num'] ?? null]];
+            }
+        }
+        $X1 = self::v04TriAny($x1Each);
+
+        // ── X2 単複乖離 ─────────────────────────────────────────────────────
+        //   単勝が壁未満と分かる、または複勝が補強済みと分かる時点でFALSE。
+        $x2 = static function (int $k) use ($ex) {
+            $w = $ex($k, 'W6>=2'); $p = $ex($k, 'P6>=1.50');
+            if ($w === false) return false;
+            if ($p === true)  return false;
+            if ($w === null || $p === null) return null;
+            return ($w && !$p);
+        };
+        $x2Each = []; $x2Ev = [];
+        for ($k = 1; $k <= min($maxK, 10); $k++) {
+            $x2Each[$k] = $x2($k);
+            if ($x2Each[$k] === true) {
+                $x2Ev[] = ['k' => $k, 'W6' => $at($k, 6, 'W'), 'P6' => $at($k, 6, 'P'),
+                           '馬番' => [$pairs[$k]['upper_num'] ?? null, $pairs[$k]['lower_num'] ?? null]];
+            }
+        }
+        $X2 = self::v04TriAny($x2Each);
+
+        // ── X3 中位接近 ─────────────────────────────────────────────────────
+        //   AND条件なので、1つでも「有効かつ1.50以上」ならFALSE、
+        //   4つとも有効で全て1.50未満ならTRUE、残りはUNKNOWN。
+        //   N<7 は k=3..6 の境界が揃わないので構造的非該当＝FALSE。
+        $x3Vals = [];
+        if ($N < 7) {
+            $X3 = 'FALSE';
+            $x3Note = "N={$N}（<7）のため k=3..6 の境界が成立せず構造的非該当";
+        } else {
+            $anyOver = false; $allValid = true;
+            foreach ([3, 4, 5, 6] as $k) {
+                $x3Vals[$k] = $at($k, 6, 'W');            // 表示用
+                $lt = $ex($k, 'W6<1.50');                 // 判定は元値から
+                if ($lt === false) $anyOver = true;
+                if ($lt === null)  $allValid = false;
+            }
+            $X3    = $anyOver ? 'FALSE' : ($allValid ? 'TRUE' : 'UNKNOWN');
+            $x3Note = $anyOver ? 'k=3..6のいずれかが1.50以上' : ($allValid ? '4境界すべて1.50未満' : '欠損あり');
+        }
+
+        // ── X4 穴側の絶対支持 ────────────────────────────────────────────────
+        //   相対的な流入順位は証拠にしない。各馬の複勝最小の絶対短縮率だけで見る。
+        // @ANCHOR-20261020-R122-EXACT  短縮率も割り算せずに比べます。
+        //   (前−後)/前 >= 0.05 ⇔ 19×前 >= 20×後
+        //   (前−後)/前 >= 0.03 ⇔ 97×前 >= 100×後
+        $x4Runner = static function (array $r) {
+            $p21 = $r['fuku_min_series'][21] ?? null;
+            $p9  = $r['fuku_min_series'][9]  ?? null;
+            $p6  = $r['fuku_min_series'][6]  ?? null;
+            if (!self::v04Valid($p6)) return null;
+            $c21 = self::cmpProd(19, [$p21], 20,  [$p6]);
+            $c9  = self::cmpProd(97, [$p9],  100, [$p6]);
+            $v21 = ($c21 === null) ? null : ($c21 >= 0);
+            $v9  = ($c9  === null) ? null : ($c9  >= 0);
+            if ($v21 === true || $v9 === true) return true;
+            if ($v21 === null || $v9 === null) return null;
+            return false;
+        };
+        $x4Each = []; $x4Ev = []; $x4Unknown = [];
+        foreach ($pHorses as $h) {
+            if ((int) ($h['popularity'] ?? 10000) < 7) continue;
+            $v = $x4Runner($h);
+            $x4Each[] = $v;
+            $p21 = $h['fuku_min_series'][21] ?? null;
+            $p9  = $h['fuku_min_series'][9]  ?? null;
+            $p6  = $h['fuku_min_series'][6]  ?? null;
+            $row = ['num' => (int) ($h['num'] ?? 0), '人気' => (int) ($h['popularity'] ?? 0),
+                    '複勝21' => $p21, '複勝9' => $p9, '複勝6' => $p6,
+                    '21→6短縮率' => (self::v04Valid($p21) && self::v04Valid($p6)) ? round(($p21 - $p6) / $p21, 4) : null,
+                    '9→6短縮率'  => (self::v04Valid($p9)  && self::v04Valid($p6)) ? round(($p9  - $p6) / $p9,  4) : null];
+            if ($v === true)      $x4Ev[] = $row;
+            elseif ($v === null)  $x4Unknown[] = $row;
+        }
+        $X4 = self::v04TriAtLeast($x4Each, 2);
+
+        // ── X5 中穴の壁 ─────────────────────────────────────────────────────
+        //   k=7..min(10,N-1)。該当境界自体が存在しなければ（空集合）FALSE。
+        $x5Each = []; $x5Ev = [];
+        for ($k = 7; $k <= min($maxK, 10); $k++) {
+            $w = $at($k, 6, 'W');                      // 表示用
+            $x5Each[$k] = $ex($k, 'W6>=2');            // 判定は元値から
+            if ($x5Each[$k] === true) {
+                $x5Ev[] = ['k' => $k, 'W6' => $w,
+                           '馬番' => [$pairs[$k]['upper_num'] ?? null, $pairs[$k]['lower_num'] ?? null]];
+            }
+        }
+        $X5 = self::v04TriAny($x5Each);
+
+        // ── X6 類似統計 ─────────────────────────────────────────────────────
+        //   基準率（X6_baseline）が未合意のため、通常は $similar=null で UNKNOWN。
+        //   07章Bでよっしーに確認中の未決事項。0%で埋めてはいけない。
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-PROMPT  N<7 は構造的非該当で FALSE
+        // ══════════════════════════════════════════════════════════════
+        // 【直した中身】決着事項①（B案）は「N>=7 で null、N<7 で false」です。
+        //   X6 は「7番人気以下の3着内進入率」を見る信号なので、
+        //   7番人気以下が存在しない N<7 では成立しません（X3 と同じ扱い）。
+        //   検証側（SummaryAiAnalysisCompensate::modeCheckOne）は前から
+        //   この扱いでしたが、<b>本番側のここが抜けていました</b>。
+        //   X6 は --r122-exact-check の突き合わせ対象（X1〜X5・Z）に
+        //   入っていなかったため、これまで見つかっていませんでした。
+        //   先方の参照入力 normal/FIRM_N4_1st_input.json の X6=false と
+        //   一致しなかったことで分かりました。
+        if ($N < 7) {
+            $X6 = 'FALSE';
+            $x6Note = 'N<7 のため7番人気以下が存在せず構造的に非該当（決着事項①B案）';
+        } elseif (AiController::V04_X6_BASELINE === null) {
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-X6  B案の経路をここで閉じます
+            // ══════════════════════════════════════════════════════════
+            // 【10月20日004のご指摘（2）】
+            //   「類似統計を渡すと旧TRUE/FALSE判定へ進む処理が残っている」
+            //   そのとおりでした。本番では V04_X6_BASELINE が null なので
+            //   $similar=null で呼ばれ、到達しない経路でしたが、
+            //   <b>経路として閉じていませんでした</b>。
+            //   基準率（07章B）が未合意のあいだは、類似統計を渡されても
+            //   必ず UNKNOWN にします。下の TRUE/FALSE の表は、
+            //   基準率が決まって V04_X6_BASELINE に値が入ってから使います。
+            $X6 = 'UNKNOWN';
+            $x6Note = 'B案：同条件比較基準率（07章B）が未合意のため、'
+                    . '類似統計を渡されても TRUE/FALSE にしません';
+        } elseif ($similar === null
+            || ($similar['sample_size'] ?? null) === null
+            || ($similar['delta_pp']    ?? null) === null) {
+            $X6 = 'UNKNOWN';
+            $x6Note = '同条件比較基準率が未定義・未提供（07章B）のため不明。0%で埋めない';
+        } elseif ((int) $similar['sample_size'] < $thr['similar_min_races']) {
+            $X6 = 'FALSE';
+            $x6Note = "有効母数 {$similar['sample_size']} レースが最低条件 {$thr['similar_min_races']} に未達";
+        } else {
+            $X6 = ((float) $similar['delta_pp'] >= $thr['similar_3in_delta_pp']) ? 'TRUE' : 'FALSE';
+            $x6Note = "有効母数 {$similar['sample_size']} / 基準率との差 {$similar['delta_pp']}pp";
+        }
+
+        // ── Z 安定上位 ──────────────────────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-Z  Z も元値のたすき掛けで判定します
+        // ══════════════════════════════════════════════════════════════
+        // 【10月20日005のご指摘3。本物の不具合でした】
+        //   X1〜X5 は $ex（元値の比較）へ置き換えたのに、<b>Zだけ $at
+        //   （round(...,4) した表示用の値）を見たままでした。</b>
+        //   そのため 19.9999/10 = 1.99999 が 2.0000 に丸められて
+        //   「壁あり」と判定され、16頭の例で
+        //   混戦 3/3/1 が 堅い 5/2/0 に変わっていました。
+        //   穴側が4枠から2枠、大穴側が1枠から0枠に減ります。
+        //
+        //   【旧コード】消さずに残します。使っていません。
+        //     $z = static function (int $k) use ($at, $thr) {
+        //         $w21 = $at($k, 21, 'W'); $w6 = $at($k, 6, 'W'); $p6 = $at($k, 6, 'P');
+        //         if (self::v04Valid($w21) && $w21 < $thr['win_wall'])   return false;
+        //         …（丸めた値と閾値を比べていました）
+        //     };
+        $z = static function (int $k) use ($ex) {
+            $w21 = $ex($k, 'W21>=2');
+            $w6  = $ex($k, 'W6>=2');
+            $p6  = $ex($k, 'P6>=1.50');
+            // 三値のAND。1つでもFALSEならFALSE、不明が混ざればUNKNOWN。
+            if ($w21 === false || $w6 === false || $p6 === false) { return false; }
+            if ($w21 === null  || $w6 === null  || $p6 === null)  { return null; }
+            return true;
+        };
+        $zEach = []; $zEv = [];
+        for ($k = 1; $k <= min($maxK, 5); $k++) {
+            $zEach[$k] = $z($k);
+            if ($zEach[$k] === true) {
+                $zEv[] = ['k' => $k, 'W21' => $at($k, 21, 'W'), 'W6' => $at($k, 6, 'W'), 'P6' => $at($k, 6, 'P'),
+                          '馬番' => [$pairs[$k]['upper_num'] ?? null, $pairs[$k]['lower_num'] ?? null]];
+            }
+        }
+        $Z = self::v04TriAtLeast($zEach, 2);
+
+        return [
+            'flags'    => ['X1' => $X1, 'X2' => $X2, 'X3' => $X3, 'X4' => $X4,
+                           'X5' => $X5, 'X6' => $X6, 'Z'  => $Z],
+            'evidence' => [
+                'X1' => ['value' => $X1, '対象k' => array_keys($x1Each), '成立' => $x1Ev,
+                         'missing_reason' => self::v04MissingReason($x1Each)],
+                'X2' => ['value' => $X2, '対象k' => array_keys($x2Each), '成立' => $x2Ev,
+                         'missing_reason' => self::v04MissingReason($x2Each)],
+                'X3' => ['value' => $X3, 'W6' => $x3Vals, 'note' => $x3Note],
+                'X4' => ['value' => $X4, '成立頭数' => count($x4Ev), '成立' => $x4Ev,
+                         '不明' => $x4Unknown, '必要件数' => 2],
+                'X5' => ['value' => $X5, '対象k' => array_keys($x5Each), '成立' => $x5Ev,
+                         'missing_reason' => self::v04MissingReason($x5Each)],
+                'X6' => ['value' => $X6, 'note' => $x6Note, 'similar' => $similar],
+                'Z'  => ['value' => $Z, '対象k' => array_keys($zEach), '成立' => $zEv,
+                         '必要件数' => 2, 'missing_reason' => self::v04MissingReason($zEach)],
+            ],
+        ];
+    }
+
+    /** @ANCHOR-20261013-V04-CORE  三値列のうち不明だった位置を記録する */
+    public static function v04MissingReason(array $each): array
+    {
+        $out = [];
+        foreach ($each as $k => $v) { if ($v === null) $out[] = $k; }
+        return empty($out) ? [] : ['不明だったk' => $out, '理由' => 'オッズ欠損・取消・0以下のため比率が計算不可'];
+    }
+
+    /** @ANCHOR-20261013-V04-CORE  Sからモードへ（付録F score_mode と同一） */
+    public static function v04ScoreMode(int $s): string
+    {
+        if ($s <= AiController::V04_MODE_FIRM_MAX)  return 'FIRM';
+        if ($s <= AiController::V04_MODE_MIXED_MAX) return 'MIXED';
+        return 'VOLATILE';
+    }
+
+    /**
+     * @ANCHOR-20261013-V04-CORE  S・S_min・S_max と mode（付録F classify と同一）
+     *
+     * S = 2*X1 + X2 + X3 + X4 + X5 + X6 - 2*Z（既知TRUE=1、FALSE=0）。
+     *   これは確率ではなく研究用の離散指数。
+     * 不明がある場合は各不明を0/1に振った全組合せを数え上げ、
+     *   ・不明が3信号以上
+     *   ・不明の振り方でFIRM/MIXED/VOLATILEの境界をまたぐ
+     * のいずれかなら mode=UNKNOWN。不明が1〜2で全組合せが同じモードなら
+     * そのモードを付し、mode_has_unknown=true を必ず立てる。
+     */
+    public static function v04Classify(array $flags): array
+    {
+        $w = AiController::V04_SIGNAL_WEIGHTS;
+        if (array_keys($w) !== array_keys($flags)) {
+            // 付録Fの assert 相当。信号キーの取り違えを早い段階で落とす。
+            $flags = array_merge(array_fill_keys(array_keys($w), 'UNKNOWN'),
+                                 array_intersect_key($flags, $w));
+        }
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261014-ABNORMAL-INPUT  知らない値で例外を投げない
+        // ══════════════════════════════════════════════════════════════════
+        // 【旧実装の問題】
+        //   TRUE / FALSE / UNKNOWN 以外の値が1つでも入ると
+        //   InvalidArgumentException を投げていました。
+        //   10月14日（5回目）のご指摘で追加した異常入力試験（AB-T02）で
+        //   見つかりました。信号は v04DeriveFlags() が作るので通常は
+        //   3値しか入りませんが、例外が外へ出るとレースが止まります。
+        //   「候補不足や欠損でレースを止めない」という方針
+        //   （@ANCHOR-20260928-NO-RACE-STOP）に反します。
+        // 【この変更】
+        //   知らない値は【不明（UNKNOWN）】に倒し、\Log::error で必ず表に出します。
+        //   仕様の禁止事項「不明値を0点・不振・条件未達として扱うこと」を守るため、
+        //   FALSE には倒しません。例外は投げません。
+        $badTri = [];
+        foreach ($flags as $k => $v) {
+            if (!in_array($v, ['TRUE', 'FALSE', 'UNKNOWN'], true)) {
+                $badTri[$k] = var_export($v, true);
+                $flags[$k]  = 'UNKNOWN';
+            }
+        }
+        if (!empty($badTri)) {
+            \Log::error('[V04_CLASSIFY] 知らない信号値を不明として扱った（@ANCHOR-20261014-ABNORMAL-INPUT）', [
+                '対象'   => $badTri,
+                '対処'   => 'UNKNOWNへ倒した（FALSEには倒さない）',
+                // @ANCHOR-20261020-R122-MODE  r12.2：不明が増えると UNRESOLVED になり、
+                //   配分を作りません（MIXEDの流用は廃止）。
+                '影響'   => '不明が増え、mode_status=UNRESOLVED で選出しない可能性がある',
+            ]);
+        }
+
+        $unknown = [];
+        $fixed   = 0;
+        foreach ($flags as $k => $v) {
+            if ($v === 'UNKNOWN') { $unknown[] = $k; continue; }
+            if ($v === 'TRUE')    $fixed += $w[$k];
+        }
+
+        $sMin = $fixed; $sMax = $fixed;
+        foreach ($unknown as $k) {
+            // ZのUNKNOWNはマイナス方向に作用する → S_min では Z=1、S_max では Z=0
+            $sMin += min(0, $w[$k]);
+            $sMax += max(0, $w[$k]);
+        }
+
+        // 不明の全組合せ（2^u、u<=7なので最大128通り）で判定が揺れるか確認する
+        $modes = [];
+        $u     = count($unknown);
+        for ($mask = 0; $mask < (1 << $u); $mask++) {
+            $val = $fixed;
+            foreach ($unknown as $i => $k) { if ($mask & (1 << $i)) $val += $w[$k]; }
+            $modes[self::v04ScoreMode((int) $val)] = true;
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-MODE  r12.2 の mode 判定（2026-10-20 受領の指定）
+        // ══════════════════════════════════════════════════════════════════
+        // 【旧実装】
+        //   $mode = ($u >= AiController::V04_UNKNOWN_COUNT_AT_LEAST || count($modes) > 1)
+        //       ? 'UNKNOWN' : array_key_first($modes);
+        //   'allocation_mode' => ($mode === 'UNKNOWN') ? 'MIXED_PROVISIONAL' : $mode,
+        //
+        //   ①「不明が3信号以上なら UNKNOWN」は r12.2 の条件にありません。
+        //   ②「UNKNOWN なら配分は MIXED を流用」は r12.2 が明確に禁止しています。
+        //      配分用modeを使えるのは、不明がX6だけで S0 が 1 か 3 のときだけです。
+        //      それ以外の UNKNOWN は allocation_mode=null・選出しない（UNRESOLVED）。
+        //
+        // 【r12.2 の規則】server_contract_r12.2 5章／詳細設計書5.2
+        //   可能なmodeが一つ            → そのmode / CONFIRMED   / 配分も同じmode
+        //   不明がX6だけで S0=1         → UNKNOWN  / PROVISIONAL / 配分MIXED
+        //   不明がX6だけで S0=3         → UNKNOWN  / PROVISIONAL / 配分VOLATILE
+        //   それ以外で複数modeにまたがる → UNKNOWN  / UNRESOLVED  / 配分なし・選出しない
+        //
+        //   S0 は X6 を除いた重み付き合計。X6以外が全部確定しているときだけ出せます。
+        //   PROVISIONAL では星（display_rating）を出しません。
+        $mode = (count($modes) === 1) ? array_key_first($modes) : 'UNKNOWN';
+
+        // S0 … X6 以外が全部確定しているときだけ値になります
+        $s0 = 0; $s0ok = true;
+        foreach ($flags as $k => $v) {
+            if ($k === 'X6') continue;
+            if ($v === 'UNKNOWN') { $s0ok = false; break; }
+            if ($v === 'TRUE')    $s0 += $w[$k];
+        }
+        $S0 = $s0ok ? $s0 : null;
+
+        $onlyX6 = (count($unknown) === 1 && $unknown[0] === 'X6');
+
+        if (count($modes) === 1) {
+            $modeStatus = 'CONFIRMED';
+            $allocMode  = $mode;
+            $policyId   = 'BASE_TRI_STATE_V1';
+            $selEnabled = true;
+        } elseif ($onlyX6 && ($S0 === 1 || $S0 === 3)) {
+            $modeStatus = 'PROVISIONAL';
+            $allocMode  = ($S0 === 1) ? 'MIXED' : 'VOLATILE';
+            $policyId   = 'X6_ONLY_UPPER_MODE_V1';
+            $selEnabled = true;
+        } else {
+            $modeStatus = 'UNRESOLVED';
+            $allocMode  = null;
+            $policyId   = 'BASE_TRI_STATE_V1';
+            $selEnabled = false;
+        }
+
+        // 星は、取り得る S が全部同じ星になるときだけ出します。
+        // PROVISIONAL は契約で null 固定です。
+        $stars = [];
+        for ($mask = 0; $mask < (1 << $u); $mask++) {
+            $val = $fixed;
+            foreach ($unknown as $i => $k) { if ($mask & (1 << $i)) $val += $w[$k]; }
+            $stars[self::v04StarOfS((int) $val)] = true;
+        }
+        $displayRating = ($modeStatus === 'CONFIRMED' && count($stars) === 1)
+            ? array_key_first($stars) : null;
+
+        return [
+            'mode'             => $mode,
+            'S'               => empty($unknown) ? $fixed : null,
+            'S_min'            => $sMin,
+            'S_max'            => $sMax,
+            'S0'               => $S0,
+            'unknown_features' => $unknown,
+            'mode_has_unknown' => !empty($unknown),
+            // @ANCHOR-20261020-R122-MODE  配分に使うmode。停止時は null です。
+            'allocation_mode'  => $allocMode,
+            'mode_status'      => $modeStatus,
+            'mode_policy_id'   => $policyId,
+            'selection_enabled' => $selEnabled,
+            'display_rating'   => $displayRating,
+            '取り得るmode'     => array_keys($modes),
+        ];
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-MODE  S の値から星（1〜5）
+     *   r12.1 の検証経路（SummaryAiAnalysisCompensate::starOfS）と同じ対応です。
+     */
+    public static function v04StarOfS(int $s): int
+    {
+        if ($s <= 0)  return 1;
+        if ($s === 1) return 2;
+        if ($s <= 3)  return 3;
+        if ($s <= 5)  return 4;
+        return 5;
+    }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-REFACTOR  v0.4-X / r12.2 の配分
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ここに入っているもの
+ *   ・目標頭数 C（N から決まる）
+ *   ・3帯 quota(A/B/D) と、r12.2 の構造調整（実在しない帯の枠を移す）
+ *   ・2nd の配分
+ *   ・6分前人気から帯（A=1〜6／B=7〜10／D=11以下）
+ */
+final class BaganrikiAllocation
+{
+    /** @ANCHOR-20261013-V04-CORE  候補数（付録F target_count と同一） */
+    public static function v04TargetCount(int $N): int
+    {
+        // @ANCHOR-20261014-ABNORMAL-INPUT  負の頭数で例外を投げない
+        //   異常入力試験（AB-T05）で見つかりました。出走頭数は呼び出し側で
+        //   DB照合済みですが、例外が外へ出るとレースが止まります。
+        //   0頭として扱い、\Log::error で表に出します。
+        if ($N < 0) {
+            \Log::error('[V04_TARGET] 出走頭数が負（@ANCHOR-20261014-ABNORMAL-INPUT）', [
+                'N' => $N, '対処' => '0頭として扱う（目標数0・候補を作らない）',
+            ]);
+            return 0;
+        }
+        if ($N <= 8) return min($N, 4);
+        if ($N <= 13) return 5;
+        if ($N <= 15) return 6;
+        return 7;
+    }
+
+    /**
+     * @ANCHOR-20261013-V04-CORE  3帯 quota(A,B,D)（付録F allocation と同一）
+     *
+     * ═══════════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-ALLOC  r12.2（2026-10-20 受領）で足したこと
+     * ═══════════════════════════════════════════════════════════════════════
+     * ①<b>allocation_mode が null（UNRESOLVED）なら配分を作りません。</b>
+     *   【旧】MIXED_PROVISIONAL を MIXED に読み替えて配分表を引いていました。
+     *   r12.2 は「その他の複数modeは UNRESOLVED、allocation_mode=null、
+     *   selection_enabled=false」です。MIXEDの流用は禁止されました。
+     * ②<b>構造上いない帯の枠を移します（構造調整）。</b>
+     *   A=1〜6人気、B=7〜10、D=11以下。N が小さいと B や D に馬がいません。
+     *   不足帯を D → B → A の順に処理し、D は B→A、B は D→A、A は B→D へ移します。
+     *   移動は quota_adjustments に requested_band／actual_band／count／reason で残し、
+     *   <b>reason=BAND_CAPACITY を省略しません</b>（契約5章）。
+     *   例：N=10・VOLATILE なら C5 の基本 2/2/1 から D が無いので 2/3/0。
+     * ③<b>2nd の配分を出します。</b>
+     *   C<=5 は 1st と同じ。C>5 は B・D を保ったまま A=5−B−D、cap=5。
+     *   （C7混戦・波乱の2ndが 1/3/1 になります）
+     * ④N<=3 でも C/0/0 を返します（詳細設計書6章の表）。
+     *   旧実装は quota=null でした。A帯の実在頭数が C なので意味は同じですが、
+     *   表に合わせて値を返します。
+     */
+    public static function v04Allocation(int $N, array $classification): array
+    {
+        $cap  = self::v04TargetCount($N);
+        $mode = $classification['allocation_mode'] ?? null;
+
+        // ① 選出しない状態では配分を作りません
+        if ($mode === null) {
+            // @ANCHOR-20261020-R122-PROMPT  base_quota は INPUT_JSON の必須キー
+            return ['target_count' => $cap, 'quota' => null, 'quota_2nd' => null,
+                    'base_quota' => null,
+                    'quota_adjustments' => [],
+                    'quota_note'   => 'allocation_mode=null（UNRESOLVED）のため配分を作りません'
+                                    . '（@ANCHOR-20261020-R122-ALLOC）',
+                    '使用配分モード' => null];
+        }
+        if ($cap <= 0) {
+            return ['target_count' => 0, 'quota' => null, 'quota_2nd' => null,
+                    'base_quota' => null,
+                    'quota_adjustments' => [],
+                    'quota_note'   => 'N=0（全頭取消）のため候補を作りません',
+                    '使用配分モード' => $mode];
+        }
+        if ($cap <= 3) {
+            // ④ N<=3 は C/0/0
+            $q3 = ['A' => $cap, 'B' => 0, 'D' => 0];
+            return ['target_count' => $cap, 'quota' => $q3, 'quota_2nd' => $q3,
+                    'base_quota' => $q3,
+                    'quota_adjustments' => [],
+                    'quota_note'   => 'N<=3: 実在馬の帯（A）だけで目標数まで',
+                    '使用配分モード' => $mode];
+        }
+        $q = AiController::V04_QUOTA_BY_TARGET[$cap][$mode] ?? null;
+        if ($q === null) {
+            return ['target_count' => $cap, 'quota' => null, 'quota_2nd' => null,
+                    'base_quota' => null,
+                    'quota_adjustments' => [],
+                    'quota_note'   => "配分表に target_count={$cap} / mode={$mode} が無い",
+                    '使用配分モード' => $mode];
+        }
+        if (array_sum($q) !== $cap) {
+            throw new \RuntimeException("quota sum mismatch: {$cap} vs " . array_sum($q));
+        }
+        // @ANCHOR-20261020-R122-PROMPT  構造調整の前の表の値を base_quota として残す
+        $qBase = ['A' => $q[0], 'B' => $q[1], 'D' => $q[2]];
+
+        // ② 構造調整（実在しない帯の枠を移す）
+        [$q, $moves] = self::v04StructuralAdjust($N, $q);
+
+        // ③ 2nd の配分
+        $q2 = self::v04SecondQuota($N, $q);
+
+        return [
+            'target_count' => $cap,
+            'quota'        => ['A' => $q[0], 'B' => $q[1], 'D' => $q[2]],
+            'quota_2nd'    => ['A' => $q2[0], 'B' => $q2[1], 'D' => $q2[2]],
+            'base_quota'   => $qBase,
+            'quota_adjustments' => $moves,
+            'quota_note'   => 'SHADOW ONLY; do not force Tier-C to fill physically impossible bands',
+            '使用配分モード' => $mode,
+        ];
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-ALLOC  帯ごとの実在頭数（A=1〜6人気／B=7〜10／D=11以下）
+     */
+    public static function v04BandCapacity(int $N): array
+    {
+        return [max(0, min(6, $N)), max(0, min(10, $N) - 6), max(0, $N - 10)];
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-ALLOC  構造上の実在馬不足だけを調整します。
+     *   評価後の適格馬不足（D は B のみ、B は D のみ、A は B→D）は別の規則で、
+     *   応答検証のあとに行います。ここでは混ぜません。
+     *
+     * @return array [調整後の[A,B,D], 移動の記録]
+     */
+    public static function v04StructuralAdjust(int $N, array $q): array
+    {
+        $cap   = self::v04BandCapacity($N);
+        $idx   = ['A' => 0, 'B' => 1, 'D' => 2];
+        $moves = [];
+        foreach ([['D', ['B', 'A']], ['B', ['D', 'A']], ['A', ['B', 'D']]] as $pair) {
+            [$from, $tos] = $pair;
+            $i = $idx[$from];
+            while ($q[$i] > $cap[$i]) {
+                $moved = false;
+                foreach ($tos as $to) {
+                    $j = $idx[$to];
+                    if ($q[$j] < $cap[$j]) {
+                        $q[$i]--; $q[$j]++;
+                        $moves[] = ['requested_band' => $from, 'actual_band' => $to,
+                                    'count' => 1, 'reason' => 'BAND_CAPACITY'];
+                        $moved = true;
+                        break;
+                    }
+                }
+                if (!$moved) {
+                    // 移す先も無い（全体の実在頭数が目標数に届かない）
+                    $q[$i]--;
+                    $moves[] = ['requested_band' => $from, 'actual_band' => null,
+                                'count' => 1, 'reason' => 'BAND_CAPACITY'];
+                }
+            }
+        }
+        return [$q, $moves];
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-ALLOC  2ndの配分
+     *   C<=5 は 1st と同じ。C>5 は B・D を保ったまま A=5−B−D、cap=5。
+     */
+    public static function v04SecondQuota(int $N, array $q1): array
+    {
+        if (self::v04TargetCount($N) <= 5) { return $q1; }
+        $a = 5 - $q1[1] - $q1[2];
+        if ($a < 0) { $a = 0; }
+        return [$a, $q1[1], $q1[2]];
+    }
+
+    /** @ANCHOR-20261013-V04-CORE  6分前人気 → 帯（A=1〜6／B=7〜10／D=11以下） */
+    public static function v04Band(int $pop): string
+    {
+        if ($pop >= 1 && $pop <= 6)  return 'A';
+        if ($pop >= 7 && $pop <= 10) return 'B';
+        return 'D';
+    }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-R122-TIME  r12.2 の時刻契約
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 根拠：server_contract_r12.2.txt 4章・8章／詳細設計書 4.3・11.2
+ *
+ * 基準は発走時刻 T（anchor_kind=POST_TIME）。
+ *   slot_scheduled_at = T − スロット分
+ *   slot_deadline     = slot_scheduled_at + 取得猶予（6分前30秒／他120秒）
+ *   cutoff_at         = T − 360秒
+ *   input_freeze_at   = cutoff_at + 30秒  … 利用できる情報の上限
+ *   frozen_at         … 実際に保存した時刻。input_freeze_at とは別物
+ *
+ * 公開まわりは投票締切 sales_close_at が基準。発走時刻と同一視しません。
+ *   publish_deadline           = sales_close_at − 60秒
+ *   reply_deadline             = publish_deadline − 30秒
+ *   effective_publish_deadline = min(publish_deadline, live_close − 60秒)
+ *   effective_reply_deadline   = min(reply_deadline, effective_publish_deadline − 30秒)
+ *
+ * 日時は「秒必須・小数秒0〜6桁・タイムゾーン必須」のRFC3339だけを受け取り、
+ * マイクロ秒の整数で比較します。7桁以上や独自形式は切り捨てず拒否します。
+ */
+final class BaganrikiTime
+{
+    /** スロットごとの取得猶予（ミリ秒）。ここに無い時点は予想入力に使いません */
+    public const GRACE_MS = [21 => 120000, 18 => 120000, 15 => 120000,
+                             12 => 120000,  9 => 120000,  6 =>  30000];
+
+    /** 予想入力に使うスロット（30分前・3分前・発走時は入りません） */
+    public const INPUT_SLOTS = [21, 18, 15, 12, 9, 6];
+
+    /** 取消の監視だけに読むスロット（数値は信号へ入れません） */
+    public const WATCH_SLOTS = [3, 0];
+
+    public const CUTOFF_OFFSET_SEC       = -360;   // T − 360秒
+    public const INPUT_FREEZE_OFFSET_SEC = -330;   // T − 330秒
+    public const SAFETY_MARGIN_SEC       = 60;     // safety_margin_ms = 60,000
+    public const REPLY_BEFORE_PUBLISH_SEC = 30;    // reply_before_publish_ms = 30,000
+
+    // ══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261020-R122-CLOSE  投票締切（sales_close_at）の正本
+    // ══════════════════════════════════════════════════════════════════════
+    // 根拠：JRA公式「発売時間・発売締切時刻」
+    //   https://jra.jp/dento/a/instructions/hatsubai/jra.html
+    //   当日発売のインターネット投票は<b>各レース発走時刻の1分前</b>。
+    //   プッシュホン投票は5分前。WIN5は最初のレースの発走時刻の5分前。
+    //
+    //   ここで使うのはインターネット投票の締切です。
+    //   <b>発走時刻と同一視していません</b>（契約8章）。
+    //   公式の表記は「1分前」で、秒の記載はありません。
+    //   秒まで決める必要があるため、ここでは1分前の0秒（T−60秒）とします。
+    //
+    //   .env で動かせます（コードを直さずに変えられるようにしています）。
+    //     BAGANRIKI_SALES_CLOSE_OFFSET_SEC  既定 60（発走の何秒前か）
+    //     BAGANRIKI_SALES_CLOSE_DERIVE      既定 1（0 にすると導出しない）
+    //   導出しない設定では、正本を渡されたときだけ時刻契約を作ります
+    //   （これまでの動きです）。
+    public const SALES_CLOSE_BEFORE_POST_SEC = 60;
+    public const SALES_CLOSE_SOURCE = 'JRA_INTERNET_1MIN_BEFORE_POST';
+
+    /** 導出してよいか（.env で止められます） */
+    public static function salesCloseDerive(): bool
+    {
+        $v = (string) env('BAGANRIKI_SALES_CLOSE_DERIVE', '1');
+        return in_array($v, ['1', 'true', 'on', 'yes'], true);
+    }
+
+    /** 発走の何秒前が締切か。負の値・数値でない値は既定へ戻します */
+    public static function salesCloseOffsetSec(): int
+    {
+        $v = env('BAGANRIKI_SALES_CLOSE_OFFSET_SEC', null);
+        if ($v === null || !is_numeric((string) $v)) {
+            return self::SALES_CLOSE_BEFORE_POST_SEC;
+        }
+        $n = (int) $v;
+        return ($n < 0) ? self::SALES_CLOSE_BEFORE_POST_SEC : $n;
+    }
+
+    /**
+     * 発走時刻から投票締切を出します。
+     * 導出が止められているときは null を返します（埋めません）。
+     */
+    public static function salesCloseFromPost(int $anchorUs): ?int
+    {
+        if (!self::salesCloseDerive()) { return null; }
+        return $anchorUs - self::salesCloseOffsetSec() * self::US;
+    }
+
+    private const US = 1000000;
+
+    /**
+     * RFC3339 をマイクロ秒の整数へ。読めなければ null。
+     * 小数秒は0〜6桁だけ。7桁以上は切り捨てずに拒否します（契約12章）。
+     */
+    public static function us(?string $t): ?int
+    {
+        if ($t === null) { return null; }
+        $re = '/^(\d{4}-\d{2}-\d{2})[Tt](\d{2}:\d{2}:\d{2})(\.\d{1,6})?([Zz]|[+\-]\d{2}:\d{2})$/';
+        if (!preg_match($re, $t, $m)) { return null; }
+        $frac = isset($m[3]) ? str_pad(substr($m[3], 1), 6, '0') : '000000';
+        $tz   = (strtoupper($m[4]) === 'Z') ? '+00:00' : $m[4];
+        $d = \DateTimeImmutable::createFromFormat('Y-m-d H:i:sP', $m[1] . ' ' . $m[2] . $tz);
+        if ($d === false) { return null; }
+        // ══════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-ROLLOVER  繰上がりを受け取らない
+        // ══════════════════════════════════════════════════════════
+        //   createFromFormat は 2026-02-30 を 2026-03-02 へ、
+        //   25:00 を翌日01:00 へ<b>黙って繰り上げます</b>（false になりません）。
+        //   作り直した日付・時刻を元の文字列と突き合わせます。
+        //   同時に警告・注意も見ます（どちらか一方では足りません）。
+        $err = \DateTimeImmutable::getLastErrors();
+        if (is_array($err)
+            && (($err['warning_count'] ?? 0) > 0 || ($err['error_count'] ?? 0) > 0)) {
+            return null;
+        }
+        if ($d->format('Y-m-d') !== $m[1] || $d->format('H:i:s') !== $m[2]) {
+            return null;
+        }
+        return $d->getTimestamp() * self::US + (int) $frac;
+    }
+
+    /** マイクロ秒の整数を日本時間のRFC3339へ（表示・監査用） */
+    public static function toJst(int $us): string
+    {
+        $d = (new \DateTimeImmutable('@' . intdiv($us, self::US)))
+                ->setTimezone(new \DateTimeZone('Asia/Tokyo'));
+        $f = $us % self::US;
+        if ($f < 0) { $f += self::US; }
+        return $d->format('Y-m-d\TH:i:s') . sprintf('.%06d', $f) . $d->format('P');
+    }
+
+    public static function slotScheduled(int $anchorUs, int $slotMin): int
+    { return $anchorUs - $slotMin * 60 * self::US; }
+
+    public static function slotDeadline(int $anchorUs, int $slotMin): ?int
+    {
+        if (!isset(self::GRACE_MS[$slotMin])) { return null; }
+        return self::slotScheduled($anchorUs, $slotMin) + self::GRACE_MS[$slotMin] * 1000;
+    }
+
+    public static function cutoff(int $anchorUs): int
+    { return $anchorUs + self::CUTOFF_OFFSET_SEC * self::US; }
+
+    public static function inputFreeze(int $anchorUs): int
+    { return $anchorUs + self::INPUT_FREEZE_OFFSET_SEC * self::US; }
+
+    public static function publishDeadline(int $salesCloseUs): int
+    { return $salesCloseUs - self::SAFETY_MARGIN_SEC * self::US; }
+
+    public static function replyDeadline(int $salesCloseUs): int
+    { return self::publishDeadline($salesCloseUs) - self::REPLY_BEFORE_PUBLISH_SEC * self::US; }
+
+    /**
+     * 締切の前倒しを反映した実効期限。延長では猶予を増やしません。
+     * $liveCloseUs が null なら前倒しなし。
+     */
+    public static function effectiveDeadlines(int $salesCloseUs, ?int $liveCloseUs): array
+    {
+        $pub = self::publishDeadline($salesCloseUs);
+        $rep = self::replyDeadline($salesCloseUs);
+        if ($liveCloseUs !== null) {
+            $pub = min($pub, $liveCloseUs - self::SAFETY_MARGIN_SEC * self::US);
+        }
+        $rep = min($rep, $pub - self::REPLY_BEFORE_PUBLISH_SEC * self::US);
+        return ['publish' => $pub, 'reply' => $rep];
+    }
+
+    /**
+     * 1バッチを採用してよいか。期限ちょうどは可、1マイクロ秒でも後なら不可。
+     * @return array ['ok'=>bool, 'reason'=>string|null, 'code'=>string|null]
+     */
+    public static function acceptBatch(int $slot, array $b, ?int $anchorUs = null): array
+    {
+        if (!isset(self::GRACE_MS[$slot])) {
+            return ['ok' => false, 'code' => 'SLOT_NOT_INPUT',
+                    'reason' => '予想に使わないスロット（21/18/15/12/9/6分前だけ）'];
+        }
+        $need = ['request_started_at', 'response_received_at', 'available_at', 'input_freeze_at'];
+        $v = [];
+        foreach ($need as $k) {
+            $v[$k] = self::us($b[$k] ?? null);
+            if ($v[$k] === null) {
+                return ['ok' => false, 'code' => 'TIME_UNREADABLE',
+                        'reason' => $k . ' が無いか日時として読めない'];
+            }
+        }
+        // 予定時刻は、与えられていれば使い、無ければ発走時刻から作ります
+        $sch = self::us($b['slot_scheduled_at'] ?? null);
+        if ($sch === null) {
+            if ($anchorUs === null) {
+                return ['ok' => false, 'code' => 'TIME_UNREADABLE',
+                        'reason' => 'slot_scheduled_at も発走時刻も無い'];
+            }
+            $sch = self::slotScheduled($anchorUs, $slot);
+        }
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-ANCHORMATCH  正本との意味的な一致を検査
+        // ══════════════════════════════════════════════════════════════
+        //   「RFC3339の形になっているか」と
+        //   「正本の発走時刻から出した値と合っているか」は別の検査です。
+        //   発走時刻が渡されているときは、後者もここで見ます。
+        if ($anchorUs !== null) {
+            $want = self::slotScheduled($anchorUs, $slot);
+            if ($sch !== $want) {
+                return ['ok' => false, 'code' => 'SCHEDULE_MISMATCH',
+                        'reason' => 'slot_scheduled_at が正本の発走時刻から出した予定と'
+                                  . '合いません（申告 ' . self::toJst($sch)
+                                  . '／正本 ' . self::toJst($want) . '）'];
+            }
+            $wantFz = self::inputFreeze($anchorUs);
+            if ($v['input_freeze_at'] !== $wantFz) {
+                return ['ok' => false, 'code' => 'FREEZE_MISMATCH',
+                        'reason' => 'input_freeze_at が正本の発走時刻から出した情報上限と'
+                                  . '合いません（申告 ' . self::toJst($v['input_freeze_at'])
+                                  . '／正本 ' . self::toJst($wantFz) . '）'];
+            }
+        }
+        $deadline = $sch + self::GRACE_MS[$slot] * 1000;
+
+        if ($v['request_started_at']   < $sch)
+            return ['ok' => false, 'code' => 'REQUEST_BEFORE_SCHEDULE', 'reason' => '要求開始が予定時刻より前'];
+        if ($v['response_received_at'] < $v['request_started_at'])
+            return ['ok' => false, 'code' => 'CLOCK_REVERSED', 'reason' => '受信完了が要求開始より前（時計逆行）'];
+        if ($v['available_at']         < $v['response_received_at'])
+            return ['ok' => false, 'code' => 'CLOCK_REVERSED', 'reason' => '利用可能が受信完了より前（時計逆行）'];
+        if ($v['available_at'] > $deadline)
+            return ['ok' => false, 'code' => 'ACQUISITION_DEADLINE_EXCEEDED', 'reason' => '取得猶予を超えた'];
+        if ($v['available_at'] > $v['input_freeze_at'])
+            return ['ok' => false, 'code' => 'ACQUISITION_DEADLINE_EXCEEDED', 'reason' => '情報上限 input_freeze_at を超えた'];
+
+        if (($b['source_updated_at'] ?? null) !== null) {
+            $su = self::us($b['source_updated_at']);
+            if ($su === null)
+                return ['ok' => false, 'code' => 'TIME_UNREADABLE', 'reason' => 'source_updated_at が日時として読めない'];
+            if ($su > $v['response_received_at'])
+                return ['ok' => false, 'code' => 'SOURCE_TIME_FUTURE', 'reason' => '取得元の更新時刻が受信完了より未来'];
+        }
+        return ['ok' => true, 'code' => null, 'reason' => null];
+    }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-R122-ACQ  取得バッチの採用（SLOT_FIRST_VALID_COMMITTED_V1）
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 根拠：server_contract_r12.2.txt 8章／詳細設計書 4.2・4.3
+ *
+ *   ・採用できるバッチを available_at → response_received_at → batch_id の
+ *     昇順に並べ、最初の1件を採用します。batch_id は固定のバイト順で比べます。
+ *   ・6分前だけは「同じバッチの中に全活動馬の有効な単勝がある」ことが追加条件です。
+ *     別のバッチの馬を混ぜて揃えません。揃わなければ計算不能にします。
+ *   ・それ以外の時点の部分欠損は欠損のまま信号へ伝えます。
+ *     「全スロット完備」という新しい足切りを足しません。
+ *   ・未確定の監査行は採用しません。available_at を予定時刻で埋めません。
+ */
+final class BaganrikiAcquisition
+{
+    /**
+     * スロット1つぶんの採用バッチを選びます。
+     *
+     * @param int        $slot      スロット分数（21/18/15/12/9/6）
+     * @param array      $batches   監査行の配列。各要素に batch_id・各実時刻・
+     *                              values[馬番]=['win'=>文字列|null,'place_min'=>…] を持つ
+     * @param array      $activeNums 活動馬の馬番（6分前の全頭確認に使う）
+     * @param int|null   $anchorUs  発走時刻（予定時刻が無い行のため）
+     * @return array ['status'=>'ADOPTED'|'UNAVAILABLE', 'batch'=>array|null,
+     *                'reason'=>string|null, 'code'=>string|null, 'rejected'=>array]
+     */
+    public static function pick(int $slot, array $batches, array $activeNums,
+                                ?int $anchorUs = null): array
+    {
+        $ok = []; $rejected = [];
+        foreach ($batches as $b) {
+            if (($b['committed'] ?? true) !== true) {
+                $rejected[] = ['batch_id' => $b['batch_id'] ?? null,
+                               'code' => 'NOT_COMMITTED',
+                               'reason' => '監査行が未確定（保存commit前）'];
+                continue;
+            }
+            $r = BaganrikiTime::acceptBatch($slot, $b, $anchorUs);
+            if (!$r['ok']) {
+                $rejected[] = ['batch_id' => $b['batch_id'] ?? null,
+                               'code' => $r['code'], 'reason' => $r['reason']];
+                continue;
+            }
+            if ($slot === 6) {
+                // @ANCHOR-20261021-R122-PERCAND  その候補自身の取消だけを引きます
+                $selfCancel = array_map('intval', (array) ($b['cancelled'] ?? []));
+                $activeForB = array_values(array_diff($activeNums, $selfCancel));
+                $missing = self::missingWin($b, $activeForB);
+                if (!empty($missing)) {
+                    $rejected[] = ['batch_id' => $b['batch_id'] ?? null,
+                                   'code' => 'FREEZE_ODDS_MISSING',
+                                   'reason' => '6分前の単勝が同じバッチに揃っていない（馬番 '
+                                             . implode('・', $missing) . '）'];
+                    continue;
+                }
+            }
+            $ok[] = $b;
+        }
+        if (empty($ok)) {
+            return ['status' => 'UNAVAILABLE', 'batch' => null, 'rejected' => $rejected,
+                    'code' => ($slot === 6) ? 'FREEZE_ODDS_MISSING' : 'ACQUISITION_DEADLINE_EXCEEDED',
+                    'reason' => '採用できるバッチがありません'];
+        }
+        usort($ok, static function (array $x, array $y): int {
+            $a = BaganrikiTime::us($x['available_at']);
+            $b = BaganrikiTime::us($y['available_at']);
+            if ($a !== $b) { return $a <=> $b; }
+            $a = BaganrikiTime::us($x['response_received_at']);
+            $b = BaganrikiTime::us($y['response_received_at']);
+            if ($a !== $b) { return $a <=> $b; }
+            // batch_id は固定のバイト順
+            return strcmp((string) ($x['batch_id'] ?? ''), (string) ($y['batch_id'] ?? ''));
+        });
+        return ['status' => 'ADOPTED', 'batch' => $ok[0], 'rejected' => $rejected,
+                'code' => null, 'reason' => null];
+    }
+
+    /** 6分前に単勝が無い活動馬の馬番 */
+    private static function missingWin(array $b, array $activeNums): array
+    {
+        $vals = $b['values'] ?? [];
+        $miss = [];
+        foreach ($activeNums as $n) {
+            $w = $vals[$n]['win'] ?? null;
+            if (!self::usableDecimal($w)) { $miss[] = (int) $n; }
+        }
+        sort($miss);
+        return $miss;
+    }
+
+    /** 使える十進数の文字列か（0・負・空・「取消」は不可） */
+    public static function usableDecimal($v): bool
+    {
+        if ($v === null || is_bool($v)) { return false; }
+        $s = trim((string) $v);
+        if ($s === '' || $s === '取消' || $s === '除外') { return false; }
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-DIGITS  10月20日005のご指摘7-1
+        // ══════════════════════════════════════════════════════════════
+        //   小数4桁までしか受け取らず、5桁以上を黙って欠損にしていました。
+        //   契約9章は「整数・小数は最大128桁」です。
+        //   【旧】'/^\d+(?:\.\d{1,4})?$/'
+        if (!preg_match('/^\d{1,128}(?:\.\d{1,128})?$/', $s)) { return false; }
+        return (ltrim($s, '0.') !== '');   // 0 や 0.0000 は不可
+    }
+
+    /**
+     * collection_audit を組み立てます（入力JSONの最上位に入る項目）。
+     * 採用時は ADOPTED と各時刻、欠損時は UNAVAILABLE と空でない理由。
+     * 時刻を作り話で埋めません。
+     */
+    public static function buildAudit(array $picked): array
+    {
+        $out = [];
+        foreach (BaganrikiTime::INPUT_SLOTS as $slot) {
+            $p = $picked[$slot] ?? null;
+            if ($p === null || ($p['status'] ?? '') !== 'ADOPTED') {
+                $out[(string) $slot] = [
+                    'status' => 'UNAVAILABLE',
+                    'reason' => ($p['reason'] ?? null) ?: 'このスロットの採用バッチがありません',
+                ];
+                continue;
+            }
+            $b = $p['batch'];
+            $out[(string) $slot] = [
+                'status'               => 'ADOPTED',
+                'batch_id'             => $b['batch_id'] ?? null,
+                'payload_hash'         => $b['payload_hash'] ?? null,
+                'slot_scheduled_at'    => $b['slot_scheduled_at'] ?? null,
+                'source_updated_at'    => $b['source_updated_at'] ?? null,
+                'request_started_at'   => $b['request_started_at'] ?? null,
+                'response_received_at' => $b['response_received_at'] ?? null,
+                'available_at'         => $b['available_at'] ?? null,
+            ];
+        }
+        return $out;
+    }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-R122-SNAPSHOT  凍結集合・頭数・共通JSON・hash
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 根拠：server_contract_r12.2.txt 2章・3章・5章／詳細設計書 4.4・7.2
+ *
+ * 頭数の4つを別物として扱います（混ぜると意味が壊れます）。
+ *   entry_count    正本出馬表の頭数。欠損なら null
+ *   acquired_count 読み込めた対象馬の一意件数。正常出走頭数の代用にしない
+ *   frozen_count   情報上限までの正式取消を除いた凍結出走集合の頭数（＝N）
+ *   active_count   凍結集合から最新の累積取消を除いた頭数。集合矛盾時は null
+ */
+final class BaganrikiSnapshot
+{
+    /**
+     * 入力の照合。止めるべきときは理由コードを返します。
+     *
+     * @param array|null $entryNums   出馬表の馬番。null は「出馬表が読めなかった」
+     * @param int|null   $declared    レース情報の出走頭数
+     * @param array      $oddsNums    オッズが取れた馬番
+     * @param array      $cancelPre   情報上限までに利用可能だった正式取消の馬番
+     * @param array      $cancelPost  情報上限より後の取消（凍結集合には残す）
+     * @param array      $conflict    取消の時点より後に実オッズがある馬番（入力不整合）
+     */
+    public static function checkSets(?array $entryNums, ?int $declared, array $oddsNums,
+                                     array $cancelPre = [], array $cancelPost = [],
+                                     array $conflict = []): array
+    {
+        $entryCount    = ($entryNums === null) ? null : count(array_unique($entryNums));
+        $acquiredCount = count(array_unique($oddsNums));
+
+        $base = [
+            'entry_count'    => $entryCount,
+            'acquired_count' => $acquiredCount,
+            'frozen_count'   => null,
+            'active_count'   => null,
+            'frozen_nums'    => [],
+            'cancel_pre'     => array_values(array_unique($cancelPre)),
+            'cancel_post'    => array_values(array_unique($cancelPost)),
+        ];
+
+        // 出馬表は必須。オッズの頭数で代用しません。
+        if ($entryNums === null || $entryCount === 0) {
+            return $base + ['ok' => false, 'code' => 'ENTRY_MISSING',
+                'reason' => sprintf('出馬表が欠損している（出馬表 %d頭・レース情報の出走頭数 %s頭・オッズが取れた馬 %d頭）',
+                    (int) $entryCount, $declared === null ? '不明' : (string) $declared, $acquiredCount)];
+        }
+        // 宣言頭数との照合
+        if ($declared !== null && $declared !== $entryCount) {
+            return $base + ['ok' => false, 'code' => 'ENTRY_SET_MISMATCH',
+                'reason' => sprintf('レース情報の出走頭数（%d頭）と出馬表の頭数（%d頭）が合わない',
+                    $declared, $entryCount)];
+        }
+        // 出馬表に無い馬のオッズ
+        $extra = array_values(array_diff(array_unique($oddsNums), $entryNums));
+        if (!empty($extra)) {
+            sort($extra);
+            return $base + ['ok' => false, 'code' => 'ENTRY_SET_MISMATCH',
+                'reason' => '出馬表に無い馬番のオッズがある（馬番 ' . implode('・', $extra) . '）'];
+        }
+        // 取消の時点より後に実オッズ（入力不整合）
+        if (!empty($conflict)) {
+            sort($conflict);
+            $r = $base + ['ok' => false, 'code' => 'CANCEL_CONFLICT',
+                'reason' => sprintf('取消の時点より後に実オッズがある（入力不整合・馬番 %s）／出馬表 %d頭・オッズが取れた馬 %d頭',
+                    implode('・', $conflict), $entryCount, $acquiredCount)];
+            $r['active_count'] = null;   // 実出走頭数を確定できない
+            return $r;
+        }
+
+        // 凍結集合＝出馬表 − 情報上限までの正式取消
+        $frozen = array_values(array_diff($entryNums, $cancelPre));
+        sort($frozen);
+        $base['frozen_nums']  = $frozen;
+        $base['frozen_count'] = count($frozen);
+        // 凍結後の取消は凍結集合に残し、active_count からだけ引きます
+        $base['active_count'] = count(array_diff($frozen, $cancelPost));
+
+        return $base + ['ok' => true, 'code' => null, 'reason' => null];
+    }
+
+    /**
+     * 凍結順位（6分前単勝の昇順、同値は馬番の小さい順）。
+     * 非減少であることを確認し、矛盾は入力不正として拒否します。
+     * 値は十進数文字列のまま受け取り、1万倍の整数で比べます（丸めを入れません）。
+     */
+    public static function frozenRank(array $win6): array
+    {
+        $scaled = [];
+        foreach ($win6 as $num => $s) {
+            // @ANCHOR-20261020-R122-DEC  桁数で弾きません（十進数の文字列のまま）
+            //   【旧】$v = self::scale($s);  … 小数5桁以上を null にしていました
+            $v = self::decOrNull($s);
+            if ($v === null) {
+                return ['ok' => false, 'code' => 'FREEZE_ODDS_MISSING',
+                        'reason' => '6分前の単勝が読めない馬がいる（馬番 ' . $num . '）',
+                        'rank' => []];
+            }
+            $scaled[(int) $num] = $v;
+        }
+        if (empty($scaled)) {
+            return ['ok' => false, 'code' => 'FREEZE_ODDS_MISSING',
+                    'reason' => '6分前の単勝が1頭も無い', 'rank' => []];
+        }
+        $nums = array_keys($scaled);
+        usort($nums, static function ($a, $b) use ($scaled) {
+            // @ANCHOR-20261020-R122-DEC  十進数の文字列どうしを桁で比べます
+            $c = self::cmpDec($scaled[$a], $scaled[$b]);
+            if ($c !== 0) { return $c; }
+            return $a <=> $b;
+        });
+        $rank = []; $k = 1; $prev = null;
+        foreach ($nums as $n) {
+            if ($prev !== null && self::cmpDec($scaled[$n], $prev) < 0) {
+                return ['ok' => false, 'code' => 'FREEZE_ODDS_MISSING',
+                        'reason' => '凍結順位が非減少になっていない（馬番 ' . $n . '）', 'rank' => []];
+            }
+            $prev = $scaled[$n];
+            $rank[$n] = $k++;
+        }
+        return ['ok' => true, 'code' => null, 'reason' => null, 'rank' => $rank];
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-DEC  正の十進数として読めるときだけ、その文字列を返します
+     *
+     *   桁数の上限を決めません。前後の空白と、先頭の余分な0だけ整えます。
+     *   <b>値は作りません。</b>読めたかどうかと、比べるための形だけを返します。
+     */
+    public static function decOrNull($v): ?string
+    {
+        if ($v === null || is_bool($v)) { return null; }
+        $s = trim((string) $v);
+        if (preg_match('/^(\\d{1,128})(?:\\.(\\d{1,128}))?$/', $s, $m) !== 1) {
+            return null;
+        }
+        $int  = ltrim($m[1], '0');
+        $frac = rtrim($m[2] ?? '', '0');
+        if ($int === '' && $frac === '') { return null; }   // 0 は受け取りません
+        return ($int === '' ? '0' : $int) . ($frac === '' ? '' : '.' . $frac);
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-DEC  十進数の文字列どうしを、丸めずに比べます
+     *   整数部は桁数が多いほうが大きい。同じ桁数なら文字として比べられます。
+     *   小数部は短いほうを0で埋めてから比べます。float を通しません。
+     */
+    public static function cmpDec(string $a, string $b): int
+    {
+        [$ai, $af] = array_pad(explode('.', $a, 2), 2, '');
+        [$bi, $bf] = array_pad(explode('.', $b, 2), 2, '');
+        $ai = ltrim($ai, '0'); $bi = ltrim($bi, '0');
+        if (strlen($ai) !== strlen($bi)) { return (strlen($ai) < strlen($bi)) ? -1 : 1; }
+        if ($ai !== $bi) { return ($ai < $bi) ? -1 : 1; }
+        $n = max(strlen($af), strlen($bf));
+        $af = str_pad($af, $n, '0');
+        $bf = str_pad($bf, $n, '0');
+        if ($af === $bf) { return 0; }
+        return ($af < $bf) ? -1 : 1;
+    }
+
+    /**
+     * 十進数文字列を1万倍の整数へ。PHP float を通しません。
+     * @ANCHOR-20261020-R122-DEC  <b>判定には使いません。</b>
+     *   小数4桁までしか表せないので、凍結順位からは外しました。
+     *   既存の呼び出し（表示・近似）のために残します。
+     */
+    public static function scale($v): ?int
+    {
+        if ($v === null || is_bool($v)) { return null; }
+        $s = trim((string) $v);
+        if (!preg_match('/^(\d+)(?:\.(\d{1,4}))?$/', $s, $m)) { return null; }
+        $frac = str_pad($m[2] ?? '', 4, '0');
+        $n = (int) $m[1] * 10000 + (int) $frac;
+        return ($n > 0) ? $n : null;
+    }
+
+    /**
+     * 共通JSONとそのSHA-256。
+     * ai_role / role_cap / role_quota / snapshot_hash 自身を除いたものを
+     * 一度だけ作り、その本文を両roleへ渡します。
+     * request_at とライブ取消は混ぜません。
+     */
+    public static function commonJson(array $input): array
+    {
+        foreach (['ai_role', 'role_cap', 'role_quota', 'snapshot_hash',
+                  'request_at', 'live_cancellations'] as $k) {
+            unset($input[$k]);
+        }
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-PROMPT  キーを全階層で昇順にそろえます
+        // ══════════════════════════════════════════════════════════════
+        // 【直した中身】並べ替えをしていなかったので、同じ内容でも
+        //   作った順で hash が変わっていました。先方の参照入力14本の
+        //   snapshot_hash と一致しない原因でした。
+        //   【旧コード】消さずに残します。使っていません。
+        //     $json = json_encode($input,
+        //         JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+        $json = BaganrikiPrompt::canonical($input);
+        if ($json === null) {
+            return ['ok' => false, 'reason' => '共通JSONを作れませんでした', 'json' => null, 'hash' => null];
+        }
+        return ['ok' => true, 'reason' => null, 'json' => $json,
+                'hash' => hash('sha256', $json),
+                'hash_method' => 'exact-common-payload-sha256-r8'];
+    }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-R122-RANK  順位・統合・公開候補
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 根拠：server_contract_r12.2.txt 7章／詳細設計書 11.1・6章
+ *
+ *   ・帯の中の全適格馬が complete なら SCORE、partial を含むなら EVIDENCE。
+ *     AIの申告で complete 帯を EVIDENCE に変えさせません。
+ *     EVIDENCE では点数を順位キーに使いません。
+ *   ・順位点 rank_score = 100 × (K − r + 1) ÷ K。K は凍結帯の頭数。
+ *     統合点は両roleの最大値。
+ *   ・両AIの検証済み原公開候補だと証明できる場合だけ +5。
+ *   ・同点は「両AIの原公開一致あり」→「独立根拠群数の多い順」→「馬番の昇順」。
+ *   ・統合後にライブ取消を除き、残った馬の凍結帯と active_count から
+ *     構造配分を調整します。人気は詰め直しません。
+ *   ・評価後の適格馬不足は D は B のみ、B は D のみ、A は B→D。
+ *     B・D の不足を A で埋めません。
+ */
+final class BaganrikiRanking
+{
+    /** 帯の採点方式。全頭 complete なら SCORE、partial を含むなら EVIDENCE */
+    public static function bandBasis(array $horses): string
+    {
+        foreach ($horses as $h) {
+            if (($h['score_state'] ?? 'partial') !== 'complete') { return 'EVIDENCE'; }
+        }
+        return empty($horses) ? 'EVIDENCE' : 'SCORE';
+    }
+
+    /**
+     * 帯の中の順位。SCORE は点数→独立根拠群数→馬番、
+     * EVIDENCE は独立根拠群数→馬番（点数を使いません）。
+     * @return array 馬番 => 順位r（1始まり）
+     */
+    public static function rankWithin(array $horses, string $basis): array
+    {
+        $rows = array_values($horses);
+        usort($rows, static function (array $a, array $b) use ($basis): int {
+            if ($basis === 'SCORE') {
+                $x = (int) ($a['score'] ?? 0); $y = (int) ($b['score'] ?? 0);
+                if ($x !== $y) { return $y <=> $x; }
+            }
+            $x = (int) ($a['independent_groups'] ?? 0);
+            $y = (int) ($b['independent_groups'] ?? 0);
+            if ($x !== $y) { return $y <=> $x; }
+            return ((int) $a['num']) <=> ((int) $b['num']);
+        });
+        $out = []; $r = 1;
+        foreach ($rows as $h) { $out[(int) $h['num']] = $r++; }
+        return $out;
+    }
+
+    /**
+     * 順位点 100×(K−r+1)÷K。K は凍結帯の頭数。
+     *
+     * @ANCHOR-20261020-R122-EXACT  10月20日の確認結果②への対応。
+     *   K が 3 や 7 のとき 100×(K−r+1)÷K は割り切れません。
+     *   float で持つと 33.333… のような値になり、
+     *   統合点の大小や同点の判定が丸めに左右されます。
+     *   分数（分子・分母）のまま持ち、比較はたすき掛けの整数で行います。
+     *   下の rankScore() は画面と監査のための数値で、判定には使いません。
+     */
+    public static function rankScoreParts(int $K, int $r): array
+    {
+        if ($K <= 0) { return ['n' => 0, 'd' => 1]; }
+        return ['n' => 100 * ($K - $r + 1), 'd' => $K];
+    }
+
+    /** 分数どうしの大小（-1 / 0 / 1）。分母は正の整数です */
+    public static function cmpScore(array $a, array $b): int
+    {
+        return ($a['n'] * $b['d']) <=> ($b['n'] * $a['d']);
+    }
+
+    /** 分数へ整数を足す（+5 の加点など） */
+    public static function addScore(array $a, int $plus): array
+    {
+        return ['n' => $a['n'] + $plus * $a['d'], 'd' => $a['d']];
+    }
+
+    /** 表示用の数値。判定には使いません */
+    public static function rankScore(int $K, int $r): float
+    {
+        if ($K <= 0) { return 0.0; }
+        return 100.0 * ($K - $r + 1) / $K;
+    }
+
+    /**
+     * 両roleの順位から統合点を出します。
+     * @param array $per  role => [馬番 => ['r'=>順位, 'K'=>帯頭数,
+     *                              'public'=>bool（検証済み原公開候補か）,
+     *                              'groups'=>独立根拠群数]]
+     * @param array $proofHash role => 加点を証明する応答hash（無ければ null）
+     */
+    public static function merge(array $per, array $proofHash = []): array
+    {
+        // @ANCHOR-20261020-R122-EXACT  点は分数のまま持ちます（max も比較も整数で）
+        $acc = [];
+        foreach ($per as $role => $rows) {
+            foreach ($rows as $num => $v) {
+                $num = (int) $num;
+                $p = self::rankScoreParts((int) $v['K'], (int) $v['r']);
+                if (!isset($acc[$num])) {
+                    $acc[$num] = ['num' => $num, 'parts' => $p, 'public_roles' => [],
+                                  'groups' => (int) ($v['groups'] ?? 0), 'bonus' => 0.0,
+                                  'public_proof_hash' => null];
+                } else {
+                    if (self::cmpScore($p, $acc[$num]['parts']) > 0) { $acc[$num]['parts'] = $p; }
+                    $acc[$num]['groups'] = max($acc[$num]['groups'], (int) ($v['groups'] ?? 0));
+                }
+                if (!empty($v['public'])) { $acc[$num]['public_roles'][] = $role; }
+            }
+        }
+        $roles = array_keys($per);
+        foreach ($acc as $num => &$a) {
+            // 両AIの検証済み原公開候補だと証明できたときだけ +5
+            $both = true;
+            foreach ($roles as $r) {
+                if (!in_array($r, $a['public_roles'], true)) { $both = false; break; }
+            }
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-PROOF  証明が無ければ +5 しません
+            // ══════════════════════════════════════════════════════════
+            // 【10月20日005のご指摘5-2。そのとおりでした】
+            //   これまでは「両roleで public=true」だけで +5 していて、
+            //   <b>proofHash の有無も正当性も条件にしていませんでした。</b>
+            //   検証済みの原応答から取った証明が、その馬について
+            //   両roleぶんそろっているときだけ加点します。
+            $proven = $both && count($roles) >= 2
+                    && self::proofForHorse($proofHash, $roles, (int) $num) !== null;
+            if ($proven) {
+                $a['bonus'] = 5.0;
+                $a['parts'] = self::addScore($a['parts'], 5);
+                $a['public_proof_hash'] = self::proofForHorse($proofHash, $roles, (int) $num);
+            } elseif ($both && count($roles) >= 2) {
+                $a['no_bonus_reason'] = '両roleの原公開を証明できないため加点しません';
+            }
+            $a['both_public'] = $both && count($roles) >= 2;
+            $a['bonus_proven'] = $proven;
+            // 表示用の数値（判定には使いません）。
+            // PHPは割り切れると整数を返すので、表示用は必ず小数にそろえます。
+            $a['score'] = (float) $a['parts']['n'] / (float) $a['parts']['d'];
+        }
+        unset($a);
+        $rows = array_values($acc);
+        usort($rows, static function (array $x, array $y): int {
+            $c = self::cmpScore($y['parts'], $x['parts']);   // 点の高い順
+            if ($c !== 0) { return $c; }
+            if ($x['both_public'] !== $y['both_public']) { return $y['both_public'] <=> $x['both_public']; }
+            if ($x['groups'] !== $y['groups']) { return $y['groups'] <=> $x['groups']; }
+            return $x['num'] <=> $y['num'];
+        });
+        return $rows;
+    }
+
+    /**
+     * 評価後の適格馬不足を埋めます。
+     *   D の不足は B からだけ、B の不足は D からだけ、A の不足は B→D。
+     *   B・D の不足を A で埋めません。
+     * @param array $quota   ['A'=>n,'B'=>n,'D'=>n]
+     * @param array $avail   ['A'=>適格馬数,'B'=>…,'D'=>…]
+     * @return array ['quota'=>調整後, 'shortfalls'=>不足の記録]
+     */
+    /**
+     * @ANCHOR-20261020-R122-PROOF  その馬の「両roleの原公開」の証明を取り出す
+     *
+     * 受け取る形は2つとも通します。
+     *   $proofHash[role][馬番] = 64桁の16進
+     *   $proofHash[馬番][role] = 64桁の16進
+     * 全roleぶんそろっていて、どれも64桁の16進のときだけ配列を返します。
+     * 1つでも欠けていれば null を返し、呼び出し側は加点しません。
+     */
+    public static function proofForHorse($proofHash, array $roles, int $num): ?array
+    {
+        if (!is_array($proofHash) || $proofHash === []) { return null; }
+        $out = [];
+        foreach ($roles as $r) {
+            $v = $proofHash[$r][$num] ?? ($proofHash[$num][$r] ?? null);
+            if (!is_string($v) || !preg_match('/^[0-9a-f]{64}$/', $v)) { return null; }
+            $out[$r] = $v;
+        }
+        return ($out === []) ? null : $out;
+    }
+
+    public static function fillShortfall(array $quota, array $avail): array
+    {
+        $q = ['A' => (int) $quota['A'], 'B' => (int) $quota['B'], 'D' => (int) $quota['D']];
+        $short = [];
+        $from = ['D' => ['B'], 'B' => ['D'], 'A' => ['B', 'D']];
+        foreach (['D', 'B', 'A'] as $band) {
+            $need = $q[$band] - (int) ($avail[$band] ?? 0);
+            if ($need <= 0) { continue; }
+            $moved = 0;
+            foreach ($from[$band] as $to) {
+                while ($moved < $need) {
+                    $used = $q[$to];
+                    if ($used >= (int) ($avail[$to] ?? 0)) { break; }
+                    $q[$to]++; $q[$band]--; $moved++;
+                }
+            }
+            $short[] = ['band' => $band, 'requested' => (int) $quota[$band],
+                        'eligible' => (int) ($avail[$band] ?? 0),
+                        'shortfall' => $need - $moved,
+                        'moved_to' => $from[$band], 'moved' => $moved];
+        }
+        return ['quota' => $q, 'shortfalls' => $short];
+    }
+
+    /**
+     * 公開期限前の取消を反映して、公開quotaを作り直します。
+     * 人気は詰め直しません（凍結帯のまま）。
+     *
+     * @param array $frozenBand 馬番 => 'A'|'B'|'D'（凍結時の帯）
+     * @param array $cancelled  取消の馬番
+     * @param array $quota1st   凍結時の1st配分
+     */
+    public static function afterCancellation(array $frozenBand, array $cancelled,
+                                             array $quota1st,
+                                             ?string $allocationMode = null): array
+    {
+        $alive = [];
+        foreach ($frozenBand as $num => $band) {
+            if (in_array((int) $num, array_map('intval', $cancelled), true)) { continue; }
+            $alive[$band] = ($alive[$band] ?? 0) + 1;
+        }
+        $avail = ['A' => $alive['A'] ?? 0, 'B' => $alive['B'] ?? 0, 'D' => $alive['D'] ?? 0];
+        $active = array_sum($avail);
+
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-RECALC  最新の頭数から C と基本配分を引き直す
+        // ══════════════════════════════════════════════════════════════
+        // 【10月20日005のご指摘4。本物の不具合でした】
+        //   これまでは旧 quota の不足移動しかしておらず、
+        //   <b>頭数が減っても目標数 C と基本配分を引き直していませんでした。</b>
+        //     16→15 … 3/3/1 のまま（正しくは 3/2/1）
+        //     14→13 … 3/2/1 のまま（正しくは 3/2/0）
+        //      9→8  … 3/2/0 のまま（正しくは 2/2/0）
+        //   凍結帯は維持します（人気を詰め直しません）。
+        //   引き直すのは「最新の頭数に応じた目標数と基本配分」だけです。
+        $base = null; $moves = [];
+        if ($allocationMode !== null) {
+            $cap = BaganrikiAllocation::v04TargetCount($active);
+            if ($cap <= 0) {
+                // 全頭取消。候補を作りません。
+                return ['active_count' => 0, 'band_alive' => $avail,
+                        'target_count' => 0, 'base_quota' => null,
+                        'live_quota' => null, 'quota_adjustments' => [],
+                        'shortfalls' => [], 'all_cancelled' => true,
+                        'note' => '全頭取消のため候補を作りません'];
+            }
+            $t = ($cap <= 3)
+                ? [$cap, 0, 0]
+                : (AiController::V04_QUOTA_BY_TARGET[$cap][$allocationMode] ?? null);
+            if ($t !== null) {
+                $base = ['A' => $t[0], 'B' => $t[1], 'D' => $t[2]];
+                // 実在しない帯の枠を D→B→A の順に移します。
+                // 実在数は「凍結帯で生き残っている頭数」で見ます。
+                $q = [$t[0], $t[1], $t[2]];
+                $cp = [$avail['A'], $avail['B'], $avail['D']];
+                $idx = ['A' => 0, 'B' => 1, 'D' => 2];
+                foreach ([['D', ['B', 'A']], ['B', ['D', 'A']], ['A', ['B', 'D']]] as $pair) {
+                    [$from, $tos] = $pair;
+                    $i = $idx[$from];
+                    while ($q[$i] > $cp[$i]) {
+                        $moved = false;
+                        foreach ($tos as $to) {
+                            $j = $idx[$to];
+                            if ($q[$j] < $cp[$j]) {
+                                $q[$i]--; $q[$j]++;
+                                $moves[] = ['requested_band' => $from, 'actual_band' => $to,
+                                            'count' => 1, 'reason' => 'BAND_CAPACITY'];
+                                $moved = true; break;
+                            }
+                        }
+                        if (!$moved) {
+                            $q[$i]--;
+                            $moves[] = ['requested_band' => $from, 'actual_band' => null,
+                                        'count' => 1, 'reason' => 'BAND_CAPACITY'];
+                        }
+                    }
+                }
+                $quota1st = ['A' => $q[0], 'B' => $q[1], 'D' => $q[2]];
+            }
+        }
+
+        $r = self::fillShortfall($quota1st, $avail);
+        return ['active_count' => $active, 'band_alive' => $avail,
+                'target_count' => ($allocationMode === null) ? null
+                                  : BaganrikiAllocation::v04TargetCount($active),
+                'base_quota' => $base,
+                'live_quota' => $r['quota'], 'quota_adjustments' => $moves,
+                'shortfalls' => $r['shortfalls'], 'all_cancelled' => false,
+                'note' => '取消で人気を詰め直していません（凍結帯のまま）。'
+                        . '目標数と基本配分は最新の頭数から引き直しています'];
+    }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-R122-RESP  原応答の検証と局所回復
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 根拠：server_contract_r12.2.txt 6章・11章／詳細設計書 10.2
+ *
+ *   ・識別・版・role・hash・quota・mode_status・allocation_mode・mode_policy_id の
+ *     不一致は応答全体を不採用にします。
+ *   ・馬番の欠落・重複・未知馬・局所フィールド不正は、その範囲だけ隔離して
+ *     正常な他馬を残します。片側のroleが失敗しても、もう片側は残します。
+ *   ・未完了や長さ打切りは complete=false のまま保持し、選出へ使いません。
+ *   ・訂正は各role最大1回。正常な根拠を消す訂正、complete を partial へ
+ *     悪化させる訂正は採用せず、初回を保持します。
+ */
+final class BaganrikiResponse
+{
+    public const BEGIN = '<<<BAGANRIKI_V041_R8_BEGIN>>>';
+    public const END   = '<<<BAGANRIKI_V041_R8_END>>>';
+
+    /** BEGIN/END に挟まれたJSONを1つだけ厳密に取り出します */
+    public static function extract(string $raw): array
+    {
+        $i = strpos($raw, self::BEGIN);
+        $j = strpos($raw, self::END);
+        if ($i === false || $j === false || $j <= $i) {
+            return ['ok' => false, 'code' => 'AI_FAILURE',
+                    'reason' => 'BEGIN/END マーカーが揃っていない', 'json' => null];
+        }
+        if (strpos($raw, self::BEGIN, $i + 1) !== false) {
+            return ['ok' => false, 'code' => 'AI_FAILURE',
+                    'reason' => 'BEGIN が複数ある', 'json' => null];
+        }
+        $body = substr($raw, $i + strlen(self::BEGIN), $j - $i - strlen(self::BEGIN));
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-STRICTJSON  読む前に本文そのものを調べます
+        // ══════════════════════════════════════════════════════════════
+        //   【旧】$data = json_decode(trim($body), true, 64);
+        //     深さ64しか見ていませんでした。重複キーは後勝ちで黙って
+        //     片方が消え、128桁超は float へ丸まり、1e400 は INF になります。
+        //     どれも「読めた」ことになるので、後段の検証では拾えません。
+        $st = BaganrikiJson::strict(trim($body));
+        if (!$st['ok']) {
+            return ['ok' => false, 'code' => 'AI_FAILURE',
+                    'reason' => 'JSONとして読めない（' . $st['code'] . '：'
+                              . $st['reason'] . '）', 'json' => null];
+        }
+        $data = $st['value'];
+        if (!is_array($data)) {
+            return ['ok' => false, 'code' => 'AI_FAILURE',
+                    'reason' => 'JSONの最上位がオブジェクトでも配列でもありません',
+                    'json' => null];
+        }
+        // @ANCHOR-20261021-R122-NUMTYPE  JSON上の型の印を後段へ引き継ぎます。
+        //   これが無いと、丸まる数を文字列で持ったときに
+        //   「数値だったのか、最初から文字列だったのか」が分かりません。
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-TYPEMAP  型の地図を後段へ渡します（010の3章）
+        // ══════════════════════════════════════════════════════════════
+        //   number_paths だけでは、{} と [] の区別や、
+        //   {"0":"a"} と ["a"] の区別が残りません（010の3-4）。
+        //   obj／arr の種類も一緒にした「地図」を渡します。
+        //     保存     BaganrikiJson::encode($json, $map)
+        //     読戻し   BaganrikiJson::decode($本文)
+        //     比べる   BaganrikiJson::same($a, $mapA, $b, $mapB)
+        //   number_paths は、これまでの呼び出し元のために残します。
+        return ['ok' => true, 'code' => null, 'reason' => null, 'json' => $data,
+                'number_paths' => (array) ($st['number_paths'] ?? []),
+                'map' => (array) ($st['map'] ?? BaganrikiJson::emptyMap())];
+    }
+
+    /**
+     * 応答全体の照合。ここが合わなければ応答ごと不採用にします。
+     * @param array $expect ['prompt_version','schema_version','race_id','ai_role',
+     *                       'snapshot_hash','role_cap','role_quota',
+     *                       'mode','mode_status','allocation_mode','mode_policy_id']
+     */
+    public static function checkEnvelope(array $res, array $expect): array
+    {
+        $bad = [];
+        foreach (['prompt_version', 'schema_version', 'race_id', 'ai_role',
+                  'snapshot_hash', 'mode', 'mode_status', 'allocation_mode',
+                  'mode_policy_id'] as $k) {
+            if (!array_key_exists($k, $expect)) { continue; }
+            if (($res[$k] ?? null) !== $expect[$k]) {
+                $bad[] = sprintf('%s（期待 %s / 実際 %s）', $k,
+                    var_export($expect[$k], true), var_export($res[$k] ?? null, true));
+            }
+        }
+        if (array_key_exists('role_cap', $expect)
+            && (int) ($res['role_cap'] ?? -1) !== (int) $expect['role_cap']) {
+            $bad[] = 'role_cap';
+        }
+        if (array_key_exists('role_quota', $expect)) {
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-NULLQUOTA  選出停止（UNRESOLVED）の扱い
+            // ══════════════════════════════════════════════════════════
+            // 【本物の不具合でした】
+            //   role_quota が null（選出しない）のとき、
+            //   ?? -1 と ?? -2 の既定値が必ず食い違うので、
+            //   <b>正しい応答まで不採用になっていました。</b>
+            //   UNRESOLVED のレースは全部これに当たります。
+            //   10月20日005の異常例試験で、正常出力14本のうち
+            //   UNRESOLVED の2本が落ちたことで分かりました。
+            $rq = $res['role_quota'] ?? null;
+            $eq = $expect['role_quota'];
+            if ($eq === null || $rq === null) {
+                if ($eq !== $rq) {
+                    $bad[] = sprintf('role_quota（期待 %s / 実際 %s）',
+                        ($eq === null) ? 'null' : '値あり',
+                        ($rq === null) ? 'null' : '値あり');
+                }
+            } else {
+                foreach (['A', 'B', 'D'] as $b) {
+                    if ((int) ($rq[$b] ?? -1) !== (int) ($eq[$b] ?? -2)) {
+                        $bad[] = 'role_quota.' . $b;
+                    }
+                }
+            }
+        }
+        if (!empty($bad)) {
+            return ['ok' => false, 'code' => 'AI_FAILURE',
+                    'reason' => '応答の識別・版・mode・配分が合わない: ' . implode('／', $bad)];
+        }
+        return ['ok' => true, 'code' => null, 'reason' => null];
+    }
+
+    /**
+     * 馬ごとの隔離。凍結集合に無い馬・重複・局所不正はその馬だけ外します。
+     * @return array ['kept'=>正常な馬の配列, 'isolated'=>[馬番=>理由]]
+     */
+    public static function isolateHorses(array $horses, array $frozenNums): array
+    {
+        $kept = []; $iso = []; $seen = [];
+        foreach ($horses as $h) {
+            // @ANCHOR-20261020-R122-HORSENO  正規応答のキーは horse_no です
+            //   【10月20日005のご指摘5-3】num しか読んでおらず、
+            //   正規の応答をそのまま渡すと馬番を読めませんでした。
+            //   どちらの綴りでも読めるようにします（horse_no を優先）。
+            $num = $h['horse_no'] ?? ($h['num'] ?? null);
+            if (!is_int($num) && !(is_string($num) && ctype_digit($num))) {
+                $iso['?' . count($iso)] = '馬番が数値でない';
+                continue;
+            }
+            $num = (int) $num;
+            if (isset($seen[$num])) { $iso[$num] = '同じ馬番が重複している'; continue; }
+            $seen[$num] = true;
+            if (!in_array($num, $frozenNums, true)) { $iso[$num] = '凍結集合に無い馬番'; continue; }
+            $kept[$num] = $h;
+        }
+        // 欠落している馬は「不足」として返します（他馬は残します）
+        $missing = array_values(array_diff($frozenNums, array_keys($kept)));
+        sort($missing);
+        return ['kept' => $kept, 'isolated' => $iso, 'missing' => $missing];
+    }
+
+    /**
+     * 訂正を採用してよいか。
+     *   ・初回の正常な根拠を全部失う → 採用しない
+     *   ・complete を partial へ悪化させる → 採用しない
+     *   ・凍結集合に無い馬・対象外の変更 → 採用しない
+     *   ・受領時刻が初回より前 → 採用しない（同一時刻は可）
+     */
+    public static function acceptCorrection(array $first, array $fix,
+                                            ?string $firstAt = null, ?string $fixAt = null,
+                                            array $frozenNums = [], ?array $repairScope = null,
+                                            array $rowValid = [],
+                                            ?array $firstMap = null,
+                                            ?array $fixMap = null): array
+    {
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-TYPEMAP  型まで見て比べます（010の3-2）
+        // ══════════════════════════════════════════════════════════════
+        //   ご指摘：
+        //     「既存には、sameHorseRowの厳密比較と、訂正対象外フィールドの
+        //       $v0 !== $v1 があります。オブジェクトを導入すると、同じ数値
+        //       でも別インスタンスであることを理由に差異と判定する可能性が
+        //       あります。共通の比較関数で、JSONの型、正確な十進値、
+        //       必要な整数／小数・指数表記の区別を比較してください。
+        //       通常のオブジェクトのキー順は無視し、配列の順序は
+        //       保持します。」
+        //
+        //   $firstMap／$fixMap（型の地図）が両方そろっているときは、
+        //   <b>BaganrikiJson::same</b> で比べます。
+        //   ・PHPの === では、丸まる数値を文字列で持っているときに
+        //     「元が数値だったか文字列だったか」が区別できません。
+        //   ・値オブジェクトを使う案は、同じ値の別インスタンスを
+        //     差異と見るおそれがあります。地図は値を包まないので、
+        //     その問題は起きません。
+        //   地図が無いときは、これまでどおり === で比べます
+        //   （試験用の素の配列はこちらを通ります）。
+        $typed = ($firstMap !== null && $fixMap !== null);
+        $sameV = static function ($a, $b, array $path) use ($typed, $firstMap, $fixMap) {
+            if (!$typed) { return ($a === $b); }
+            return (bool) BaganrikiJson::same($a, (array) $firstMap,
+                                              $b, (array) $fixMap, true, $path)['same'];
+        };
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-REPAIR  10月20日005のご指摘5-1
+        // ══════════════════════════════════════════════════════════════
+        // 【直した中身】
+        //   ・初回に無い馬番を<b>一律に拒否</b>していました。
+        //     契約6章は「凍結runner集合にいて、horses訂正の対象なら救済する」です。
+        //     未知馬（凍結集合にいない）と、初回から漏れた実在馬を分けます。
+        //   ・repair_scope と row_valid を受け取っていませんでした。
+        //     対象外の馬を変えようとする訂正は採用しません。
+        //     row_valid=false の行は適用しません。
+        $rescued = []; $skipped = [];
+        if ($firstAt !== null && $fixAt !== null) {
+            $a = BaganrikiTime::us($firstAt); $b = BaganrikiTime::us($fixAt);
+            if ($a === null || $b === null) {
+                return ['ok' => false, 'reason' => '受領時刻が日時として読めない'];
+            }
+            if ($b < $a) { return ['ok' => false, 'reason' => '訂正の受領時刻が初回より前'];
+            }
+        }
+        foreach ($first as $num => $h0) {
+            if (!array_key_exists($num, $fix)) { continue; }   // 変更なしは初回を保持
+            $h1 = $fix[$num];
+            // @ANCHOR-20261020-R122-CORRKEY  正規キーで数えます
+            $grp = static function ($h) {
+                $n = 0;
+                foreach ((array) ($h['family_review'] ?? []) as $fam) {
+                    if ((string) ($fam['status'] ?? '') === 'SUPPORTED') { $n++; }
+                }
+                // 正規キーの無い試験用の形には independent_groups で応えます
+                if ($n === 0 && array_key_exists('independent_groups', (array) $h)) {
+                    $n = (int) $h['independent_groups'];
+                }
+                return $n;
+            };
+            $g0 = $grp($h0);
+            $g1 = $grp($h1);
+            if ($g0 > 0 && $g1 === 0) {
+                return ['ok' => false, 'reason' => sprintf('馬番 %d の正常な根拠を全部失う訂正', $num)];
+            }
+            // 正規キーは score_status。score_state は試験用の形のための控えです。
+            $s0 = $h0['score_status'] ?? ($h0['score_state'] ?? 'partial');
+            $s1 = $h1['score_status'] ?? ($h1['score_state'] ?? 'partial');
+            if ($s0 === 'complete' && $s1 !== 'complete') {
+                return ['ok' => false, 'reason' => sprintf('馬番 %d の採点を complete から悪化させる訂正', $num)];
+            }
+        }
+        // ── 初回に無い馬番 ────────────────────────────────────────
+        //   凍結集合にいる実在馬 → 救済（初回から漏れていただけ）
+        //   凍結集合にいない馬   → 未知馬。応答ごと採用しない
+        $frozen  = array_map('intval', $frozenNums);
+        $extra   = array_values(array_diff(array_keys($fix), array_keys($first)));
+        $unknown = [];
+        foreach ($extra as $num) {
+            if ($frozen !== [] && in_array((int) $num, $frozen, true)) {
+                $rescued[] = (int) $num;
+            } else {
+                $unknown[] = (int) $num;
+            }
+        }
+        if (!empty($unknown)) {
+            sort($unknown);
+            return ['ok' => false, 'rescued' => [], 'applied' => [], 'skipped' => [],
+                    'reason' => '凍結集合にない馬番を足している（馬番 '
+                              . implode('・', $unknown) . '）'];
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-SCOPEFIELD  10月20日006のご指摘5-2
+        // ══════════════════════════════════════════════════════════════
+        //   【本物の不具合でした】許可リストを repair_scope.horses だけに
+        //   していたので、採点の集計だけがおかしい馬（summary_horses）を
+        //   訂正しようとすると「対象外」で拒否していました。
+        //   その馬は row_valid=false で初回からも外れるため、
+        //   <b>採点欄の誤りひとつで、正常な根拠を持つ馬が候補から落ちます。</b>
+        //   契約は「不正な得点項目だけを直し、正常根拠は保持する」です。
+        //
+        //   そこで範囲ごとに<b>直してよい項目</b>を決めます。
+        //   horses は行ごと、summary_horses は採点と資格の欄だけ、
+        //   presentation_horses は表示の欄だけ。
+        //   範囲外の馬も、範囲内でも許されない項目を変える訂正も採用しません。
+        if (is_array($repairScope)) {
+            $inH = array_map('intval', (array) ($repairScope['horses'] ?? []));
+            $inS = array_map('intval', (array) ($repairScope['summary_horses'] ?? []));
+            $inP = array_map('intval', (array) ($repairScope['presentation_horses'] ?? []));
+            $outOfScope = []; $outOfField = [];
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-RESTATE  10月20日007のご指摘4
+            // ══════════════════════════════════════════════════════════
+            //   【本物の不具合でした】訂正は<b>常に全頭を返す</b>のが契約です
+            //   （配布本文：「常に全頭を含む完全なJSONを返し」）。
+            //   ところが、範囲に入っていない馬を<b>初回と同じ中身かどうか
+            //   調べる前に</b>「対象外を変えようとしている」と判定して、
+            //   訂正をまるごと拒否していました。
+            //   例：3頭のうち馬番2の集計だけ不正。訂正は3頭返し、2だけ直す。
+            //       1と3は初回と同じ。それでも拒否していました。
+            //   【いま】<b>未変更の正常行を再掲することと、対象外の行を
+            //   書き換えることを分けます。</b>初回と同じ中身なら通します。
+            // @ANCHOR-20261020-R122-RESCUESCOPE  007のご指摘4（救済の範囲）
+            //   救済馬も horses の対象に入っていることを明示的に見ます。
+            //   以前は範囲の検査ごと continue で飛ばしていました。
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261021-R122-METASPLIT  10月21日008のご指摘3
+            // ══════════════════════════════════════════════════════════
+            //   内部の監査項目（r122_ で始まるキー）は、こちらが足した
+            //   ものです。AIの業務項目ではありません。
+            //   ・比較からは<b>外します</b>（これが入っていると、正しい
+            //     訂正が「範囲外を変えた」と判定されます）
+            //   ・訂正の側に入っていたら<b>断ります</b>（AIに内部の監査
+            //     項目を書かせることになるためです）
+            $metaIn = [];
+            foreach ($fix as $num => $h1) {
+                foreach (array_keys((array) $h1) as $k) {
+                    if (strncmp((string) $k, 'r122_', 5) === 0) {
+                        $metaIn[] = (int) $num . ':' . (string) $k;
+                    }
+                }
+            }
+            if ($metaIn !== []) {
+                sort($metaIn);
+                return ['ok' => false, 'rescued' => [], 'applied' => [],
+                        'skipped' => [], 'restated' => [],
+                        'reason' => '訂正に内部の監査項目が入っています（'
+                                  . implode('・', array_slice($metaIn, 0, 5))
+                                  . '）。これはAIが返す項目ではありません'];
+            }
+            $restated = [];
+            foreach ($fix as $num => $h1) {
+                $num = (int) $num;
+                if (in_array($num, $inH, true)) { continue; }      // 行ごと直せます
+                if (in_array($num, $rescued, true)) {
+                    // @ANCHOR-...-RESCUESCOPE  救済も horses の対象であること
+                    if (!in_array($num, $inH, true)) {
+                        $outOfScope[] = $num;
+                    }
+                    continue;
+                }
+                $fields = [];
+                if (in_array($num, $inS, true)) {
+                    $fields = array_merge($fields, self::FIX_FIELDS_SUMMARY);
+                }
+                if (in_array($num, $inP, true)) {
+                    $fields = array_merge($fields, self::FIX_FIELDS_PRESENTATION);
+                }
+                if ($fields === []) {
+                    // @ANCHOR-...-RESTATE  初回と同じなら「再掲」です
+                    if (array_key_exists($num, $first)
+                        && self::sameHorseRow((array) $first[$num], (array) $h1,
+                                              $firstMap, $fixMap, [(string) $num])) {
+                        $restated[] = $num;
+                        continue;
+                    }
+                    $outOfScope[] = $num;
+                    continue;
+                }
+                $h0 = (array) ($first[$num] ?? []);
+                $keys = array_unique(array_merge(array_keys($h0),
+                                                 array_keys((array) $h1)));
+                foreach ($keys as $k) {
+                    if (in_array((string) $k, $fields, true)) { continue; }
+                    // @ANCHOR-20261021-R122-METASPLIT  内部の監査項目は見ません
+                    if (strncmp((string) $k, 'r122_', 5) === 0) { continue; }
+                    // @ANCHOR-20261021-R122-TYPEMAP  型まで見て比べます
+                    //   どちらかにキーが無い場合もここで分かります
+                    //   （?? null は null の値と見分けが付かないので、
+                    //     キーの有無を先に見ます）
+                    $has0 = array_key_exists($k, $h0);
+                    $has1 = array_key_exists($k, (array) $h1);
+                    if ($has0 !== $has1) {
+                        $outOfField[] = $num . ':' . $k;
+                        continue;
+                    }
+                    if (!$has0) { continue; }           // どちらにも無い
+                    $v0 = $h0[$k];
+                    $v1 = ((array) $h1)[$k];
+                    if (!$sameV($v0, $v1, [(string) $num, (string) $k])) {
+                        $outOfField[] = $num . ':' . $k;
+                    }
+                }
+            }
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261023-R122-FIXPARTIAL  対象外を変えた馬だけを外す（旗の後ろ）
+            // ══════════════════════════════════════════════════════════
+            //   【10/23 の実AI 18頭実測（5回目）で分かったこと】
+            //   訂正が「対象外の馬番1の中身」を変えていたため、訂正全体が
+            //   不採用になり、救済できたはずの9頭（初回で行が抜けた馬）も
+            //   戻りませんでした。
+            //   変更計画書8章「不正な一頭や片側応答だけを理由に、正常な他馬・
+            //   もう片側を一括で捨てない」との兼ね合いで、よっしーさんの判断待ちです。
+            //   【いま】.env の BAGANRIKI_R122_FIX_PARTIAL=1 のときだけ、
+            //   対象外を変えた馬・直してよい項目の外を変えた馬<b>だけ</b>を
+            //   「飛ばし」にして初回のまま残し、他の馬の訂正は採ります。
+            //   既定（0）は今までどおり訂正全体を採りません。
+            //   未知馬（凍結集合にいない馬）と内部の監査項目は、旗に関係なく
+            //   今までどおり訂正全体を採りません。
+            $fixPartial = in_array(strtolower(trim((string) env('BAGANRIKI_R122_FIX_PARTIAL', '0'))),
+                                   ['1', 'true', 'on', 'yes'], true);
+            $partialSkip = [];
+            if ($fixPartial && (!empty($outOfScope) || !empty($outOfField))) {
+                foreach ($outOfScope as $nP) { $partialSkip[] = (int) $nP; }
+                foreach ($outOfField as $nf) { $partialSkip[] = (int) explode(':', (string) $nf)[0]; }
+                $partialSkip = array_values(array_unique($partialSkip));
+                sort($partialSkip);
+                $outOfScope = []; $outOfField = [];
+            }
+            if (!empty($outOfScope)) {
+                sort($outOfScope);
+                return ['ok' => false, 'rescued' => [], 'applied' => [], 'skipped' => [],
+                        'restated' => [],
+                        'reason' => 'repair_scope の対象外を変えようとしている（馬番 '
+                                  . implode('・', $outOfScope) . '）'
+                                  . '。初回と同じ中身の再掲は通します'];
+            }
+            if (!empty($outOfField)) {
+                sort($outOfField);
+                return ['ok' => false, 'rescued' => [], 'applied' => [], 'skipped' => [],
+                        'reason' => 'その範囲で直してよい項目の外を変えています（'
+                                  . implode('・', array_slice($outOfField, 0, 5)) . '）'];
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-ROWVALID  10月20日006のご指摘5-3
+        // ══════════════════════════════════════════════════════════════
+        //   【本物の不具合でした】救済した馬を先に rescued へ入れてから
+        //   row_valid を見ていたので、row_valid=false の救済馬が
+        //   rescued と skipped の<b>両方</b>に入り、applyCorrection の
+        //   許可（applied ∪ rescued）を通っていました。
+        //   いまは skipped になった馬を rescued からも外します。
+        //   row_valid は<b>明示 true のときだけ</b>承認します
+        //   （キーが無い＝未設定は承認しません）。
+        // @ANCHOR-20261020-R122-ROWVALIDREQ  10月20日007のご指摘4
+        //   【旧】`$rowValid !== []` のときだけ見ていたので、
+        //     空で渡すと検査そのものが飛び、「未設定は常に通さない」
+        //     という説明が関数単体では成立していませんでした。
+        //   【いま】<b>row_valid を渡さない呼び方を断ります。</b>
+        //     検証結果なしに訂正を承認してはいけないためです。
+        //   訂正の中身が空（当てる行が1つも無い）ときは、承認する行も
+        //   無いので、この検査は当てません（時刻だけを見る呼び方のためです）。
+        if ($fix !== [] && $rowValid === []) {
+            return ['ok' => false, 'rescued' => [], 'applied' => [], 'skipped' => [],
+                    'restated' => [],
+                    'reason' => 'row_valid が渡されていません'
+                              . '（明示 true の行だけ承認します）'];
+        }
+        $applied = [];
+        foreach (array_keys($fix) as $num) {
+            $num = (int) $num;
+            // @ANCHOR-20261023-R122-FIXPARTIAL  対象外を変えた馬は当てません（初回のまま）
+            if (in_array($num, (array) ($partialSkip ?? []), true)) {
+                $skipped[] = $num;
+                continue;
+            }
+            if (($rowValid[$num] ?? null) !== true) {
+                $skipped[] = $num;
+                continue;
+            }
+            $applied[] = $num;
+        }
+        // 再掲（未変更の正常行）は「当てる」側には入れません。初回を保ちます。
+        $restated = array_values(array_unique(array_map('intval', $restated ?? [])));
+        $applied  = array_values(array_diff($applied, $restated));
+        $rescued  = array_values(array_diff($rescued, $skipped));
+        $applied  = array_values(array_diff($applied, $skipped));
+        sort($rescued); sort($applied); sort($skipped); sort($restated);
+        return ['ok' => true, 'reason' => null, 'restated' => $restated,
+                'rescued' => $rescued, 'applied' => $applied, 'skipped' => $skipped];
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-RESTATE  2つの馬行が同じ中身かどうか
+     *   キーの並びが違っても同じと見ます（訂正はJSONを作り直すためです）。
+     *   入れ子も並べ替えてから比べます。数値の型の違い（1 と 1.0）は
+     *   別物として扱います（採点は整数と決まっているためです）。
+     */
+    public static function sameHorseRow(array $a, array $b,
+                                        ?array $mapA = null, ?array $mapB = null,
+                                        array $path = []): bool
+    {
+        // @ANCHOR-20261021-R122-METASPLIT  内部の監査項目（r122_）は比べません。
+        //   こちらが足したもので、AIが返す項目ではないためです。
+        $strip = static function (array $v): array {
+            $o = [];
+            foreach ($v as $k => $x) {
+                if (strncmp((string) $k, 'r122_', 5) === 0) { continue; }
+                $o[$k] = $x;
+            }
+            return $o;
+        };
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-TYPEMAP  型の地図があるときは型まで見ます
+        // ══════════════════════════════════════════════════════════════
+        //   地図があれば、JSON上の型・正確な十進値・整数/小数/指数の
+        //   表記まで見ます（010の3-2）。並べ替えは中で行うので、
+        //   ここで ksort する必要はありません
+        //   （same はオブジェクトのキー順を無視します）。
+        if ($mapA !== null && $mapB !== null) {
+            $r = BaganrikiJson::same($strip($a), $mapA, $strip($b), $mapB,
+                                     true, $path);
+            return (bool) $r['same'];
+        }
+        // 地図が無いとき（試験用の素の配列など）は、これまでどおりです。
+        $norm = static function ($v) use (&$norm) {
+            if (!is_array($v)) { return $v; }
+            $isList = (array_keys($v) === range(0, count($v) - 1));
+            $o = [];
+            foreach ($v as $k => $x) { $o[$k] = $norm($x); }
+            if (!$isList) { ksort($o, SORT_STRING); }
+            return $o;
+        };
+        return $norm($strip($a)) === $norm($strip($b));
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-SCOPEFIELD  範囲ごとに直してよい項目
+     *   summary_horses は採点と資格のまわりだけ、
+     *   presentation_horses は表示のまわりだけを直せます。
+     *   ここに無い項目を変える訂正は採用しません。
+     */
+    public const FIX_FIELDS_SUMMARY = [
+        'eligibility', 'tier', 'scores', 'score_evidence', 'score_status',
+        'total_score', 'observed_sum', 'observed_cap', 'rank_basis',
+        'rank_reason', 'family_review',
+    ];
+    public const FIX_FIELDS_PRESENTATION = [
+        'public_candidate', 'nonselect_reason', 'explanation',
+        'evidence_rank_reason', 'evidence_rank_evidence_ids',
+    ];
+
+    /** 訂正を反映した結果。対象外の正常行は初回のままにします */
+    public static function applyCorrection(array $first, array $fix,
+                                           ?array $accept = null): array
+    {
+        // @ANCHOR-20261020-R122-REPAIR  採否の結果にある行だけを反映します
+        //   $accept を渡さないときは、これまでどおり $fix を全部当てます。
+        $out = $first;
+        if ($accept === null) {
+            foreach ($fix as $num => $h) { $out[$num] = $h; }
+            return $out;
+        }
+        if (($accept['ok'] ?? false) !== true) { return $out; }   // 不採用なら初回のまま
+        $allow = array_map('intval',
+            array_merge((array) ($accept['applied'] ?? []), (array) ($accept['rescued'] ?? [])));
+        foreach ($fix as $num => $h) {
+            if (!in_array((int) $num, $allow, true)) { continue; }   // 対象外・row_valid=false
+            $out[(int) $num] = $h;
+        }
+        return $out;
+    }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-R122-VIEW  読取API用のDTOと表示状態
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 根拠：server_contract_r12.2.txt 8章・11章／詳細設計書 12.2
+ *
+ *   state は公開状態で、mode_status とは別物です。
+ *     PENDING     処理中で期限内
+ *     PUBLISHED   有効な正式公開がある
+ *     UNAVAILABLE 未公開のまま実効公開期限を過ぎた／固定入力が計算不能
+ *     CANCELLED   全頭取消
+ *   正式公開の履歴と現在のライブ状態を分けて返します。
+ *   原AI応答・予約token・内部認証情報は返しません。
+ */
+final class BaganrikiPublicView
+{
+    /** 表示状態を決めます */
+    public static function state(bool $hasPublication, bool $allCancelled,
+                                 bool $inputInvalid, bool $pastDeadline): string
+    {
+        if ($allCancelled)   { return 'CANCELLED'; }
+        if ($hasPublication) { return 'PUBLISHED'; }
+        if ($inputInvalid)   { return 'UNAVAILABLE'; }
+        return $pastDeadline ? 'UNAVAILABLE' : 'PENDING';
+    }
+
+    /** 暫定のときの表示文。確定した波乱度や星としては出しません */
+    public static function provisionalLabel(?string $allocationMode): ?string
+    {
+        if ($allocationMode === 'MIXED')    { return '混戦として暫定選出'; }
+        if ($allocationMode === 'VOLATILE') { return '波乱として暫定選出'; }
+        return null;
+    }
+
+    public const PROVISIONAL_NOTE = '過去類似判定が未確定のため';
+
+    /**
+     * 読取APIが返す形を組み立てます。
+     * 数値は十進数文字列のまま渡し、一律 double にしません。
+     */
+    public static function build(array $a): array
+    {
+        $modeStatus = $a['mode_status'] ?? null;
+        $alloc      = $a['allocation_mode'] ?? null;
+        return [
+            'schema_version'  => 'baganriki-v041-r12-2',
+            'race_id'         => $a['race_id'] ?? null,
+            'state'           => $a['state'] ?? null,
+            'mode'            => $a['mode'] ?? null,
+            'mode_status'     => $modeStatus,
+            'allocation_mode' => $alloc,
+            'mode_policy_id'  => $a['mode_policy_id'] ?? null,
+            'display_rating'  => ($modeStatus === 'PROVISIONAL') ? null : ($a['display_rating'] ?? null),
+            'provisional'     => ($modeStatus === 'PROVISIONAL') ? [
+                'label' => self::provisionalLabel($alloc),
+                'note'  => self::PROVISIONAL_NOTE,
+            ] : null,
+            'publication'     => $a['publication'] ?? null,   // 未公開は null
+            'live_state'      => [
+                'state_revision'    => $a['state_revision'] ?? null,
+                'cancellations'     => array_values($a['cancellations'] ?? []),
+                'active_count'      => $a['active_count'] ?? null,
+                'live_target_count' => $a['live_target_count'] ?? null,
+                'live_quota'        => $a['live_quota'] ?? null,
+                // @ANCHOR-20261020-R122-API  契約8章・11章で返すと決めている項目
+                //   3つの版をそろえて返します（state だけでは足りません）。
+                //   actual_quota と available_candidate_count は<b>いまの取消</b>を
+                //   映します。prediction_* は公開したときの履歴なので動かしません。
+                'response_revision'    => $a['response_revision'] ?? null,
+                'publication_revision' => $a['publication_revision'] ?? null,
+                'latest_publication_id' => $a['latest_publication_id'] ?? null,
+                'actual_quota'             => $a['actual_quota'] ?? null,
+                'available_candidate_count' => $a['available_candidate_count'] ?? null,
+                'live_close'        => $a['live_close'] ?? null,
+                'effective_publish_deadline' => $a['effective_publish_deadline'] ?? null,
+                'effective_reply_deadline'   => $a['effective_reply_deadline'] ?? null,
+            ],
+            // @ANCHOR-20261020-R122-API  ワーカーの状態。
+            //   予約token と原応答は入れません（契約10章）。
+            'worker_state'    => $a['worker_state'] ?? null,
+            'input_audit'     => [
+                'collection_audit'      => $a['collection_audit'] ?? null,
+                'input_freeze_at'       => $a['input_freeze_at'] ?? null,
+                // @ANCHOR-20261023-R122-COUNTS  凍結時の頭数
+                'frozen_count'          => $a['frozen_count'] ?? null,
+                'coverage'              => $a['coverage'] ?? null,
+                'time_contract_version' => 'baganriki-post-slot-grace-v1',
+                'anchor_kind'           => 'POST_TIME',
+                'sampling_policy_id'    => 'SLOT_FIRST_VALID_COMMITTED_V1',
+                // @ANCHOR-20261020-R122-CLOSE  投票締切の出どころ
+                'sales_close_at'        => $a['sales_close_at'] ?? null,
+                'sales_close_source'    => $a['sales_close_source'] ?? null,
+            ],
+            'diagnostics'     => array_values($a['diagnostics'] ?? []),
+            'shortfalls'      => array_values($a['shortfalls'] ?? []),
+            'buy_recommended' => false,
+            'purchase_policy_status' => 'PENDING_VALIDATION',
+            'learning_stage'  => 'COLLECT_ONLY',
+            'model_version'   => null,
+        ];
+    }
+
+    /** 診断コード（詳細設計書12.2の表） */
+    public const CODES = [
+        'ENTRY_MISSING'                    => '出馬表が欠損。計算停止（対象レースは集計に残す）',
+        'ENTRY_SET_MISMATCH'               => '出馬表・宣言頭数・オッズの集合が合わない',
+        'FREEZE_ODDS_MISSING'              => '6分前単勝が揃わない。計算停止',
+        'CANCEL_CONFLICT'                  => '取消の時点より後に実オッズ。active_count は null',
+        'ACQUISITION_DEADLINE_EXCEEDED'    => '取得猶予または情報上限を超えたバッチは不採用',
+        'MODE_UNRESOLVED'                  => '選出停止。X6以外への暫定例外は広げない',
+        'AI_FAILURE'                       => '応答全体が不採用。別role・別馬は残す',
+        'PARTIAL_AI_VALIDATION'            => '一部だけ検証できた',
+        'RANK_RECOVERY_FALLBACK'           => '縮退順位を使った',
+        'PUBLICATION_DEADLINE_EXCEEDED'    => '新規公開の保存を拒否',
+        'STALE_INTENT'                     => '読んだ版が古い。保存しない',
+        'PUBLIC_CANDIDATE_VALIDATION_FAILED' => '公開候補の整合が取れない',
+    ];
+}
+
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-REFACTOR-ML  機械学習（断層学習）の計算
+ * ═══════════════════════════════════════════════════════════════════════════
+ * AiController から切り出しました。新しいファイルは作らず、このファイルの中です。
+ *
+ * ここに入っているもの
+ *   ・馬ブロックのテキストから数値特徴を読む処理
+ *   ・特徴量の作成、カテゴリ辞書、時系列分割
+ *   ・GBDT と線形モデルの学習・推論
+ *   ・ラベル付け、確率の較正、評価、版の比較、モデル登録
+ *   ・帯別順位の算出と、学習用スナップショットの保存
+ *
+ * 動きは切り出す前と同じです。
+ * 中で呼び合っていた $this->… を self::… に置き換えただけで、
+ * 計算の中身は1行も変えていません。
+ * 本体に残した定数と静的プロパティは AiController:: で参照しています。
+ *
+ * 【運用の前提】
+ *   学習段階は COLLECT_ONLY、model_version は null のままです（r12.2 契約9章）。
+ *   ここは記録と研究のための経路で、本番の選出には使っていません。
+ */
+final class BaganrikiMl
+{
+    /**
+     * 【20260924 追加】断層パターン学習（Block 11）用：馬ブロックのテキストから数値特徴を取り出す。
+     *   プロンプトへ実際に渡した値そのものを保存するため、テーブルを引き直さずブロックから読む。
+     *   読み取れない項目は null（欠損）。0 で埋めない。
+     */
+    public static function _parseHorseBlockFeatures(string $block): array
+    {
+        $f = [
+            'tan_change_rate'     => self::_parseTanChangeRate($block),
+            'tan_inflow_rank'     => null, 'tan_inflow_group_size'  => null,
+            'fuku_inflow_rank'    => null, 'fuku_inflow_group_size' => null,
+            'inflow_group'        => null,
+            'last3min_fuku_rate'  => null, 'last3min_tan_rate' => null, 'accel_label' => null,
+            'opi'                 => null, 'est_opi' => null, 'fuku_opi' => null,
+            'est_tan_odds'        => null, 'est_tan_std' => null,
+            'est_fuku_min'        => null, 'est_fuku_max' => null, 'est_fuku_err' => null,
+        ];
+        if (preg_match('/単勝流入ランク: (\d+)位\/(\d+)頭中（([^）]+)）/u', $block, $m)) {
+            $f['tan_inflow_rank'] = (int)$m[1]; $f['tan_inflow_group_size'] = (int)$m[2]; $f['inflow_group'] = $m[3];
+        }
+        if (preg_match('/複勝流入ランク: (\d+)位\/(\d+)頭中（([^）]+)）/u', $block, $m)) {
+            $f['fuku_inflow_rank'] = (int)$m[1]; $f['fuku_inflow_group_size'] = (int)$m[2]; $f['inflow_group'] = $m[3];
+        }
+        if (preg_match('/直前流入（9→6分前）: 複勝 ([+\-][\d.]+)%|直前流入（9→6分前）: 複勝 データなし/u', $block, $m) && isset($m[1])) {
+            $f['last3min_fuku_rate'] = (float)$m[1];
+        }
+        if (preg_match('/直前流入（9→6分前）: .*単勝 ([+\-][\d.]+)%/u', $block, $m)) {
+            $f['last3min_tan_rate'] = (float)$m[1];
+        }
+        if (preg_match('/直前流入（9→6分前）: .*判定: (\S+)/u', $block, $m)) {
+            $f['accel_label'] = $m[1];
+        }
+        if (preg_match('/^\s*OPI: ([\d.]+)/mu', $block, $m))        $f['opi']      = (float)$m[1];
+        if (preg_match('/予測補正OPI: ([\d.]+)/u', $block, $m))       $f['est_opi']  = (float)$m[1];
+        if (preg_match('/複勝OPI: ([\d.]+)/u', $block, $m))           $f['fuku_opi'] = (float)$m[1];
+        if (preg_match('/推定確定オッズ: ([\d.]+)倍（±([\d.]+)）/u', $block, $m)) {
+            $f['est_tan_odds'] = (float)$m[1]; $f['est_tan_std'] = (float)$m[2];
+        }
+        if (preg_match('/推定確定複勝最小: ([\d.]+)倍\s+推定確定複勝最大: ([\d.]+)?/u', $block, $m)) {
+            $f['est_fuku_min'] = (float)$m[1];
+            $f['est_fuku_max'] = (isset($m[2]) && $m[2] !== '') ? (float)$m[2] : null;
+        }
+        if (preg_match('/補正誤差: ±([\d.]+)/u', $block, $m))          $f['est_fuku_err'] = (float)$m[1];
+        return $f;
+    }
+
+    /**
+     * 【20260924 追加】馬ブロックの「単勝: …倍（下落 X%）」行から、計測開始→6分前の単勝変化率を読む。
+     *   下落 X% → -X ／ 上昇 +X% → +X ／ 変化なし → 0 ／ 行が無い → null（不明）
+     */
+    public static function _parseTanChangeRate(string $block): ?float
+    {
+        if (!preg_match('/^\s*単勝: .*倍（(下落 ([\d.]+)%|上昇 \+([\d.]+)%|変化なし)）/mu', $block, $m)) {
+            return null;
+        }
+        if (($m[2] ?? '') !== '') return -1.0 * (float) $m[2];
+        if (($m[3] ?? '') !== '') return (float) $m[3];
+        return 0.0;
+    }
+
     /**
      * 学習・評価結果の保存（評価指標の保存先）
      *
@@ -14255,7 +24195,7 @@ SYSTEM;
      *
      * @return array{saved:bool, path:?string, latest:?string, reason:?string}
      */
-    private function _saveMlEvaluation(array $result): array
+    public static function _saveMlEvaluation(array $result): array
     {
         try {
             $seBase = function_exists('storage_path')
@@ -14321,9 +24261,9 @@ SYSTEM;
      *          'horse_labels'=>[num=>int], 'meta'=>[...]], ...]
      * @return array パイプラインの実行結果
      */
-    public function runMlPipeline(array $labeledRaces = []): array
+    public static function runMlPipeline(array $labeledRaces = []): array
     {
-        $plPhase = $this->_getMlPhase();
+        $plPhase = self::_getMlPhase();
 
         if (!$plPhase['allow_training']) {
             return [
@@ -14343,7 +24283,7 @@ SYSTEM;
         }
 
         // ── ① 時系列分割（日付順 70/15/15）──────────────────────────────
-        $plSplit = $this->_assignTimeSeriesSplit(null);
+        $plSplit = self::_assignTimeSeriesSplit(null);
         $plIdx   = ['train' => [], 'validation' => [], 'test' => []];
         foreach ($labeledRaces as $plI => $plR) {
             $plKey = (string)($plR['key'] ?? '');
@@ -14359,7 +24299,7 @@ SYSTEM;
             sort($plTrainKeys);
             $plFrom = explode('_', $plTrainKeys[0])[0];
             $plTo   = explode('_', end($plTrainKeys))[0];
-            $plDict = $this->_buildCategoryDict($plFrom, $plTo);
+            $plDict = self::_buildCategoryDict($plFrom, $plTo);
         }
 
         // ── ③ M1〜M3（レース単位）と M4（馬単位）を GBDT で学習 ──────────
@@ -14369,21 +24309,21 @@ SYSTEM;
             foreach ($plIdx['train'] as $plI) {
                 $plLab = $labeledRaces[$plI]['labels'][$plM] ?? null;
                 if ($plLab === null) continue;   // 結果未確定は学習に使わない
-                $plVec = $this->_vectorizeFeatures($labeledRaces[$plI]['features']);
+                $plVec = self::_vectorizeFeatures($labeledRaces[$plI]['features']);
                 $plX[] = $plVec['race']; $plY[] = (int)$plLab;
             }
-            $plModels[strtoupper($plM)] = $this->_trainGbdtModel($plX, $plY);
+            $plModels[strtoupper($plM)] = self::_trainGbdtModel($plX, $plY);
         }
         // M4: 馬単位
         $plX4 = []; $plY4 = []; $plMeta4 = [];
         foreach ($plIdx['train'] as $plI) {
-            $plVec = $this->_vectorizeFeatures($labeledRaces[$plI]['features']);
+            $plVec = self::_vectorizeFeatures($labeledRaces[$plI]['features']);
             foreach (($labeledRaces[$plI]['horse_labels'] ?? []) as $plNum => $plLab) {
                 if (!isset($plVec['horses'][$plNum])) continue;
                 $plX4[] = $plVec['horses'][$plNum]; $plY4[] = (int)$plLab;
             }
         }
-        $plModels['M4'] = $this->_trainGbdtModel($plX4, $plY4);
+        $plModels['M4'] = self::_trainGbdtModel($plX4, $plY4);
 
         // ── ④ validation 区分で確率校正（train/test は使わない）──────────
         foreach (['M1', 'M2', 'M3'] as $plM) {
@@ -14392,11 +24332,11 @@ SYSTEM;
             foreach ($plIdx['validation'] as $plI) {
                 $plLab = $labeledRaces[$plI]['labels'][strtolower($plM)] ?? null;
                 if ($plLab === null) continue;
-                $plVec = $this->_vectorizeFeatures($labeledRaces[$plI]['features']);
-                $plP   = $this->_predictGbdt($plModels[$plM], $plVec['race']);
+                $plVec = self::_vectorizeFeatures($labeledRaces[$plI]['features']);
+                $plP   = self::_predictGbdt($plModels[$plM], $plVec['race']);
                 $plS[] = $plP['probability'] * 100.0; $plL[] = (int)$plLab;
             }
-            $plCalib[$plM] = $this->_calibrateProbabilities($plS, $plL);
+            $plCalib[$plM] = self::_calibrateProbabilities($plS, $plL);
         }
 
         // ── ⑤ test（未使用評価）で評価指標を算出 ────────────────────────
@@ -14407,12 +24347,12 @@ SYSTEM;
             foreach ($plIdx['test'] as $plI) {
                 $plLab = $labeledRaces[$plI]['labels'][strtolower($plM)] ?? null;
                 if ($plLab === null) continue;
-                $plVec = $this->_vectorizeFeatures($labeledRaces[$plI]['features']);
-                $plPr  = $this->_predictGbdt($plModels[$plM], $plVec['race']);
+                $plVec = self::_vectorizeFeatures($labeledRaces[$plI]['features']);
+                $plPr  = self::_predictGbdt($plModels[$plM], $plVec['race']);
                 $plP2[] = $plPr['probability']; $plL2[] = (int)$plLab;
                 $plMt[] = $labeledRaces[$plI]['meta'] ?? [];
             }
-            $plEval[$plM] = $this->_evaluateMlModel($plP2, $plL2, $plMt);
+            $plEval[$plM] = self::_evaluateMlModel($plP2, $plL2, $plMt);
         }
         // M4 の評価（仕様: 5着以内率 / 3着以内率 / 単複回収率 / 平均配当 /
         //   中央値配当 / 最大連敗 / 最大値除外後回収率 / 平均選出頭数を揃えた比較）
@@ -14420,13 +24360,13 @@ SYSTEM;
             $plP4 = []; $plL4 = []; $plM4t = []; $plCurSel = [];
             foreach ($plIdx['test'] as $plI) {
                 $plKey = (string)($labeledRaces[$plI]['key'] ?? '');
-                $plVec = $this->_vectorizeFeatures($labeledRaces[$plI]['features']);
+                $plVec = self::_vectorizeFeatures($labeledRaces[$plI]['features']);
                 // 現行版がこのレースで選んでいる馬番（平均選出頭数を揃えるために使う）
                 $plCurSel[$plKey] = array_map('intval',
                     (array)($labeledRaces[$plI]['current_ranking'] ?? []));
                 foreach (($labeledRaces[$plI]['horse_labels'] ?? []) as $plNum => $plLab) {
                     if (!isset($plVec['horses'][$plNum])) continue;
-                    $plPr = $this->_predictGbdt($plModels['M4'], $plVec['horses'][$plNum]);
+                    $plPr = self::_predictGbdt($plModels['M4'], $plVec['horses'][$plNum]);
                     $plP4[] = $plPr['probability']; $plL4[] = (int)$plLab;
                     $plHm = $labeledRaces[$plI]['horse_meta'][$plNum] ?? [];
                     $plHm['race_key'] = $plKey;
@@ -14434,14 +24374,14 @@ SYSTEM;
                     $plM4t[] = $plHm;
                 }
             }
-            $plEval['M4'] = $this->_evaluateM4Model($plP4, $plL4, $plM4t, $plCurSel);
+            $plEval['M4'] = self::_evaluateM4Model($plP4, $plL4, $plM4t, $plCurSel);
         }
 
         // ── ⑥ 現行版と学習版の並行比較 ──────────────────────────────────
         $plCompare = null;
         if (!empty($plIdx['test']) && ($plModels['M4']['metrics']['status'] ?? '') === 'trained') {
             $plI0   = $plIdx['test'][0];
-            $plVec0 = $this->_vectorizeFeatures($labeledRaces[$plI0]['features']);
+            $plVec0 = self::_vectorizeFeatures($labeledRaces[$plI0]['features']);
             // 現行版の順位（統合おすすめ度の降順＝保存済みの並び）
             $plCur = [];
             foreach (($labeledRaces[$plI0]['current_ranking'] ?? []) as $plRk => $plNum) {
@@ -14450,16 +24390,16 @@ SYSTEM;
             // 学習版の順位（M4確率の降順）
             $plProbs = [];
             foreach ($plVec0['horses'] as $plNum => $plHv) {
-                $plProbs[$plNum] = $this->_predictGbdt($plModels['M4'], $plHv)['probability'];
+                $plProbs[$plNum] = self::_predictGbdt($plModels['M4'], $plHv)['probability'];
             }
             arsort($plProbs);
             $plLrn = []; $plRk2 = 1;
             foreach ($plProbs as $plNum => $_p) $plLrn[] = ['num' => (int)$plNum, 'rank' => $plRk2++];
-            if (!empty($plCur)) $plCompare = $this->_compareModelVersions($plCur, $plLrn);
+            if (!empty($plCur)) $plCompare = self::_compareModelVersions($plCur, $plLrn);
         }
 
         // ── ⑦ レジストリへ登録（旧モデルは残す＝切戻し可能）──────────────
-        $plRegistry = $this->_buildModelRegistry('');
+        $plRegistry = self::_buildModelRegistry('');
         $plRegistry['active']['models']             = $plModels;
         $plRegistry['active']['model_hash']         = hash('sha256', json_encode(
             array_map(fn($m) => $m['model_hash'] ?? '', $plModels)
@@ -14492,7 +24432,7 @@ SYSTEM;
         ];
 
         // 評価指標をファイルへ保存する（保存先は _saveMlEvaluation() のコメント参照）
-        $plResult['evaluation_saved'] = $this->_saveMlEvaluation($plResult);
+        $plResult['evaluation_saved'] = self::_saveMlEvaluation($plResult);
 
         return $plResult;
     }
@@ -14506,9 +24446,9 @@ SYSTEM;
      * 保存済みスナップショットの features_json へ result_label として追記する。
      * 予測時点ではラベルが存在しないため、本処理で後から埋める。
      */
-    public function writeMlLabels(string $date, int $kaisuu, string $basho, int $day, int $race): array
+    public static function writeMlLabels(string $date, int $kaisuu, string $basho, int $day, int $race): array
     {
-        $wlLabels = $this->_calcMlLabels($date, $kaisuu, $basho, $day, $race);
+        $wlLabels = self::_calcMlLabels($date, $kaisuu, $basho, $day, $race);
         if (($wlLabels['detail']['status'] ?? '') !== 'confirmed') {
             return ['status' => 'pending', 'reason' => $wlLabels['detail']['reason'] ?? '結果未確定'];
         }
@@ -14589,7 +24529,7 @@ SYSTEM;
      * @param  array $y 正解ラベル（0 or 1）
      * @return array{trees:array, base_score:float, model_hash:string, metrics:array}
      */
-    private function _trainGbdtModel(
+    public static function _trainGbdtModel(
         array $X,
         array $y,
         int   $nEstimators = 60,
@@ -14634,14 +24574,14 @@ SYSTEM;
                 $gbG[$gbI] = ($gbPi - $gbYi) * $gbW;
                 $gbH[$gbI] = max(1e-6, $gbPi * (1.0 - $gbPi) * $gbW);
             }
-            $gbTree = $this->_gbdtBuildTree(
+            $gbTree = self::_gbdtBuildTree(
                 $X, $gbG, $gbH, range(0, $gbN - 1), $gbD, 0,
                 $maxDepth, $lambda, $gamma, $minChildSamples
             );
             $gbTrees[] = $gbTree;
             // 予測値を更新
             for ($gbI = 0; $gbI < $gbN; $gbI++) {
-                $gbF[$gbI] += $learningRate * $this->_gbdtTreePredict($gbTree, $X[$gbI]);
+                $gbF[$gbI] += $learningRate * self::_gbdtTreePredict($gbTree, $X[$gbI]);
             }
         }
 
@@ -14686,7 +24626,7 @@ SYSTEM;
      * 欠損（null）は「左へ送る」「右へ送る」の両方を試し、
      * 利得が大きい方を missing_left としてノードへ記録する。
      */
-    private function _gbdtBuildTree(
+    public static function _gbdtBuildTree(
         array $X, array $g, array $h, array $idx, int $dim, int $depth,
         int $maxDepth, float $lambda, float $gamma, int $minChild
     ): array {
@@ -14796,13 +24736,13 @@ SYSTEM;
             // -INF は「欠損 vs 非欠損」の分割を表す（round すると INF が壊れるため分岐）
             'threshold'    => is_finite($btBest['threshold']) ? round($btBest['threshold'], 8) : $btBest['threshold'],
             'missing_left' => $btBest['missing_left'],
-            'left'         => $this->_gbdtBuildTree($X, $g, $h, $btLeft,  $dim, $depth + 1, $maxDepth, $lambda, $gamma, $minChild),
-            'right'        => $this->_gbdtBuildTree($X, $g, $h, $btRight, $dim, $depth + 1, $maxDepth, $lambda, $gamma, $minChild),
+            'left'         => self::_gbdtBuildTree($X, $g, $h, $btLeft,  $dim, $depth + 1, $maxDepth, $lambda, $gamma, $minChild),
+            'right'        => self::_gbdtBuildTree($X, $g, $h, $btRight, $dim, $depth + 1, $maxDepth, $lambda, $gamma, $minChild),
         ];
     }
 
     /** GBDT: 1本の木の予測値を返す（欠損は学習した方向へ送る） */
-    private function _gbdtTreePredict(array $node, array $x): float
+    public static function _gbdtTreePredict(array $node, array $x): float
     {
         while (!isset($node['leaf'])) {
             $v = $x[$node['feature']] ?? null;
@@ -14821,7 +24761,7 @@ SYSTEM;
      * 欠損は 0 で埋めず null のまま渡すこと。
      * 木が学習済みの分岐方向（missing_left）に従って振り分ける。
      */
-    private function _predictGbdt(array $model, array $vector, float $learningRate = 0.1): array
+    public static function _predictGbdt(array $model, array $vector, float $learningRate = 0.1): array
     {
         if (empty($model['trees'])) {
             return ['probability' => 0.0, 'z' => 0.0, 'status' => 'skipped',
@@ -14829,7 +24769,7 @@ SYSTEM;
         }
         $pgZ = (float)($model['base_score'] ?? 0.0);
         foreach ($model['trees'] as $pgT) {
-            $pgZ += $learningRate * $this->_gbdtTreePredict($pgT, $vector);
+            $pgZ += $learningRate * self::_gbdtTreePredict($pgT, $vector);
         }
         return [
             'probability' => round(1.0 / (1.0 + exp(max(-60, min(60, -$pgZ)))), 6),
@@ -14854,7 +24794,7 @@ SYSTEM;
      * @param  array $f features_json をデコードした配列
      * @return array{race:array, race_keys:array, horses:array, horse_keys:array}
      */
-    private function _vectorizeFeatures(array $f): array
+    public static function _vectorizeFeatures(array $f): array
     {
         // 【仕様】欠損値は欠損フラグを別に持たせ、0へ置換しない。
         //   0で埋めると「値が0」と「データが無い」が区別できず、学習が歪む。
@@ -15012,7 +24952,7 @@ SYSTEM;
      * @param  array $y 正解ラベル（0 or 1）
      * @return array{weights:array, bias:float, model_hash:string, metrics:array}
      */
-    private function _trainMlModel(
+    public static function _trainMlModel(
         array $X,
         array $y,
         float $learningRate = 0.1,
@@ -15109,7 +25049,7 @@ SYSTEM;
      * @return array{probability:float, z:float, status:string}
      */
     /** 【仕様外・未使用】線形モデル用の推論。本番は _predictGbdt() を使う。 */
-    private function _predictMl(array $weights, float $bias, array $vector): array
+    public static function _predictMl(array $weights, float $bias, array $vector): array
     {
         if (empty($weights) || count($weights) !== count($vector)) {
             return ['probability' => 0.0, 'z' => 0.0, 'status' => 'skipped',
@@ -15139,9 +25079,9 @@ SYSTEM;
      * @param  array $models   ['M1'=>['weights'=>..,'bias'=>..], ...] 学習済みモデル
      * @return array 推論結果（シャドー値）
      */
-    private function _runMlInference(array $features, array $models = []): array
+    public static function _runMlInference(array $features, array $models = []): array
     {
-        $riPhase = $this->_getMlPhase();
+        $riPhase = self::_getMlPhase();
 
         // Phase1 は学習モデルが存在しないため推論しない
         if (!$riPhase['allow_inference'] || empty($models)) {
@@ -15156,7 +25096,7 @@ SYSTEM;
             ];
         }
 
-        $riVec = $this->_vectorizeFeatures($features);
+        $riVec = self::_vectorizeFeatures($features);
         $riOut = ['status' => 'inferred', 'phase' => $riPhase['phase'],
                   'production_reflected' => false, 'race_models' => [], 'm4' => []];
 
@@ -15167,7 +25107,7 @@ SYSTEM;
                 continue;
             }
             // 仕様: 決定木系 勾配ブースティング（GBDT）で推論する
-            $riOut['race_models'][$riM] = $this->_predictGbdt(
+            $riOut['race_models'][$riM] = self::_predictGbdt(
                 $models[$riM], $riVec['race'],
                 (float)($models[$riM]['learning_rate'] ?? 0.1)
             );
@@ -15176,7 +25116,7 @@ SYSTEM;
         // ── M4: 馬単位 ────────────────────────────────────────────────
         if (isset($models['M4']['trees'])) {
             foreach ($riVec['horses'] as $riNum => $riHv) {
-                $riP = $this->_predictGbdt(
+                $riP = self::_predictGbdt(
                     $models['M4'], $riHv, (float)($models['M4']['learning_rate'] ?? 0.1)
                 );
                 $riOut['m4'][$riNum] = $riP;
@@ -15215,7 +25155,7 @@ SYSTEM;
      * @return array{m1:?int, m2:?int, m3:?int, m4:array, detail:array}
      *         結果が未確定・取得できない場合は m1〜m3 が null（0ではない）
      */
-    private function _calcMlLabels(
+    public static function _calcMlLabels(
         string $date,
         int    $kaisuu,
         string $basho,
@@ -15388,7 +25328,7 @@ SYSTEM;
      *
      * 本番反映は、条件をすべて満たしても自動では解禁しない（明示許可が必要）。
      */
-    private function _getMlPhase(): array
+    public static function _getMlPhase(): array
     {
         $phCount = (int) DB::table('t_horse_odds_finder_ml_snapshot')->count();
 
@@ -15469,7 +25409,7 @@ SYSTEM;
      * @param  array $meta     各サンプルの付随情報 ['popularity'=>int,'odds'=>float,'gap_type'=>string]
      * @param  float $betThreshold 購入とみなす確率のしきい値
      */
-    private function _evaluateMlModel(
+    public static function _evaluateMlModel(
         array $probs,
         array $labels,
         array $meta = [],
@@ -15690,7 +25630,7 @@ SYSTEM;
      * @param array|null $currentSelection 現行版の選出 ['race_key' => [馬番, ...], ...]
      * @param float      $betThreshold     購入とみなす確率のしきい値
      */
-    private function _evaluateM4Model(
+    public static function _evaluateM4Model(
         array  $probs,
         array  $labels,
         array  $meta = [],
@@ -15881,7 +25821,7 @@ SYSTEM;
             'sample_count'   => $m4N,
             'bet_threshold'  => $betThreshold,
             // 共通指標（ROC-AUC / PR-AUC / F1 / Brier / 校正誤差 など）
-            'common_metrics' => $this->_evaluateMlModel($probs, $labels, $meta, $betThreshold),
+            'common_metrics' => self::_evaluateMlModel($probs, $labels, $meta, $betThreshold),
             // M4 固有指標（しきい値方式）: 全体
             'by_threshold'   => $m4Calc($m4ByTh),
             // 同じ指標の人気帯別内訳
@@ -15918,7 +25858,7 @@ SYSTEM;
      * @param  array $labels 正解ラベル（0 or 1）
      * @return array{a:float, b:float, calibrated:array, metrics:array}
      */
-    private function _calibrateProbabilities(array $scores, array $labels, int $iterations = 300): array
+    public static function _calibrateProbabilities(array $scores, array $labels, int $iterations = 300): array
     {
         $cbN = count($scores);
         if ($cbN === 0 || $cbN !== count($labels)) {
@@ -16028,7 +25968,7 @@ SYSTEM;
      * @param  array $learnedRanking 学習版の順位（同形式）
      * @return array 比較メトリクス
      */
-    private function _compareModelVersions(array $currentRanking, array $learnedRanking): array
+    public static function _compareModelVersions(array $currentRanking, array $learnedRanking): array
     {
         $cmCur = []; foreach ($currentRanking as $r) $cmCur[(int)$r['num']] = (int)$r['rank'];
         $cmLrn = []; foreach ($learnedRanking as $r) $cmLrn[(int)$r['num']] = (int)$r['rank'];
@@ -16107,7 +26047,7 @@ SYSTEM;
      * @param  int|null $limitDate この日付以前のスナップショットのみ対象（null=全件）
      * @return array{train:array, validation:array, test:array, summary:array}
      */
-    private function _assignTimeSeriesSplit(?string $limitDate = null): array
+    public static function _assignTimeSeriesSplit(?string $limitDate = null): array
     {
         $tsQuery = DB::table('t_horse_odds_finder_ml_snapshot')
             ->select(['date', 'kaisuu', 'basho_code', 'day', 'race'])
@@ -16179,7 +26119,7 @@ SYSTEM;
      *
      * @return array{active:array, registry:array, rollback_ready:bool}
      */
-    private function _buildModelRegistry(string $inputHash): array
+    public static function _buildModelRegistry(string $inputHash): array
     {
         // Phase1: 学習モデル未生成。現行のルールベース版のみが有効。
         $mrCurrent = [
@@ -16221,7 +26161,7 @@ SYSTEM;
      * 仕様では走破時計を別カラムで保持することになっているため数値へ直す。
      * 解釈できない値・空値は 0 ではなく null（欠損）を返す。
      */
-    private function _parseRaceTimeToSeconds($value): ?float
+    public static function _parseRaceTimeToSeconds($value): ?float
     {
         if ($value === null) return null;
         $rtStr = trim((string) $value);
@@ -16254,7 +26194,7 @@ SYSTEM;
      * @param  array|null $catDict   学習期間で作成済みのカテゴリ辞書（null=辞書未作成）
      * @return array{vectors:array, imputation:array, dict_used:array}
      */
-    private function _buildAbilityVectors(
+    public static function _buildAbilityVectors(
         array  $horseNums,
         string $date,
         int    $kaisuu,
@@ -16358,7 +26298,7 @@ SYSTEM;
                 $avSeries['gate'][$avI] = (isset($avR->gate) && $avR->gate !== '')
                                           ? (int)$avR->gate : null;
                 // 走破時計（"1:34.5" / "94.5" を秒へ。解釈できなければ null。0にしない）
-                $avSeries['time_sec'][$avI] = $this->_parseRaceTimeToSeconds($avR->time ?? null);
+                $avSeries['time_sec'][$avI] = self::_parseRaceTimeToSeconds($avR->time ?? null);
                 $avSeries['horse_weight'][$avI] = $avHw;
                 // 馬体重の増減（前走比）。前走が無ければ null
                 $avSeries['horse_weight_diff'][$avI] = ($avHw !== null && $avPrevWeight !== null)
@@ -16432,7 +26372,7 @@ SYSTEM;
                     $avAgg["{$avPfx}_count"]  = $avCnt;
                     // 件数0のとき平均等は null（0にしない＝「成績0」と誤認させない）
                     $avAgg["{$avPfx}_mean"]   = $avCnt ? round(array_sum($avVals) / $avCnt, 4) : null;
-                    $avAgg["{$avPfx}_median"] = $avCnt ? $this->_medianOf($avVals) : null;
+                    $avAgg["{$avPfx}_median"] = $avCnt ? self::_medianOf($avVals) : null;
                     $avAgg["{$avPfx}_min"]    = $avCnt ? min($avVals) : null;
                     $avAgg["{$avPfx}_max"]    = $avCnt ? max($avVals) : null;
                     if ($avCnt) {
@@ -16471,7 +26411,7 @@ SYSTEM;
                 $avN = count($avFinC);
                 $avCondAgg["{$avName}_count"]     = $avN;
                 $avCondAgg["{$avName}_mean"]      = $avN ? round(array_sum($avFinC) / $avN, 4) : null;
-                $avCondAgg["{$avName}_median"]    = $avN ? $this->_medianOf($avFinC) : null;
+                $avCondAgg["{$avName}_median"]    = $avN ? self::_medianOf($avFinC) : null;
                 $avCondAgg["{$avName}_best"]      = $avN ? min($avFinC) : null;
                 $avCondAgg["{$avName}_win_count"]  = $avN ? count(array_filter($avFinC, fn($v) => $v === 1)) : 0;
                 $avCondAgg["{$avName}_top3_count"] = $avN ? count(array_filter($avFinC, fn($v) => $v <= 3)) : 0;
@@ -16559,7 +26499,7 @@ SYSTEM;
         //   学習時は train 区分のみから作り直して model_version へ格納する。
         $avImput = [];
         foreach ($avAllForMedian as $avK => $avVals) {
-            $avImput[$avK] = $this->_medianOf($avVals);
+            $avImput[$avK] = self::_medianOf($avVals);
         }
 
         return [
@@ -16575,7 +26515,7 @@ SYSTEM;
     }
 
     /** 中央値（空配列なら null）。偶数個は中央2値の平均。 */
-    private function _medianOf(array $values): ?float
+    public static function _medianOf(array $values): ?float
     {
         $mdV = array_values(array_filter($values, fn($v) => $v !== null));
         $mdN = count($mdV);
@@ -16598,7 +26538,7 @@ SYSTEM;
      * @param  string $trainToDate   学習期間の終了日
      * @return array{course:array, grade:array, condition:array, jockey:array, meta:array}
      */
-    private function _buildCategoryDict(string $trainFromDate, string $trainToDate): array
+    public static function _buildCategoryDict(string $trainFromDate, string $trainToDate): array
     {
         $cdRows = DB::table('t_horse_odds_finder_shutsuba_history')
             ->where('date', '>=', $trainFromDate)
@@ -16664,7 +26604,7 @@ SYSTEM;
      * @param  array $oddsHorseBlocks 馬番 => 馬別プロンプトブロック（予測補正OPI抽出用）
      * @return array{bands:array, ranking:array, band_width:float, tiebreak_order:array}
      */
-    private function _calcBandBasedRanking(
+    public static function _calcBandBasedRanking(
         array $horses,
         array $b13ScoreAMap,
         array $b10ScoreDMap,
@@ -16838,7 +26778,7 @@ SYSTEM;
      * フェーズ1: 1,000レース分の特徴量を蓄積するだけ（予測は行わない）
      * result_label はレース結果確定後のバッチ処理で別途書き込む
      */
-    private function _saveMlSnapshot(
+    public static function _saveMlSnapshot(
         array  $mergedHorses,
         string $gapTypeForMerge,
         ?int   $primaryGapUpperPopForMerge,
@@ -16875,7 +26815,7 @@ SYSTEM;
         array  $b10ScoreEMap = []    // 【20260924】馬番→基礎点E（null=不明）
     ): void {
         // @ANCHOR-20261004-DRY-RUN  試算モードでは保存しない
-        if (self::$dryRunNoPersist) return;
+        if (AiController::$dryRunNoPersist) return;
         // ── Block 11: 断層パターン学習 特徴量スナップショット保存 ───────────────────
         // フェーズ1: 1,000レース分の特徴量を蓄積するだけ（予測は行わない）
         // result_label はレース結果確定後のバッチ処理で別途書き込む
@@ -17180,7 +27120,7 @@ SYSTEM;
             // 取得は「今走日より前」に限定し未来情報混入を防止している。
             // カテゴリ辞書は学習期間のみで作成する（Phase1は学習未実施のため null）
             $b11CatDict = null;
-            $b11AbilityRes = $this->_buildAbilityVectors(
+            $b11AbilityRes = self::_buildAbilityVectors(
                 array_map('intval', array_keys($b6TanPopMap)),
                 $date, $kaisuu, $basho, $day, $race, $raceRow, $b11CatDict
             );
@@ -17259,7 +27199,7 @@ SYSTEM;
                 // 【20260924 追加】仕様【予測入力特徴量】の馬別特徴のうち未保存だったもの
                 //   （流入ランク・直前流入・OPI3種・推定確定オッズと誤差・主断層からの距離・基礎点E）
                 //   欠損は null のまま保持し、別に missing_flags へ列挙する（0へ置換しない）
-                $_b11bf = $this->_parseHorseBlockFeatures($_b11block);
+                $_b11bf = self::_parseHorseBlockFeatures($_b11block);
                 $_b11bf['score_e_horse'] = $b10ScoreEMap[$_b11num] ?? null;
                 $_b11bf['gap_distance']  = ($primaryGapUpperPopForMerge !== null)
                     ? (int)$_b11pop - (int)$primaryGapUpperPopForMerge  // 正=断層下側で何順位下か、0以下=上側
@@ -17296,14 +27236,14 @@ SYSTEM;
             // ── 時系列分割 70/15/15（#49）とモデルレジストリ（#57）────────────
             // 分割は日付順で決定論的に行う（ランダム分割は未来情報混入のため禁止）
             try {
-                $b11Split = $this->_assignTimeSeriesSplit($date)['summary'];
+                $b11Split = self::_assignTimeSeriesSplit($date)['summary'];
             } catch (\Throwable $b11se) {
                 $b11Split = ['error' => $b11se->getMessage()];
             }
-            $b11ModelRegistry = $this->_buildModelRegistry($b11InputHash);
+            $b11ModelRegistry = self::_buildModelRegistry($b11InputHash);
 
             // ── 学習フェーズ判定（#55・#56）────────────────────────────
-            try { $b11Phase = $this->_getMlPhase(); }
+            try { $b11Phase = self::_getMlPhase(); }
             catch (\Throwable $b11pe) { $b11Phase = ['error' => $b11pe->getMessage()]; }
 
             // ── M1〜M4 推論エンジン実行（シャドー専用・Phase1ではskipped）──
@@ -17311,7 +27251,7 @@ SYSTEM;
             // 結果は保存するだけで、本番候補・順位・Flutter表示には反映しない。
             $b11MlModels = $b11ModelRegistry['active']['models'] ?? [];
             try {
-                $b11Inference = $this->_runMlInference(
+                $b11Inference = self::_runMlInference(
                     ['gap_type' => $gapTypeForMerge,
                      'primary_gap_upper_pop' => $primaryGapUpperPopForMerge,
                      'horse_count' => (int)$horseCount2nd,
@@ -17322,7 +27262,7 @@ SYSTEM;
 
             // ── 帯基準馬方式（5点比較帯）による決定論的順位を算出（シャドー専用）──
             // 本番順位（$mergedHorses の並び）は変更しない。結果は features_json へ保存するのみ。
-            $b11BandRanking = $this->_calcBandBasedRanking(
+            $b11BandRanking = self::_calcBandBasedRanking(
                 $mergedHorses, $b13ScoreAMap, $b10ScoreDMap, $oddsHorseBlocks
             );
 
@@ -17356,7 +27296,7 @@ SYSTEM;
                         'low_odds_exception'   => 'AND', // 例外3条件の結合方式
                         'recovery_min_sample'  => 30,    // 回収率有効サンプル数
                         // @ANCHOR-20260926-B12-RECOVERY-THRESHOLD（実処理と同じ値を記録する）
-                        'recovery_low_thresh'  => self::B12_RECOVERY_LOW_THRESH, // Block12 ハード除外閾値
+                        'recovery_low_thresh'  => AiController::B12_RECOVERY_LOW_THRESH, // Block12 ハード除外閾値
                         'recovery_high_thresh' => 110.0, // Block13a 例外③閾値
                         'score_a_thresh'       => 12,    // 複勝継続流入判定
                         'merge_bonus'          => 5,     // 一致馬ボーナス
@@ -17478,229 +27418,3460 @@ SYSTEM;
         }
         // ── Block 11 End ──────────────────────────────────────────────────────────
     }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-R122-PROMPT  r12.2 の両AI本文（1st・2nd）と INPUT_JSON
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 根拠：server_contract_r12.2.txt 6章・9章／詳細設計書 5章・13章
+ *       同梱 prompts/prompt_1st.txt・prompt_2nd.txt・common_prompt.txt
+ *       同梱 schemas/input_schema.json・source_registry_schema.json
+ *
+ * ■ ここが何をするところか
+ *   r12.2 では、AIへ送るものが2つとも入れ替わります。
+ *     ・system 本文   … 先方が配った prompt_1st.txt / prompt_2nd.txt の全文。
+ *                        <b>旧本文への追記ではなく、全文の置換です。</b>
+ *                        1st・2nd それぞれが単独で完全な本文なので、
+ *                        common_prompt.txt を後ろに足してはいけません
+ *                        （足すと同じ規則が二重に入ります）。
+ *     ・user 本文     … Laravel が作る INPUT_JSON 1個だけ。
+ *                        日本語の散文でオッズを並べる旧方式はやめます。
+ *
+ * ■ 本文を PHP の文字列に書き写さない理由
+ *   本文は先方が版管理している配布物です。コードへ書き写すと、
+ *   写し間違いが起きても誰も気づけません。配布ファイルをそのまま置き、
+ *   読み込むたびに
+ *       ・BEGIN/END マーカーがあるか
+ *       ・schema_version・prompt_version が r12.2 のものか
+ *       ・未置換の差し込み記号（{{ }}）が残っていないか
+ *       ・UTF-8 として壊れていないか
+ *   を確かめ、SHA-256 を記録します。
+ *
+ * ■ 置き場所
+ *   既定  storage/app/baganriki/prompts/r12_2/
+ *   .env の BAGANRIKI_R122_PROMPT_DIR で変えられます。
+ *   <b>新しい PHP ファイルは作りません。</b>本文は PHP ではなくデータです。
+ *
+ * ■ 機能フラグ
+ *   .env の BAGANRIKI_R122_PROMPT=1 のときだけ新しい送信文に切り替わります。
+ *   既定は 0（切）で、1バイトも今までと変わりません。
+ *   フラグを入れていても、INPUT_JSON を正しく作れないときは
+ *   <b>旧本文へ落ちずに送信を止めます</b>（契約11.2「正本が特定できない
+ *   レースは公開しない」。中途半端な入力でAIを呼ぶほうが危険です）。
+ *
+ * ■ snapshot_hash の作り方（ここは先方の実装と1バイト単位で合わせました）
+ *   対象   INPUT_JSON から ai_role・role_cap・role_quota・snapshot_hash を
+ *          外した残り（＝両roleで同一の共通本文）
+ *   並び   すべての階層でキーを文字列として昇順に並べ替える
+ *   書式   区切りは "," と ":"（余白なし）、非ASCIIはエスケープしない
+ *   SHA-256 を取り、snapshot_hash_version='exact-common-payload-sha256-r8'
+ *   先方の参照入力14本すべてで同じ値になることを --r122-prompt-check で
+ *   確かめています。
+ */
+final class BaganrikiPrompt
+{
+    public const BEGIN = '<<<BAGANRIKI_V041_R8_BEGIN>>>';
+    public const END   = '<<<BAGANRIKI_V041_R8_END>>>';
+
+    public const SCHEMA_VERSION = 'baganriki-v041-r12-2';
+    public const PROMPT_VERSION = 'baganriki-v041-r12-2-20261020';
+    public const HASH_VERSION   = 'exact-common-payload-sha256-r8';
+
+    /** 共通hashの対象から外すキー（契約5章） */
+    public const HASH_EXCLUDE = ['ai_role', 'role_cap', 'role_quota', 'snapshot_hash'];
+
+    /** 配布された本文ファイル名 */
+    public const FILES = ['1st' => 'prompt_1st.txt', '2nd' => 'prompt_2nd.txt',
+                          'common' => 'common_prompt.txt'];
 
     /**
-     * 馬眼力指数を返す
-     *
-     * 引数: date, kaisuu, basho_code (int), day, race
-     * 返値: [{num, name, uma_ganryoku_index}, ...]
+     * INPUT_JSON のトップレベル必須キー。
+     * input_schema.json の required と同じ<b>35件</b>です。
+     * @ANCHOR-20261020-R122-PROMPT  10月20日004のご指摘3
+     *   報告書に「34キー」と書いたのはこちらの数え間違いでした。
+     *   定数も照合処理も最初から35キーで動いています（件数は数えて出します）。
      */
-    public function getHorseOddsFinderBaganrikiIndex(Request $request)
+    public const TOP_KEYS = [
+        'schema_version', 'prompt_version', 'race_id', 'snapshot_hash',
+        'snapshot_hash_version', 'time_contract', 'cutoff_at', 'N', 'runners',
+        'source_registry', 'field_catalog', 'input_indices', 'legacy_gap_type',
+        'signals', 'S', 'S_min', 'S_max', 'mode', 'target_count', 'base_quota',
+        'quota', 'quota_adjustments', 'selection_enabled', 'display_rating',
+        'learning_stage', 'model_version', 'ai_role', 'role_cap', 'role_quota',
+        'coverage', 'mode_status', 'allocation_mode', 'mode_policy_id',
+        'input_freeze_at', 'collection_audit',
+    ];
+
+    /** coverage の7区分（契約3章・順序は問いません） */
+    public const COVERAGE_KEYS = ['past_runs', 'OPI', 'estimated_odds',
+        'recovery_statistics', 'similar_statistics', 'legacy_qualifications',
+        'gap_history'];
+
+    /**
+     * 項目辞書の定義。
+     * 値そのものからは単位や下限を決められないので、知っている項目は表で持ちます。
+     * 知らない項目が来たら登録内容から組み立てます（取りこぼしを作らないため）。
+     */
+    public const FIELD_DEFS = [
+        'win_odds'         => ['unit' => 'odds',  'value_type' => 'number',
+                               'missing_allowed' => true, 'minimum' => 0, 'maximum' => null],
+        'place_min'        => ['unit' => 'odds',  'value_type' => 'number',
+                               'missing_allowed' => true, 'minimum' => 0, 'maximum' => null],
+        'place_max'        => ['unit' => 'odds',  'value_type' => 'number',
+                               'missing_allowed' => true, 'minimum' => 0, 'maximum' => null],
+        'past_performance' => ['unit' => 'index', 'value_type' => 'number',
+                               'missing_allowed' => true, 'minimum' => 0, 'maximum' => null],
+    ];
+
+    /** JSONの制限（契約9章・出力側と同じ値を入力側にも当てます） */
+    public const MAX_DEPTH  = 64;
+    public const MAX_DIGITS = 128;
+
+    // ───────────────────────────────────────────────────────────────────────
+    // 本文（system）
+    // ───────────────────────────────────────────────────────────────────────
+
+    /** 機能フラグ。既定は切。 */
+    /**
+     * @ANCHOR-20261020-R122-SHADOW  .env の BAGANRIKI_R122_PROMPT は3つの値を取ります
+     *   0       … 何もしません（既定）。旧本文のままです。
+     *   shadow  … r12.2 の入力を組み立てて<b>凍結保存だけ</b>します。
+     *             AIへ送る本文は<b>旧本文のまま</b>です。
+     *             初めて実物で動かす日に、いまの商品を落とさずに
+     *             「入力が作れるか・大きさ・coverage・取得監査の紐づき」
+     *             だけを実測するための段です。
+     *   1       … r12.2 の本文で送ります。契約どおり、作れないレースは
+     *             送信を止めます（旧本文へは落ちません）。
+     */
+    public static function mode(): string
     {
-        $date      = $request->query('date');
-        $kaisuu    = $request->query('kaisuu');
-        $bashoCode = intval($request->query('basho_code'));
-        $day       = $request->query('day');
-        $race      = intval($request->query('race'));
+        $v = strtolower(trim((string) env('BAGANRIKI_R122_PROMPT', '0')));
+        if (in_array($v, ['1', 'true', 'on', 'yes'], true)) { return 'on'; }
+        if (in_array($v, ['shadow', 'record', 'dry'], true)) { return 'shadow'; }
+        return 'off';
+    }
 
-        // ─── レース存在確認 ───────────────────────────────────────────────
-        $raceRow = DB::table('t_horse_odds_finder_races')
-            ->where('date',   $date)
-            ->where('kaisuu', $kaisuu)
-            ->where('basho',  $bashoCode)
-            ->where('day',    $day)
-            ->where('race',   $race)
-            ->first();
+    /** 入力の組み立てを動かすか（shadow と on） */
+    public static function enabled(): bool
+    {
+        return self::mode() !== 'off';
+    }
 
-        if (!$raceRow) {
-            return response()->json(['data' => []]);
+    /** r12.2 の本文で実際に送るか（on だけ） */
+    public static function sending(): bool
+    {
+        return self::mode() === 'on';
+    }
+
+    /** 本文の置き場所 */
+    public static function dir(): string
+    {
+        $d = (string) env('BAGANRIKI_R122_PROMPT_DIR', '');
+        if ($d !== '') return rtrim($d, '/');
+        return rtrim(storage_path('app/baganriki/prompts/r12_2'), '/');
+    }
+
+    /**
+     * 本文を読み、そのまま使えるかどうかを確かめます。
+     * 使えないときは ok=false を返し、呼び出し側は送信しません。
+     *
+     * @param string $role '1st'|'2nd'|'common'
+     * @return array ['ok','body','path','sha256','bytes','lines','reason','checks']
+     */
+    public static function systemBody(string $role): array
+    {
+        $out = ['ok' => false, 'body' => null, 'path' => null, 'sha256' => null,
+                'bytes' => 0, 'lines' => 0, 'reason' => null, 'checks' => []];
+        if (!isset(self::FILES[$role])) {
+            $out['reason'] = "role が違います（{$role}）";
+            return $out;
         }
+        $path = self::dir() . '/' . self::FILES[$role];
+        $out['path'] = $path;
+        if (!is_file($path) || !is_readable($path)) {
+            $out['reason'] = '本文ファイルがありません: ' . $path;
+            return $out;
+        }
+        $body = file_get_contents($path);
+        if ($body === false || $body === '') {
+            $out['reason'] = '本文ファイルが空です: ' . $path;
+            return $out;
+        }
+        // BOM は送信文に混ぜません（hashが変わるため）
+        if (strncmp($body, "\xEF\xBB\xBF", 3) === 0) $body = substr($body, 3);
+        $out['body']   = $body;
+        $out['sha256'] = hash('sha256', $body);
+        $out['bytes']  = strlen($body);
+        $out['lines']  = substr_count($body, "\n") + 1;
 
-        // ─── 出走馬情報の取得 ─────────────────────────────────────────────
-        $horses = DB::table('t_horse_odds_finder_horses')
-            ->where('date',   $date)
-            ->where('kaisuu', $raceRow->kaisuu)
-            ->where('basho',  $raceRow->basho)
-            ->where('day',    $raceRow->day)
-            ->where('race',   $raceRow->race)
-            ->orderBy('num')
-            ->get()
-            ->keyBy('num');
+        $checks = [];
+        $checks['utf8']           = (mb_check_encoding($body, 'UTF-8') === true);
+        $checks['has_begin']      = (strpos($body, self::BEGIN) !== false);
+        $checks['has_end']        = (strpos($body, self::END) !== false);
+        $checks['schema_version'] = (strpos($body, self::SCHEMA_VERSION) !== false);
+        $checks['prompt_version'] = (strpos($body, self::PROMPT_VERSION) !== false);
+        $checks['no_placeholder'] = (strpos($body, '{{') === false);
+        if ($role !== 'common') {
+            // それぞれが単独で完全な本文であることの目印（共通部の見出し）
+            $checks['has_common_part'] = (strpos($body, '【最優先規則】') !== false);
+            $checks['has_output_part'] = (strpos($body, '【出力形式】') !== false);
+            $checks['has_input_part']  = (strpos($body, '【実入力】') !== false);
+        }
+        $out['checks'] = $checks;
+        $bad = array_keys(array_filter($checks, static fn($v) => $v !== true));
+        if ($bad !== []) {
+            $out['reason'] = '本文の確認に失敗しました: ' . implode('・', $bad);
+            return $out;
+        }
+        $out['ok'] = true;
+        return $out;
+    }
 
-        // ─── オッズ取得（999=計測前, 21分前, 6分前） ─────────────────────
-        $oddsRows = DB::table('t_horse_odds_finder_odds')
-            ->where('date',   $date)
-            ->where('kaisuu', $raceRow->kaisuu)
-            ->where('basho',  $raceRow->basho)
-            ->where('day',    $raceRow->day)
-            ->where('race',   $raceRow->race)
-            ->whereIn('minutes_before_start', [999, 21, 6])
-            ->get();
+    // ───────────────────────────────────────────────────────────────────────
+    // 正規化とhash
+    // ───────────────────────────────────────────────────────────────────────
 
-        $oddsByNum = [];
-        foreach ($oddsRows as $row) {
-            if (!is_numeric($row->odds)) continue;   // 【20260924】「取消」等は人気順計算から除外
-            $num    = $row->num;
-            $timing = $row->minutes_before_start;
-            if (!isset($oddsByNum[$num])) {
-                $oddsByNum[$num] = ['tan' => [], 'fuku_min' => []];
+    /**
+     * すべての階層でキーを文字列として昇順に並べ替えます。
+     * 配列（0始まりの連番）は順序を変えません（runners や source_refs の順は意味を持つ）。
+     * 空の連想配列は {} として残すため stdClass に替えます（[] になると別物）。
+     */
+    public static function sortDeep($v)
+    {
+        if ($v instanceof \stdClass) {
+            $v = (array) $v;
+            if ($v === []) return new \stdClass();
+        }
+        if (!is_array($v)) return $v;
+        $isList = array_keys($v) === range(0, count($v) - 1);
+        if ($isList) {
+            $out = [];
+            foreach ($v as $x) $out[] = self::sortDeep($x);
+            return $out;
+        }
+        $keys = array_map('strval', array_keys($v));
+        $vals = array_values($v);
+        array_multisort($keys, SORT_ASC, SORT_STRING, $vals);
+        $out = [];
+        foreach ($keys as $i => $k) $out[$k] = self::sortDeep($vals[$i]);
+        return $out;
+    }
+
+    /**
+     * 共通hashの対象文（キー昇順・余白なし・非ASCIIはそのまま）。
+     * 先方の python 実装 json.dumps(sort_keys=True, separators=(',',':'),
+     * ensure_ascii=False) と1バイト単位で同じになることを確かめています。
+     */
+    public static function canonical($v): ?string
+    {
+        // JSON_PARTIAL_OUTPUT_ON_ERROR は付けません。付けると NaN / Infinity が
+        // 黙って 0 に置き換わり、気づかないまま送ってしまいます。
+        $json = json_encode(self::sortDeep($v),
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            | JSON_PRESERVE_ZERO_FRACTION);
+        if ($json === false) return null;
+        if (json_last_error() !== JSON_ERROR_NONE) return null;
+        return $json;
+    }
+
+    /**
+     * snapshot_hash。role に依存する4キーを外してから取ります。
+     * @return array ['ok','json','hash','hash_version','reason']
+     */
+    public static function commonHash(array $input): array
+    {
+        foreach (self::HASH_EXCLUDE as $k) unset($input[$k]);
+        $json = self::canonical($input);
+        if ($json === null) {
+            return ['ok' => false, 'json' => null, 'hash' => null,
+                    'hash_version' => self::HASH_VERSION,
+                    'reason' => '共通本文をJSONにできませんでした'];
+        }
+        return ['ok' => true, 'json' => $json, 'hash' => hash('sha256', $json),
+                'hash_version' => self::HASH_VERSION, 'reason' => null];
+    }
+
+    /**
+     * 送信する user 本文。契約9章の制限（入れ子64階層・数値128桁）を確かめます。
+     * 送信文のキー順は hash と同じ昇順に揃えます（差分を読むときに楽なので）。
+     * @return array ['ok','json','bytes','depth','reason']
+     */
+    public static function encode(array $input): array
+    {
+        $depth = self::depthOf($input);
+        if ($depth > self::MAX_DEPTH) {
+            return ['ok' => false, 'json' => null, 'bytes' => 0, 'depth' => $depth,
+                    'reason' => '入れ子が ' . $depth . ' 階層で上限64を超えています'];
+        }
+        $long = self::tooLongNumber($input);
+        if ($long !== null) {
+            return ['ok' => false, 'json' => null, 'bytes' => 0, 'depth' => $depth,
+                    'reason' => '数値の桁数が上限128を超えています: ' . $long];
+        }
+        $json = self::canonical($input);
+        if ($json === null) {
+            return ['ok' => false, 'json' => null, 'bytes' => 0, 'depth' => $depth,
+                    'reason' => 'INPUT_JSON を作れませんでした'];
+        }
+        if (strpos($json, 'NaN') !== false || strpos($json, 'Infinity') !== false) {
+            return ['ok' => false, 'json' => null, 'bytes' => 0, 'depth' => $depth,
+                    'reason' => 'NaN / Infinity が混ざっています'];
+        }
+        return ['ok' => true, 'json' => $json, 'bytes' => strlen($json),
+                'depth' => $depth, 'reason' => null];
+    }
+
+    /**
+     * RFC3339（秒まで必須・タイムゾーン必須）。
+     * マイクロ秒が 0 のときは小数部を付けません。
+     * 同梱スキーマは小数部を任意にしていますが、先方の参照入力は
+     * 小数部なしで書かれているため、同じ書き方にそろえます
+     * （snapshot_hash は本文のバイト列から取るので、書き方がそろっていないと
+     *   同じ内容でも値が変わります）。
+     */
+    public static function rfc3339(int $us): string
+    {
+        return str_replace('.000000', '', BaganrikiTime::toJst($us));
+    }
+
+    /** 入れ子の深さ */
+    public static function depthOf($v, int $cur = 1): int
+    {
+        if ($v instanceof \stdClass) $v = (array) $v;
+        if (!is_array($v) || $v === []) return $cur;
+        $max = $cur;
+        foreach ($v as $x) {
+            $d = self::depthOf($x, $cur + 1);
+            if ($d > $max) $max = $d;
+        }
+        return $max;
+    }
+
+    /** 128桁を超える数値があればその場所を返します */
+    public static function tooLongNumber($v, string $path = '')
+    {
+        if ($v instanceof \stdClass) $v = (array) $v;
+        if (is_array($v)) {
+            foreach ($v as $k => $x) {
+                $r = self::tooLongNumber($x, $path . '/' . $k);
+                if ($r !== null) return $r;
             }
-            $oddsByNum[$num]['tan'][$timing]      = floatval($row->odds);
-            $oddsByNum[$num]['fuku_min'][$timing] = floatval($row->fuku_min);
+            return null;
         }
+        if (is_int($v) || is_float($v)) {
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-PROMPT  指数表記を展開して桁を数えます
+            // ══════════════════════════════════════════════════════════
+            // 【直した中身】(string) だけで数えていたので、1.0E+129 のような
+            //   指数表記が「6桁」に見えて、桁あふれを見逃していました。
+            //   受入試験 R122-P01「129桁の整数は送らない」が不合格でした。
+            //   十進数で書いたときの桁数（整数部＋小数部）で数えます。
+            if (is_int($v)) {
+                $digits = strlen((string) abs($v));
+            } else {
+                if (!is_finite($v)) return ($path === '' ? '(root)' : $path);
+                $abs    = abs($v);
+                $digits = strlen(sprintf('%.0F', $abs));     // 整数部（指数を展開）
+                $short  = (string) $abs;                      // 最短表記
+                if (stripos($short, 'e') === false) {
+                    $dot = strpos($short, '.');
+                    if ($dot !== false) $digits += strlen(substr($short, $dot + 1));
+                }
+            }
+            if ($digits > self::MAX_DIGITS) return ($path === '' ? '(root)' : $path);
+        }
+        return null;
+    }
 
-        // ─── プロンプト用データの組み立て ────────────────────────────────
-        $promptHorses = [];
-        foreach ($oddsByNum as $num => $o) {
-            $tanBase = $o['tan'][999] ?? null;
-            $tan6    = $o['tan'][6]   ?? null;
-            if ($tanBase === null || $tan6 === null || $tanBase == 0) continue;
+    // ───────────────────────────────────────────────────────────────────────
+    // INPUT_JSON の組み立て
+    // ───────────────────────────────────────────────────────────────────────
 
-            $name = isset($horses[$num]) ? $horses[$num]->name : '馬' . $num;
+    /** 登録索引のキー（先方の examples と同じ形。slot が無いときは文字 None） */
+    public static function indexKey(array $e): string
+    {
+        $slot = ($e['slot_offset'] === null) ? 'None' : (string) $e['slot_offset'];
+        $scope = (string) ($e['scope'] ?? 'HORSE');
+        $field = (string) ($e['field'] ?? '');
+        if ($scope === 'HORSE') {
+            $no = (int) (($e['horse_nos'][0]) ?? 0);
+            return 'horse/' . $no . '/' . $field . '/' . $slot;
+        }
+        if ($scope === 'PAIR') {
+            $ns = array_map('intval', (array) ($e['horse_nos'] ?? []));
+            sort($ns);
+            return 'pair/' . implode('-', $ns) . '/' . $field . '/' . $slot;
+        }
+        if ($scope === 'COHORT') {
+            $ns = array_map('intval', (array) ($e['applicable_horse_nos'] ?? []));
+            sort($ns);
+            return 'cohort/' . implode('-', $ns) . '/' . $field . '/' . $slot;
+        }
+        return 'race/' . $field . '/' . $slot;
+    }
 
-            $promptHorses[] = [
-                'num'             => $num,
-                'name'            => $name,
-                'tan_series'      => $o['tan'],
-                'fuku_min_series' => $o['fuku_min'],
-                'odds_6'          => $tan6,
-                'fuku_min_6'      => $o['fuku_min'][6] ?? null,
+    /** 登録から項目辞書を作ります */
+    public static function fieldCatalogFor(array $registry): array
+    {
+        $cat = [];
+        foreach ($registry as $e) {
+            $f = (string) ($e['field'] ?? '');
+            if ($f === '' || isset($cat[$f])) continue;
+            $def = self::FIELD_DEFS[$f] ?? null;
+            $vt = 'number';
+            if ($def === null) {
+                $v = $e['value'] ?? null;
+                if (is_bool($v))        $vt = 'boolean';
+                elseif (is_string($v))  $vt = 'string';
+                $def = ['unit' => (string) ($e['unit'] ?? 'unit'), 'value_type' => $vt,
+                        'missing_allowed' => true, 'minimum' => null, 'maximum' => null];
+            }
+            $cat[$f] = [
+                'unit'            => $def['unit'],
+                'scope'           => (string) ($e['scope'] ?? 'HORSE'),
+                'display_label'   => $f,
+                'value_type'      => $def['value_type'],
+                'missing_allowed' => $def['missing_allowed'],
+                'minimum'         => $def['minimum'],
+                'maximum'         => $def['maximum'],
             ];
         }
+        return $cat;
+    }
 
-        if (empty($promptHorses)) {
-            return response()->json(['data' => []]);
+    /** 登録から索引を作ります（同じ場所に2件あれば並べます） */
+    public static function indicesFor(array $registry): array
+    {
+        $idx = [];
+        foreach ($registry as $ref => $e) {
+            $k = self::indexKey($e);
+            $idx[$k][] = (string) ($e['source_ref'] ?? $ref);
         }
+        foreach ($idx as $k => $v) {
+            $v = array_values(array_unique($v));
+            sort($v, SORT_STRING);
+            $idx[$k] = $v;
+        }
+        return $idx;
+    }
 
-        // ─── 人気順の決定（6分前の単勝オッズ昇順） ───────────────────────
-        usort($promptHorses, function ($a, $b) {
-            if ($a['odds_6'] !== $b['odds_6']) {
-                return $a['odds_6'] <=> $b['odds_6'];
+    /**
+     * 文脈から INPUT_JSON を組み立てます。
+     *
+     * $ctx に入れるもの（呼び出し側が正本から用意します）
+     *   race_id            文字列
+     *   anchor_at          発走時刻（RFC3339・秒必須・TZ必須）
+     *   sales_close_at     投票締切（同）。<b>null なら作りません。</b>
+     *   registry           source_ref => 登録1件（source_registry_schema と同じ形）
+     *   audit              スロット => 取得監査1件（collection_audit と同じ形）
+     *   coverage           7区分の状態
+     *   entry_nums         出馬表の馬番（任意・集合照合に使う）
+     *   cancelled          正式取消の馬番（任意）
+     *   legacy_gap_type    旧断層タイプ（無ければ null）
+     *   similar            X6 の類似統計（無ければ null＝N>=7で不明）
+     *
+     * @return array ['ok','input','code','reason','derived']
+     */
+    public static function buildInput(array $ctx, string $role): array
+    {
+        $ng = static fn(string $code, string $why) =>
+            ['ok' => false, 'input' => null, 'code' => $code, 'reason' => $why,
+             'derived' => []];
+
+        if (!in_array($role, ['1st', '2nd'], true)) {
+            return $ng('ROLE_INVALID', 'role は 1st か 2nd だけです');
+        }
+        $raceId = (string) ($ctx['race_id'] ?? '');
+        if ($raceId === '') return $ng('ENTRY_MISSING', 'race_id がありません');
+
+        // ── 時刻契約 ───────────────────────────────────────────────────
+        $anchorUs = BaganrikiTime::us($ctx['anchor_at'] ?? null);
+        if ($anchorUs === null) {
+            return $ng('TIME_CONTRACT_INVALID',
+                       '発走時刻を RFC3339（秒・タイムゾーン必須）として読めません');
+        }
+        $salesUs = BaganrikiTime::us($ctx['sales_close_at'] ?? null);
+        if ($salesUs === null) {
+            // 契約11.2。推測した締切でAIを呼ぶことはしません。
+            return $ng('SALES_CLOSE_UNRESOLVED',
+                       '投票締切の正本が特定できないため送信しません（契約11.2）');
+        }
+        $time = [
+            'version'            => 'baganriki-post-slot-grace-v1',
+            'anchor_kind'        => 'POST_TIME',
+            'anchor_at'          => self::rfc3339($anchorUs),
+            'snapshot_offsets'   => BaganrikiTime::INPUT_SLOTS,
+            'sampling_policy_id' => 'SLOT_FIRST_VALID_COMMITTED_V1',
+            'reply_deadline'     => self::rfc3339(BaganrikiTime::replyDeadline($salesUs)),
+            'publish_deadline'   => self::rfc3339(BaganrikiTime::publishDeadline($salesUs)),
+            'sales_close_at'     => self::rfc3339($salesUs),
+            'safety_margin_ms'   => BaganrikiTime::SAFETY_MARGIN_SEC * 1000,
+            'acquisition_grace_ms' => BaganrikiTime::GRACE_MS,
+        ];
+        $cutoffUs = BaganrikiTime::cutoff($anchorUs);
+        $freezeUs = BaganrikiTime::inputFreeze($anchorUs);
+
+        // ── 取得監査 ───────────────────────────────────────────────────
+        $audit = (array) ($ctx['audit'] ?? []);
+        if (!isset($audit[6]) && !isset($audit['6'])) {
+            return $ng('COLLECTION_AUDIT_MISSING',
+                       '6分前の取得監査がありません（6分前は必須です）');
+        }
+        $auditOut = [];
+        foreach (BaganrikiTime::INPUT_SLOTS as $slot) {
+            $a = $audit[$slot] ?? $audit[(string) $slot] ?? null;
+            if ($a === null) {
+                $auditOut[(string) $slot] = ['status' => 'UNAVAILABLE',
+                    'reason' => 'このスロットの採用できる監査行がありません'];
+                continue;
             }
-            return $a['num'] <=> $b['num'];
+            $auditOut[(string) $slot] = $a;
+        }
+        if (($auditOut['6']['status'] ?? '') !== 'ADOPTED') {
+            return $ng('COLLECTION_AUDIT_MISSING',
+                       '6分前の取得監査が ADOPTED ではありません');
+        }
+
+        // ── 登録・辞書・索引 ──────────────────────────────────────────
+        $registry = (array) ($ctx['registry'] ?? []);
+        if ($registry === []) {
+            return $ng('SOURCE_REGISTRY_EMPTY', 'source_registry が空です');
+        }
+        foreach ($registry as $ref => $e) {
+            $miss = [];
+            foreach (['source_ref', 'race_id', 'value', 'scope', 'horse_nos',
+                      'applicable_horse_nos', 'field', 'unit', 'slot_offset',
+                      'observed_at', 'available_at', 'computed_at', 'source_kind',
+                      'parents', 'formula_id', 'formula_version', 'dependency_key',
+                      'dependency_role'] as $k) {
+                if (!array_key_exists($k, (array) $e)) $miss[] = $k;
+            }
+            if ($miss !== []) {
+                return $ng('SOURCE_REGISTRY_INVALID',
+                           $ref . ' に ' . implode('・', $miss) . ' がありません');
+            }
+        }
+
+        // ── 凍結集合と N ───────────────────────────────────────────────
+        //   6分前の単勝だけが凍結順位の土台です。欠けていれば作りません。
+        $win6 = [];
+        foreach ($registry as $e) {
+            if (($e['field'] ?? '') !== 'win_odds') continue;
+            if ((int) ($e['slot_offset'] ?? -1) !== 6) continue;
+            $no = (int) (($e['horse_nos'][0]) ?? 0);
+            if ($no <= 0) continue;
+            $v = $e['value'];
+            if ($v === null) continue;
+            $win6[$no] = is_string($v) ? trim($v) : $v;
+        }
+        $cancelled = array_map('intval', (array) ($ctx['cancelled'] ?? []));
+        foreach ($cancelled as $no) unset($win6[$no]);
+        if (count($win6) < 2) {
+            return $ng('ODDS_SERIES_INCOMPLETE',
+                       '6分前の単勝オッズが2頭ぶんに届きません');
+        }
+        $entryNums = ($ctx['entry_nums'] ?? null);
+        if (is_array($entryNums) && $entryNums !== []) {
+            $lack = array_values(array_diff(
+                array_map('intval', $entryNums), $cancelled, array_keys($win6)));
+            if ($lack !== []) {
+                return $ng('ODDS_SERIES_INCOMPLETE',
+                           '6分前の単勝が無い馬がいます: ' . implode('・', $lack));
+            }
+        }
+        $fr = BaganrikiSnapshot::frozenRank($win6);
+        if (($fr['ok'] ?? false) !== true) {
+            return $ng((string) ($fr['code'] ?? 'FREEZE_ODDS_MISSING'),
+                       (string) ($fr['reason'] ?? '凍結順位を作れません'));
+        }
+        $frozen = $fr['rank'];                            // 馬番 => 凍結人気
+        $N = count($frozen);
+        $runners = [];
+        foreach ($frozen as $no => $rank) {
+            $runners[] = ['horse_no' => (int) $no, 'win_rank' => (int) $rank,
+                          'band' => BaganrikiAllocation::v04Band((int) $rank)];
+        }
+        usort($runners, static fn($a, $b) => $a['win_rank'] <=> $b['win_rank']);
+
+        // ── 信号・mode ────────────────────────────────────────────────
+        //   判定は本番側の実装（BaganrikiSignals）をそのまま使います。
+        //   検証側（--mode-check）との72レース突き合わせで食い違い0です。
+        $pHorses = self::horsesForSignals($registry, $frozen);
+        $pairs   = BaganrikiSignals::v04Pairs($pHorses);
+        $flags   = BaganrikiSignals::v04DeriveFlags($N, $pairs, $pHorses,
+                                                    $ctx['similar'] ?? null);
+        $cls     = BaganrikiSignals::v04Classify($flags['flags']);
+        $tri = static function ($v) {
+            if ($v === 'TRUE')  return true;
+            if ($v === 'FALSE') return false;
+            return null;
+        };
+        $signals = [];
+        foreach (['X1', 'X2', 'X3', 'X4', 'X5', 'X6', 'Z'] as $k) {
+            $signals[$k] = $tri($flags['flags'][$k] ?? 'UNKNOWN');
+        }
+
+        // ── 配分 ──────────────────────────────────────────────────────
+        $alloc = BaganrikiAllocation::v04Allocation($N, $cls);
+        $baseQ = $alloc['base_quota'] ?? null;
+        $selEnabled = (bool) $cls['selection_enabled'];
+        $quota = $alloc['quota'];
+        if ($role === '1st') {
+            $roleQuota = $selEnabled ? $quota : null;
+            $roleCap   = $selEnabled ? (int) $alloc['target_count'] : 0;
+        } else {
+            $roleQuota = $selEnabled ? $alloc['quota_2nd'] : null;
+            $roleCap   = $selEnabled ? min(5, (int) $alloc['target_count']) : 0;
+        }
+
+        // ── 組み立て ──────────────────────────────────────────────────
+        $input = [
+            'schema_version'        => self::SCHEMA_VERSION,
+            'prompt_version'        => self::PROMPT_VERSION,
+            'race_id'               => $raceId,
+            'snapshot_hash'         => '',           // あとで入れます
+            'snapshot_hash_version' => self::HASH_VERSION,
+            'time_contract'         => $time,
+            'cutoff_at'             => self::rfc3339($cutoffUs),
+            'input_freeze_at'       => self::rfc3339($freezeUs),
+            'N'                     => $N,
+            'runners'               => $runners,
+            'source_registry'       => $registry,
+            'field_catalog'         => self::fieldCatalogFor($registry),
+            'input_indices'         => self::indicesFor($registry),
+            'legacy_gap_type'       => $ctx['legacy_gap_type'] ?? null,
+            'signals'               => $signals,
+            'S'                     => $cls['S'],
+            'S_min'                 => (int) $cls['S_min'],
+            'S_max'                 => (int) $cls['S_max'],
+            'mode'                  => (string) $cls['mode'],
+            'target_count'          => (int) $alloc['target_count'],
+            'base_quota'            => $baseQ,
+            'quota'                 => $quota,
+            'quota_adjustments'     => array_values((array) $alloc['quota_adjustments']),
+            'selection_enabled'     => $selEnabled,
+            'display_rating'        => $cls['display_rating'],
+            'learning_stage'        => 'COLLECT_ONLY',
+            'model_version'         => null,
+            'ai_role'               => $role,
+            'role_cap'              => $roleCap,
+            'role_quota'            => $roleQuota,
+            'coverage'              => self::coverageOf($ctx['coverage'] ?? null),
+            'mode_status'           => (string) $cls['mode_status'],
+            'allocation_mode'       => $cls['allocation_mode'],
+            'mode_policy_id'        => (string) $cls['mode_policy_id'],
+            'collection_audit'      => $auditOut,
+        ];
+        $h = self::commonHash($input);
+        if (!$h['ok']) return $ng('SNAPSHOT_HASH_FAILED', (string) $h['reason']);
+        $input['snapshot_hash'] = $h['hash'];
+
+        $miss = array_values(array_diff(self::TOP_KEYS, array_keys($input)));
+        if ($miss !== []) {
+            return $ng('INPUT_KEYS_MISSING', '必須キーが足りません: ' . implode('・', $miss));
+        }
+        $extra = array_values(array_diff(array_keys($input), self::TOP_KEYS));
+        if ($extra !== []) {
+            return $ng('INPUT_KEYS_EXTRA', '余分なキーがあります: ' . implode('・', $extra));
+        }
+
+        return ['ok' => true, 'input' => $input, 'code' => null, 'reason' => null,
+                'derived' => ['N' => $N, 'flags' => $flags['flags'],
+                              'mode' => $cls['mode'], 'mode_status' => $cls['mode_status'],
+                              'snapshot_hash' => $h['hash'],
+                              'common_json_bytes' => strlen((string) $h['json'])]];
+    }
+
+    /** coverage を7区分そろえます。指定が無い区分は UNAVAILABLE にします。 */
+    public static function coverageOf($given): array
+    {
+        $g = is_array($given) ? $given : [];
+        $out = [];
+        foreach (self::COVERAGE_KEYS as $k) {
+            $v = $g[$k] ?? null;
+            if (is_array($v) && ($v['status'] ?? '') === 'INCLUDED'
+                && !empty($v['source_refs'])) {
+                $refs = array_values(array_unique(array_map('strval', $v['source_refs'])));
+                $out[$k] = ['status' => 'INCLUDED', 'source_refs' => $refs];
+                continue;
+            }
+            $reason = (is_array($v) && isset($v['reason']) && (string) $v['reason'] !== '')
+                    ? (string) $v['reason']
+                    : 'この区分の実データを入力へ入れていません';
+            $out[$k] = ['status' => 'UNAVAILABLE', 'reason' => $reason];
+        }
+        return $out;
+    }
+
+    /**
+     * 信号判定が受け取る形（6分前人気の昇順）へ直します。
+     * tan_series / fuku_min_series は「スロット => 元の十進数文字列」です。
+     * 丸めません（@ANCHOR-20261020-R122-EXACT と同じ扱い）。
+     */
+    public static function horsesForSignals(array $registry, array $frozen): array
+    {
+        $byNo = [];
+        foreach ($registry as $e) {
+            $scope = (string) ($e['scope'] ?? '');
+            if ($scope !== 'HORSE') continue;
+            $no = (int) (($e['horse_nos'][0]) ?? 0);
+            if ($no <= 0 || !isset($frozen[$no])) continue;
+            $slot = $e['slot_offset'];
+            if ($slot === null) continue;
+            $v = $e['value'];
+            if ($v === null) continue;
+            $s = is_string($v) ? trim($v) : self::numToDecimalString($v);
+            if ($s === '') continue;
+            $f = (string) ($e['field'] ?? '');
+            // tan_series は v04Pairs() が読むキー名です（単勝の時系列）。
+            if ($f === 'win_odds')  $byNo[$no]['tan_series'][(int) $slot]      = $s;
+            if ($f === 'place_min') $byNo[$no]['fuku_min_series'][(int) $slot] = $s;
+        }
+        $order = $frozen;
+        asort($order);
+        $out = [];
+        foreach (array_keys($order) as $no) {
+            $out[] = [
+                'num'             => (int) $no,
+                'popularity'      => (int) $frozen[$no],
+                'tan_series'      => $byNo[$no]['tan_series']      ?? [],
+                'fuku_min_series' => $byNo[$no]['fuku_min_series'] ?? [],
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * 数値を十進数の文字列へ（指数表記にしない・余分な0を付けない）
+     *
+     * ══════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261020-R122-DIGITS2  10月20日006のご指摘6-1
+     * ══════════════════════════════════════════════════════════════════
+     *   【旧】`number_format($v, 12)` でした。小数13桁目から下を黙って
+     *     落とします。float で正確に持てている値でも、ここで桁が減ります。
+     *   【いま】float は `(string) $v` を使います。PHP は
+     *     serialize_precision=-1 のとき<b>元へ戻せる最短の表記</b>を返すので、
+     *     桁を減らしません。指数表記になったときだけ十進数へ直します。
+     *   文字列（十進数のまま持っている値）は、いまも trim するだけです。
+     *   126桁の小数でも1桁も落ちません。
+     */
+    public static function numToDecimalString($v): string
+    {
+        if (is_int($v)) return (string) $v;
+        if (!is_float($v)) return trim((string) $v);
+        if (!is_finite($v)) return '';
+        // `(string) $v` は ini の precision（既定14）に従うので桁が減ります。
+        // `json_encode` は serialize_precision に従い、既定（-1）では
+        // 元へ戻せる最短表記を返すので、こちらを使います。
+        $s = json_encode($v);
+        if (!is_string($s) || $s === '') { return ''; }
+        if (strpbrk($s, 'eE') !== false) { $s = self::expToDecimal($s); }
+        if ($s === '') { return ''; }
+        if (strpos($s, '.') !== false) {
+            $s = rtrim(rtrim($s, '0'), '.');
+        }
+        return ($s === '' || $s === '-') ? '0' : $s;
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-DIGITS2  指数表記を、桁を落とさずに小数表記へ
+     *   1.0e-7 → 0.0000001、1.0e+20 → 100000000000000000000。
+     *   文字として小数点を動かすだけなので、float を通りません。
+     *   読めない形は空文字を返します（作り話をしないため）。
+     */
+    public static function expToDecimal(string $s): string
+    {
+        if (preg_match('/^(-?)(\d+)(?:\.(\d*))?[eE]([+-]?\d+)$/',
+                       trim($s), $m) !== 1) {
+            return '';
+        }
+        $sign = $m[1];
+        $int  = $m[2];
+        $frac = $m[3] ?? '';
+        $exp  = (int) $m[4];
+        $digits = $int . $frac;
+        $point  = strlen($int) + $exp;      // 小数点はこの桁数のうしろ
+        if ($point <= 0) {
+            $out = '0.' . str_repeat('0', -$point) . $digits;
+        } elseif ($point >= strlen($digits)) {
+            $out = $digits . str_repeat('0', $point - strlen($digits));
+        } else {
+            $out = substr($digits, 0, $point) . '.' . substr($digits, $point);
+        }
+        return $sign . $out;
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // 送信の一式
+    // ───────────────────────────────────────────────────────────────────────
+
+    /**
+     * system 本文と user 本文を1組にします。送れる状態でなければ ok=false。
+     * @return array ['ok','role','system','system_sha256','user','user_bytes',
+     *                'input','snapshot_hash','code','reason','issues','derived']
+     */
+    public static function assemble(array $ctx, string $role): array
+    {
+        $sys = self::systemBody($role);
+        if (!$sys['ok']) {
+            return ['ok' => false, 'role' => $role, 'code' => 'PROMPT_BODY_INVALID',
+                    'reason' => (string) $sys['reason'], 'system' => null,
+                    'system_sha256' => null, 'user' => null, 'user_bytes' => 0,
+                    'input' => null, 'snapshot_hash' => null, 'issues' => [],
+                    'derived' => []];
+        }
+        $b = self::buildInput($ctx, $role);
+        if (!$b['ok']) {
+            return ['ok' => false, 'role' => $role, 'code' => (string) $b['code'],
+                    'reason' => (string) $b['reason'], 'system' => null,
+                    'system_sha256' => $sys['sha256'], 'user' => null, 'user_bytes' => 0,
+                    'input' => null, 'snapshot_hash' => null, 'issues' => [],
+                    'derived' => []];
+        }
+        $enc = self::encode($b['input']);
+        if (!$enc['ok']) {
+            return ['ok' => false, 'role' => $role, 'code' => 'INPUT_ENCODE_FAILED',
+                    'reason' => (string) $enc['reason'], 'system' => null,
+                    'system_sha256' => $sys['sha256'], 'user' => null, 'user_bytes' => 0,
+                    'input' => $b['input'], 'snapshot_hash' => null, 'issues' => [],
+                    'derived' => $b['derived']];
+        }
+        $asm = ['ok' => true, 'role' => $role, 'system' => $sys['body'],
+                'system_sha256' => $sys['sha256'], 'user' => $enc['json'],
+                'user_bytes' => $enc['bytes'], 'input' => $b['input'],
+                'snapshot_hash' => $b['input']['snapshot_hash'], 'code' => null,
+                'reason' => null, 'issues' => [], 'derived' => $b['derived']];
+        $asm['issues'] = self::selfCheck($asm);
+        if ($asm['issues'] !== []) {
+            $asm['ok'] = false;
+            $asm['code'] = 'SEND_SELF_CHECK_FAILED';
+            $asm['reason'] = implode('／', array_column($asm['issues'], 'reason'));
+        }
+        return $asm;
+    }
+
+    /**
+     * 送る直前の自己点検。1つでも引っかかったら送りません。
+     * @return array 各件 ['code','reason']
+     */
+    /** @ANCHOR-20261020-R122-STRICTJSON  参照の上限（詳細設計書8章） */
+    public const MAX_SOURCE_REFS = 20000;
+
+    public static function selfCheck(array $asm): array
+    {
+        $bad = [];
+        $sys = (string) ($asm['system'] ?? '');
+        $usr = (string) ($asm['user'] ?? '');
+        $in  = (array) ($asm['input'] ?? []);
+        $add = static function (array &$bad, string $code, string $why) {
+            $bad[] = ['code' => $code, 'reason' => $why];
+        };
+        if (strpos($sys, self::BEGIN) === false || strpos($sys, self::END) === false) {
+            $add($bad, 'MARKER_MISSING', 'system本文にBEGIN/ENDの指定がありません');
+        }
+        if (strpos($sys, self::PROMPT_VERSION) === false) {
+            $add($bad, 'PROMPT_VERSION_MISMATCH', 'system本文のprompt_versionが違います');
+        }
+        if (($in['schema_version'] ?? null) !== self::SCHEMA_VERSION) {
+            $add($bad, 'SCHEMA_VERSION_MISMATCH', 'INPUT_JSONのschema_versionが違います');
+        }
+        if (($in['prompt_version'] ?? null) !== self::PROMPT_VERSION) {
+            $add($bad, 'PROMPT_VERSION_MISMATCH', 'INPUT_JSONのprompt_versionが違います');
+        }
+        if (($in['snapshot_hash_version'] ?? null) !== self::HASH_VERSION) {
+            $add($bad, 'HASH_VERSION_MISMATCH', 'snapshot_hash_versionが違います');
+        }
+        if (($in['ai_role'] ?? null) !== ($asm['role'] ?? null)) {
+            $add($bad, 'ROLE_MISMATCH', 'ai_roleと送り先のroleが違います');
+        }
+        $h = self::commonHash($in);
+        if (!$h['ok'] || $h['hash'] !== ($in['snapshot_hash'] ?? null)) {
+            $add($bad, 'SNAPSHOT_HASH_MISMATCH', 'snapshot_hashが共通本文と合いません');
+        }
+        if ($usr === '' || $usr[0] !== '{') {
+            $add($bad, 'INPUT_NOT_OBJECT', 'user本文がJSONオブジェクト1個ではありません');
+        }
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-STRICTJSON  送る前に、自分の本文も厳密に読む
+        // ══════════════════════════════════════════════════════════════
+        //   【旧】json_decode が null でないことしか見ていませんでした。
+        //     重複キー・4MiB超・128桁超・指数の範囲外が素通りします。
+        //     相手に読めない本文を送ってから気づく、ということになります。
+        //   詳細設計書8章の「生成後のDTOも同じ検査を行う」はここです。
+        $sj = BaganrikiJson::strict($usr);
+        if (!$sj['ok']) {
+            $add($bad, 'INPUT_NOT_PARSEABLE',
+                 'user本文を厳密に読み直せません（' . $sj['code'] . '：'
+                 . $sj['reason'] . '）');
+        }
+        // 参照20,000件（詳細設計書8章）。source_registry 固有の限度です。
+        $nRef = count((array) ($in['source_registry'] ?? []));
+        if ($nRef > self::MAX_SOURCE_REFS) {
+            $add($bad, 'SOURCE_REGISTRY_TOO_MANY',
+                 'source_registry が ' . number_format($nRef) . ' 件で、上限 '
+                 . number_format(self::MAX_SOURCE_REFS) . ' 件を超えています');
+        }
+        if (strpos($usr, '{{') !== false) {
+            $add($bad, 'PLACEHOLDER_LEFT', 'user本文に未置換の差し込み記号があります');
+        }
+        // 選出停止のときは枠を渡しません（契約7章）
+        if (($in['selection_enabled'] ?? null) === false) {
+            // role_quota は null が正しい値なので ?? で既定値を当てません
+            // （?? は null を「無い」と見なすため、null のときに誤検知します）
+            $rq0 = array_key_exists('role_quota', $in) ? $in['role_quota'] : '(キー無し)';
+            if (($in['role_cap'] ?? null) !== 0 || $rq0 !== null) {
+                $add($bad, 'SELECTION_DISABLED_MISMATCH',
+                     'selection_enabled=false なのに role_cap/role_quota が空ではありません');
+            }
+        } else {
+            $rq = $in['role_quota'] ?? null;
+            if (!is_array($rq)) {
+                $add($bad, 'ROLE_QUOTA_MISSING', 'role_quota がありません');
+            } else {
+                $sum = (int) ($rq['A'] ?? 0) + (int) ($rq['B'] ?? 0) + (int) ($rq['D'] ?? 0);
+                if ($sum !== (int) ($in['role_cap'] ?? -1)) {
+                    $add($bad, 'ROLE_CAP_MISMATCH',
+                         'role_quota の合計（' . $sum . '）が role_cap と合いません');
+                }
+            }
+        }
+        // 2nd の上限は5頭（契約7章）
+        if (($asm['role'] ?? '') === '2nd' && (int) ($in['role_cap'] ?? 0) > 5) {
+            $add($bad, 'ROLE_CAP_OVER', '2ndのrole_capが5を超えています');
+        }
+        return $bad;
+    }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-R122-QUEUE  永続ワーカー（キューと予約枠）
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 根拠：server_contract_r12.2.txt 10章・11章／詳細設計書 12章
+ *
+ * ■ 守ること
+ *   ・1レース・1世代・1roleにつき枠は2つだけ（初回=0／訂正=1）
+ *   ・予約を確定してから送る。初回の原応答と complete を保存してから訂正に入る
+ *   ・予約済みの枠は、重複キュー・期限切れ・再起動のどれでも作り直さない
+ *   ・初回が未受領・FAILED・結果不明なら訂正を予約しない
+ *   ・送信許可1回につき callback は1回だけ（自動再試行は0）
+ *   ・同じ token に同じ応答を保存するのは冪等。別の応答や終端の付け替えは拒否
+ *   ・complete=false の本文は、そのまま残して選出には使わない
+ *   ・response_revision は「予約の回数＋終端が変わった回数」の合計
+ *
+ * ■ 枠の状態
+ *   RESERVED       枠を取った（まだ送っていない）
+ *   SENT           送った（返りを待っている）
+ *   RECEIVED       受け取って保存した
+ *   FAILED         失敗（終端）
+ *   UNKNOWN_RESULT 結果が分からない（終端・再送しない）
+ *
+ * ■ 再起動したとき
+ *   RESERVED は枠として残します（まだ送っていないので送信許可が1回残る）。
+ *   SENT は UNKNOWN_RESULT にします。受領していても未commitの応答は
+ *   復元できないことがあるので、結果不明として明示し、再送を止めます。
+ *
+ * 外部APIとの分散取引や Exactly Once は保証しません。
+ */
+final class BaganrikiWorker
+{
+    public const FIRST = 0;        // 初回
+    public const FIX   = 1;        // 訂正
+    public const MAX_PER_ROLE = 2; // 枠は2つだけ
+
+    public const RESERVED = 'RESERVED';
+    public const SENT     = 'SENT';
+    public const RECEIVED = 'RECEIVED';
+    public const FAILED   = 'FAILED';
+    public const UNKNOWN  = 'UNKNOWN_RESULT';
+
+    /** 終端（もう動かさない状態） */
+    public const TERMINAL = [self::RECEIVED, self::FAILED, self::UNKNOWN];
+
+    private const US = 1000000;
+
+    /**
+     * @ANCHOR-20261020-R122-SHADOW  .env の BAGANRIKI_R122_QUEUE は3つの値を取ります
+     *   0       … 何もしません（既定）。送信口を素通りします。
+     *   shadow  … <b>記録はしますが、送信を止めません。</b>
+     *             予約・凍結・原応答の保存まで本番と同じことをして、
+     *             うまくいかなかったときも<b>AIの呼び出しは止めません</b>。
+     *             初めて実物で動かす日に、いまの商品を落とさずに
+     *             実測だけを取るための段です。
+     *   1       … 契約どおりに止めます（枠が取れなければ送りません）。
+     */
+    public static function mode(): string
+    {
+        $v = strtolower(trim((string) env('BAGANRIKI_R122_QUEUE', '0')));
+        if (in_array($v, ['1', 'true', 'on', 'yes'], true)) { return 'on'; }
+        if (in_array($v, ['shadow', 'record', 'dry'], true)) { return 'shadow'; }
+        return 'off';
+    }
+
+    /** 記録の仕組みを動かすか（shadow と on） */
+    public static function enabled(): bool
+    {
+        return self::mode() !== 'off';
+    }
+
+    /** うまくいかなかったときに送信を止めるか（on だけ） */
+    public static function blocking(): bool
+    {
+        return self::mode() === 'on';
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261021-R122-JOBFLAG  Job構成の段（010の2章）
+    // ══════════════════════════════════════════════════════════════════════
+    //   BAGANRIKI_R122_JOBS=1 のときだけ、待ち行列（app/Jobs の4本）で
+    //   動きます。既定は 0 です。<b>0 のあいだ、いまの同期の経路は
+    //   1バイトも変わりません。</b>（010の2-5「旗による切替を残す」）
+    //
+    //   枠の段（BAGANRIKI_R122_QUEUE）とは別の旗にします。
+    //   枠の段は「予約と送信権の仕組みを動かすか」、
+    //   Jobの段は「それを待ち行列で動かすか」で、意味が違います。
+    //   Jobで動かすには枠の段も上がっている必要があります。
+
+    /** Job構成で動かすか */
+    public static function jobs(): bool
+    {
+        $v = strtolower(trim((string) env('BAGANRIKI_R122_JOBS', '0')));
+        if (!in_array($v, ['1', 'true', 'on', 'yes'], true)) { return false; }
+        // 枠の段が上がっていなければ、Jobでも送りません
+        return self::mode() === 'on';
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261021-R122-TARGETFLAG  対象レースの限定を効かせるか
+    // ══════════════════════════════════════════════════════════════════════
+    //   BAGANRIKI_R122_TARGETS_ENFORCE=1 のとき、
+    //   BAGANRIKI_R122_TARGETS に並べた race_id 以外へは1レースも送りません。
+    //   <b>Jobの段が上がっているときは、設定に関わらず効かせます。</b>
+    //   10月24日の非公開検証で、12レース以外へ送らないためです（010の2-5）。
+    public static function targetsEnforced(): bool
+    {
+        if (self::jobs()) { return true; }
+        // @ANCHOR-20261023-R122-SEPARATE  枠の段（QUEUE）が上がっていれば必ず限定します
+        //   新経路の初回送信を PROMPT=shadow でも動くようにしたので（003 P-01）、
+        //   QUEUE を上げただけで TARGETS を入れ忘れると、開かれたレースすべてへ
+        //   送ってしまいます。「空なら1レースも送らない」に倒します。
+        if (self::enabled()) { return true; }
+        $v = strtolower(trim((string) env('BAGANRIKI_R122_TARGETS_ENFORCE', '0')));
+        return in_array($v, ['1', 'true', 'on', 'yes'], true);
+    }
+
+    /** 必要な表がそろっているか */
+    public static function ready(): bool
+    {
+        foreach (['baganriki_snapshots', 'baganriki_ai_attempts',
+                  'baganriki_live_states', 'baganriki_audit_events'] as $t) {
+            if (!\Schema::hasTable($t)) { return false; }
+        }
+        return true;
+    }
+
+    // ── 時刻 ────────────────────────────────────────────────────────────
+
+    public static function nowUs(): int
+    {
+        $t = gettimeofday();
+        return $t['sec'] * self::US + $t['usec'];
+    }
+
+    /** マイクロ秒 → DATETIME(6)（日本時間） */
+    public static function toDb(int $us): string
+    {
+        $d = (new \DateTimeImmutable('@' . intdiv($us, self::US)))
+                ->setTimezone(new \DateTimeZone('Asia/Tokyo'));
+        $f = $us % self::US;
+        if ($f < 0) { $f += self::US; }
+        return $d->format('Y-m-d H:i:s') . sprintf('.%06d', $f);
+    }
+
+    /** DATETIME(6) → マイクロ秒。マイクロ秒を落としません */
+    public static function dbUs($v): ?int
+    {
+        if ($v === null) { return null; }
+        if ($v instanceof \DateTimeInterface) {
+            return $v->getTimestamp() * self::US + (int) $v->format('u');
+        }
+        $s = trim((string) $v);
+        if ($s === '' || $s === '0000-00-00 00:00:00') { return null; }
+        if (!preg_match('/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?$/',
+                        $s, $m)) {
+            return null;
+        }
+        $d = \DateTimeImmutable::createFromFormat(
+                'Y-m-d H:i:s', $m[1] . ' ' . $m[2], new \DateTimeZone('Asia/Tokyo'));
+        if ($d === false) { return null; }
+        $frac = isset($m[3]) ? (int) str_pad($m[3], 6, '0') : 0;
+        return $d->getTimestamp() * self::US + $frac;
+    }
+
+    private static function j($v): string
+    {
+        return (string) json_encode($v,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+    }
+
+    // ── 監査 ────────────────────────────────────────────────────────────
+
+    public static function event(string $raceId, ?int $snapshotId, string $kind,
+                                 ?int $old, ?int $new, array $diag,
+                                 ?string $related, int $nowUs): void
+    {
+        \DB::table('baganriki_audit_events')->insert([
+            'race_id'      => $raceId,
+            'snapshot_id'  => $snapshotId,
+            'kind'         => $kind,
+            'happened_at'  => self::toDb($nowUs),
+            'old_revision' => $old,
+            'new_revision' => $new,
+            'diagnostics'  => self::j($diag),
+            'related_id'   => $related,
+        ]);
+    }
+
+    // ── ライブ状態 ───────────────────────────────────────────────────────
+
+    /**
+     * ライブ状態の行が無ければ作ります（あれば何もしません）。
+     * 凍結のときに作られていない古いレースでも、ここで追いつきます。
+     */
+    public static function ensureLive(int $snapshotId, int $nowUs): void
+    {
+        $has = \DB::table('baganriki_live_states')
+                 ->where('snapshot_id', $snapshotId)->exists();
+        if ($has) { return; }
+        $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+        if ($snap === null) { return; }
+        $frozen = json_decode((string) $snap->frozen_nums, true);
+        \DB::table('baganriki_live_states')->insertOrIgnore([
+            'snapshot_id'          => $snapshotId,
+            'cancellations'        => self::j([]),
+            'active_count'         => is_array($frozen) ? count($frozen) : null,
+            'live_target_count'    => $snap->target_count,
+            'live_quota'           => $snap->quota_1st,
+            'live_close'           => null,
+            'state_revision'       => 0,
+            'response_revision'    => 0,
+            'publication_revision' => 0,
+            'latest_publication_id' => null,
+            'updated_at'           => self::toDb($nowUs),
+        ]);
+    }
+
+    /**
+     * 実効期限を出します。
+     *   publish_deadline = 凍結した投票締切 − 60秒
+     *   reply_deadline   = publish_deadline − 30秒
+     *   live_close で前倒しされていれば、そのぶんだけ縮めます（延ばしません）
+     */
+    public static function deadlines(object $snap, ?object $live): array
+    {
+        $sales = self::dbUs($snap->sales_close_at ?? null);
+        if ($sales === null) {
+            return ['ok' => false, 'code' => 'TIME_UNCOMPUTABLE',
+                    'reason' => '凍結した投票締切が無いので期限を出せません',
+                    'reply' => null, 'publish' => null, 'sales' => null];
+        }
+        $liveClose = ($live === null) ? null : self::dbUs($live->live_close ?? null);
+        $d = BaganrikiTime::effectiveDeadlines($sales, $liveClose);
+        return ['ok' => true, 'code' => null, 'reason' => null,
+                'reply' => $d['reply'], 'publish' => $d['publish'], 'sales' => $sales,
+                'live_close' => $liveClose];
+    }
+
+    // ── 枠の読み取り（token と原文は返しません）──────────────────────────
+
+    public static function slots(int $snapshotId, ?string $role = null): array
+    {
+        $q = \DB::table('baganriki_ai_attempts')->where('snapshot_id', $snapshotId);
+        if ($role !== null) { $q->where('role', $role); }
+        $out = [];
+        foreach ($q->orderBy('role')->orderBy('attempt_no')->get() as $r) {
+            $out[] = [
+                'role'        => (string) $r->role,
+                'attempt_no'  => (int) $r->attempt_no,
+                'status'      => (string) $r->status,
+                'complete'    => ((int) $r->complete === 1),
+                'reserved_at' => $r->reserved_at,
+                'received_at' => $r->received_at,
+                'response_hash'  => $r->response_hash,
+                'failure_reason' => $r->failure_reason,
+            ];
+        }
+        return $out;
+    }
+
+    /** そのroleの枠を attempt_no をキーにして返します（内部用） */
+    private static function rowsOf(int $snapshotId, string $role): array
+    {
+        $out = [];
+        foreach (\DB::table('baganriki_ai_attempts')
+                    ->where('snapshot_id', $snapshotId)->where('role', $role)
+                    ->get() as $r) {
+            $out[(int) $r->attempt_no] = $r;
+        }
+        return $out;
+    }
+
+    private static function fin(bool $ok, string $code, string $reason, array $add = []): array
+    {
+        return array_merge(['ok' => $ok, 'code' => $code, 'reason' => $reason], $add);
+    }
+
+    // ── 訂正を予約してよいか（書き込みません）────────────────────────────
+
+    /**
+     * 「初回の原応答と complete を保存してから訂正に入る」の判定だけをします。
+     * 再起動の後でもここから訂正判定を再開できます。
+     */
+    public static function fixAllowed(int $snapshotId, string $role): array
+    {
+        $rows = self::rowsOf($snapshotId, $role);
+        if (!isset($rows[self::FIRST])) {
+            return self::fin(false, 'FIRST_NOT_RESERVED', '初回の枠がまだありません');
+        }
+        $f = $rows[self::FIRST];
+        $st = (string) $f->status;
+        if ($st === self::FAILED || $st === self::UNKNOWN) {
+            return self::fin(false, 'FIRST_FAILED',
+                '初回が' . $st . 'なので訂正は予約しません');
+        }
+        if ($st !== self::RECEIVED) {
+            return self::fin(false, 'FIRST_NOT_RECEIVED',
+                '初回が未受領（' . $st . '）なので訂正は予約しません');
+        }
+        if ((int) $f->complete !== 1) {
+            return self::fin(false, 'FIRST_NOT_COMPLETE',
+                '初回が complete=false なので訂正は予約しません');
+        }
+        if (isset($rows[self::FIX])) {
+            return self::fin(false, 'SLOT_TAKEN',
+                '訂正の枠はすでにあります（' . $rows[self::FIX]->status . '）',
+                ['status' => (string) $rows[self::FIX]->status]);
+        }
+        return self::fin(true, 'OK', '訂正を予約できます');
+    }
+
+    // ── 予約 ────────────────────────────────────────────────────────────
+
+    /**
+     * 枠を1つ予約します。予約が確定してから送ってください。
+     *
+     * @param array $expect  版の見張り。
+     *                       ['state_revision'=>int, 'response_revision'=>int]
+     *                       を渡すと、予約の直前に変わっていれば STATE_CHANGED で
+     *                       予約しません（契約11章）。
+     */
+    public static function reserve(int $snapshotId, string $role, int $attemptNo,
+                                   int $nowUs, array $expect = []): array
+    {
+        if ($attemptNo !== self::FIRST && $attemptNo !== self::FIX) {
+            return self::fin(false, 'INVALID_ATTEMPT',
+                'attempt_no は 0（初回）か 1（訂正）だけです');
+        }
+        self::ensureLive($snapshotId, $nowUs);
+        try {
+            return \DB::transaction(function () use ($snapshotId, $role, $attemptNo,
+                                                     $nowUs, $expect) {
+                $live = \DB::table('baganriki_live_states')
+                          ->where('snapshot_id', $snapshotId)->lockForUpdate()->first();
+                $snap = \DB::table('baganriki_snapshots')
+                          ->where('id', $snapshotId)->first();
+                if ($snap === null) {
+                    return self::fin(false, 'NO_SNAPSHOT', '凍結入力がありません');
+                }
+                $raceId = (string) $snap->race_id;
+
+                // ① 版の見張り（予約の直前にもう一度見ます）
+                if ($live !== null) {
+                    foreach (['state_revision', 'response_revision',
+                              'publication_revision'] as $k) {
+                        if (array_key_exists($k, $expect)
+                            && (int) $expect[$k] !== (int) $live->{$k}) {
+                            return self::fin(false, 'STATE_CHANGED',
+                                $k . 'が変わりました（期待 ' . $expect[$k]
+                                . '・現在 ' . $live->{$k} . '）');
+                        }
+                    }
+                }
+
+                // ② 全頭取消なら予約しません
+                if ($live !== null && $live->active_count !== null
+                    && (int) $live->active_count === 0) {
+                    return self::fin(false, 'ALL_CANCELLED', '全頭取消なので予約しません');
+                }
+
+                // ③ 期限（同時刻は可、1マイクロ秒でも超えたら不可）
+                $dl = self::deadlines($snap, $live);
+                if (!$dl['ok']) {
+                    return self::fin(false, (string) $dl['code'], (string) $dl['reason']);
+                }
+                if ($nowUs > $dl['reply']) {
+                    return self::fin(false, 'DEADLINE_PASSED',
+                        '実効の応答期限を超えています（期限 '
+                        . BaganrikiTime::toJst((int) $dl['reply']) . '・現在 '
+                        . BaganrikiTime::toJst($nowUs) . '）');
+                }
+
+                // ④ 枠の数と順番
+                $rows = self::rowsOf($snapshotId, $role);
+                if (isset($rows[$attemptNo])) {
+                    return self::fin(false, 'SLOT_TAKEN',
+                        'その枠はすでにあります（' . $rows[$attemptNo]->status
+                        . '）。作り直しません',
+                        ['status' => (string) $rows[$attemptNo]->status]);
+                }
+                if (count($rows) >= self::MAX_PER_ROLE) {
+                    return self::fin(false, 'NO_SLOT', '枠は2つまでです');
+                }
+                if ($attemptNo === self::FIX) {
+                    $gate = self::fixAllowed($snapshotId, $role);
+                    if (!$gate['ok']) { return $gate; }
+                    // 訂正の予約は、初回の受領時刻を下回る現在時刻ではしません
+                    $firstAt = self::dbUs($rows[self::FIRST]->received_at ?? null);
+                    if ($firstAt !== null && $nowUs < $firstAt) {
+                        return self::fin(false, 'CLOCK_BACKWARD',
+                            '現在時刻が初回の受領時刻より前です');
+                    }
+                }
+
+                // ⑤ 予約します
+                $token = hash('sha256', $snapshotId . '|' . $role . '|' . $attemptNo
+                                        . '|' . $nowUs . '|' . bin2hex(random_bytes(16)));
+                \DB::table('baganriki_ai_attempts')->insert([
+                    'snapshot_id'    => $snapshotId,
+                    'role'           => $role,
+                    'attempt_no'     => $attemptNo,
+                    'token'          => $token,
+                    'status'         => self::RESERVED,
+                    'reserved_at'    => self::toDb($nowUs),
+                    'received_at'    => null,
+                    'complete'       => 0,
+                    'raw_response'   => null,
+                    'response_hash'  => null,
+                    'failure_reason' => null,
+                ]);
+
+                $old = ($live === null) ? null : (int) $live->response_revision;
+                $new = ($old === null) ? null : ($old + 1);
+                if ($live !== null) {
+                    \DB::table('baganriki_live_states')
+                      ->where('snapshot_id', $snapshotId)
+                      ->update(['response_revision' => $new,
+                                'updated_at' => self::toDb($nowUs)]);
+                }
+                self::event($raceId, $snapshotId, 'QUEUE_RESERVED', $old, $new,
+                    ['role' => $role, 'attempt_no' => $attemptNo,
+                     'reply_deadline' => BaganrikiTime::toJst((int) $dl['reply'])],
+                    $role . '#' . $attemptNo, $nowUs);
+
+                return self::fin(true, 'OK', '予約しました',
+                    ['token' => $token, 'role' => $role, 'attempt_no' => $attemptNo,
+                     'response_revision' => $new,
+                     'reply_deadline' => BaganrikiTime::toJst((int) $dl['reply'])]);
+            });
+        } catch (\Throwable $e) {
+            // uq_attempt / uq_token に当たった＝ほかの処理が同じ枠を取りました。
+            //   PDOException でも QueryException でも拾えるようにしています。
+            if (self::isDup($e)) {
+                return self::fin(false, 'SLOT_TAKEN',
+                    'ほかの処理が同じ枠を取りました。作り直しません');
+            }
+            throw $e;
+        }
+    }
+
+    public static function isDup(\Throwable $e): bool
+    {
+        $m = $e->getMessage();
+        return (strpos($m, '1062') !== false)
+            || (stripos($m, 'Duplicate entry') !== false)
+            || (stripos($m, 'Integrity constraint violation') !== false);
+    }
+
+    // ── 送信許可（callbackは1回だけ）─────────────────────────────────────
+
+    /**
+     * 送る直前に呼びます。RESERVED のときだけ1回だけ通ります。
+     * 自動再試行は0なので、ここを2回通すことはできません。
+     */
+    public static function allowSend(string $token, int $nowUs): array
+    {
+        return \DB::transaction(function () use ($token, $nowUs) {
+            $pre = \DB::table('baganriki_ai_attempts')
+                     ->where('token', $token)->first(['snapshot_id']);
+            if ($pre === null) {
+                return self::fin(false, 'NO_TOKEN', 'その予約はありません');
+            }
+            \DB::table('baganriki_live_states')
+              ->where('snapshot_id', $pre->snapshot_id)->lockForUpdate()->first();
+            $a = \DB::table('baganriki_ai_attempts')
+                   ->where('token', $token)->lockForUpdate()->first();
+            if ($a === null) {
+                return self::fin(false, 'NO_TOKEN', 'その予約はありません');
+            }
+            $st = (string) $a->status;
+            if ($st === self::SENT) {
+                return self::fin(false, 'ALREADY_SENT',
+                    'すでに送信許可を出しています。再送しません');
+            }
+            if (in_array($st, self::TERMINAL, true)) {
+                return self::fin(false, 'TERMINAL',
+                    'すでに終わっています（' . $st . '）');
+            }
+            $snap = \DB::table('baganriki_snapshots')
+                      ->where('id', $a->snapshot_id)->first();
+            $live = \DB::table('baganriki_live_states')
+                      ->where('snapshot_id', $a->snapshot_id)->first();
+            if ($snap === null) {
+                return self::fin(false, 'NO_SNAPSHOT', '凍結入力がありません');
+            }
+            $dl = self::deadlines($snap, $live);
+            if (!$dl['ok']) {
+                return self::fin(false, (string) $dl['code'], (string) $dl['reason']);
+            }
+            if ($nowUs > $dl['reply']) {
+                return self::fin(false, 'DEADLINE_PASSED',
+                    '送信前の期限検査で超過しています');
+            }
+            \DB::table('baganriki_ai_attempts')->where('token', $token)
+              ->update(['status' => self::SENT]);
+            self::event((string) $snap->race_id, (int) $a->snapshot_id,
+                'QUEUE_SENT', null, null,
+                ['role' => (string) $a->role, 'attempt_no' => (int) $a->attempt_no],
+                $a->role . '#' . $a->attempt_no, $nowUs);
+            return self::fin(true, 'OK', '送ってよいです',
+                ['role' => (string) $a->role, 'attempt_no' => (int) $a->attempt_no]);
         });
-        foreach ($promptHorses as $i => &$h) {
-            $h['popularity'] = $i + 1;
-        }
-        unset($h);
+    }
 
-        // ─── 人気順別過去平均単勝オッズ（OPI用） ─────────────────────────
-        $popularityAvgRows = DB::table('t_horse_odds_finder_popularity_rank_average')->get();
-        $popularityAvgMap  = [];
-        foreach ($popularityAvgRows as $row) {
-            $popularityAvgMap[(int)$row->popularity_rank] = floatval($row->odds_average);
+    // ── 受領 ────────────────────────────────────────────────────────────
+
+    /**
+     * 原応答を保存します。
+     *   同じ token に同じ応答 → 冪等（版は増やしません）
+     *   同じ token に別の応答 → 拒否（RESPONSE_MISMATCH）
+     *   終端の付け替え         → 拒否（TERMINAL）
+     *   complete=false の本文は、そのまま残して選出には使いません。
+     */
+    public static function receive(string $token, string $raw, bool $complete,
+                                   int $nowUs): array
+    {
+        return \DB::transaction(function () use ($token, $raw, $complete, $nowUs) {
+            // @ANCHOR-20261020-R122-QUEUE  ロックの順番は
+            //   ライブ状態 → 枠 に統一します（予約と同じ順番。取り合いを避けます）
+            $pre = \DB::table('baganriki_ai_attempts')
+                     ->where('token', $token)->first(['snapshot_id']);
+            if ($pre === null) {
+                return self::fin(false, 'NO_TOKEN', 'その予約はありません');
+            }
+            $live = \DB::table('baganriki_live_states')
+                      ->where('snapshot_id', $pre->snapshot_id)->lockForUpdate()->first();
+            $a = \DB::table('baganriki_ai_attempts')
+                   ->where('token', $token)->lockForUpdate()->first();
+            if ($a === null) {
+                return self::fin(false, 'NO_TOKEN', 'その予約はありません');
+            }
+            $hash = hash('sha256', $raw);
+            $st   = (string) $a->status;
+
+            if ($st === self::RECEIVED) {
+                if ((string) $a->response_hash === $hash
+                    && ((int) $a->complete === 1) === $complete) {
+                    return self::fin(true, 'IDEMPOTENT', 'すでに同じ応答を保存しています',
+                        ['response_hash' => $hash]);
+                }
+                return self::fin(false, 'RESPONSE_MISMATCH',
+                    '同じ予約に別の応答は保存しません');
+            }
+            if ($st === self::FAILED || $st === self::UNKNOWN) {
+                return self::fin(false, 'TERMINAL',
+                    'すでに終わっています（' . $st . '）。付け替えません');
+            }
+            if ($st === self::RESERVED) {
+                return self::fin(false, 'NOT_SENT',
+                    'まだ送信許可を出していません');
+            }
+
+            $snap = \DB::table('baganriki_snapshots')
+                      ->where('id', $a->snapshot_id)->first();
+            if ($snap === null) {
+                return self::fin(false, 'NO_SNAPSHOT', '凍結入力がありません');
+            }
+            $dl = self::deadlines($snap, $live);
+            if (!$dl['ok']) {
+                return self::fin(false, (string) $dl['code'], (string) $dl['reason']);
+            }
+            if ($nowUs > $dl['reply']) {
+                return self::fin(false, 'DEADLINE_PASSED',
+                    '受領時の期限検査で超過しています（遅着）');
+            }
+
+            // 訂正の受領は初回の受領以上の時刻を必須とします（同時刻は可）
+            if ((int) $a->attempt_no === self::FIX) {
+                $rows = self::rowsOf((int) $a->snapshot_id, (string) $a->role);
+                $firstAt = self::dbUs($rows[self::FIRST]->received_at ?? null);
+                if ($firstAt !== null && $nowUs < $firstAt) {
+                    return self::fin(false, 'RECEIVE_ORDER',
+                        '訂正の受領時刻が初回より前です');
+                }
+            }
+
+            \DB::table('baganriki_ai_attempts')->where('token', $token)->update([
+                'status'        => self::RECEIVED,
+                'received_at'   => self::toDb($nowUs),
+                'complete'      => $complete ? 1 : 0,
+                'raw_response'  => $raw,
+                'response_hash' => $hash,
+            ]);
+            $old = ($live === null) ? null : (int) $live->response_revision;
+            $new = ($old === null) ? null : ($old + 1);
+            if ($live !== null) {
+                \DB::table('baganriki_live_states')->where('snapshot_id', $a->snapshot_id)
+                  ->update(['response_revision' => $new,
+                            'updated_at' => self::toDb($nowUs)]);
+            }
+            self::event((string) $snap->race_id, (int) $a->snapshot_id,
+                'QUEUE_RECEIVED', $old, $new,
+                ['role' => (string) $a->role, 'attempt_no' => (int) $a->attempt_no,
+                 'complete' => $complete, 'response_hash' => $hash],
+                $a->role . '#' . $a->attempt_no, $nowUs);
+            return self::fin(true, 'OK', '保存しました',
+                ['response_hash' => $hash, 'complete' => $complete,
+                 'response_revision' => $new]);
+        });
+    }
+
+    // ── 失敗・結果不明 ───────────────────────────────────────────────────
+
+    public static function fail(string $token, string $reason, int $nowUs,
+                               bool $unknown = false): array
+    {
+        return \DB::transaction(function () use ($token, $reason, $nowUs, $unknown) {
+            $pre = \DB::table('baganriki_ai_attempts')
+                     ->where('token', $token)->first(['snapshot_id']);
+            if ($pre === null) {
+                return self::fin(false, 'NO_TOKEN', 'その予約はありません');
+            }
+            $live = \DB::table('baganriki_live_states')
+                      ->where('snapshot_id', $pre->snapshot_id)->lockForUpdate()->first();
+            $a = \DB::table('baganriki_ai_attempts')
+                   ->where('token', $token)->lockForUpdate()->first();
+            if ($a === null) {
+                return self::fin(false, 'NO_TOKEN', 'その予約はありません');
+            }
+            $st = (string) $a->status;
+            if (in_array($st, self::TERMINAL, true)) {
+                return self::fin(false, 'TERMINAL',
+                    'すでに終わっています（' . $st . '）。付け替えません');
+            }
+            $to = $unknown ? self::UNKNOWN : self::FAILED;
+            \DB::table('baganriki_ai_attempts')->where('token', $token)->update([
+                'status' => $to, 'failure_reason' => $reason,
+            ]);
+            $old = ($live === null) ? null : (int) $live->response_revision;
+            $new = ($old === null) ? null : ($old + 1);
+            if ($live !== null) {
+                \DB::table('baganriki_live_states')->where('snapshot_id', $a->snapshot_id)
+                  ->update(['response_revision' => $new,
+                            'updated_at' => self::toDb($nowUs)]);
+            }
+            $snap = \DB::table('baganriki_snapshots')
+                      ->where('id', $a->snapshot_id)->first();
+            self::event(($snap === null) ? '' : (string) $snap->race_id,
+                (int) $a->snapshot_id, 'QUEUE_' . $to, $old, $new,
+                ['role' => (string) $a->role, 'attempt_no' => (int) $a->attempt_no,
+                 'reason' => $reason],
+                $a->role . '#' . $a->attempt_no, $nowUs);
+            return self::fin(true, 'OK', $to . 'にしました',
+                ['status' => $to, 'response_revision' => $new]);
+        });
+    }
+
+    // ── 再起動 ──────────────────────────────────────────────────────────
+
+    /**
+     * 再起動したあとに1回だけ呼びます。
+     *   SENT     → UNKNOWN_RESULT（結果不明。再送しません）
+     *   RESERVED → そのまま（まだ送っていないので送信許可が1回残ります）
+     * 枠そのものは作り直しません。
+     */
+    public static function resume(int $snapshotId, int $nowUs): array
+    {
+        $kept = []; $unknown = [];
+        foreach (\DB::table('baganriki_ai_attempts')
+                    ->where('snapshot_id', $snapshotId)
+                    ->orderBy('role')->orderBy('attempt_no')->get() as $a) {
+            $st = (string) $a->status;
+            $label = $a->role . '#' . $a->attempt_no;
+            if ($st === self::SENT) {
+                self::fail((string) $a->token,
+                    '再起動をまたいだため結果が分かりません（再送しません）',
+                    $nowUs, true);
+                $unknown[] = $label;
+            } elseif ($st === self::RESERVED) {
+                $kept[] = $label;
+            }
+        }
+        return self::fin(true, 'OK', '再起動の後始末をしました',
+            ['unknown' => $unknown, 'reserved_kept' => $kept,
+             'slots' => self::slots($snapshotId)]);
+    }
+
+    /**
+     * 選出に使える応答だけを返します（complete=true の RECEIVED だけ）。
+     * 訂正があればそちらを優先し、無ければ初回を使います。
+     * 原応答は呼出側の内部処理にだけ渡します（readでは返しません）。
+     */
+    public static function usable(int $snapshotId, string $role): array
+    {
+        $rows = self::rowsOf($snapshotId, $role);
+        foreach ([self::FIX, self::FIRST] as $no) {
+            if (!isset($rows[$no])) { continue; }
+            $r = $rows[$no];
+            if ((string) $r->status === self::RECEIVED && (int) $r->complete === 1) {
+                return self::fin(true, 'OK', '使えます',
+                    ['attempt_no' => $no, 'raw' => (string) $r->raw_response,
+                     'response_hash' => (string) $r->response_hash]);
+            }
+        }
+        return self::fin(false, 'NONE', '選出に使える応答がありません');
+    }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-R122-DIAG  応答の診断（inspect と resolve で同じ関数を使う）
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 根拠：server_contract_r12.2.txt 6章・7章
+ *   「訂正最大1回。inspectとresolveは同じ診断関数を使い、repair_scopeを返す」
+ *   「馬番欠落、重複、未知馬、局所フィールド不正はその範囲だけ隔離し、
+ *     正常な他馬を残す」
+ *   「公開リストやフラグの不一致だけでは、無関係な評価行を訂正対象へ
+ *     広げない。欠落馬は凍結runner集合に存在しhorses対象内なら新規救済する」
+ *
+ * ■ 直してよい範囲（repair_scope）の分け方
+ *   horses              評価行そのもの（欠落・重複・未知馬・局所の項目不正）
+ *   rank_bands          順位関連項目（band_ranks / evidence_band_ranks）
+ *   presentation_horses 公開フラグ・非選出理由
+ *   summary_horses      帯・資格・Tier・採点集計・5系統レビュー・
+ *                       非適格馬の順位欄
+ *   public_candidates   公開リスト
+ *   top_fields          最上位項目
+ *
+ *   <b>公開リストと公開フラグの不一致では、horses を広げません。</b>
+ *   その馬だけを presentation_horses / public_candidates に入れます。
+ *
+ * ■ 採点辞書（10月20日の指定）
+ *   H1 能力適性18／H2 時系列15／H3 断層12／H4 類似統計9／H5 単複差6
+ *   V1 補正OPI12／V2 能力価格乖離10／V3 回収率母数8／V4 推定確定オッズ6
+ *   V5 情報価格信頼性4   合計100
+ *
+ * 読むだけです。DBへは書きません（保存は呼出側が行います）。
+ */
+final class BaganrikiDiagnose
+{
+    public const VERSION = 'r122-diagnose-v1';
+
+    /** 採点辞書（満点） */
+    public const SCORE_CAP = ['H1' => 18, 'H2' => 15, 'H3' => 12, 'H4' => 9, 'H5' => 6,
+                              'V1' => 12, 'V2' => 10, 'V3' => 8,  'V4' => 6, 'V5' => 4];
+
+    /** 1頭ぶんに必ずある項目 */
+    public const HORSE_KEYS = ['horse_no', 'band', 'tier', 'eligibility', 'family_review',
+                               'evidence', 'counterevidence', 'scores', 'score_evidence',
+                               'score_status', 'total_score', 'observed_sum', 'observed_cap',
+                               'rank_basis', 'rank_reason', 'public_candidate',
+                               'nonselect_reason', 'explanation',
+                               'evidence_rank_evidence_ids', 'evidence_rank_reason'];
+
+    public const ENUMS = [
+        'band'         => ['A', 'B', 'D'],
+        'tier'         => ['A', 'B', 'C', 'UNVERIFIED'],
+        'eligibility'  => ['ELIGIBLE', 'NO_EVIDENCE', 'UNVERIFIED'],
+        'score_status' => ['complete', 'partial'],
+        'rank_basis'   => ['SCORE', 'EVIDENCE', 'NOT_RANKED'],
+    ];
+    public const NONSELECT_CODES = ['BAND_QUOTA', 'NO_EVIDENCE', 'UNVERIFIED',
+                                    'SELECTION_DISABLED'];
+    public const FAMILIES = ['ability', 'gap', 'market', 'similar_value', 'win_place'];
+    public const FAMILY_STATUS = ['SUPPORTED', 'NO_SUPPORT', 'DATA_MISSING'];
+    public const BANDS = ['A', 'B', 'D'];
+
+    /**
+     * 応答を診断します。
+     *
+     * @param array $res 応答（extract で取り出した JSON）
+     * @param array $src 凍結入力（INPUT_JSON）
+     * @return array ['ok','validator_version','row_valid','repair_scope','findings',
+     *                'missing','duplicated','unknown']
+     */
+    public static function run(array $res, array $src): array
+    {
+        $find = [];
+        $scope = ['horses' => [], 'rank_bands' => [], 'presentation_horses' => [],
+                  'summary_horses' => [], 'public_candidates' => false,
+                  'top_fields' => []];
+        $add = static function (string $sc, $target, string $code, string $why)
+               use (&$find, &$scope) {
+            $find[] = ['scope' => $sc, 'target' => $target, 'code' => $code,
+                       'reason' => $why];
+            if ($sc === 'public_candidates') { $scope['public_candidates'] = true; return; }
+            if (!isset($scope[$sc])) { return; }
+            if (!in_array($target, $scope[$sc], true)) { $scope[$sc][] = $target; }
+        };
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-SCOREKEY  10月20日007のご指摘3-2
+        // ══════════════════════════════════════════════════════════════
+        //   【旧】採点に不備があることは分かっても、<b>どの項目が
+        //     おかしいのかを外へ出していませんでした。</b>そのため
+        //     救済するときに H1〜V5 を全部 null にしていました。
+        //     observed_sum だけが誤っている馬でも、正しい10項目が消えます。
+        //   【いま】項目ごとに印を付けて外へ出します。
+        //     救済は<b>印の付いた項目だけ</b>を null にし、
+        //     合計は残った項目から計算し直します（契約6章）。
+        //   observed_sum・observed_cap・total_score は集計の誤りなので、
+        //   ここには入れません（計算し直せば直るためです）。
+        $badScore = [];
+        $markScore = static function (int $no, $keys) use (&$badScore) {
+            foreach ((array) $keys as $k) {
+                if (!is_string($k) || $k === '') { continue; }
+                $badScore[$no][$k] = true;
+            }
+        };
+
+        // ── 凍結集合（帯も凍結入力の値を正とします）───────────────────
+        $frozenBand = []; $frozenNums = [];
+        foreach ((array) ($src['runners'] ?? []) as $r) {
+            $no = (int) ($r['horse_no'] ?? 0);
+            if ($no <= 0) { continue; }
+            $frozenNums[] = $no;
+            $frozenBand[$no] = (string) ($r['band'] ?? '');
+        }
+        sort($frozenNums);
+
+        // ═══ ① 最上位項目 ═══════════════════════════════════════════
+        foreach (['target_count', 'role_cap', 'quota', 'role_quota', 'learning_stage',
+                  'selection_enabled'] as $k) {
+            if (!array_key_exists($k, $res)) {
+                $add('top_fields', $k, 'TOP_MISSING', $k . 'がありません');
+                continue;
+            }
+            if (array_key_exists($k, $src) && $res[$k] !== $src[$k]) {
+                $add('top_fields', $k, 'TOP_MISMATCH',
+                     $k . 'が固定入力と違います');
+            }
+        }
+        foreach (['shortfalls', 'validation_issues'] as $k) {
+            if (!array_key_exists($k, $res) || !is_array($res[$k])) {
+                $add('top_fields', $k, 'TOP_TYPE', $k . 'は配列です');
+            }
+        }
+        $selEnabled = ($res['selection_enabled'] ?? null) === true;
+
+        // ═══ ② 評価行（欠落・重複・未知馬・局所の項目不正）═══════════
+        $rows = (array) ($res['horses'] ?? []);
+        $byNo = []; $dup = []; $unknown = [];
+        foreach ($rows as $h) {
+            if (!is_array($h) || !array_key_exists('horse_no', $h)
+                || !is_int($h['horse_no'])) {
+                $add('horses', null, 'HORSE_NO_INVALID', 'horse_no が整数ではありません');
+                continue;
+            }
+            $no = (int) $h['horse_no'];
+            if (isset($byNo[$no])) {
+                if (!in_array($no, $dup, true)) { $dup[] = $no; }
+                $add('horses', $no, 'HORSE_DUPLICATED', '同じ馬番が2行あります');
+                continue;
+            }
+            if ($frozenNums !== [] && !in_array($no, $frozenNums, true)) {
+                $unknown[] = $no;
+                $add('horses', $no, 'HORSE_UNKNOWN', '凍結集合にいない馬番です');
+                continue;
+            }
+            $byNo[$no] = $h;
+        }
+        $missing = array_values(array_diff($frozenNums, array_keys($byNo)));
+        sort($missing);
+        foreach ($missing as $no) {
+            // 凍結集合にいる馬の欠落は、horses の対象として救済します
+            $add('horses', $no, 'HORSE_MISSING', '凍結集合にいるのに評価行がありません');
         }
 
-        // ─── OPI 計算（人気順別過去平均単勝オッズ ÷ 6分前単勝オッズ） ────
-        foreach ($promptHorses as &$h) {
-            $avgOdds  = $popularityAvgMap[$h['popularity']] ?? null;
-            $h['opi'] = ($avgOdds && $h['odds_6'] > 0)
-                ? round($avgOdds / $h['odds_6'], 2)
-                : null;
-        }
-        unset($h);
-
-        // ─── 複勝人気順マップの作成（fuku_min_6 昇順） ───────────────────
-        $earlyFukuTemp = array_values(
-            array_filter($promptHorses, fn($h) => isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0)
-        );
-        usort($earlyFukuTemp, fn($a, $b) => $a['fuku_min_6'] <=> $b['fuku_min_6']);
-        $fukuPopularityMap = [];
-        foreach ($earlyFukuTemp as $pos => $fh) {
-            $fukuPopularityMap[$fh['num']] = $pos + 1;
-        }
-
-        // ─── 単勝断層の事前検出 ───────────────────────────────────────────
-        $earlyTanGapAll    = [];
-        $earlyTanGapTop6   = [];
-        $earlyTanGapStrong = [];
-        for ($i = 0; $i < count($promptHorses) - 1; $i++) {
-            $eu = $promptHorses[$i];
-            $el = $promptHorses[$i + 1];
-            if (($eu['odds_6'] ?? 0) > 0 && ($el['odds_6'] ?? 0) > 0) {
-                $er = round($el['odds_6'] / $eu['odds_6'], 2);
-                if ($er >= 2.0) {
-                    $ee = ['upper_pop' => $eu['popularity'], 'lower_pop' => $el['popularity'], 'ratio' => $er];
-                    $earlyTanGapAll[] = $ee;
-                    if ($eu['popularity'] <= 6) {
-                        $earlyTanGapTop6[] = $ee;
-                        if ($er >= 2.5) $earlyTanGapStrong[] = $ee;
+        $rowValid = [];
+        // @ANCHOR-20261020-R122-REFCHECK  固定入力の出典台帳（無ければ検査しません）
+        $reg = (array) ($src['source_registry'] ?? []);
+        $refStats = [];
+        foreach ($byNo as $no => $h) {
+            $okRow = true;
+            foreach (self::HORSE_KEYS as $k) {
+                if (!array_key_exists($k, $h)) {
+                    $add('horses', $no, 'FIELD_MISSING', $k . 'がありません');
+                    $okRow = false;
+                }
+            }
+            foreach (self::ENUMS as $k => $allow) {
+                if (array_key_exists($k, $h)
+                    && !in_array($h[$k], $allow, true)) {
+                    $add('horses', $no, 'FIELD_ENUM',
+                         $k . 'の値が決められた中にありません');
+                    $okRow = false;
+                }
+            }
+            if (array_key_exists('public_candidate', $h)
+                && !is_bool($h['public_candidate'])) {
+                $add('horses', $no, 'FIELD_TYPE', 'public_candidate は真偽です');
+                $okRow = false;
+            }
+            // 採点の内訳と集計
+            $sc = $h['scores'] ?? null;
+            if (!is_array($sc)) {
+                $add('horses', $no, 'SCORES_TYPE', 'scores がありません');
+                $okRow = false;
+            } else {
+                $extra = array_values(array_diff(array_keys($sc),
+                                                 array_keys(self::SCORE_CAP)));
+                if ($extra !== []) {
+                    $add('horses', $no, 'SCORES_UNKNOWN_KEY',
+                         '採点辞書に無い項目があります（' . implode('・', $extra) . '）');
+                    $markScore($no, $extra);          // @ANCHOR-...-SCOREKEY
+                    $okRow = false;
+                }
+                $sum = 0; $cap = 0; $bad = [];
+                foreach (self::SCORE_CAP as $k => $mx) {
+                    if (!array_key_exists($k, $sc)) {
+                        $add('horses', $no, 'SCORES_MISSING', $k . 'がありません');
+                        $markScore($no, [$k]);        // @ANCHOR-...-SCOREKEY
+                        $okRow = false;
+                        continue;
+                    }
+                    $v = $sc[$k];
+                    if ($v === null) { continue; }
+                    if (!is_int($v) || $v < 0 || $v > $mx) { $bad[] = $k; continue; }
+                    $sum += $v; $cap += $mx;
+                }
+                if ($bad !== []) {
+                    $add('summary_horses', $no, 'SCORES_RANGE',
+                         '満点を超える・整数でない採点があります（'
+                         . implode('・', $bad) . '）');
+                    $markScore($no, $bad);            // @ANCHOR-...-SCOREKEY
+                    $okRow = false;
+                }
+                if ($bad === [] && $extra === []) {
+                    if (($h['observed_sum'] ?? null) !== $sum) {
+                        $add('summary_horses', $no, 'OBSERVED_SUM',
+                             'observed_sum が採点の合計と合いません');
+                        $okRow = false;
+                    }
+                    if (($h['observed_cap'] ?? null) !== $cap) {
+                        $add('summary_horses', $no, 'OBSERVED_CAP',
+                             'observed_cap が採点した項目の満点合計と合いません');
+                        $okRow = false;
+                    }
+                    if (($h['score_status'] ?? null) === 'complete'
+                        && ($h['total_score'] ?? null) !== null
+                        && (int) $h['total_score'] !== $sum) {
+                        $add('summary_horses', $no, 'TOTAL_SCORE',
+                             'total_score が採点の合計と合いません');
+                        $okRow = false;
                     }
                 }
             }
+
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-SCOREEV  採点と出典の結びつき
+            // ══════════════════════════════════════════════════════════
+            // 【10月20日005の5章末・10-1】
+            //   採点の算数（満点・合計・observed_sum/cap・total_score）は
+            //   上の段ですでに見ています。<b>見ていなかったのは、
+            //   その点数が何を根拠に付いたか</b>でした。
+            //     ・点が付いているのに出典が空 … 根拠なしの採点です
+            //     ・採点していないのに理由が空 … なぜ採れなかったか分かりません
+            //     ・出典が実在しない／この馬のものでない
+            //
+            //   どの資料がどの項目を裏づけるかの対応（接続表）は設計書に
+            //   書きました。<b>ここで項目ごとに資料の種類まで決め打ちにはしません。</b>
+            //   決め打ちにすると、新しい資料が増えたときに正しい採点を
+            //   誤って弾くためです。見るのは「実在・所有・空でないこと」です。
+            $se = $h['score_evidence'] ?? null;
+            if (!is_array($se)) {
+                $add('horses', $no, 'SCORE_EVIDENCE_TYPE',
+                     'score_evidence がありません');
+                $okRow = false;
+            } else {
+                $exSe = array_values(array_diff(array_keys($se),
+                                                array_keys(self::SCORE_CAP)));
+                if ($exSe !== []) {
+                    $add('horses', $no, 'SCORE_EVIDENCE_UNKNOWN_KEY',
+                         '採点辞書に無い項目の出典があります（'
+                         . implode('・', $exSe) . '）');
+                    $markScore($no, $exSe);           // @ANCHOR-...-SCOREKEY
+                    $okRow = false;
+                }
+                foreach (self::SCORE_CAP as $k => $mx) {
+                    if (!array_key_exists($k, $se)) {
+                        $add('horses', $no, 'SCORE_EVIDENCE_MISSING',
+                             $k . 'の出典欄がありません');
+                        $markScore($no, [$k]);        // @ANCHOR-...-SCOREKEY
+                        $okRow = false;
+                        continue;
+                    }
+                    $ent = (array) ($se[$k] ?? []);
+                    $reason = is_string($ent['reason'] ?? null)
+                            ? trim((string) $ent['reason']) : '';
+                    $srf = [];
+                    foreach ((array) ($ent['source_refs'] ?? []) as $x) {
+                        if (is_string($x)) { $srf[] = $x; }
+                    }
+                    $v = is_array($sc) ? ($sc[$k] ?? null) : null;
+                    if (is_int($v) && $v > 0 && $srf === []) {
+                        $add('summary_horses', $no, 'SCORE_WITHOUT_EVIDENCE',
+                             $k . 'に点が付いているのに出典がありません');
+                        $markScore($no, [$k]);        // @ANCHOR-...-SCOREKEY
+                        $okRow = false;
+                    }
+                    if ($v === null && $reason === '') {
+                        $add('summary_horses', $no, 'SCORE_NULL_WITHOUT_REASON',
+                             $k . 'を採点していないのに理由がありません');
+                        $markScore($no, [$k]);        // @ANCHOR-...-SCOREKEY
+                        $okRow = false;
+                    }
+                    if ($reg !== []) {
+                        $uk = []; $nw = [];
+                        foreach ($srf as $rf) {
+                            $e2 = $reg[$rf] ?? null;
+                            if (!is_array($e2)) { $uk[] = $rf; continue; }
+                            $sc3 = (string) ($e2['scope'] ?? '');
+                            $hn3 = array_map('intval', (array) ($e2['horse_nos'] ?? []));
+                            $ap3 = array_map('intval', (array) ($e2['applicable_horse_nos'] ?? []));
+                            if (!(($sc3 === 'RACE')
+                                  || ($sc3 === 'HORSE'  && in_array($no, $hn3, true))
+                                  || ($sc3 === 'COHORT' && in_array($no, $ap3, true)))) {
+                                $nw[] = $rf;
+                            }
+                        }
+                        if ($uk !== []) {
+                            $add('horses', $no, 'SCORE_EVIDENCE_REF_UNKNOWN',
+                                 $k . 'の出典に固定入力に無いIDがあります（'
+                                 . implode('・', array_slice($uk, 0, 3)) . '）');
+                            $markScore($no, [$k]);    // @ANCHOR-...-SCOREKEY
+                        }
+                        if ($nw !== []) {
+                            $add('horses', $no, 'SCORE_EVIDENCE_REF_NOT_OWNED',
+                                 $k . 'の出典にこの馬のものでないIDがあります（'
+                                 . implode('・', array_slice($nw, 0, 3)) . '）');
+                            $markScore($no, [$k]);    // @ANCHOR-...-SCOREKEY
+                        }
+                    }
+                }
+            }
+
+            // 帯は凍結入力が正
+            if (isset($frozenBand[$no]) && $frozenBand[$no] !== ''
+                && ($h['band'] ?? null) !== $frozenBand[$no]) {
+                $add('summary_horses', $no, 'BAND_MISMATCH',
+                     '帯が凍結入力と違います');
+                $okRow = false;
+            }
+            // 5系統レビュー
+            $fr = $h['family_review'] ?? null;
+            $sup = false;
+            if (!is_array($fr)) {
+                $add('summary_horses', $no, 'FAMILY_TYPE', 'family_review がありません');
+                $okRow = false;
+            } else {
+                foreach (self::FAMILIES as $fam) {
+                    if (!isset($fr[$fam]) || !is_array($fr[$fam])) {
+                        $add('summary_horses', $no, 'FAMILY_MISSING',
+                             $fam . ' のレビューがありません');
+                        $okRow = false;
+                        continue;
+                    }
+                    $st = $fr[$fam]['status'] ?? null;
+                    if (!in_array($st, self::FAMILY_STATUS, true)) {
+                        $add('summary_horses', $no, 'FAMILY_STATUS',
+                             $fam . ' の status が決められた中にありません');
+                        $okRow = false;
+                        continue;
+                    }
+                    if ($st === 'SUPPORTED') { $sup = true; }
+                }
+                $extraFam = array_values(array_diff(array_keys($fr), self::FAMILIES));
+                if ($extraFam !== []) {
+                    $add('summary_horses', $no, 'FAMILY_UNKNOWN',
+                         '5系統に無いものがあります（' . implode('・', $extraFam) . '）');
+                    $okRow = false;
+                }
+            }
+            // 資格と5系統レビューの整合
+            $elig = $h['eligibility'] ?? null;
+            if (in_array($elig, self::ENUMS['eligibility'], true) && is_array($fr)) {
+                if (($elig === 'ELIGIBLE') !== $sup) {
+                    $add('summary_horses', $no, 'ELIGIBILITY_VS_FAMILY',
+                         $sup ? '支持する系統があるのに ELIGIBLE ではありません'
+                              : '支持する系統が1つも無いのに ELIGIBLE です');
+                    $okRow = false;
+                }
+            }
+            // 非適格馬の順位欄
+            if ($elig !== null && $elig !== 'ELIGIBLE'
+                && ($h['rank_basis'] ?? null) !== 'NOT_RANKED') {
+                $add('summary_horses', $no, 'NOT_RANKED',
+                     '非適格馬の rank_basis は NOT_RANKED です');
+                $okRow = false;
+            }
+
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-REFCHECK  参照根拠の意味検証
+            // ══════════════════════════════════════════════════════════
+            // 【10月20日005の5章末。未実装として残っていた分です】
+            //   これまでは各馬の事実出典hashを<b>記録</b>するだけで、
+            //   「その参照IDが固定入力に実在するか」を見ていませんでした。
+            //   AIが参照IDを作り話で書いても、気づかずに通ります。
+            //
+            //   見るのは3つです。
+            //     ① 実在   … source_registry にそのIDがあるか
+            //     ② 所有馬 … その登録がこの馬に当てはまるか
+            //                 HORSE は horse_nos、COHORT は applicable_horse_nos、
+            //                 RACE は全馬に当てはまります
+            //     ③ 自分のSIGNAL … 自分のHORSE×SIGNALが1系統でもあるか
+            //
+            //   契約7章「RACE情報のみ、CONTEXTのみでは資格を作らない」が③です。
+            //   逆に「確認済み個別SIGNALが1系統あれば候補資格を保持する」ので、
+            //   <b>①②で汚れがあっても、③が立っていれば行は落としません。</b>
+            //   汚れたところだけ repair_scope に入れて訂正へ回します。
+            $refs = [];
+            self::collectRefs($h, $refs);
+            $refs = array_values(array_unique($refs));
+            sort($refs, SORT_STRING);
+            $unknownRef = []; $notOwned = []; $ownSignal = 0;
+            foreach ($refs as $rf) {
+                $e = $reg[$rf] ?? null;
+                if (!is_array($e)) { $unknownRef[] = $rf; continue; }
+                $sc2 = (string) ($e['scope'] ?? '');
+                $hn  = array_map('intval', (array) ($e['horse_nos'] ?? []));
+                $ap  = array_map('intval', (array) ($e['applicable_horse_nos'] ?? []));
+                $fit = ($sc2 === 'RACE')
+                    || ($sc2 === 'HORSE'  && in_array($no, $hn, true))
+                    || ($sc2 === 'COHORT' && in_array($no, $ap, true));
+                if (!$fit) { $notOwned[] = $rf; continue; }
+                if ($sc2 === 'HORSE' && in_array($no, $hn, true)
+                    && (string) ($e['dependency_role'] ?? '') === 'SIGNAL') {
+                    $ownSignal++;
+                }
+            }
+            if ($reg !== []) {
+                if ($unknownRef !== []) {
+                    $add('horses', $no, 'EVIDENCE_REF_UNKNOWN',
+                         '固定入力に無い参照IDがあります（'
+                         . implode('・', array_slice($unknownRef, 0, 3))
+                         . (count($unknownRef) > 3
+                            ? '…ほか' . (count($unknownRef) - 3) . '件' : '') . '）');
+                }
+                if ($notOwned !== []) {
+                    $add('horses', $no, 'EVIDENCE_REF_NOT_OWNED',
+                         'この馬に当てはまらない参照IDがあります（'
+                         . implode('・', array_slice($notOwned, 0, 3))
+                         . (count($notOwned) > 3
+                            ? '…ほか' . (count($notOwned) - 3) . '件' : '') . '）');
+                }
+                // ③ 資格を名乗るなら、自分のSIGNALが1系統は要ります
+                if ($elig === 'ELIGIBLE' && $ownSignal === 0) {
+                    $add('summary_horses', $no, 'EVIDENCE_NO_OWN_SIGNAL',
+                         'この馬自身のSIGNALが1系統もありません'
+                         . '（RACE情報だけ・CONTEXTだけでは資格になりません）');
+                    $okRow = false;
+                }
+            }
+            $refStats[$no] = ['refs' => count($refs), 'own_signal' => $ownSignal,
+                              'unknown' => count($unknownRef),
+                              'not_owned' => count($notOwned)];
+
+            $rowValid[$no] = $okRow;
         }
 
-        // ─── 複勝断層の事前検出 ───────────────────────────────────────────
-        $earlyFukuGapDets = [];
-        for ($i = 0; $i < count($earlyFukuTemp) - 1; $i++) {
-            $eu = $earlyFukuTemp[$i];
-            $el = $earlyFukuTemp[$i + 1];
-            if (($eu['fuku_min_6'] ?? 0) > 0) {
-                $er = round($el['fuku_min_6'] / $eu['fuku_min_6'], 2);
-                if ($er >= 2.0) {
-                    $earlyFukuGapDets[] = $er;
+        // ═══ ③ 順位関連項目（band_ranks / evidence_band_ranks）═══════
+        foreach (['band_ranks', 'evidence_band_ranks'] as $key) {
+            $br = $res[$key] ?? null;
+            if (!is_array($br)) {
+                $add('rank_bands', $key, 'BANDS_TYPE', $key . 'がありません');
+                continue;
+            }
+            $extraB = array_values(array_diff(array_keys($br), self::BANDS));
+            if ($extraB !== []) {
+                $add('rank_bands', $key, 'BANDS_UNKNOWN',
+                     'A・B・D 以外の帯があります（' . implode('・', $extraB) . '）');
+            }
+            foreach (self::BANDS as $b) {
+                $want = [];
+                foreach ($frozenBand as $no => $bb) {
+                    if ($bb === $b) { $want[] = (int) $no; }
+                }
+                sort($want);
+                $got = array_map('intval', (array) ($br[$b] ?? []));
+                $gotSorted = $got; sort($gotSorted);
+                if (count(array_unique($got)) !== count($got)) {
+                    $add('rank_bands', $b, 'BAND_DUPLICATED',
+                         $b . '帯の順位に同じ馬番があります');
+                    continue;
+                }
+                if ($gotSorted !== $want) {
+                    $add('rank_bands', $b, 'BAND_SET',
+                         $b . '帯の馬番の集合が凍結入力と違います');
+                }
+            }
+        }
+        // 方式（全頭complete の帯は SCORE、partial を含む帯は EVIDENCE）
+        $br = (array) ($res['band_ranks'] ?? []);
+        foreach (self::BANDS as $b) {
+            $nums = array_map('intval', (array) ($br[$b] ?? []));
+            if ($nums === []) { continue; }
+            $allComplete = true; $have = false;
+            foreach ($nums as $no) {
+                if (!isset($byNo[$no])) { continue; }
+                $have = true;
+                if (($byNo[$no]['score_status'] ?? 'partial') !== 'complete') {
+                    $allComplete = false;
+                }
+            }
+            if (!$have) { continue; }
+            $wantBasis = $allComplete ? 'SCORE' : 'EVIDENCE';
+            foreach ($nums as $no) {
+                if (!isset($byNo[$no])) { continue; }
+                if (($byNo[$no]['eligibility'] ?? null) !== 'ELIGIBLE') { continue; }
+                if (($byNo[$no]['rank_basis'] ?? null) !== $wantBasis) {
+                    $add('rank_bands', $b, 'BASIS_MISMATCH',
+                         $b . '帯は' . $wantBasis . 'のはずです（馬番 ' . $no . '）');
+                    break;
+                }
+            }
+        }
+        // EVIDENCE の帯は両方の順位を一致させます
+        if (isset($res['band_ranks'], $res['evidence_band_ranks'])
+            && is_array($res['band_ranks']) && is_array($res['evidence_band_ranks'])) {
+            foreach (self::BANDS as $b) {
+                $a1 = array_map('intval', (array) ($res['band_ranks'][$b] ?? []));
+                $a2 = array_map('intval', (array) ($res['evidence_band_ranks'][$b] ?? []));
+                if ($a1 === [] && $a2 === []) { continue; }
+                $allComplete = true; $have = false;
+                foreach ($a1 as $no) {
+                    if (!isset($byNo[$no])) { continue; }
+                    $have = true;
+                    if (($byNo[$no]['score_status'] ?? 'partial') !== 'complete') {
+                        $allComplete = false;
+                    }
+                }
+                if ($have && !$allComplete && $a1 !== $a2) {
+                    $add('rank_bands', $b, 'EVIDENCE_ORDER',
+                         $b . '帯は点数を順位キーに使えないので'
+                         . '両方の順位をそろえます');
                 }
             }
         }
 
-        // ─── 断層タイプの判定 ─────────────────────────────────────────────
-        $earlyTanHasGap  = count($earlyTanGapAll) > 0;
-        $earlyFukuHasGap = count($earlyFukuGapDets) > 0;
-
-        if (count($earlyTanGapTop6) >= 2) { // 【20260924】仕様どおり二重断層（2か所以上）でタイプA
-            $earlyGapType = 'A';
-        } elseif ($earlyTanHasGap !== $earlyFukuHasGap) {
-            $earlyGapType = 'E';
-        } elseif (count($earlyTanGapTop6) === 1) {
-            $earlyGapType = 'B';
-        } elseif ($earlyTanHasGap) {
-            $earlyGapType = 'C';
+        // ═══ ④ 公開リスト ═══════════════════════════════════════════
+        $pc = $res['public_candidates'] ?? null;
+        if (!is_array($pc)) {
+            $add('public_candidates', 'public_candidates', 'PC_TYPE',
+                 'public_candidates がありません');
+            $pc = [];
         } else {
-            $earlyGapType = 'D';
-        }
-
-        // 断層補正の基準人気順（上側グループ境界）。D・E は null → 補正係数 1.00
-        $earlyPrimaryGapUpperPop = null;
-        if (in_array($earlyGapType, ['A', 'B']) && !empty($earlyTanGapTop6)) {
-            $earlyPrimaryGapUpperPop = $earlyTanGapTop6[0]['upper_pop'];
-        } elseif ($earlyGapType === 'C' && !empty($earlyTanGapAll)) {
-            $earlyPrimaryGapUpperPop = $earlyTanGapAll[0]['upper_pop'];
-        }
-
-        // ─── 馬眼力指数の算出 ─────────────────────────────────────────────
-        // 馬眼力指数 = OPI × オッズ上昇率 × 複勝支持率 × 断層補正 × 100
-        $result = [];
-        foreach ($promptHorses as $h) {
-            $umaOpi = $h['opi'];
-
-            // ② オッズ上昇率: 21分前単勝 ÷ 6分前単勝（21分前データなければ 1.0）
-            $odds21 = isset($h['tan_series'][21]) && floatval($h['tan_series'][21]) > 0
-                ? floatval($h['tan_series'][21])
-                : null;
-            $odds6  = $h['odds_6'] ?? 0;
-            $umaOddsRiseRate = ($odds21 !== null && $odds6 > 0)
-                ? round($odds21 / $odds6, 4)
-                : 1.0;
-
-            // ③ 複勝支持率: 単勝人気順 ÷ 複勝人気順
-            $fukuPop = $fukuPopularityMap[$h['num']] ?? null;
-            $umaFukuSupportRate = ($fukuPop !== null && $fukuPop > 0)
-                ? round($h['popularity'] / $fukuPop, 4)
-                : null;
-
-            // ④ 断層補正: 内側=1.10 / 外側=0.90 / D・E=1.00
-            if ($earlyPrimaryGapUpperPop !== null) {
-                $umaDansouCorr = ($h['popularity'] <= $earlyPrimaryGapUpperPop) ? 1.10 : 0.90;
-            } else {
-                $umaDansouCorr = 1.00;
+            $pc = array_map('intval', $pc);
+            if (count(array_unique($pc)) !== count($pc)) {
+                $add('public_candidates', 'public_candidates', 'PC_DUPLICATED',
+                     '公開リストに同じ馬番があります');
             }
-
-            // 馬眼力指数（OPI または 複勝支持率 が null なら null）
-            $umaGanryokuIndex = ($umaOpi !== null && $umaFukuSupportRate !== null)
-                ? round($umaOpi * $umaOddsRiseRate * $umaFukuSupportRate * $umaDansouCorr * 100, 1)
-                : null;
-
-            $result[] = [
-                'num'                => $h['num'],
-                'name'               => $h['name'],
-                'baganriki_index' => $umaGanryokuIndex,
-            ];
+            $out = array_values(array_diff($pc, $frozenNums));
+            if ($frozenNums !== [] && $out !== []) {
+                $add('public_candidates', 'public_candidates', 'PC_UNKNOWN',
+                     '公開リストに凍結集合にいない馬番があります（'
+                     . implode('・', $out) . '）');
+            }
+            if (!$selEnabled && $pc !== []) {
+                $add('public_candidates', 'public_candidates', 'PC_NOT_EMPTY',
+                     '選出しない状態なので公開リストは空です');
+            }
+            if ($selEnabled) {
+                // 帯の先頭から枠数ぶん、適格馬だけを取ります（飛ばし取りはしません）
+                $q = (array) ($res['role_quota'] ?? []);
+                $want = [];
+                foreach (self::BANDS as $b) {
+                    $k = (int) ($q[$b] ?? 0);
+                    $taken = 0;
+                    foreach (array_map('intval', (array) ($br[$b] ?? [])) as $no) {
+                        if ($taken >= $k) { break; }
+                        if (($byNo[$no]['eligibility'] ?? null) === 'ELIGIBLE') {
+                            $want[] = $no; $taken++;
+                        }
+                    }
+                }
+                if ($want !== $pc) {
+                    $add('public_candidates', 'public_candidates', 'PC_ORDER',
+                         '帯の先頭から枠数ぶん取っていません（期待 '
+                         . implode('-', $want) . '）');
+                }
+            }
         }
 
-        // 馬番順にソートして返す
-        usort($result, fn($a, $b) => $a['num'] <=> $b['num']);
+        // ═══ ⑤ 公開フラグと非選出理由 ═══════════════════════════════
+        //   ここでの不一致では horses を広げません（契約6章）。
+        foreach ($byNo as $no => $h) {
+            $flag = $h['public_candidate'] ?? null;
+            if (is_bool($flag) && $flag !== in_array((int) $no, $pc, true)) {
+                $add('presentation_horses', $no, 'FLAG_VS_LIST',
+                     'public_candidate が公開リストと合いません');
+            }
+            $nsr = $h['nonselect_reason'] ?? null;
+            if ($flag === true) {
+                if ($nsr !== null) {
+                    $add('presentation_horses', $no, 'NSR_PRESENT',
+                         '公開する馬に非選出理由があります');
+                }
+                continue;
+            }
+            if ($nsr === null) {
+                $add('presentation_horses', $no, 'NSR_MISSING',
+                     '公開しない馬に非選出理由がありません');
+                continue;
+            }
+            if (!is_array($nsr)) {
+                // 配列・objectでない値でも、この馬の表示項目だけの話にします
+                $add('presentation_horses', $no, 'NSR_TYPE',
+                     '非選出理由の形が違います');
+                continue;
+            }
+            $code = $nsr['code'] ?? null;
+            if (!is_string($code) || !in_array($code, self::NONSELECT_CODES, true)) {
+                $add('presentation_horses', $no, 'NSR_CODE',
+                     '非選出理由の code が決められた中にありません');
+                continue;
+            }
+            if (!isset($nsr['reason']) || !is_string($nsr['reason'])
+                || trim($nsr['reason']) === '') {
+                $add('presentation_horses', $no, 'NSR_REASON',
+                     '非選出理由の説明が空です');
+            }
+            if (!$selEnabled && $code !== 'SELECTION_DISABLED') {
+                $add('presentation_horses', $no, 'NSR_DISABLED',
+                     '選出しない状態の非選出理由は SELECTION_DISABLED です');
+            }
+        }
 
-        return response()->json(['data' => $result]);
+        sort($scope['horses']);
+        sort($scope['presentation_horses']);
+        sort($scope['summary_horses']);
+        sort($scope['top_fields']);
+        sort($unknown);
+        return [
+            'ok' => ($find === []),
+            'validator_version' => self::VERSION,
+            'row_valid'    => $rowValid,
+            'repair_scope' => $scope,
+            'findings'     => $find,
+            'missing'      => $missing,
+            'duplicated'   => $dup,
+            'unknown'      => $unknown,
+            // @ANCHOR-20261020-R122-REFCHECK  馬ごとの参照の内訳
+            'ref_stats'    => $refStats,
+            // @ANCHOR-20261020-R122-SCOREKEY  馬ごとの「おかしい採点項目」
+            //   救済はこの項目だけを null にします（全部ではありません）。
+            'bad_scores'   => array_map(
+                static fn($m) => array_values(array_keys((array) $m)), $badScore),
+        ];
     }
 
+    /**
+     * 診断の見出し（監査やログに1行で残すため）
+     */
+    public static function summary(array $d): string
+    {
+        if ($d['ok']) { return '直すところはありません'; }
+        $by = [];
+        foreach ($d['findings'] as $f) {
+            $by[$f['scope']] = ($by[$f['scope']] ?? 0) + 1;
+        }
+        $p = [];
+        foreach ($by as $k => $n) { $p[] = $k . ' ' . $n . '件'; }
+        return implode('／', $p);
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-REFCHECK  入れ子のどこにある参照IDも拾います
+     *
+     *   応答の形は role や版で変わり得るので、キーの名前で拾います。
+     *   `source_ref`（1件）と `source_refs`（配列）の両方を見ます。
+     *   拾いすぎても、実在して所有が合っていれば何も起きません。
+     */
+    private static function collectRefs($node, array &$out): void
+    {
+        if (is_array($node)) {
+            foreach ($node as $k => $v) {
+                if ($k === 'source_ref' && is_string($v)) { $out[] = $v; continue; }
+                if ($k === 'source_refs' && is_array($v)) {
+                    foreach ($v as $x) { if (is_string($x)) { $out[] = $x; } }
+                    continue;
+                }
+                self::collectRefs($v, $out);
+            }
+        }
+    }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261020-R122-STRICTJSON  JSONの厳密読込
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 根拠：server_contract_r12.2.txt／詳細設計書8章
+ *       10月20日005のご指摘7-3
+ *
+ * ■ なぜ要るか
+ *   `BaganrikiResponse::extract()` は通常の `json_decode` でした。
+ *   深さ64だけは見ていましたが、次が素通りします。
+ *
+ *     ・<b>重複キー</b>……`json_decode` は黙って後勝ちにします。
+ *       AIが同じ馬番を2回出したとき、気づかずに片方を捨てます。
+ *     ・<b>大きさ</b>……4MiBを超える本文をそのまま読みます。
+ *     ・<b>数値の桁</b>……128桁を超える数値を float へ丸めます。
+ *     ・<b>指数</b>……`1e400` を `INF` にします。`INF` は JSON へ戻せません。
+ *
+ *   どれも「読めた」ことになってしまうので、後段の検証では拾えません。
+ *   読む前に、本文そのものを1文字ずつ見ます。
+ *
+ * ■ 方針
+ *   走査（この関数）と値の組み立て（`json_decode`）を分けます。
+ *   同じバイト列を見るので構造は一致します。走査で弾いたものだけ、
+ *   `json_decode` へ渡しません。<b>値の作り方は変えていません。</b>
+ *   （自前で値を組み立てると、後段の配列の形が変わってしまうためです）
+ *
+ * ■ 限度（詳細設計書8章）
+ *   4MiB／64階層／有限数値128桁／調整後指数 −308〜308。
+ *   参照20,000件は source_registry 固有の限度なので、ここでは数えて返すだけに
+ *   して、使う側（入力の自己点検）で判定します。
+ */
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @ANCHOR-20261021-R122-DECIMAL  値と型を一緒に運ぶ入れ物（10月21日009のご指摘4）
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ■ なぜ要るか
+ *   前の版は「どの経路がJSON上の数値だったか」を<b>別の表（number_paths）</b>で
+ *   持っていました。これだと、
+ *     ・診断・訂正の比較・保存へ渡していなければ、そこで型が消える
+ *     ・horses を馬番キーへ並べ替えると、経路がずれる
+ *     ・値を直しても、経路の表は古い値のままなので、書き戻すと元へ戻る
+ *     ・監査用の5,000件の制限で、型の保持まで打ち切られる
+ *   という問題が残ります。10月21日009のご指摘のとおりです。
+ *
+ * ■ いま
+ *   <b>値そのものを、この入れ物に入れます。</b>値と型が常に一緒に動くので、
+ *   並べ替えても、別の関数へ渡しても、保存しても、離れません。
+ *   5,000件の制限も関係ありません（表ではなく値だからです）。
+ *
+ * ■ 使う側から見た振る舞い
+ *   ・`is_int()` は false。採点は整数と決まっているので、採点の検査が落とします
+ *   ・`(string)` で十進数の原表現になります
+ *   ・`json_encode` すると文字列になります。<b>原表現のまま数値で書き戻すときは
+ *     `BaganrikiJson::reserialize()` を使ってください</b>
+ *   ・`===` は同じ中身なら true になりません（オブジェクトなので）。
+ *     比べるときは `BaganrikiJson::plain()` で素の形にしてください
+ */
+final class BaganrikiDecimal implements \JsonSerializable
+{
+    // ══════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261021-R122-PHP80  このサーバの artisan は PHP 8.0.30 です
+    // ══════════════════════════════════════════════════════════════════
+    //   `readonly` は PHP 8.1 からです。8.0 では構文エラーになります。
+    //   コンストラクタのプロモーションは 8.0 で使えるので、そちらだけ使い、
+    //   書き換え防止は「private + 読み出し用メソッド」で行います。
+    //   戻り値型 `mixed` も 8.0 からなので、そのまま使えます。
+
+    /** @param string $raw 原トークン（AIが書いたままの文字列） */
+    /** @param string $decimal 正確な十進値（指数を展開し、符号を正規化したもの） */
+    public function __construct(
+        private string $rawToken,
+        private string $decimalValue
+    ) {}
+
+    public function raw(): string { return $this->rawToken; }
+    public function decimal(): string { return $this->decimalValue; }
+
+    public function __toString(): string { return $this->decimalValue; }
+
+    /** json_encode したときは文字列になります（型を保ちたいなら reserialize） */
+    public function jsonSerialize(): mixed { return $this->decimalValue; }
+}
+
+/**
+ * @ANCHOR-20261021-R122-EMPTYOBJ  空の {} と空の [] を区別する入れ物
+ *   json_decode(..., true) はどちらも空配列にします。
+ *   書き戻すときに {} が [] になってしまうので、空の {} だけ印を付けます
+ *   （10月21日009のご指摘4(a)）。
+ */
+final class BaganrikiEmptyObject implements \JsonSerializable
+{
+    public function jsonSerialize(): mixed { return new \stdClass(); }
+}
+
+final class BaganrikiJson
+{
+    public const MAX_BYTES  = 4194304;   // 4 MiB
+    public const MAX_DEPTH  = 64;
+    public const MAX_DIGITS = 128;
+    /** @ANCHOR-20261020-R122-NUMEXACT  監査に残す数値トークンの上限 */
+    public const MAX_NUMBERS_KEPT = 5000;
+    // ══════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261021-R122-TYPECAP  型の地図は監査の5,000件とは別です
+    // ══════════════════════════════════════════════════════════════════
+    //   ご指摘（010の3-1）：
+    //     「値に型を持たせる方式は、馬番キーへの並べ替え、修正後の値への
+    //       置換、<b>監査5,000件制限との分離</b>に適しています。」
+    //   そのとおりでした。監査に残す一覧（numbers）と、再保存に使う
+    //   型の地図（number_paths）を<b>同じ 5,000 で切っていました。</b>
+    //   丸まる数値の置き替え（inexact）には上限が無いので、
+    //   5,001個目から先は「文字列に置き替わったのに、数値だった印が
+    //   地図に無い」状態になり、再保存で<b>数値が文字列へ化けます。</b>
+    //   なるの3-5の「5,001個目の長い数値」がこれです。
+    //   【いま】地図は監査とは別の上限にします。
+    //     numbers（監査の一覧）      5,000 件のまま
+    //     number_paths（型の地図）   200,000 件
+    //     kind_paths（obj/arr の地図） 200,000 件
+    //   18頭・過去5走の本文でも、値の数は数万で収まります。
+    public const MAX_NUMTYPE_KEPT = 200000;
+    // ══════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261021-R122-KINDPATH  obj／arr を控える位置の上限
+    // ══════════════════════════════════════════════════════════════════
+    //   数値の上限（5,000）とは別にします。obj／arr の印は
+    //   <b>再保存のときに形を決める</b>ので、落とすと {} が [] に
+    //   化けます。18頭の本文でも階層の数は数万には届かないので、
+    //   数値より多めにしておきます。
+    public const MAX_KINDS_KEPT = 200000;
+    public const EXP_MIN    = -308;
+    public const EXP_MAX    = 308;
+
+    /**
+     * @return array ok/code/reason/value/stats
+     *   stats = ['bytes','depth','nodes','members','max_digits']
+     */
+    public static function strict(string $raw): array
+    {
+        $ng = static fn(string $c, string $r, array $st = []) =>
+            ['ok' => false, 'code' => $c, 'reason' => $r, 'value' => null,
+             'stats' => $st];
+
+        $len = strlen($raw);
+        if ($len === 0) {
+            return $ng('JSON_EMPTY', '本文が空です');
+        }
+        if ($len > self::MAX_BYTES) {
+            return $ng('JSON_TOO_LARGE',
+                '本文が ' . number_format($len) . ' バイトで、上限 '
+                . number_format(self::MAX_BYTES) . ' バイトを超えています');
+        }
+        // UTF-8 として読めない本文は、ここで止めます（後段で化けないように）
+        if (!mb_check_encoding($raw, 'UTF-8')) {
+            return $ng('JSON_NOT_UTF8', '本文が UTF-8 として読めません');
+        }
+
+        $s = ['i' => 0, 'n' => $len, 'raw' => $raw,
+              'depth' => 0, 'max_depth' => 0, 'nodes' => 0, 'members' => 0,
+              'max_digits' => 0, 'err' => null,
+              // @ANCHOR-20261020-R122-NUMEXACT  数値トークンの原表現
+              'numbers' => [], 'inexact' => [],
+              // @ANCHOR-20261021-R122-NUMTYPE  いま読んでいる位置（経路）と、
+              //   「ここはJSON上の数値だった」という印
+              'path' => [], 'number_paths' => [],
+              // ══════════════════════════════════════════════════════
+              // @ANCHOR-20261021-R122-KINDPATH  10月21日010の3-4
+              // ══════════════════════════════════════════════════════
+              //   ご指摘：
+              //     「BaganrikiEmptyObjectで {} と [] を区別するのは
+              //       必要ですが、それだけでは、例えば
+              //       {"0":"a","1":"b"} と ["a","b"] の区別が
+              //       失われ得ます。数値キーを含む非空オブジェクトも
+              //       含め、JSONオブジェクト／配列の種類を保持して
+              //       ください。」
+              //   そのとおりです。json_decode(…, true) は
+              //   {"0":"a","1":"b"} も ["a","b"] も同じPHP配列にします。
+              //   【いま】<b>経路ごとに obj／arr を控えます。</b>
+              //   空かどうかに関係なく、数値キーのオブジェクトも
+              //   区別できます。
+              'kind_paths' => []];
+
+        self::ws($s);
+        $okTop = self::value($s);
+        if ($okTop) {
+            self::ws($s);
+            if ($s['i'] !== $s['n']) {
+                $s['err'] = ['JSON_TRAILING',
+                             $s['i'] . ' バイト目より後ろに余分な文字があります'];
+                $okTop = false;
+            }
+        }
+        $stats = ['bytes' => $len, 'depth' => $s['max_depth'],
+                  'nodes' => $s['nodes'], 'members' => $s['members'],
+                  'max_digits' => $s['max_digits'],
+                  // @ANCHOR-20261020-R122-NUMEXACT  原表現（監査用）
+                  'numbers' => count($s['numbers']),
+                  // @ANCHOR-20261021-R122-NUMTYPE  数値だった位置の数
+                  'number_paths' => count($s['number_paths']),
+                  // @ANCHOR-20261021-R122-KINDPATH  obj／arr を控えた位置の数
+                  'kind_paths' => count($s['kind_paths'])];
+        if (!$okTop) {
+            $e = $s['err'] ?? ['JSON_INVALID', '読めない形です'];
+            return $ng($e[0], $e[1], $stats);
+        }
+
+        // @ANCHOR-20261020-R122-NUMEXACT
+        //   <b>PHPの数値では丸まるものだけ、十進数の文字列に置き替えます。</b>
+        //   置き替えるのは数値トークンの位置そのもの（走査で控えた
+        //   byte位置と長さ）なので、他の部分は1バイトも動きません。
+        //   うしろから替えていくので、前の位置はずれません。
+        $dec = $raw;
+        if ($s['inexact'] !== []) {
+            $spans = $s['inexact'];
+            usort($spans, static fn($a, $b) => $b['off'] <=> $a['off']);
+            foreach ($spans as $sp) {
+                $dec = substr($dec, 0, $sp['off'])
+                     . '"' . $sp['dec'] . '"'
+                     . substr($dec, $sp['off'] + $sp['len']);
+            }
+        }
+        $stats['inexact'] = count($s['inexact']);
+        $stats['inexact_decimals'] = array_values(array_map(
+            static fn($x) => $x['dec'], array_slice($s['inexact'], 0, 20)));
+
+        // 走査を通ったものだけを、いつもの方法で値にします
+        $v = json_decode($dec, true, self::MAX_DEPTH + 1);
+        if ($v === null && strtolower(trim($dec)) !== 'null') {
+            return $ng('JSON_INVALID',
+                       'json_decode が読めませんでした（' . json_last_error_msg() . '）',
+                       $stats);
+        }
+        return ['ok' => true, 'code' => null, 'reason' => null,
+                'value' => $v, 'stats' => $stats,
+                // @ANCHOR-20261021-R122-NUMTYPE  JSON上の型を結び付けた印
+                'number_paths' => $s['number_paths'],
+                // @ANCHOR-20261021-R122-KINDPATH  obj／arr の印
+                'kind_paths' => $s['kind_paths'],
+                // @ANCHOR-20261021-R122-TYPEMAP  上の2つをまとめた型の地図
+                //   これ1つを持ち回せば、型を落とさずに
+                //   診断→訂正比較→保存→読戻しまで通せます（010の3章）。
+                'map' => ['num' => $s['number_paths'],
+                          'kind' => $s['kind_paths']]];
+    }
+
+    // ── 以下は走査の部品 ───────────────────────────────────────────────
+
+    private static function ws(array &$s): void
+    {
+        while ($s['i'] < $s['n']) {
+            $c = $s['raw'][$s['i']];
+            if ($c === ' ' || $c === "\t" || $c === "\n" || $c === "\r") { $s['i']++; }
+            else { break; }
+        }
+    }
+
+    /**
+     * @ANCHOR-20261021-R122-UNESCAPE  符号位置を UTF-8 のバイト列にします
+     *   （\uXXXX を復号してからキーを比べるために使います）
+     */
+    private static function utf8(int $cp): string
+    {
+        if ($cp < 0x80)    { return chr($cp); }
+        if ($cp < 0x800)   { return chr(0xC0 | ($cp >> 6))
+                                  . chr(0x80 | ($cp & 0x3F)); }
+        if ($cp < 0x10000) { return chr(0xE0 | ($cp >> 12))
+                                  . chr(0x80 | (($cp >> 6) & 0x3F))
+                                  . chr(0x80 | ($cp & 0x3F)); }
+        return chr(0xF0 | ($cp >> 18))
+             . chr(0x80 | (($cp >> 12) & 0x3F))
+             . chr(0x80 | (($cp >> 6) & 0x3F))
+             . chr(0x80 | ($cp & 0x3F));
+    }
+
+    private static function fail(array &$s, string $code, string $reason): bool
+    {
+        if ($s['err'] === null) { $s['err'] = [$code, $reason]; }
+        return false;
+    }
+
+    private static function value(array &$s): bool
+    {
+        if ($s['i'] >= $s['n']) {
+            return self::fail($s, 'JSON_INVALID', '値が来るはずの位置で本文が終わっています');
+        }
+        $s['nodes']++;
+        $c = $s['raw'][$s['i']];
+        if ($c === '{') { return self::obj($s); }
+        if ($c === '[') { return self::arr($s); }
+        if ($c === '"') { return self::str($s) !== null; }
+        if ($c === '-' || ($c >= '0' && $c <= '9')) { return self::num($s); }
+        foreach (['true' => 4, 'false' => 5, 'null' => 4] as $w => $l) {
+            if (substr_compare($s['raw'], $w, $s['i'], $l) === 0) {
+                $s['i'] += $l; return true;
+            }
+        }
+        return self::fail($s, 'JSON_INVALID',
+            $s['i'] . ' バイト目に読めない文字があります（' . $c . '）');
+    }
+
+    private static function obj(array &$s): bool
+    {
+        // @ANCHOR-20261021-R122-KINDPATH  ここはJSONオブジェクトです（010の3-4）
+        if (count($s['kind_paths']) < self::MAX_KINDS_KEPT) {
+            $s['kind_paths'][self::pathKey($s['path'])] = 'obj';
+        }
+        $s['i']++;                       // '{'
+        $s['depth']++;
+        if ($s['depth'] > $s['max_depth']) { $s['max_depth'] = $s['depth']; }
+        if ($s['depth'] > self::MAX_DEPTH) {
+            return self::fail($s, 'JSON_TOO_DEEP',
+                '階層が ' . self::MAX_DEPTH . ' を超えています');
+        }
+        self::ws($s);
+        $seen = [];                      // ここが重複キーの見張りです
+        if ($s['i'] < $s['n'] && $s['raw'][$s['i']] === '}') {
+            $s['i']++; $s['depth']--; return true;
+        }
+        for (;;) {
+            self::ws($s);
+            if ($s['i'] >= $s['n'] || $s['raw'][$s['i']] !== '"') {
+                return self::fail($s, 'JSON_INVALID',
+                    $s['i'] . ' バイト目でキーが文字列になっていません');
+            }
+            $k = self::str($s);
+            if ($k === null) { return false; }
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261020-R122-STRICTJSON  重複キーは拒否します
+            // ══════════════════════════════════════════════════════════
+            //   json_decode は後勝ちで黙って1つにします。
+            //   同じ馬番が2回来たときに気づけないので、ここで止めます。
+            if (isset($seen[$k])) {
+                return self::fail($s, 'JSON_DUPLICATE_KEY',
+                    '同じ階層に同じキーが2回あります（' . $k . '）');
+            }
+            $seen[$k] = true;
+            $s['members']++;
+            self::ws($s);
+            if ($s['i'] >= $s['n'] || $s['raw'][$s['i']] !== ':') {
+                return self::fail($s, 'JSON_INVALID',
+                    $s['i'] . ' バイト目にコロンがありません');
+            }
+            $s['i']++;
+            self::ws($s);
+            // @ANCHOR-20261021-R122-NUMTYPE  経路を1つ下ります
+            $s['path'][] = $k;
+            $okV = self::value($s);
+            array_pop($s['path']);
+            if (!$okV) { return false; }
+            self::ws($s);
+            if ($s['i'] >= $s['n']) {
+                return self::fail($s, 'JSON_INVALID', '波括弧が閉じていません');
+            }
+            $c = $s['raw'][$s['i']];
+            if ($c === ',') { $s['i']++; continue; }
+            if ($c === '}') { $s['i']++; $s['depth']--; return true; }
+            return self::fail($s, 'JSON_INVALID',
+                $s['i'] . ' バイト目に読点か閉じ波括弧がありません');
+        }
+    }
+
+    private static function arr(array &$s): bool
+    {
+        // @ANCHOR-20261021-R122-KINDPATH  ここはJSON配列です（010の3-4）
+        if (count($s['kind_paths']) < self::MAX_KINDS_KEPT) {
+            $s['kind_paths'][self::pathKey($s['path'])] = 'arr';
+        }
+        $s['i']++;                       // '['
+        $s['depth']++;
+        if ($s['depth'] > $s['max_depth']) { $s['max_depth'] = $s['depth']; }
+        if ($s['depth'] > self::MAX_DEPTH) {
+            return self::fail($s, 'JSON_TOO_DEEP',
+                '階層が ' . self::MAX_DEPTH . ' を超えています');
+        }
+        self::ws($s);
+        if ($s['i'] < $s['n'] && $s['raw'][$s['i']] === ']') {
+            $s['i']++; $s['depth']--; return true;
+        }
+        $idx = 0;
+        for (;;) {
+            self::ws($s);
+            // @ANCHOR-20261021-R122-NUMTYPE  経路を1つ下ります（配列の番号）
+            $s['path'][] = $idx;
+            $okV = self::value($s);
+            array_pop($s['path']);
+            $idx++;
+            if (!$okV) { return false; }
+            self::ws($s);
+            if ($s['i'] >= $s['n']) {
+                return self::fail($s, 'JSON_INVALID', '角括弧が閉じていません');
+            }
+            $c = $s['raw'][$s['i']];
+            if ($c === ',') { $s['i']++; continue; }
+            if ($c === ']') { $s['i']++; $s['depth']--; return true; }
+            return self::fail($s, 'JSON_INVALID',
+                $s['i'] . ' バイト目に読点か閉じ角括弧がありません');
+        }
+    }
+
+    /** 文字列を読み、中身を返します（読めなければ null） */
+    private static function str(array &$s): ?string
+    {
+        $s['i']++;                       // '"'
+        $out = '';
+        while ($s['i'] < $s['n']) {
+            $c = $s['raw'][$s['i']];
+            if ($c === '"') { $s['i']++; return $out; }
+            if ($c === '\\') {
+                $s['i']++;
+                if ($s['i'] >= $s['n']) {
+                    self::fail($s, 'JSON_INVALID', '逆斜線の後ろで本文が終わっています');
+                    return null;
+                }
+                $e = $s['raw'][$s['i']];
+                $map = ['"' => '"', '\\' => '\\', '/' => '/', 'b' => "\x08",
+                        'f' => "\x0C", 'n' => "\n", 'r' => "\r", 't' => "\t"];
+                if (isset($map[$e])) { $out .= $map[$e]; $s['i']++; continue; }
+                if ($e === 'u') {
+                    // ══════════════════════════════════════════════════
+                    // @ANCHOR-20261021-R122-UNESCAPE  10月21日008のご指摘6(2)
+                    // ══════════════════════════════════════════════════
+                    //   【本物の不具合でした】
+                    //   \uXXXX を<b>復号せずそのまま</b>キーの比較用文字列へ
+                    //   足していました。そのため
+                    //     {"a":1,"\u0061":2}
+                    //   は JSON 上は同じキー a なのに、走査では別のキーに
+                    //   見え、<b>重複キーの拒否をすり抜けます。</b>
+                    //   後段の json_decode では同じキーへ戻るので、
+                    //   黙って片方が消えます。
+                    //   【いま】復号してから比べます（代理対も組み立てます）。
+                    if ($s['i'] + 4 >= $s['n']
+                        || preg_match('/^[0-9a-fA-F]{4}$/', substr($s['raw'], $s['i'] + 1, 4)) !== 1) {
+                        self::fail($s, 'JSON_INVALID', '\\u の後ろが16進4桁ではありません');
+                        return null;
+                    }
+                    $cp = (int) hexdec(substr($s['raw'], $s['i'] + 1, 4));
+                    $s['i'] += 5;
+                    if ($cp >= 0xD800 && $cp <= 0xDBFF) {
+                        // 上位代理。下位代理が続いていなければ UTF-8 にできません
+                        if ($s['i'] + 5 < $s['n']
+                            && $s['raw'][$s['i']] === '\\'
+                            && $s['raw'][$s['i'] + 1] === 'u'
+                            && preg_match('/^[0-9a-fA-F]{4}$/',
+                                          substr($s['raw'], $s['i'] + 2, 4)) === 1) {
+                            $lo = (int) hexdec(substr($s['raw'], $s['i'] + 2, 4));
+                            if ($lo >= 0xDC00 && $lo <= 0xDFFF) {
+                                $cp = 0x10000 + (($cp - 0xD800) << 10) + ($lo - 0xDC00);
+                                $s['i'] += 6;
+                            } else {
+                                self::fail($s, 'JSON_BAD_SURROGATE',
+                                    '上位代理の後ろが下位代理ではありません');
+                                return null;
+                            }
+                        } else {
+                            self::fail($s, 'JSON_BAD_SURROGATE',
+                                '上位代理だけがあり、下位代理がありません');
+                            return null;
+                        }
+                    } elseif ($cp >= 0xDC00 && $cp <= 0xDFFF) {
+                        self::fail($s, 'JSON_BAD_SURROGATE',
+                            '下位代理だけがあります');
+                        return null;
+                    }
+                    $out .= self::utf8($cp);
+                    continue;
+                }
+                self::fail($s, 'JSON_INVALID', '使えない逃がし文字です（\\' . $e . '）');
+                return null;
+            }
+            if (ord($c) < 0x20) {
+                self::fail($s, 'JSON_INVALID',
+                    '文字列の中に生の制御文字があります（' . ord($c) . '）');
+                return null;
+            }
+            $out .= $c;
+            $s['i']++;
+        }
+        self::fail($s, 'JSON_INVALID', '文字列が閉じていません');
+        return null;
+    }
+
+    /**
+     * 数値。JSONの文法どおりに読み、桁数と調整後指数を見ます。
+     * <b>値は作りません（float にしません）。</b>文字として調べるだけです。
+     */
+    private static function num(array &$s): bool
+    {
+        $st = $s['i'];
+        if ($s['raw'][$s['i']] === '-') { $s['i']++; }
+        // 整数部
+        $i0 = $s['i'];
+        if ($s['i'] < $s['n'] && $s['raw'][$s['i']] === '0') {
+            $s['i']++;
+        } else {
+            // 先頭の0は JSON では許されません（011 は不可）
+            if ($s['i'] >= $s['n'] || $s['raw'][$s['i']] < '1' || $s['raw'][$s['i']] > '9') {
+                return self::fail($s, 'JSON_INVALID',
+                    $st . ' バイト目の数値が読めません');
+            }
+            while ($s['i'] < $s['n'] && $s['raw'][$s['i']] >= '0'
+                   && $s['raw'][$s['i']] <= '9') { $s['i']++; }
+        }
+        $intPart = substr($s['raw'], $i0, $s['i'] - $i0);
+        // 小数部
+        $frac = '';
+        if ($s['i'] < $s['n'] && $s['raw'][$s['i']] === '.') {
+            $s['i']++;
+            $f0 = $s['i'];
+            while ($s['i'] < $s['n'] && $s['raw'][$s['i']] >= '0'
+                   && $s['raw'][$s['i']] <= '9') { $s['i']++; }
+            if ($s['i'] === $f0) {
+                return self::fail($s, 'JSON_INVALID', '小数点の後ろに数字がありません');
+            }
+            $frac = substr($s['raw'], $f0, $s['i'] - $f0);
+        }
+        // 指数部
+        $exp = 0;
+        if ($s['i'] < $s['n'] && ($s['raw'][$s['i']] === 'e' || $s['raw'][$s['i']] === 'E')) {
+            $s['i']++;
+            $sign = 1;
+            if ($s['i'] < $s['n'] && ($s['raw'][$s['i']] === '+' || $s['raw'][$s['i']] === '-')) {
+                if ($s['raw'][$s['i']] === '-') { $sign = -1; }
+                $s['i']++;
+            }
+            $e0 = $s['i'];
+            while ($s['i'] < $s['n'] && $s['raw'][$s['i']] >= '0'
+                   && $s['raw'][$s['i']] <= '9') { $s['i']++; }
+            if ($s['i'] === $e0) {
+                return self::fail($s, 'JSON_INVALID', '指数の後ろに数字がありません');
+            }
+            $digits = substr($s['raw'], $e0, $s['i'] - $e0);
+            // 指数そのものが桁あふれするほど長い場合も、ここで落とします
+            if (strlen(ltrim($digits, '0')) > 6) {
+                return self::fail($s, 'JSON_EXPONENT_RANGE',
+                    '指数が大きすぎます（' . substr($s['raw'], $st, $s['i'] - $st) . '）');
+            }
+            $exp = $sign * (int) $digits;
+        }
+
+        $tok = substr($s['raw'], $st, $s['i'] - $st);
+
+        // 有効桁数（先頭の0は数えません）
+        $all = $intPart . $frac;
+        $sig = ltrim($all, '0');
+        $nd  = strlen($sig);
+        if ($nd > $s['max_digits']) { $s['max_digits'] = $nd; }
+        if ($nd > self::MAX_DIGITS) {
+            return self::fail($s, 'JSON_TOO_MANY_DIGITS',
+                '有効桁が ' . $nd . ' 桁で、上限 ' . self::MAX_DIGITS
+                . ' 桁を超えています（' . substr($tok, 0, 32) . '…）');
+        }
+
+        // 調整後指数。0 は 0 とします。
+        if ($sig !== '') {
+            $k = 0;
+            $L = strlen($all);
+            while ($k < $L && $all[$k] === '0') { $k++; }
+            $adj = $exp + (strlen($intPart) - 1 - $k);
+            if ($adj < self::EXP_MIN || $adj > self::EXP_MAX) {
+                return self::fail($s, 'JSON_EXPONENT_RANGE',
+                    '調整後指数が ' . $adj . ' で、範囲 ' . self::EXP_MIN . '〜'
+                    . self::EXP_MAX . ' の外です（' . substr($tok, 0, 32) . '）');
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261020-R122-NUMEXACT  10月20日007のご指摘7
+        // ══════════════════════════════════════════════════════════════
+        //   【ご指摘のとおりでした】走査で桁や指数を見るようにしても、
+        //   <b>値の組み立ては通常の json_decode</b> なので、
+        //   PHP整数の範囲を超える整数や長い小数は float を通ります。
+        //   1.99999999999999999999 は正確には2未満ですが、
+        //   倍精度では 2.0 になります。調整後指数308を許しても、
+        //   2e308 は倍精度の有限範囲の外です。
+        //   「走査が通った」ことと「値を正確に持てる」ことは別でした。
+        //
+        //   【いま】数値トークンごとに、<b>原表現と、PHPで持てる値とを
+        //   突き合わせます。</b>
+        //     ・無限大になるもの            → 受け取りません
+        //     ・戻すと別の十進数になるもの  → 受け取りません
+        //   受け取らない、というのは「別値へ変えない」ということです。
+        //   丸めた値を黙って通すことはしません。
+        //   原表現は $s['numbers'] に残すので、監査で読めます。
+        $norm = self::normDec($intPart, $frac, $exp, ($tok[0] ?? '') === '-');
+        $val  = json_decode($tok);
+        $exact = (is_int($val)
+                  || (is_float($val) && is_finite($val)
+                      && BaganrikiPrompt::numToDecimalString($val) === $norm));
+        if (!$exact) {
+            // ══════════════════════════════════════════════════════════
+            //   <b>受け取らない、のではありません。</b>契約9章は128桁まで
+            //   許しているので、拒否すると正しい応答を落とします。
+            //   PHPの数値では丸まる（または無限大になる）ものは、
+            //   <b>原表現の十進数文字列として持ちます。</b>
+            //   入力側で「登録から落とさず文字列で持つ」ようにしたのと
+            //   同じ扱いです（@ANCHOR-...-DIGITS2）。
+            //   値の型は後段で見ます（採点は整数と決まっているので、
+            //   文字列のまま来れば採点の検査が落とします）。
+            $s['inexact'][] = ['off' => $st, 'len' => $s['i'] - $st,
+                               'dec' => $norm];
+        }
+        if (count($s['numbers']) < self::MAX_NUMBERS_KEPT) {
+            $s['numbers'][] = ['raw' => $tok, 'decimal' => $norm,
+                               'exact' => $exact];
+        }
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-NUMTYPE  10月21日008のご指摘6(1)
+        // ══════════════════════════════════════════════════════════════
+        //   【足りませんでした】丸まる数値を文字列に置き替えたので、
+        //     {"a":1.99999999999999999999}   ← JSON上は数値
+        //     {"a":"1.99999999999999999999"} ← JSON上は文字列
+        //   が、返り値では<b>同じPHP文字列</b>になっていました。
+        //   型が消えるので、再保存すると数値が文字列になります。
+        //   【いま】<b>どの経路がJSON上の数値だったか</b>を控えます。
+        //   原トークン・正確な十進値・JSON上の型が結び付きます。
+        //   reserialize() はこの印を見て、数値の位置は引用符を付けずに
+        //   書き戻します。AIが最初から引用符付きで返した文字列は
+        //   ここに載らないので、勝手に数値へ変えることはありません。
+        // ══════════════════════════════════════════════════════════════
+        // @ANCHOR-20261021-R122-NUMFORM  10月21日010の3-2・3-3
+        // ══════════════════════════════════════════════════════════════
+        //   ご指摘：
+        //     「共通の比較関数で、JSONの型、正確な十進値、必要な整数／
+        //       小数・指数表記の区別を比較してください。」
+        //     「現行sameHorseRowは1と1.0を区別する仕様を明記しています。
+        //       値オブジェクトから十進値『1』だけを出力して、1.0や1e0を
+        //       読戻し時に整数1へ変えてしまわないようにします。」
+        //   十進値だけでは 1 ／ 1.0 ／ 1e0 が同じになります。
+        //   <b>原トークンの表記（form）も控えます。</b>
+        //     int  小数点も指数も無い   1
+        //     dec  小数点がある         1.0
+        //     exp  指数がある           1e0
+        //   再保存は原トークンをそのまま書くので、表記も戻ります。
+        $form = 'int';
+        if (strpbrk($tok, 'eE') !== false) { $form = 'exp'; }
+        elseif (strpos($tok, '.') !== false) { $form = 'dec'; }
+        // @ANCHOR-20261021-R122-TYPECAP  監査（5,000件）とは別の上限です
+        if (count($s['number_paths']) < self::MAX_NUMTYPE_KEPT) {
+            $s['number_paths'][self::pathKey($s['path'])] =
+                ['raw' => $tok, 'decimal' => $norm, 'exact' => $exact,
+                 'form' => $form];
+        }
+        return true;
+    }
+
+    /**
+     * @ANCHOR-20261021-R122-NUMTYPE  経路を取り違えようのない文字列にします
+     *   ["horses",0,"scores","H1"] のような JSON 配列にします。
+     *   キーに「.」や「[」が入っていても境目が決まります。
+     */
+    public static function pathKey(array $path): string
+    {
+        return (string) json_encode(array_values($path),
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * @ANCHOR-20261021-R122-NUMTYPE  型を保ったまま書き戻します（再保存）
+     *
+     *   $numberPaths（strict の返り値 number_paths）に載っている経路は、
+     *   <b>引用符を付けずに</b>十進数のまま書きます。
+     *   載っていない文字列は、文字列のまま書きます。
+     *   これで「数値 → 文字列」への化けが起きません。
+     */
+    public static function reserialize($value, array $numberPaths,
+                                       array $path = []): string
+    {
+        $k = self::pathKey($path);
+        if (isset($numberPaths[$k]) && (is_string($value) || is_int($value)
+                                        || is_float($value))) {
+            // 数値だった位置。原表現の十進数をそのまま書きます
+            return (string) $numberPaths[$k]['decimal'];
+        }
+        if (is_array($value)) {
+            $isList = (array_keys($value) === range(0, count($value) - 1));
+            $out = [];
+            foreach ($value as $kk => $vv) {
+                $sub = $path; $sub[] = $isList ? (int) $kk : (string) $kk;
+                $enc = self::reserialize($vv, $numberPaths, $sub);
+                $out[] = $isList ? $enc
+                       : ((string) json_encode((string) $kk,
+                            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                          . ':' . $enc);
+            }
+            return ($isList ? '[' : '{') . implode(',', $out)
+                 . ($isList ? ']' : '}');
+        }
+        return (string) json_encode($value,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            | JSON_PRESERVE_ZERO_FRACTION);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261021-R122-TYPEMAP  型を落とさない読み・書き・比べ（010の3章）
+    // ══════════════════════════════════════════════════════════════════════
+    // 10月21日010（なる）の第3章ぜんぶに対する実装です。
+    //
+    // ■ なぜ値オブジェクトを「全部の値」に使わないのか
+    //   ご指摘のとおり、値に型を持たせる方式（設計A）を採ります。
+    //   ただし<b>すべての値を包む</b>と、既存の業務の判定
+    //   （is_int・array_sum・foreach・比較演算）が全部落ちます。
+    //   ご指摘にもあるとおり「全部包むがis_isはそのまま」では
+    //   正しい整数まで落ちます。
+    //   【採った形】値はこれまでどおりPHPの素の値で持ち、
+    //   <b>型は経路をキーにした地図（map）で並べて持ちます。</b>
+    //     map['num'][経路]  = ['raw','decimal','exact','form']
+    //     map['kind'][経路] = 'obj' | 'arr'
+    //   業務の判定は素の値でそのまま動き、型が必要な場所
+    //   （比較・保存・読戻し）だけが地図を見ます。
+    //   値オブジェクト（BaganrikiDecimal）は、1つの値を持ち回すときの
+    //   入れ物として残します。地図はその「全体版」です。
+    //
+    // ■ 保存と読戻しが同じ形で閉じます（3-1・3-3）
+    //   encode(値, 地図)   数値は<b>原トークンのまま引用符なし</b>で書き、
+    //                      obj／arr の種類も地図のとおりに書きます
+    //   decode(本文)       走査して 値＋地図 を返します（strict と同じ）
+    //   encode したものを decode すれば、値も型も表記も戻ります。
+    //   JSON_NUMERIC_CHECK も float への変換も使っていません。
+    //
+    // ■ 比べ方（3-2）
+    //   same(値A,地図A, 値B,地図B) が、
+    //     ・JSON上の型（数値／文字列／真偽／null／obj／arr）
+    //     ・数値は正確な十進値と表記（int／dec／exp）
+    //     ・obj はキーの集合（<b>順序は無視</b>）
+    //     ・arr は長さと<b>順序</b>
+    //   を見ます。同じ値の別インスタンスという概念がないので、
+    //   「同じ数値なのに別物と判定する」ことは起きません。
+    // ══════════════════════════════════════════════════════════════════════
+
+    /** 空の地図 */
+    public static function emptyMap(): array
+    {
+        return ['num' => [], 'kind' => []];
+    }
+
+    /**
+     * 専用パーサ。走査して「値」と「型の地図」を返します。
+     *
+     * @return array ['ok','code','reason','value','map','stats']
+     */
+    public static function decode(string $raw): array
+    {
+        $r = self::strict($raw);
+        if (!$r['ok']) {
+            return ['ok' => false, 'code' => $r['code'], 'reason' => $r['reason'],
+                    'value' => null, 'map' => self::emptyMap(),
+                    'stats' => $r['stats']];
+        }
+        return ['ok' => true, 'code' => null, 'reason' => null,
+                'value' => $r['value'],
+                'map' => (array) ($r['map'] ?? self::emptyMap()),
+                'stats' => $r['stats']];
+    }
+
+    /**
+     * 専用シリアライザ。型の地図のとおりに書き戻します。
+     *
+     *   ・数値だった経路は<b>原トークンをそのまま</b>引用符なしで書きます
+     *     （1.0 は 1.0 のまま。1 へ丸めません）
+     *   ・obj だった経路は、PHPの値が空配列でも数値キーでも {} で書きます
+     *   ・arr だった経路は [] で書きます
+     *   ・地図に無い経路は、PHPの値の形から決めます
+     *     （連番の配列なら [ ]、それ以外は { }）
+     *   ・BaganrikiDecimal は原トークン、BaganrikiEmptyObject は {}
+     *
+     * @param mixed $value
+     * @param array $map   decode の返り値 map
+     * @param array $path  いまの経路（内部用）
+     */
+    public static function encode($value, array $map, array $path = []): string
+    {
+        $k    = self::pathKey($path);
+        $nums = (array) ($map['num'] ?? []);
+        $kind = (array) ($map['kind'] ?? []);
+
+        // ── ① 値オブジェクトは、それ自身が型を持っています ──────────
+        if ($value instanceof BaganrikiDecimal) {
+            return $value->raw();
+        }
+        if ($value instanceof BaganrikiEmptyObject) {
+            return '{}';
+        }
+
+        // ── ② 数値だった経路 ───────────────────────────────────────
+        //   文字列として持っている（丸まる数値）場合も、整数・小数で
+        //   持っている場合も、原トークンを書きます。
+        if (isset($nums[$k])) {
+            $n = (array) $nums[$k];
+            if (is_string($value) || is_int($value) || is_float($value)) {
+                // 値が差し替えられていないかを見ます（3-3 の「整合」）。
+                //   差し替えられていれば、その新しい値を数値として書きます。
+                //   原トークンを押し付けると、訂正で変えた値が戻ってしまいます。
+                if (self::sameNumberValue($value, $n)) {
+                    return (string) $n['raw'];
+                }
+                return self::numberLiteral($value);
+            }
+        }
+
+        // ── ③ 配列・オブジェクト ────────────────────────────────────
+        if (is_array($value)) {
+            $want = $kind[$k] ?? null;
+            if ($want === null) {
+                $want = (array_keys($value) === range(0, count($value) - 1))
+                      ? 'arr' : 'obj';
+                if ($value === []) { $want = 'arr'; }   // 地図が無ければ []
+            }
+            $out = [];
+            if ($want === 'arr') {
+                foreach (array_values($value) as $i => $vv) {
+                    $sub = $path; $sub[] = (int) $i;
+                    $out[] = self::encode($vv, $map, $sub);
+                }
+                return '[' . implode(',', $out) . ']';
+            }
+            foreach ($value as $kk => $vv) {
+                $sub = $path; $sub[] = (string) $kk;
+                $out[] = (string) json_encode((string) $kk,
+                             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                       . ':' . self::encode($vv, $map, $sub);
+            }
+            return '{' . implode(',', $out) . '}';
+        }
+
+        if ($value instanceof \stdClass) {
+            $out = [];
+            foreach ((array) $value as $kk => $vv) {
+                $sub = $path; $sub[] = (string) $kk;
+                $out[] = (string) json_encode((string) $kk,
+                             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                       . ':' . self::encode($vv, $map, $sub);
+            }
+            return '{' . implode(',', $out) . '}';
+        }
+
+        // ── ④ そのほか（文字列・真偽・null・素の数値）────────────────
+        return (string) json_encode($value,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            | JSON_PRESERVE_ZERO_FRACTION);
+    }
+
+    /**
+     * いまのPHPの値が、地図に控えた数値と同じ値かどうか。
+     *   文字列で持っている場合は十進値を文字どおりに比べます。
+     *   整数・小数で持っている場合は十進値へ直してから比べます。
+     */
+    private static function sameNumberValue($value, array $n): bool
+    {
+        $dec = (string) ($n['decimal'] ?? '');
+        if (is_string($value)) {
+            return ($value === (string) ($n['raw'] ?? '')) || ($value === $dec);
+        }
+        if (is_int($value)) {
+            return (self::intToDecimalString($value) === $dec);
+        }
+        if (is_float($value)) {
+            if (!is_finite($value)) { return false; }
+            return (BaganrikiPrompt::numToDecimalString($value) === $dec);
+        }
+        return false;
+    }
+
+    /** 整数を十進数の文字列へ（normDec と同じ形にそろえます） */
+    private static function intToDecimalString(int $v): string
+    {
+        return ($v === 0) ? '0' : (string) $v;
+    }
+
+    /**
+     * 差し替えられた数値を、JSONの数値として書きます。
+     *   <b>引用符は付けません。</b>文字列へ化けさせないためです。
+     *   数字として読めないものは、JSONとして壊れないように
+     *   文字列で書きます（黙って0にはしません）。
+     */
+    private static function numberLiteral($value): string
+    {
+        if (is_int($value)) { return (string) $value; }
+        if (is_float($value)) {
+            if (!is_finite($value)) {
+                // 無限大・NaN はJSONに書けません。文字列で残します
+                return (string) json_encode((string) $value);
+            }
+            return BaganrikiPrompt::numToDecimalString($value);
+        }
+        $t = trim((string) $value);
+        if ($t !== '' && preg_match('/\A-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?\z/', $t) === 1) {
+            return $t;
+        }
+        return (string) json_encode((string) $value,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * 地図から、ある経路より下だけを取り出して、経路を付け替えます。
+     *
+     *   馬の行だけを比べるときに使います。
+     *   ["horses",3,"scores","H1"] を、["scores","H1"] にします。
+     */
+    public static function mapSub(array $map, array $from): array
+    {
+        $out = self::emptyMap();
+        $pre = self::pathKey($from);
+        $preBody = substr($pre, 1, -1);          // 角括弧の中身
+        foreach (['num', 'kind'] as $sec) {
+            foreach ((array) ($map[$sec] ?? []) as $k => $v) {
+                if ($from === []) { $out[$sec][$k] = $v; continue; }
+                if ($k === $pre) { $out[$sec]['[]'] = $v; continue; }
+                $head = '[' . $preBody . ',';
+                if (strncmp($k, $head, strlen($head)) === 0) {
+                    $out[$sec]['[' . substr($k, strlen($head))] = $v;
+                }
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261021-R122-MAPMOVE  並べ替えに地図を追従させます（010の3-4）
+     * ═══════════════════════════════════════════════════════════════════
+     * ご指摘：
+     *   「並べ替え後のnormalにも種類が追従することが条件です。」
+     *
+     *   応答の馬の行は ["horses", 3] のような位置にあります。
+     *   正常部分（normal）は<b>馬番をキーにしたオブジェクト</b>に
+     *   組み替えるので、位置が ["7"] に変わります。
+     *   地図の経路もそのとおりに付け替えないと、再保存で型が落ちます。
+     *
+     *   mapMove(地図, ["horses",3], ["7"]) で、その枝だけを付け替えます。
+     *   mapMerge で、付け替えた枝を1つの地図にまとめます。
+     */
+    public static function mapMove(array $map, array $from, array $to): array
+    {
+        $sub = self::mapSub($map, $from);
+        $out = self::emptyMap();
+        $pre = self::pathKey($to);
+        $preBody = substr($pre, 1, -1);
+        foreach (['num', 'kind'] as $sec) {
+            foreach ((array) ($sub[$sec] ?? []) as $k => $v) {
+                if ($k === '[]') {
+                    $out[$sec][$pre] = $v;
+                    continue;
+                }
+                // '["scores","H1"]' の先頭の '[' を、'["7",' に差し替えます
+                $out[$sec]['[' . $preBody . ',' . substr($k, 1)] = $v;
+            }
+        }
+        return $out;
+    }
+
+    /** 地図を重ねます（後から渡したものが勝ちます） */
+    public static function mapMerge(array ...$maps): array
+    {
+        $out = self::emptyMap();
+        foreach ($maps as $m) {
+            foreach (['num', 'kind'] as $sec) {
+                foreach ((array) ($m[$sec] ?? []) as $k => $v) {
+                    $out[$sec][$k] = $v;
+                }
+            }
+        }
+        return $out;
+    }
+
+    /** 経路に種類（obj/arr）を書き入れた地図を返します */
+    public static function mapWithKind(array $map, array $path, string $kind): array
+    {
+        $map['kind'][self::pathKey($path)] = $kind;
+        return $map;
+    }
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * @ANCHOR-20261021-R122-SAMEVALUE  共通の比較関数（010の3-2）
+     * ═══════════════════════════════════════════════════════════════════
+     * ご指摘：
+     *   「plain()で数値オブジェクトを文字列やfloatに戻してから比べる方式は
+     *     採用しません。数値と数値文字列の違い、正確な値が消えるためです。」
+     *   「共通の比較関数で、JSONの型、正確な十進値、必要な整数／小数・
+     *     指数表記の区別を比較してください。通常のオブジェクトのキー順は
+     *     無視し、配列の順序は保持します。」
+     *
+     * ■ 見るもの
+     *   ・JSON上の型            数値／文字列／真偽／null／obj／arr
+     *   ・数値                  正確な十進値と、表記（int／dec／exp）
+     *   ・obj                   キーの集合（<b>順序は無視</b>）
+     *   ・arr                   長さと<b>順序</b>
+     *
+     * ■ $strictForm
+     *   true  … 1 と 1.0 と 1e0 を<b>別物</b>として見ます（既定）。
+     *           sameHorseRow の「1と1.0を区別する」仕様に合わせます。
+     *   false … 十進値が同じなら同じと見ます。
+     *           「値が変わっていないか」だけを見たいときに使います。
+     *
+     * ■ 末尾の0（1.50 と 1.5）は「同じ」と見ます
+     *   どちらも十進値 1.5 で、表記も小数（dec）です。
+     *   値も型も同じなので、<b>範囲外を変えた</b>とは見ません。
+     *   区別しているのは
+     *     int  小数点も指数も無い   1
+     *     dec  小数点がある         1.0／1.50／1.5
+     *     exp  指数がある           1e0
+     *   の3つです。1 と 1.0 の区別（整数必須の検査に効くもの）は残り、
+     *   書き方のゆらぎだけで訂正を蹴ることはしません。
+     *   なお<b>保存では原トークンをそのまま書く</b>ので、
+     *   1.50 は 1.50 のまま残ります（丸めていません）。
+     *
+     * @return array ['same','where','reason']
+     *   where は食い違った経路（JSON配列の文字列）です。
+     */
+    public static function same($a, array $mapA, $b, array $mapB,
+                                bool $strictForm = true,
+                                array $path = []): array
+    {
+        $k  = self::pathKey($path);
+        $na = ((array) ($mapA['num'] ?? []))[$k] ?? null;
+        $nb = ((array) ($mapB['num'] ?? []))[$k] ?? null;
+        $ka = ((array) ($mapA['kind'] ?? []))[$k] ?? null;
+        $kb = ((array) ($mapB['kind'] ?? []))[$k] ?? null;
+
+        $ng = static fn(string $why) => ['same' => false, 'where' => $k,
+                                         'reason' => $why];
+
+        // ── ① どちらかがJSON上の数値だったとき ────────────────────
+        if ($na !== null || $nb !== null) {
+            if ($na === null || $nb === null) {
+                return $ng('片方はJSON上の数値、もう片方は数値ではありません');
+            }
+            if ((string) ($na['decimal'] ?? '') !== (string) ($nb['decimal'] ?? '')) {
+                return $ng('数値の十進値が違います（'
+                         . (string) ($na['decimal'] ?? '') . ' と '
+                         . (string) ($nb['decimal'] ?? '') . '）');
+            }
+            if ($strictForm
+                && (string) ($na['form'] ?? '') !== (string) ($nb['form'] ?? '')) {
+                return $ng('同じ値ですが表記が違います（'
+                         . (string) ($na['raw'] ?? '') . ' と '
+                         . (string) ($nb['raw'] ?? '') . '）');
+            }
+            return ['same' => true, 'where' => null, 'reason' => null];
+        }
+
+        // ── ② obj／arr の種類 ─────────────────────────────────────
+        $aArr = is_array($a) || ($a instanceof BaganrikiEmptyObject);
+        $bArr = is_array($b) || ($b instanceof BaganrikiEmptyObject);
+        if ($aArr !== $bArr) {
+            return $ng('片方だけが入れ物です');
+        }
+        if ($aArr) {
+            // 種類は地図で決めます。地図に無ければPHPの形から決めます
+            $kindA = $ka ?? self::kindOf($a);
+            $kindB = $kb ?? self::kindOf($b);
+            if ($kindA !== $kindB) {
+                return $ng('片方はオブジェクト、もう片方は配列です（'
+                         . $kindA . ' と ' . $kindB . '）');
+            }
+            $av = ($a instanceof BaganrikiEmptyObject) ? [] : (array) $a;
+            $bv = ($b instanceof BaganrikiEmptyObject) ? [] : (array) $b;
+
+            if ($kindA === 'arr') {
+                $av = array_values($av); $bv = array_values($bv);
+                if (count($av) !== count($bv)) {
+                    return $ng('配列の長さが違います（' . count($av) . ' と '
+                             . count($bv) . '）');
+                }
+                foreach ($av as $i => $vv) {
+                    $sub = $path; $sub[] = (int) $i;
+                    $r = self::same($vv, $mapA, $bv[$i], $mapB, $strictForm, $sub);
+                    if (!$r['same']) { return $r; }
+                }
+                return ['same' => true, 'where' => null, 'reason' => null];
+            }
+
+            // オブジェクト。キーの集合だけ見ます（順序は無視）
+            $akeys = array_map('strval', array_keys($av));
+            $bkeys = array_map('strval', array_keys($bv));
+            sort($akeys); sort($bkeys);
+            if ($akeys !== $bkeys) {
+                $only = array_merge(array_diff($akeys, $bkeys),
+                                    array_diff($bkeys, $akeys));
+                return $ng('キーの集合が違います（'
+                         . implode('・', array_slice($only, 0, 5)) . '）');
+            }
+            foreach ($av as $kk => $vv) {
+                $sub = $path; $sub[] = (string) $kk;
+                $r = self::same($vv, $mapA, $bv[$kk] ?? null, $mapB,
+                                $strictForm, $sub);
+                if (!$r['same']) { return $r; }
+            }
+            return ['same' => true, 'where' => null, 'reason' => null];
+        }
+
+        // ── ③ 素の値（文字列・真偽・null・地図に載らない数値）─────────
+        if (gettype($a) !== gettype($b)) {
+            return $ng('型が違います（' . gettype($a) . ' と ' . gettype($b) . '）');
+        }
+        if ($a !== $b) {
+            return $ng('値が違います');
+        }
+        return ['same' => true, 'where' => null, 'reason' => null];
+    }
+
+    /** PHPの値から obj／arr を決めます（地図に無いときだけ使います） */
+    private static function kindOf($v): string
+    {
+        if ($v instanceof BaganrikiEmptyObject) { return 'obj'; }
+        if (!is_array($v)) { return 'arr'; }
+        if ($v === []) { return 'arr'; }
+        return (array_keys($v) === range(0, count($v) - 1)) ? 'arr' : 'obj';
+    }
+
+    /**
+     * 本文どうしを、型まで見て比べます（読戻しの確認に使います）。
+     *
+     * @return array ['same','where','reason','ok']
+     *   ok=false は、どちらかが走査を通らなかったことを表します。
+     */
+    public static function sameJson(string $rawA, string $rawB,
+                                    bool $strictForm = true): array
+    {
+        $da = self::decode($rawA);
+        $db = self::decode($rawB);
+        if (!$da['ok'] || !$db['ok']) {
+            return ['ok' => false, 'same' => false, 'where' => null,
+                    'reason' => '走査を通らない本文があります（'
+                              . (string) ($da['code'] ?? '')
+                              . '／' . (string) ($db['code'] ?? '') . '）'];
+        }
+        $r = self::same($da['value'], $da['map'], $db['value'], $db['map'],
+                        $strictForm);
+        $r['ok'] = true;
+        return $r;
+    }
+
+    /**
+     * @ANCHOR-20261020-R122-NUMEXACT  原表現を十進数の文字列へ（文字だけで動かします）
+     *   指数は小数点を動かすだけで展開します。float を通りません。
+     *   前後の余分な0は落とします（numToDecimalString と同じ形にそろえます）。
+     */
+    private static function normDec(string $intPart, string $frac, int $exp,
+                                    bool $neg): string
+    {
+        $digits = $intPart . $frac;
+        $point  = strlen($intPart) + $exp;
+        if ($point <= 0) {
+            $out = '0.' . str_repeat('0', -$point) . $digits;
+        } elseif ($point >= strlen($digits)) {
+            $out = $digits . str_repeat('0', $point - strlen($digits));
+        } else {
+            $out = substr($digits, 0, $point) . '.' . substr($digits, $point);
+        }
+        if (strpos($out, '.') !== false) { $out = rtrim(rtrim($out, '0'), '.'); }
+        $out = ltrim($out, '0');
+        if ($out === '' || $out[0] === '.') { $out = '0' . $out; }
+        if ($out === '0') { return '0'; }
+        return ($neg ? '-' : '') . $out;
+    }
 }

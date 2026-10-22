@@ -1,0 +1,32 @@
+test_bad_token_time_flag_and_size_rejected (__main__.JournalTests.test_bad_token_time_flag_and_size_rejected) ... ok
+test_cancel_overlay_and_saved_republication (__main__.JournalTests.test_cancel_overlay_and_saved_republication) ... ok
+test_combined_publication_larger_than_one_response_roundtrips (__main__.JournalTests.test_combined_publication_larger_than_one_response_roundtrips) ... ok
+test_crash_after_committed_initial_recovers_correction (__main__.JournalTests.test_crash_after_committed_initial_recovers_correction) ... ok
+test_crash_during_correction_keeps_initial_without_regrant (__main__.JournalTests.test_crash_during_correction_keeps_initial_without_regrant) ... ok
+test_duplicate_delivery_cannot_regrant_initial (__main__.JournalTests.test_duplicate_delivery_cannot_regrant_initial) ... ok
+test_earlier_close_stops_dispatch_and_publication (__main__.JournalTests.test_earlier_close_stops_dispatch_and_publication) ... ok
+test_expired_unknown_reservation_is_not_regranted (__main__.JournalTests.test_expired_unknown_reservation_is_not_regranted) ... ok
+test_failed_correction_preserves_original_holes (__main__.JournalTests.test_failed_correction_preserves_original_holes) ... ok
+test_failed_initial_cannot_be_retried_or_corrected (__main__.JournalTests.test_failed_initial_cannot_be_retried_or_corrected) ... ok
+test_failure_is_idempotent_and_terminal (__main__.JournalTests.test_failure_is_idempotent_and_terminal) ... ok
+test_incomplete_correction_does_not_replace_initial (__main__.JournalTests.test_incomplete_correction_does_not_replace_initial) ... ok
+test_incomplete_raw_retained_but_cannot_select (__main__.JournalTests.test_incomplete_raw_retained_but_cannot_select) ... ok
+test_initial_survives_store_restart (__main__.JournalTests.test_initial_survives_store_restart) ... ok
+test_late_reply_is_audited_but_never_published (__main__.JournalTests.test_late_reply_is_audited_but_never_published) ... ok
+test_malformed_first_role_does_not_block_saved_second_role (__main__.JournalTests.test_malformed_first_role_does_not_block_saved_second_role) ... ok
+test_manual_aggregation_cannot_drop_saved_good_role (__main__.JournalTests.test_manual_aggregation_cannot_drop_saved_good_role) ... ok
+test_normal_initial_does_not_spend_correction (__main__.JournalTests.test_normal_initial_does_not_spend_correction) ... ok
+test_publication_retry_remains_idempotent_after_other_role_arrives (__main__.JournalTests.test_publication_retry_remains_idempotent_after_other_role_arrives) ... ok
+test_read_exposes_revisions_and_status_without_tokens_or_raw (__main__.JournalTests.test_read_exposes_revisions_and_status_without_tokens_or_raw) ... ok
+test_receipt_save_is_idempotent_and_immutable (__main__.JournalTests.test_receipt_save_is_idempotent_and_immutable) ... ok
+test_roles_are_independent_and_do_not_share_model_text (__main__.JournalTests.test_roles_are_independent_and_do_not_share_model_text) ... ok
+test_saved_publication_rejects_stale_response_revision (__main__.JournalTests.test_saved_publication_rejects_stale_response_revision) ... ok
+test_transport_container_can_exceed_single_response_limit (__main__.JournalTests.test_transport_container_can_exceed_single_response_limit) ... ok
+test_two_calls_total_across_restarts (__main__.JournalTests.test_two_calls_total_across_restarts) ... ok
+test_two_processes_get_one_call_grant (__main__.JournalTests.test_two_processes_get_one_call_grant) ... ok
+test_wrong_generation_system_or_input_rejected (__main__.JournalTests.test_wrong_generation_system_or_input_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 16.317s
+
+OK

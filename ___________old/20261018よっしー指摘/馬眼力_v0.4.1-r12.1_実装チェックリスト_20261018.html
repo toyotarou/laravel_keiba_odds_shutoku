@@ -1,0 +1,485 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>馬眼力 v0.4.1-r12.1 実装チェックリスト</title>
+<style>
+body{font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+ line-height:1.75;max-width:1180px;margin:0 auto;padding:24px;color:#222;font-size:15px}
+h1{font-size:26px;border-bottom:4px solid #222;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:20px;background:#222;color:#fff;padding:8px 14px;margin-top:40px}
+h3{font-size:17px;border-left:6px solid #666;padding-left:10px;margin-top:26px}
+.date{color:#555;font-size:13px;margin-bottom:18px}
+table{border-collapse:collapse;width:100%;margin:10px 0 16px;font-size:13px}
+th{border:1px solid #bbb;padding:6px 9px;background:#eee;text-align:left;vertical-align:top}
+td{border:1px solid #ccc;padding:6px 9px;vertical-align:top}
+td.id{white-space:nowrap;font-family:ui-monospace,Menlo,monospace;font-size:12px;width:58px}
+td.st{white-space:nowrap;width:92px;text-align:center;font-size:12px}
+.blk{background:#ffecec;font-weight:bold}
+.jdg{background:#fff6e0;font-weight:bold}
+.chk{background:#eef6ff}
+.don{background:#eaf7ea}
+.box{border:2px solid #222;padding:14px;margin:18px 0}
+.box.warn{border-color:#8a5a00;background:#fffdf5}
+.box.stop{border-color:#b00;background:#fff5f5}
+.box.ok{border-color:#1a6b1a;background:#f4fbf4}
+.note{font-size:13px;color:#555}
+code{background:#f4f4f4;padding:1px 5px;border-radius:3px;font-size:12.5px}
+ol,ul{padding-left:1.5em}
+li{margin:4px 0}
+.small{font-size:12.5px;color:#555}
+hr{border:none;border-top:1px solid #ddd;margin:26px 0}
+.fix{background:#fff6e0}
+</style>
+</head><body><h1>馬眼力 v0.4.1-r12.1 実装チェックリスト</h1><div class="box ok"><b style="font-size:19px">✅ この版はそのまま送れます</b><br><span class="note">rev.14（007の6点すべて反映。遅れを正しく再計算しました）　/　判定時点 2026年10月18日 22:10 JST<br>007のご指摘①〜⑥をすべて反映しました。①は予定観測時刻との差で全647件を測り直し、ご指摘どおり分をまたいでいた時点が見つかりました。裏付けの4ファイルも用意できています（X09）。</span></div><div class="date">作成 2026年10月18日（JST）・rev.14（007の6点すべて反映。遅れを正しく再計算しました）<br>対象 <code>馬眼力_v0.4.1-r12.1_エンジニア向け実装・接続・受入仕様書</code>（文書版 r12.1-quota-handoff-1）＋<code>実装一式_20261017</code>（144ファイル）<br><b>実装方針：Laravel（PHP）＋ Flutter のみ。Pythonは本番で動かしません。</b><br>現行実装 <code>AiController.php</code> 17,842行・md5 <code>2918f9d1b0ed2d061d169abff701ffe6</code>（手元）／サーバ稼働版 md5 <code>e9ebe73a7ef9304aefc1a63cdbcdaf1b</code>（10/15時点）</div><h2>0-0. よっしーさんへ ─ ご判断いただきたいこと</h2><p>v0.4.1-r12.1 の実装チェックリストです。<b>実装はまだ1行も書いていません。</b>この表で合意をいただいてから着手します。（これまで実装してから手戻り、を繰り返したためです）</p><p>全249項目。<b>済36／要確認44／要判断43／ブロック中126。</b>本番受入はAC14を追加して14項目、すべて未完了です。</p><h3>今回の実測でわかったこと（2件）</h3><div class="box stop"><b>① いまの仕様どおりだと、72レース中34レース（47.2%）で候補が0頭になります。</b><br><span class="note">10月17日・18日の72レースで、仕様書9章の X1〜X5・Z を保存済みオッズから計算しました（AI呼び出し0回）。<br><b>原因はX6です。</b>X6は N>=7 で UNKNOWN のため、S0（X6を除いた合計）が1か3のとき mode がまたぎ、selection_enabled=false になります。<br><b>S0=1 が22レース（30.6%）、S0=3 が12レース（16.7%）。合計34レース。</b><br>「毎開催必ず発生するとは断定できない」というご指摘（005-1）は正しく、こちらの断定が誤りでした。そのうえで実測すると47.2%でした。<b>→ Q09でご判断をお願いします。</b></span></div><div class="box stop"><b>② 訂正します。取得完了は予定時刻の約13秒後でした（前版で「1〜2秒」と書いたのは誤りです）。</b><br><span class="note"><b>ご指摘006-3のとおりでした。</b>「バッチ開始と終了が同じ秒」は1回の処理時間の話で、<b>予定時刻からのずれの証明にはなっていませんでした。</b>時点別の実記録で測り直しました（B26）。<code>t_horse_odds_finder_odds_get_timing</code> に時点別の <code>get_datetime</code> が残っていたので、<b>10/17・18の全648行が実データで取れました</b>。<br><b>測り直しました。</b><code>t_horse_odds_finder_races.start_time</code> から予定観測時刻＝<code>TIMESTAMP(date,start_time)</code>−時点の分数 を作り、<code>TIMESTAMPDIFF(SECOND, 予定, get_datetime)</code> を<b>全647件それぞれで計算</b>しました（下表）。<br><b>ご指摘のとおり、分をまたいでいた時点がありました。</b>30分前が最大104秒、15分前が最大93秒、9分前が最大76秒。秒の部分だけを見る前の測り方では、これが23秒・40秒・45秒に見えていました。<b>測り方が間違っていたことが、数字で確認できました。</b><br><b>そのうえで、6分前スロットは 12〜15秒（平均12.9秒）でした。</b>647件すべてで60秒未満、分をまたいだものは1件もありません。r12.1の <code>cutoff_at</code> は6分前なので、<b>ここは最悪でも15秒です。</b>一方 <b>9分前（P9で使う）は最大76秒</b>、<b>21分前（W21・P21で使う）は最大35秒</b>。こちらは無視できません（B31）。<br><b>そして、この13秒は0にできません。</b>6分前の値は6分前を過ぎないとJRA側に出ないので、前倒しして取りに行くと6分前の値ではなく9分前の値を取ってしまいます。<b>→ Q08の案A（前倒し取得）は原理的に成立しません。</b>Q10（observed_at の定義）と合わせてご判断をお願いします。</span></div><table>
+<tr><th>時点</th><th>r12.1で使うか</th><th>件数</th><th>最小（秒）</th><th>最大（秒）</th><th>平均（秒）</th></tr>
+<tr><td>30分前（DB値 999）</td><td>使わない</td><td>72</td><td>12</td><td><b>104</b></td><td>24.9</td></tr>
+<tr><td>21分前</td><td><b>使う</b>（W21・P21）</td><td>72</td><td>12</td><td><b>35</b></td><td>14.6</td></tr>
+<tr><td>18分前</td><td>使わない</td><td><b>71</b></td><td>12</td><td>23</td><td>14.1</td></tr>
+<tr><td>15分前</td><td>使わない</td><td>72</td><td>13</td><td><b>93</b></td><td>18.2</td></tr>
+<tr><td>12分前</td><td>使わない</td><td>72</td><td>12</td><td>23</td><td>12.8</td></tr>
+<tr><td>9分前</td><td><b>使う</b>（P9）</td><td>72</td><td>12</td><td><b>76</b></td><td>14.8</td></tr>
+<tr><td><b>6分前</b></td><td><b>使う</b>（W6・P6・<code>cutoff_at</code>）</td><td>72</td><td><b>12</b></td><td><b>15</b></td><td><b>12.9</b></td></tr>
+<tr><td>3分前</td><td>使わない</td><td>72</td><td>11</td><td>15</td><td>12.8</td></tr>
+<tr><td>発走時（DB値 −999）</td><td>使わない</td><td>72</td><td>13</td><td>21</td><td>15.0</td></tr>
+</table>
+<p class="small">遅れ（秒）＝<code>TIMESTAMPDIFF(SECOND, 予定観測時刻, get_datetime)</code>。対象：2026年10月17日・18日の全72レース（36レース×2日）。18分前が71件なのは10月18日の4回新潟2日目4Rが欠測しているためです（B29）。全647行＋見出し1行＝648行で、36×9×2−1=647 と一致。1件ごとの明細は <code>delay_all.tsv</code> で提出します（X09）。</p><h3>ご判断いただきたいこと（5件）</h3><table>
+<tr><th></th><th>ご判断いただきたいこと</th><th>選択肢</th><th>選ぶとどうなるか</th></tr>
+<tr><td><b>Q09</b></td><td><b>X6の扱い【最優先】</b><br>実測で47.2%のレースが候補0頭になりました</td><td><b>A</b> X6の実履歴集計アダプタを今回の範囲に入れる</td><td>根本解決。ただし<b>仕様書2章では範囲外</b>としている作業が増えます。必要な過去データと期間の見積もりが要ります</td></tr>
+<tr><td></td><td></td><td><b>B</b> X6がUNKNOWNのときのmode決定ルールを定める（例：またぐときは保守側に倒す／MIXEDに寄せる）</td><td>今回の範囲で収まります。ただし<b>仕様書9章の三値論理の例外</b>になるので、ルールの明文化と承認が必要です</td></tr>
+<tr><td></td><td></td><td><b>C</b> 47.2%が候補0頭のまま進める</td><td>仕様どおりです。ただし<b>約半分のレースで予想が出ません</b>。運用として成立するかのご判断が要ります</td></tr>
+<tr><td><b>Q08</b></td><td><b>6分前スロットの available_at</b><br><b>実測で、取得完了は予定時刻の約13秒後</b>。しかもこの13秒は原理的に0にできません</td><td><b>A</b>（取り下げ）取得を前倒しして6分前までに受信を終える</td><td><b>不可能でした。</b>6分前の値は6分前を過ぎないと出ないので、前倒しすると9分前の値を取ってしまいます</td></tr>
+<tr><td></td><td></td><td><b>B</b>（取り下げ）safety_margin_ms に余裕を見込む</td><td><b>006で却下。</b>あれは公開用の余裕で、取得遅れを許す設定ではないとのご指摘のとおりです</td></tr>
+<tr><td></td><td></td><td><b>C</b> 仕様側で available_at の上限を定義し直す</td><td><b>残るのはこれだけです。</b>Q10（observed_at の定義）と一体でご判断をお願いします</td></tr>
+<tr><td><b>P02</b></td><td><b>Laravel＋Flutterで実装する方針の読み替え表（第1章・10行）</b><br>「10行の対応表は未確認」とのことでしたので改めて</td><td><b>A</b> この読み替えで進めてよい</td><td>第1章のとおり、Python実装・PHPブリッジ・共有SQLiteをLaravelのサービス層・既存MySQL・Laravel Queue に置き換えます。契約（配分・穴馬保持・期限・数値精度・画面）は変えません</td></tr>
+<tr><td></td><td></td><td><b>B</b> 修正が必要</td><td>該当行をご指示ください。第1章の表を直します</td></tr>
+<tr><td><b>Q04</b></td><td><b>coverage の<code>legacy_qualifications</code>（旧資格 F/R/O）</b><br>r12.1では適格条件に使いませんが、coverageとしては渡します</td><td><b>A</b> INCLUDED で渡す</td><td>旧資格の計算を残し、参照として送ります</td></tr>
+<tr><td></td><td></td><td><b>B</b> UNAVAILABLE で渡す</td><td>理由を明記して渡しません。旧資格の計算を新経路から外せます</td></tr>
+<tr><td><b>R04</b></td><td><b>購入推奨が画面から無くなること</b><br>r12.1は <code>buy_recommended=false</code> 固定です</td><td><b>A</b> 了承。画面から購入推奨を外す</td><td>いま利用者が見ている購入推奨の表示が消えます</td></tr>
+<tr><td></td><td></td><td><b>B</b> 旧経路のレースだけ購入推奨を残す</td><td>2系統で表示が変わります。切替期間の説明が要ります</td></tr>
+</table>
+<div class="box warn"><b>あわせて、日程のご相談です。</b><br><span class="note">10月24日・25日の運用について、<b>まだ可否を申し上げられません。</b>Q09の答えで作業量が大きく変わるためです。<br>実観測時刻（<code>observed_at</code> / <code>available_at</code>）は、<b>オッズテーブルに時刻の列が1つもない</b>ことが分かりました（<code>created_at</code> すらありません）。取得側に列を足す改修が必須で、<b>新しいレースが走らないとデータが生まれません</b>。ここが全体の最長経路になります。<br><b>Q09をいただき次第、①時刻記録の開始日 ②実環境試験日 ③アプリ反映日 ④24日運用の可否 を具体的にお出しします。</b></span></div><h3>006でいただいたご回答 ─ 4件が決着しました</h3><table>
+<tr><th></th><th>ご回答</th><th>こちらの受け止め</th></tr>
+<tr><td><b>P02</b></td><td>方針は<b>条件付きで進めてよい</b>。同じ入力・AI応答で、候補・配分・数値・期限・取消処理が一致することが条件</td><td><b>GO。</b>一致の検証をAC14として新設（第9章）。Python参照実装とLaravel実装に同じ入力を通し、7出力が一致することを試験で示します</td></tr>
+<tr><td><b>Q04</b></td><td>利用可能なら<b>参考情報として渡し、適格条件には使わない</b>。取得できない場合に理由付きで UNAVAILABLE</td><td><b>確定。</b>INCLUDED で渡し、r12.1の適格判定には一切使いません（Q04を済に）</td></tr>
+<tr><td><b>R04</b></td><td>r12.1では<b>無効を維持</b>。「候補表示」と「購入推奨」を画面で区別する</td><td><b>確定。</b>Flutterで2つを別の表示として分けます（F13を新設）</td></tr>
+<tr><td><b>Q08</b></td><td><b>前倒し取得で満たせるか確認。</b>緩和する場合は、公開用の安全余裕と分けて仕様を定める</td><td><b>方針確定。</b>safety_margin_ms を流用する案は取り下げます。ご指摘のとおり、あれは販売締切より前に公開を終えるための余裕で、取得遅れを許す設定ではありませんでした</td></tr>
+<tr><td><b>Q09</b></td><td><b>実履歴対応の必要データ・工数を先に提示。</b>候補ゼロのまま進める案は勧めない</td><td><b>見積りを出しました（下の囲み）。</b>C案は取り下げます</td></tr>
+</table>
+<div class="box stop"><b>Q09 X6の見積り ─ 必要データと、いま足りないもの</b><br><span class="note">実装一式の <code>reference.py</code> 249〜256行を読みました。X6は <code>similar</code> という引数から4つの値を受け取り、<b>X6 =（race_count ≥ 50）AND（rate − baseline ≥ 0.10）</b> で決まります（必要な値は <code>definition_valid</code> / <code>race_count</code> / <code>rate</code> / <code>baseline</code>）。<br><br><b>足りないものが2つあります。</b><br><b>① 定義がありません。</b>「類似レース」を何をもって類似とするのか、<code>rate</code> と <code>baseline</code> が何の率なのかが、仕様書にも実装一式にも書かれていません。<code>engine.py</code> 93〜95行は <code>similar</code> に意図的に <code>None</code> を渡しており、コメントに「X6はアダプタと定義が供給されるまで不明」「汎用の definition_valid=true を信用しない」とあります。<b>定義をいただかないと、見積りの前提が立ちません。</b><br><b>② 過去データが1週間分しかありません。</b><code>deleteKeibaTableRecords.php</code> を確認したところ、毎週土曜5:50の洗い替えで <code>t_horse_odds_finder_race_results</code>（レース結果）も<code>t_horse_odds_finder_races</code>（レース情報）もTRUNCATE されています。<b>race_count ≥ 50 の母数は、いまゼロから始まります。</b><br><br><b>したがって案Aは2段構えになります。</b>（1）定義をいただく（2）蓄積を始めて50件たまるのを待つ。1開催36レースのうち類似条件に当てはまるものが何割かによりますが、<b>数週間から数ヶ月かかります。10月24日には間に合いません。</b><br><b>→ 10月24日に候補を出すなら、暫定のB案が要ります。</b>ご指摘のとおり「人気側へ偏らない明確な規則」が必要なので、規則案と比較検証の設計をQ11でお出しします。</span></div><h3>006で新しくいただいた宿題（3件）</h3><table>
+<tr><th></th><th>ご指摘</th><th>対応</th></tr>
+<tr><td><b>②</b></td><td>「52.8%で候補を出せた」は言い直しが必要。正確には「38レース・52.8%で<b>レース傾向を確定できた</b>」</td><td><b>受諾。言い直しました。</b>第0章・U01の表記を「候補を出せる」→「レース傾向（堅い／混戦／波乱）を確定できる」に変更。実際に候補を公開できるかは、入力時刻の検証・AI応答・根拠・公開期限を通さないと分かりません（公開率試験はAC09で未完了）</td></tr>
+<tr><td><b>③</b></td><td>6時点それぞれの実記録で確認してほしい。バッチ開始と終了が同じ秒だけでは証明にならない</td><td><b>出せます。</b><code>t_horse_odds_finder_odds_get_timing</code> というテーブルがあり、<code>date / kaisuu / basho / day / race / timing</code> ごとに<code>get_datetime</code> が記録されていました（B25）。<b>7時点すべての available_at が既存データで取れます。</b>10/17・18分をB26で提出します</td></tr>
+<tr><td><b>④</b></td><td>次の洗い替え前に17・18日分を保存する。新テーブルを対象外にするだけでは既存分の保全にならない</td><td><b>受諾。期限は10月24日（土）5:50</b>＝本番運用予定日の朝です（Z05）。<code>laravel.log</code> も毎週 <code>truncate -s 0</code> で空にされることが分かったので、ログも退避対象に入れました（B27）</td></tr>
+</table>
+<h3>この版で直したこと</h3><p>いただいたご指摘（002〜005）は、第0-2章にすべて対応表で載せています。<b>こちらの誤りは3件ありました。</b>①第51章の利益説明（004-1）②「10倍台でしか効かない」（004-2）③「毎開催必ず発生する」（005-1）。いずれも訂正済みです。</p><p>第13章は10月15日の報告書への宿題、第14章は「今回やること／今回やらないこと」の線引きです。</p><h2>0. 先に読む3つ</h2><div class="box stop"><b>⚠ 実測しました。いまのr12.1の仕様どおりだと、<u>72レース中34レース（47.2%）で候補が0頭</u>になります。</b><br><span class="note">10月17日・18日の72レースについて、仕様書9章の X1〜X5・Z を保存済みオッズから計算しました（<code>--mode-check</code>・AI呼び出し0回）。<br><b>原因はX6です。</b>X6は実履歴集計アダプタが未検証のため N>=7 で UNKNOWN。三値論理で mode がまたぐと selection_enabled=false になり、公開候補が空になります。<br><b>「毎開催必ず発生するとは断定できない」というご指摘（005-1）は正しく、こちらの断定は誤りでした。そのうえで実測すると47.2%でした。</b><br><b>X6の扱いを決めないと、半分のレースで予想が出せません。</b>Q09で3案をお出しします。<b>これが合意の最重要項目です。</b></span></div><div class="box ok"><b>① 実装一式ZIPを受領しました。SHA256SUMSは全件OK（NG 0件）です。</b><br><span class="note">144ファイル。本番へ移植する実装は<b>Python 約1,500行</b>（<code>reference.py</code> 631行／<code>engine.py</code> 472行／<code>store.py</code> 152／<code>journal.py</code> 147／<code>adapter.py</code> 49／<code>cli.py</code> 49）、ほかにPHP実装7本・PHP試験7本・Python試験15本・監査ログ54本。AIへ送る本文は <code>prompt_1st.txt</code>（16,842バイト）／<code>prompt_2nd.txt</code>（17,047）／<code>common_prompt.txt</code>（16,612）。<br><b><code>config.json</code> で C7 MIXED=[3,3,1]・C7 VOLATILE=[3,3,1]・C7 FIRM=[5,2,0]、<code>hole_to_popular_fill: false</code> を確認しました。</b>r12.1の正本です（旧r12ではありません）。</span></div><div class="box ok"><b>② Laravel＋Flutterの方針は条件付きで合意をいただきました。</b><br><span class="note">守るのは「契約」、変えるのは「実装手段」です。いただいた条件は<b>3つ＋再現要件2つ</b>で、第1章のP05〜P08に入れました。<br>「言語と保存先だけ変えるから問題ない」とはまだ言えない、というご指摘はそのとおりです。<b>前回書いた「影響なし」「以降は配線作業」という言い方は取り下げます。</b>照合の証跡が出てから言います。</span></div><div class="box warn"><b>③ 実観測時刻は、取得側に正しく記録する方向で進めます。推測で埋めません。</b><br><span class="note">現在の <code>t_horse_odds_finder_odds</code> に <code>observed_at</code> / <code>available_at</code> の列がありません。<b>予定時刻を実観測時刻として扱う緩和はしません。</b>取得側に列を足す対応を進め、過去分はログから復元できるかを並行調査します。<br>「列を追加すると必ず長期の蓄積待ちになるとは限らない」「実データでの最終確認と、先に進められる開発を分けて考える」というご指摘のとおりに分けます。<b>必要な実レース数と10月24日・25日への影響は S02 で出します。</b></span></div><div class="box"><b>このチェックリストが唯一の正本です。変更があるたびに、このファイルを逐一更新します。</b><br><span class="note">別ファイルを増やしません。ご指摘・判断・実測の結果は、必ずここへ項目として反映してから次へ進みます。<b>チェックリストに書かれていないことは「やっていない」と読んでください。</b><br>手戻りを減らすため、<b>このチェックリストでよっしーさんと合意が取れるまで、実装と報告書への追記は行いません</b>（W01）。</span></div><h2>0-2. 10月18日（002・003・004・005）のご指摘への対応</h2><table>
+<tr><th>ご指摘</th><th>内容</th><th>このチェックリストでの反映</th></tr>
+<tr><td><b>① 再試行の読み替えが不正確</b></td><td>「SDKリトライ0 → Queue tries=1」は置き換えられない。<b>ジョブの再実行</b>と<b>内部API通信の再送</b>は別。両方を確認・設定し、呼出枠の重複防止も維持する</td><td><b>そのとおりです。訂正しました。</b>第1章の読み替え表を書き換え、C29（ジョブ再実行の抑止）・C30（HTTPクライアントの再送0）・C31（呼出枠の重複防止）を新設。AC07の備考も直しました</td></tr>
+<tr><td><b>② 7頭の配分に条件の書き漏れ</b></td><td>「C7は1st=3/3/1、2nd=1/3/1」は<b>混戦・波乱の場合だけ</b>。堅いは1st=5/2/0、2nd=3/2/0</td><td><b>こちらの書き漏れです。</b>第3章の対照表と L18 を、<b>C4〜C7 × 3mode の1st/2nd全表</b>に差し替えました（第6章の冒頭）</td></tr>
+<tr><td><b>③ 実観測時刻は推測で埋めない</b></td><td>予定時刻を実観測時刻として扱う緩和には賛成できない。ログで裏付けられるか確認し、無理なら取得時に記録する。新レースでの6時点取得と過去復元は分ける</td><td><b>緩和案は取り下げます。</b>B03・B04・R02を書き換え、B20（新レースでの取得）とB21（過去分の復元調査）に分けました</td></tr>
+<tr><td><b>④ 試験の件数一致だけでは移植完了にできない</b></td><td>同じ入力・保存済みAI応答に対して、候補・配分・除外理由・数値・期限・取消処理が一致する証跡が必要。「影響なし」「以降は配線作業」と断定するのはその確認後</td><td><b>断定を取り下げました。</b>P05を「照合の証跡」として独立させ、照合対象6項目をT10〜T15に分解。第12章の見立ての文も直しました</td></tr>
+<tr><td><b>⑤ 18頭の実測は1回では足りない</b></td><td>1回で分かるのはその1回の出力長と時間だけ。両AI・必要時の訂正・通信遅延・複数レースの処理待ちまで含め、期限内に公開できるか確認</td><td><b>そのとおりです。訂正しました。</b>A03を書き換え、A08（複数レース同時）・A09（訂正込みの最長経路）・A10（通信遅延時の期限内公開）を新設</td></tr>
+<tr><td><b>追加：UNKNOWNで候補0頭になる問題</b></td><td>判定がUNKNOWNになると候補が0頭になる。未実装のX6も関係。「実データで何レースが選出停止になるか」を受入確認に追加したい</td><td><b>AC13として追加しました。</b>あわせてU01〜U03（UNKNOWN率の実測）を第6章に新設</td></tr>
+<tr><td>訂正：L14「1〜3頭の扱いが違う」</td><td>記載された式では同じ</td><td><b>こちらの誤りです。</b>現行 <code>N≦8→min(N,4)</code> はN=1〜3でもNと一致します。L14を「同じ」に訂正</td></tr>
+<tr><td>訂正：E10「Python不要＝済」</td><td>方針合意前なので条件付きに直すのが適切</td><td><b>直しました。</b>条件付き合意なので E10 は「要確認」に変更</td></tr>
+<tr><td><b>【003-1】判定不能で候補0頭になる条件を具体的に試験する</b></td><td>未実装のX6だけが不明でも、それ以外の合計が「1」または「3」なら判定が境界をまたぎ、候補0頭になる。U02に条件を明記し、実際に何レース該当するか確認</td><td><b>条件を計算で確認しました。ご指摘のとおりです。</b>U02に式と該当条件を明記し、U04（星が確定しないケース）も追加。実測はU01で行います</td></tr>
+<tr><td><b>【003-2】時刻不足とUNKNOWNを分けて集計する</b></td><td>実観測時刻を復元できない過去レースは入力検証で止まる可能性がある。「入力不足で停止」「波乱判定不能」「AI失敗」を分け、対象全レースのうち候補を公開できた割合も出す</td><td><b>U05（停止理由の分類）とU06（公開できた割合）を新設しました。</b>B21（過去分の復元調査）と結果を突き合わせます</td></tr>
+<tr><td><b>【003-3】受領期限に動く回復用ジョブを明記する</b></td><td>仕様書16章の「応答・失敗保存後の統合ジョブ」と「受領期限到達時の回復用ジョブ」の<b>両方</b>をC32に書く。AI回答は保存できたのに途中停止で公開されないケースを試験に入れる</td><td><b>C32を2つに分けました。</b>C32（応答・失敗保存後の統合ジョブ）とC33（受領期限到達時の回復用ジョブ）。試験はT16を新設</td></tr>
+<tr><td><b>【003-4】第3章の「穴側4枠」に条件を補う</b></td><td>正しくは「目標7頭・構造調整前の場合」。第6章の配分表は正しいので説明文をそろえる</td><td><b>こちらの書き方が不正確でした。</b>第3章の該当セルを「目標7頭・構造調整前なら」に直しました</td></tr>
+<tr><td><b>【004-1】第51章「136.2%の利益の出どころ」の説明が違う</b></td><td>13頭を分けると、低配当の1番人気10頭は<b>回収率100.0%・損益±0円</b>。プラス470円を生んだのは<b>最低基準点未満で見送った3頭</b>（256.7%）。「正体は1番人気を10頭外していたこと」は誤り</td><td><b>完全にこちらの誤りです。検算して確認しました。</b>第13章 X01に訂正内容を置き、<b>行動指針HTMLの第51章 51-2 を訂正します</b></td></tr>
+<tr><td><b>【004-2】「10倍台でしか効かない」は言い過ぎ</b></td><td>同じ表に「5〜9.9倍×断層2本以上＝110.8%・13頭」もある。「10倍台だけ有効」と固定せず、<b>オッズ帯×断層構造×資金流入の組み合わせ</b>を新しいレースで確かめる</td><td><b>言い過ぎでした。</b>X04で訂正し、組み合わせで見る形に直します</td></tr>
+<tr><td>【004-3】低配当フラグの同額予算の比較</td><td>約347円良い計算は合っている。ただし両方100%未満なので、これだけでは目標達成にはつながらない</td><td><b>計算は合っていました。</b>「どちらも損」という前提はX05に明記します</td></tr>
+<tr><td>【004-4】「280項目合格」はZIPだけでは裏付けできない</td><td>HTML報告書1本だけで、PHPコード・元CSV・試験ログが入っていない</td><td><b>そのとおりです。</b>X03で元CSVと実行ログを提出します</td></tr>
+<tr><td><b>【005-1】「毎開催必ず発生する」とは断定できない</b></td><td>「X6だけが不明で、残りの合計が1か3なら判定不能」という計算は正しい。ただしそこから「毎開催必ず発生する」とは断定できない。実際の件数と、全対象レースのうち傾向を確定できた割合が必要（「候補を出せた割合」とは別物。ご指摘007-6）。<b>他の指標も不明になるケースは別に確認する</b></td><td><b>こちらの断定が誤りでした。</b>U02の囲みから「毎開催で出ます」を削除し、「S0の分布は実測しないと分からない」に直しました。他の指標の欠損は<b>U08</b>として新設</td></tr>
+<tr><td><b>【005-2】6分前の取得時刻と入力期限の整合</b></td><td>B09は「利用可能になった時刻≦6分前の締切」としている。<b>6分前に取得を開始して、その後に受信完了する運用だと期限超過になる</b>。B20の取得方法と合わせ、実際の時刻で確認してほしい</td><td><b>重い指摘です。気づいていませんでした。</b><b>B22</b>（実際の取得開始・完了時刻の実測）と<b>Q08</b>（扱いの確認）と<b>R17</b>（リスク）を新設</td></tr>
+<tr><td><b>【005-3】最低点を外せば利益が出るとは言えない</b></td><td>3頭の計算は合っている。一方、<b>最低基準点未満の全19頭は89.5%</b>。利益の出た3頭だけで購入基準の撤廃を判断しない。元の行動指針HTMLの訂正も、まだ未完了扱い</td><td><b>そのとおりです。</b>X01の備考に「19頭全体は89.5%」を明記。X06（19頭の全明細）を強化。<b>X01・X08は未完了のままにしてあります</b></td></tr>
+<tr><td><b>【005-4】実装範囲を取り違えない</b></td><td>断層学習は記録・蓄積まで。学習結果を選出に反映する段階ではない。購入推奨は無効。<b>候補選出の改善と、回収率100%以上を目指す購入判断は分けて確認する</b></td><td><b>第14章を新設しました。</b>Z01〜Z04で「今回やること／今回やらないこと」を線引きします</td></tr>
+</table>
+<h2>1. 実装方針 ─ Laravel＋Flutterで作るための読み替え</h2><p>仕様書の<b>契約はそのまま守り</b>、実装手段だけ読み替えます。条項ごとの対応です。<span class="fix">黄色の行は10/18のご指摘で直した箇所です。</span></p><table>
+<tr><th>仕様書の条項</th><th>原文の指定</th><th>Laravel＋Flutterでの実装</th><th>理由</th></tr>
+<tr><td>3章 構成と責務</td><td><code>adapter.py</code> / <code>engine.py</code> / <code>reference.py</code> / <code>journal.py</code> / <code>store.py</code>（計 約1,500行）</td><td>Laravelのサービスクラス群（<code>app/Services/Baganriki/</code>）へ移植</td><td>開発・保守の担当がLaravelとFlutterの技術者。2言語運用は障害時の切り分けと将来のクローン展開で負債になる</td></tr>
+<tr><td>3章</td><td><code>php/BaganrikiR12Bridge.php</code>（131行）からPythonを呼ぶ</td><td><b>ブリッジ自体を作らない。</b>クラス名は残し、中でLaravel実装へ委譲</td><td>PHP→Pythonの <code>proc_open</code> は環境依存が大きく、レンタル環境では無効化されていることがある</td></tr>
+<tr><td>3章・19章</td><td>共有SQLite（WAL・同期FULL）</td><td><b>既存MySQL 8.4.9 に新テーブル。</b>トランザクションと行ロックで競合制御</td><td>既存システムがMySQL。SQLiteを足すとバックアップ・権限・同時アクセスの管理対象が二重になる</td></tr>
+<tr><td>3章</td><td><code>php/RoleWorker.php</code>（45行）永続ワーカー</td><td><b>Laravel Queue</b>（database ドライバ）のジョブ2本（1st用・2nd用）</td><td>Laravel標準。失敗ジョブ・重複防止の仕組みが既にある</td></tr>
+<tr><td><span class="fix">15章 AC07<br>再試行</span></td><td><span class="fix">SDK自動リトライは0</span></td><td><span class="fix"><b>2つを別々に設定・確認します。</b><br>(a)<b>ジョブの再実行</b>…Laravel Queueの <code>tries=1</code>・<code>backoff</code>なし・<code>$deleteWhenMissingModels</code>・<code>WithoutOverlapping</code>（C29）<br>(b)<b>内部API通信の再送</b>…HTTPクライアント側の retry を0にする（Guzzle/Laravel Httpの <code>retry()</code> を使わない・C30）<br>(c)<b>呼出枠の重複防止</b>…<code>ai_attempts</code> の主キーで予約を一意にし、再実行でも同じ枠を再発行しない（C31）</span></td><td><span class="fix"><b>10/18のご指摘。</b>ジョブが二重処理されてもAIを二重に呼ばないこと、通信層で勝手に再送しないことは別の対策が必要</span></td></tr>
+<tr><td>7章</td><td><code>php/ExactJson.php</code>（35行）で原トークン保持</td><td>PHPで同等実装。<b>原文文字列をそのまま持ち回す</b>。float経由のdecode→encodeをしない</td><td>契約は同じ。<code>ExactJson.php</code> がそのまま流用できる見込み</td></tr>
+<tr><td>6章</td><td><code>ratio_12dp</code> / <code>shortening_12dp</code>（小数12桁 ROUND_HALF_UP）</td><td><b>BCMath</b>で実装。<b>閾値比較は丸める前の分数で行う</b>（仕様書9章・P06）</td><td>PHPのfloatでは12桁の再現性が出ない。BCMathなら一致させられる</td></tr>
+<tr><td>1章</td><td>識別子（prompt_version / schema_version / marker / hash方式 / クラス名）</td><td><b>一切変えない。</b><code>baganriki-v041-r12-1-quota-20261017</code> / <code>baganriki-v041-r8-1</code> / <code>&lt;&lt;&lt;BAGANRIKI_V041_R8_BEGIN&gt;&gt;&gt;</code> / <code>exact-common-payload-sha256-r8</code></td><td>AIへのプロトコルは契約そのもの</td></tr>
+<tr><td>19章</td><td>venv / <code>verify.py</code> / php試験7本</td><td><b>本番環境では適用対象外。</b>ただし<b>移植の照合のために手元では動かします</b>（P05・T10〜T15）</td><td><b>同じ入力で同じ出力になることを示す唯一の手段</b>。Python実装を正解として使う</td></tr>
+</table>
+<table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">P01</td><td>Laravel＋Flutterで実装する方針</td><td class="st don">済</td><td><b>条件付きで合意済み（10/18）。</b>条件はP05〜P08</td></tr>
+<tr><td class="id">P02</td><td>10行の読み替え表をよっしーさんに確認してもらう</td><td class="st jdg">要判断</td><td>「エンジニアさんが作った10行の対応表と実装コード自体は、まだ未確認」とのことなので、上の表を改めて提示する</td></tr>
+<tr><td class="id">P03</td><td>ZIPのPython実装は「仕様の正本」として保管</td><td class="st don">済</td><td>本番では動かさないが捨てない。移植の照合に使う</td></tr>
+<tr><td class="id">P04</td><td>移植先の構成を決める</td><td class="st chk">要確認</td><td><code>app/Services/Baganriki/</code> 配下。Reference / Engine / Store / Journal / Adapter に対応させる</td></tr>
+<tr><td class="id">P05</td><td><b>【合意条件1】同じ凍結入力・同じ保存済みAI応答で元実装とLaravel版の結果が一致することの照合</b></td><td class="st blk">ブロック中</td><td><b>照合対象は6つ</b>…波乱判定（mode・S・星）／候補／配分／除外・不足理由／数値／期限・取消処理。T10〜T15に分解</td></tr>
+<tr><td class="id">P06</td><td><b>【合意条件2】BCMathの12桁丸め・丸め前の閾値比較・JSONの数値とhash保持の確認</b></td><td class="st blk">ブロック中</td><td><b>「丸め前の閾値比較」が要点。</b>仕様書9章「閾値比較は元の十進数からの分数を使用し、表示用に丸めた比率を使用しない」</td></tr>
+<tr><td class="id">P07</td><td><b>【合意条件3】個別SIGNAL1系統の資格維持・評価後の穴枠不足を人気側で埋めない・旧フィルターを通さない</b></td><td class="st blk">ブロック中</td><td><code>config.json</code> の <code>hole_to_popular_fill: false</code> と対応。<b>以前の失敗を繰り返さないための要点</b></td></tr>
+<tr><td class="id">P08</td><td><b>【再現要件】キュー再実行でAIを二重に呼ばない／同時更新で取消や新しい応答を失わない</b></td><td class="st blk">ブロック中</td><td><b>Laravelも設定によって同じジョブが二重処理され得る。</b>C29〜C31とAC07で確認</td></tr>
+<tr><td class="id">W01</td><td><b>【運用ルール】このチェックリストを唯一の正本とし、変更があるたびに逐一更新する</b></td><td class="st don">済</td><td><b>10/18に決めました。</b>別ファイルを増やさない。ご指摘・判断・実測の結果は必ずここへ反映してから次へ進む。<b>合意が取れるまで実装と報告書への追記は行わない</b>（実装しては手戻り、を繰り返さないため）</td></tr>
+<tr><td class="id">W02</td><td><b>【運用ルール】まとめた数字を出すときは必ず内訳も並べる</b></td><td class="st don">済</td><td><b>10/18に決めました。</b>136.2%を13頭まとめて見て読み違えたのが原因（X01）。分けて計算すれば分かることでした</td></tr>
+<tr><td class="id">W03</td><td><b>【運用ルール】合意を取るために必要な手は、許可を求めずにチェックリストへ入れて進める</b></td><td class="st don">済</td><td><b>10/18に決めました。</b>「やりますか」と聞かない。必要だと判断したら項目として登録し、手を動かしてから報告する。<b>サーバで打つコマンドは手順として先頭に出す</b>（実行はご本人にしかできないため）</td></tr>
+<tr><td class="id">W04</td><td><b>【運用ルール】送付可否をこのファイルの先頭に明示する</b></td><td class="st don">済</td><td><b>10/18のご指示。</b>「送っていいのかタイミングが分からなくなるから、送っていい時になったときに更新して教えてくれ」。<br>この版から、1ページ目の見出し直下に<b>緑の「✅ この版はそのまま送れます」</b>か<b>赤の「⛔ まだ送らないでください（作業中）」</b>のどちらかを必ず出します。版を上げるたびに設定し、ご報告の一行目でも可否を先に言います。<b>判断はこちらで行い、お伺いはしません</b>（W03）</td></tr>
+</table>
+<h2>2. 資材と版の確認</h2><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">M01</td><td>実装一式ZIPを受領</td><td class="st don">済</td><td>144ファイル。<b>r12.1を受領</b></td></tr>
+<tr><td class="id">M02</td><td>SHA256SUMSで全ファイル照合</td><td class="st don">済</td><td><b>全件OK（NG 0件）</b></td></tr>
+<tr><td class="id">M03</td><td>ZIP自体のSHA-256が <code>caca4506…4ab7</code> と一致</td><td class="st chk">要確認</td><td>展開済みフォルダで受領したため、ZIPファイル本体での照合は未実施。<b>SHA256SUMS全件OKで内容の同一性は確認できている</b></td></tr>
+<tr><td class="id">M04</td><td><code>server_contract.txt</code> を通読し実装契約を項目化</td><td class="st chk">要確認</td><td><b>これが移植の設計書になる</b></td></tr>
+<tr><td class="id">M05</td><td><code>config.json</code> の配分表を確認</td><td class="st don">済</td><td><b>C7 FIRM=[5,2,0] / MIXED=[3,3,1] / VOLATILE=[3,3,1]。</b><code>hole_to_popular_fill: false</code>・<code>correction_calls_per_role_max: 1</code>・<code>max_snapshot_runners: 18</code> も確認</td></tr>
+<tr><td class="id">M06</td><td><code>reference.py</code> の関数を棚卸し</td><td class="st don">済</td><td><b>37関数。</b>移植対象は <code>target_count</code>・<code>band</code>・<code>structural_quota</code>・<code>role_quota</code>・<code>transfer</code>・<code>extract_signals</code>・<code>signal_mode</code>・<code>tri_and/tri_or/at_least</code>・<code>verified_evidence</code>・<code>independent_count</code>・<code>recover_scores</code>・<code>recover_rank</code>・<code>merge_orders</code>・<code>select_final</code>・<code>cancellation_view</code>・<code>can_publish</code> ほか</td></tr>
+<tr><td class="id">M07</td><td><code>engine.py</code> の関数を棚卸し</td><td class="st don">済</td><td><b>22関数。</b><code>prepare</code>・<code>validate_input</code>・<code>common_payload</code>・<code>parse_response</code>・<code>response_view</code>・<code>rank_band</code>・<code>diagnose</code>・<code>correction_plan</code>・<code>apply_correction</code>・<code>resolve</code>・<code>inspect_for_correction</code> ほか</td></tr>
+<tr><td class="id">M08</td><td><code>input_schema.json</code> / <code>output_schema.json</code> の必須項目を一覧化</td><td class="st chk">要確認</td><td>第5章のDB対応づけと第6章の検証実装の入力</td></tr>
+<tr><td class="id">M09</td><td><code>prompt_1st.txt</code> / <code>prompt_2nd.txt</code> / <code>common_prompt.txt</code> を1バイトも変えずに保存</td><td class="st don">済</td><td>16,842／17,047／16,612バイト。<b>現行の <code>firstAiSystemPrompt</code> とは別物。混ぜない</b></td></tr>
+<tr><td class="id">M10</td><td>識別子を控える</td><td class="st don">済</td><td>第1章のとおり</td></tr>
+<tr><td class="id">M11</td><td><code>IMPLEMENTATION_REPORT.txt</code> と <code>audit/</code> を読む</td><td class="st chk">要確認</td><td><b>監査ログ54本・試験結果JSON31本。</b>どの試験が何件通ったかの正本。移植試験の目標値になる</td></tr>
+<tr><td class="id">M12</td><td>r12（001/01.txt）とr12.1（001/03.txt）の差分を把握</td><td class="st don">済</td><td>差は85行。実質はC7 MIXEDの配分と版識別子のみ。<b>r12.1を正本とする</b></td></tr>
+</table>
+<h2>3. 現行実装との対照 ─ 何が置き換わるのか</h2><p><b>ここを曖昧にしたまま接続すると、10月17日・18日に取った据え置き検証のデータが比較対象として使えなくなります。</b></p><table>
+<tr><th>論点</th><th>現行（サーバ稼働版）</th><th>r12.1</th></tr>
+<tr><td><b>波乱度の決め方</b></td><td><b>1st AIが出力した値</b>をPHPが読むだけ。PHPの枠計算には入っていない</td><td><b>実装側がX1〜X6・Zから計算</b>。S=2X1+X2+X3+X4+X5+X6−2Z で FIRM/MIXED/VOLATILE。<b>AIの自己申告に頼らない</b></td></tr>
+<tr><td><b>人気帯の枠</b></td><td>人気側1〜6／資格あり穴側7以下 の<b>2区分</b>。配分は断層タイプA〜E</td><td><b>A=1〜6 / B=7〜10 / D=11〜18 の3帯。</b>C×modeの配分表で固定（下の全表）</td></tr>
+<tr><td><b>波乱度が高いときの穴馬</b></td><td>お願い文に「<b>波乱度が高くても下位進入度・大穴進入度が低ければ7番人気以下を無理に選ばないでください</b>」（7540行）</td><td><b>その指示は無くなる。</b><b>目標7頭・構造調整前なら</b>混戦・波乱で穴側（B+D）に4枠を確保（1st 3/3/1）。<code>hole_to_popular_fill: false</code> で<b>評価後の穴枠不足を人気上位で埋めない</b>。頭数と構造調整で枠数は変わるので、正本は6-0の全表</td></tr>
+<tr><td><b>穴馬の適格条件</b></td><td>旧資格 <b>7番人気以下 AND F AND (R OR O)</b>。A方式では未達馬を補充にも使わない</td><td><b>5系統のうち確認済み個別SIGNALが1系統あれば適格。</b>旧F AND (R OR O)・複数根拠必須・Tier A必須は<b>禁止</b></td></tr>
+<tr><td><b>購入回避フラグ</b></td><td>最低基準点未満／人気薄の回収率／低配当／過去回収率</td><td><b>低配当・回収率40%・旧最低点による一律除外は禁止。</b>購入推奨そのものが無効（<code>buy_recommended=false</code> 固定）</td></tr>
+<tr><td><b>採点</b></td><td>信頼度7項目60点＋妙味4項目40点（旧11項目）</td><td><b>H1:18 H2:15 H3:12 H4:9 H5:6（計60）＋V1:12 V2:10 V3:8 V4:6 V5:4（計40）。</b>不明はnull・<code>total_score=null</code>・<code>observed_sum</code>/<code>observed_cap</code></td></tr>
+<tr><td><b>2nd AIの役割</b></td><td>最大5頭の候補。oddsDataを加工して渡す</td><td><b>全頭評価が前提で、5頭は公開候補の上限。</b>C&gt;5ではB/Dを維持しA=5−B−D</td></tr>
+<tr><td><b>両AIの統合</b></td><td>PHPの統合式。一致+5</td><td><code>rank_score</code>=100×(K−r+1)/K の最大値。<b>両AIの検証済み原公開候補と証明できた馬だけ+5</b></td></tr>
+<tr><td><b>プロンプト生成</b></td><td><code>_getAiAnalysisPrompt()</code> がPHPで組み立て</td><td><b><code>prepare</code> が input_json と system本文を生成。</b>旧経路は新経路に通さない</td></tr>
+<tr><td><b>AI呼び出し</b></td><td>HTTPリクエスト内で1st→2ndを同期実行</td><td><b>役割別のキュージョブ。</b>受付後は読取APIを参照。訂正は各role初回＋1回まで（合計最大4回）、再送0</td></tr>
+<tr><td><b>保存</b></td><td>MySQL（ai_analysis / ai_analysis2 / ai_merge_result）</td><td><b>MySQLに新テーブル</b>（呼出枠・原応答・凍結入力・ライブ状態・公開履歴）</td></tr>
+<tr><td><b>画面</b></td><td><code>analysis_text</code> を正規表現で解析して表示</td><td><b>PublicView の新DTO。</b>PENDING/UNAVAILABLE/PUBLISHED/CANCELLED の4状態</td></tr>
+<tr><td><b>学習</b></td><td>ML_STAGE=COLLECT_ONLY（記録のみ）</td><td>同じ。<b>SHADOW_EVAL / LIVE_VALIDATED は入力拒否</b></td></tr>
+</table>
+<table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">D01</td><td>上の対照表をよっしーさんと突き合わせる</td><td class="st jdg">要判断</td><td>特に<b>購入推奨が画面から無くなる</b>点。いまの画面には出ている</td></tr>
+<tr><td class="id">D02</td><td>旧経路を新経路に通さないための分離点を特定</td><td class="st chk">要確認</td><td>仕様書4章に5つ列挙（<code>_getAiAnalysisPrompt</code> 以降／旧 <code>firstAiSystemPrompt</code>・<code>baganriki_brain.txt</code>／2ndの旧oddsData再構成／<code>publicCandidateNums</code>・<code>_trimAiCandidates</code>・<code>_mergeAiResults</code>／旧 <code>analysis_text</code> 正規表現解析）</td></tr>
+<tr><td class="id">D03</td><td>進行中レースは旧版、新規レースからr12.1 の切替方法</td><td class="st jdg">要判断</td><td>レース単位の経路判定が必要</td></tr>
+<tr><td class="id">D04</td><td>2系統並行中の画面表示の切り分け</td><td class="st jdg">要判断</td><td>返却キーが違う</td></tr>
+<tr><td class="id">D05</td><td>手元で直した <code>BAGANRIKI_LABEL_FIX</code> の扱い</td><td class="st jdg">要判断</td><td>r12.1では <code>prompt_1st.txt</code> に置き換わるので不要になる見込み</td></tr>
+<tr><td class="id">D06</td><td>10/17・18の据え置き検証データを先に確定させる</td><td class="st chk">要確認</td><td><b>切替前に12コマンドの結果を保存</b></td></tr>
+</table>
+<h2>4. 実行環境</h2><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">E01</td><td>PHP 8.0以上か</td><td class="st chk">要確認</td><td><code>php -v</code></td></tr>
+<tr><td class="id">E02</td><td>Laravelのバージョンとキュードライバ</td><td class="st chk">要確認</td><td><code>QUEUE_CONNECTION</code>。database ドライバを使う</td></tr>
+<tr><td class="id">E03</td><td><b>BCMath拡張が有効か</b></td><td class="st chk">要確認</td><td><code>php -m | grep bcmath</code>。<b>12桁ROUND_HALF_UPに必要。</b>無ければ導入（または GMP / brick\math）</td></tr>
+<tr><td class="id">E04</td><td>MySQLに新テーブルを作る権限と手順</td><td class="st chk">要確認</td><td>MySQL 8.4.9・DB <code>horse_odds_finder</code>。マイグレーションを使う</td></tr>
+<tr><td class="id">E05</td><td>キューワーカーの常駐方法</td><td class="st jdg">要判断</td><td><b>現行はcronの毎分実行。</b>supervisorを入れるか、cronで <code>queue:work --stop-when-empty --max-time=55</code> を毎分叩くか</td></tr>
+<tr><td class="id">E06</td><td><code>failed_jobs</code> と失敗時の通知</td><td class="st chk">要確認</td><td>Laravel標準</td></tr>
+<tr><td class="id">E07</td><td>ディスク容量</td><td class="st don">済</td><td>38GB空き（10/15確認）</td></tr>
+<tr><td class="id">E08</td><td>MySQLのバックアップ対象に新テーブルを含める</td><td class="st chk">要確認</td><td></td></tr>
+<tr><td class="id">E09</td><td>洗い替え（土曜5:50 TRUNCATE）の対象に新テーブルを含めない</td><td class="st jdg">要判断</td><td><b>凍結入力と公開履歴を消してはいけない</b></td></tr>
+<tr><td class="id">E10</td><td>本番でPythonを動かさないことの確認</td><td class="st chk">要確認</td><td><b>条件付き合意なので「要確認」。</b>P05〜P08の照合が通るまでは確定ではない。<b>手元ではPython実装を照合用に動かす</b>（Python 3.10+ とvenvが必要）</td></tr>
+<tr><td class="id">E11</td><td>手元の照合環境（Python 3.10+ / venv）</td><td class="st chk">要確認</td><td><code>requirements-test.lock.txt</code> でインストール。サーバではなく開発機で動かす</td></tr>
+</table>
+<h2>5. DB・時刻・coverage の対応づけ</h2><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">B01</td><td><code>runners</code> の対応（horse_no / win_rank / band）</td><td class="st chk">要確認</td><td>win_rank=6分前単勝の凍結順位。band=A/B/D。<b>単勝オッズが凍結順位順で非減少であることを検証</b>し、矛盾すれば止める（<code>validate_runners</code>）</td></tr>
+<tr><td class="id">B02</td><td><code>odds_rows</code> の num / minutes_before_start / odds / fuku_min / fuku_max</td><td class="st don">済</td><td>既存テーブルにある</td></tr>
+<tr><td class="id">B03</td><td><b><code>observed_at</code> を取得側に記録する</b></td><td class="st blk">ブロック中</td><td><b>方針確定。</b>取得バッチに実観測時刻を記録する改修。<b>予定時刻で埋める緩和はしない</b></td></tr>
+<tr><td class="id">B04</td><td><b><code>available_at</code> を取得側に記録する</b></td><td class="st blk">ブロック中</td><td>B03と同じ</td></tr>
+<tr><td class="id">B20</td><td>新しいレースで6時点（21/18/15/12/9/6分前）の時刻を取得できる状態にする</td><td class="st blk">ブロック中</td><td><b>これが先。</b>過去復元と分けて進める</td></tr>
+<tr><td class="id">B21</td><td>過去分をログから復元できるかの並行調査</td><td class="st chk">要確認</td><td>取得バッチのログに実行時刻が残っていれば復元できる可能性。<b>無理なら「過去分はUNAVAILABLE」と明示する</b></td></tr>
+<tr><td class="id">B23</td><td><b>オッズ本体テーブルに時刻の列が無い（別テーブルにあった）</b></td><td class="st don">済</td><td><b>10/18に確定。</b>列は <code>id / date / kaisuu / basho / day / race / num / odds / fuku_min / fuku_max / minutes_before_start</code> の11個だけ。<b>時刻の列は1つもありません</b>（created_at も無し）。<b>ただしB25で、別テーブル <code>t_horse_odds_finder_odds_get_timing</code> に時点別の <code>get_datetime</code> があることが分かりました。</b>オッズ本体の行単位では時刻が取れませんが、<b>レース×時点の単位なら既存データで取れます</b>。前版で「復元する手が無い」と書いたのは誤りでした</td></tr>
+<tr><td class="id">B25</td><td><b>取得時刻を記録したテーブルが別にあった</b></td><td class="st don">済</td><td><b>10/18に発見。</b><code>t_horse_odds_finder_odds_get_timing</code> に、<code>date / kaisuu / basho / day / race / timing</code> をキーとして<code>get_datetime</code> と <code>odds_from</code> が入っています（<code>ImportKeibaOdds.php</code> ブロック8）。<code>timing</code> は 999 / 21 / 18 / 15 / 12 / 9 / 6 の7時点。<b>available_at は既存データで7時点すべて取れます。</b>B03・B04の改修範囲が大きく縮みました</td></tr>
+<tr><td class="id">B31</td><td><b>遅れの原因 ─ 時点の割り当てがバッチ開始時刻で決まる</b></td><td class="st jdg">要判断</td><td><b>コードを確認しました。</b><code>ImportKeibaOdds.php</code> 117行で <code>$diff = round((発走時刻 − $now) / 60)</code> を計算していますが、<code>$now</code> は<b>バッチ開始時に1回だけ</b>取っています。そのあと36レースを順に処理するので、<b>後ろで処理されたレースは、$now から数十秒〜100秒あとにJRAの値を読んでいます</b>。<code>get_datetime</code> はその書き込み完了時刻なので、遅れとして正しく出ています。<br><b>問題はここです。</b>時点のラベル（9分前など）は <code>$now</code> で決まるのに、実際に読んだ値はそれより最大76秒あとのものです。つまり<b>「9分前」として保存した値が、実際は約7分44秒前の値である場合があります</b>。6分前は最大15秒なのでほぼ影響しませんが、<b>21分前（最大35秒）と9分前（最大76秒）はラベルとずれます</b>。X4は 21→6 と 9→6 の複勝短縮を見るので、<b>この時間幅のずれが信号に効きます。</b>許容範囲のご判断をお願いします（Q10と一体）</td></tr>
+<tr><td class="id">B30</td><td><b>観測時点は9つあり、r12.1が使う6つは全部そろっている</b></td><td class="st don">済</td><td><code>Constants::ODDS_GET_TIMING = [30,21,18,15,12,9,6,3,0]</code>。DB上の <code>timing</code> は <code>999</code>=30分前、<code>-999</code>=発走時、残りはそのままの分数。<b>r12.1が使う 21/18/15/12/9/6 はすべて実在します。</b>30分前・3分前・発走時は r12.1では使いません</td></tr>
+<tr><td class="id">B29</td><td><b>10/18の18分前が1レース分だけ欠測 ─ 特定しました</b></td><td class="st don">済</td><td><b>実測で判明。</b>時点別の件数は10/17が全9時点とも36件、10/18は <code>timing=18</code> だけ<b>35件</b>（他は36件）。欠測は <b>2026-10-18 / 4回・新潟(04)・2日目・4R の18分前</b> の1件（他の8時点はそろっています）。<b>18分前は r12.1 の信号計算には使いません</b>（使うのは21分前・9分前・6分前）。ただし「6時点そろっていること」を coverage の条件にすると、<b>このレースは候補を出せなくなります</b>。欠測の許容をQ12で確認します。全体は 36×9×2−1=647行＋見出し1行＝<b>648行で一致</b></td></tr>
+<tr><td class="id">B26</td><td><b>各時点の遅れを実測する ─ 再計算しました</b></td><td class="st don">済</td><td><b>ご指摘006-3への回答材料。</b><code>SELECT date,timing,COUNT(*),MIN(get_datetime),MAX(get_datetime) ... GROUP BY date,timing</code> で時点別の実記録を出し、全件TSVも添えます。<b>ご指摘007-1のとおり、測り方が誤っていました。</b><code>get_datetime</code> の秒の部分だけを見て遅れとしましたが、<b>予定14:54:00に対して取得14:55:13なら遅れは73秒</b>で、秒の部分（13）では測れません。「最大45秒だから分をまたいでいない」も、<b>またいでいたら秒は小さく出るので証明になっていません</b>。<br><b>再計算しました（第0-0章に表）。</b><b>ご指摘どおり分をまたいでいた時点がありました</b>：30分前が最大104秒、15分前が最大93秒、9分前が最大76秒。前の測り方ではそれぞれ45秒・40秒・23秒に見えていました。<br><b>6分前は12〜15秒（平均12.9秒）で、647件すべて60秒未満。分をまたいだものは1件もありません。</b>1件ごとの明細は <code>delay_all.tsv</code>（648行）で提出（X09）</td></tr>
+<tr><td class="id">B27</td><td><b>laravel.log も毎週クリアされる</b></td><td class="st don">済</td><td><b>10/18に判明。</b><code>deleteKeibaTableRecords.php</code> 183〜187行で<code>sudo truncate -s 0 laravel.log</code> を実行しています。<b>AI_ELAPSED も送信記録もログ側は毎週消えます。</b>Z05の退避にログを含めました</td></tr>
+<tr><td class="id">B28</td><td><b>observed_at（JRAが公開した時刻）は記録していない</b></td><td class="st jdg">要判断</td><td><code>get_datetime</code> は <code>date('Y-m-d H:i:s')</code> で、<b>DB保存が終わった時刻＝available_at 相当</b>です。JRA側が「6分前の値」として公開した時刻は取っていません。<b>Q10で定義を確認します</b></td></tr>
+<tr><td class="id">B24</td><td>オッズ取得は毎分動いている</td><td class="st don">済</td><td><b>crontabで確認（10/18）。</b><code>* 9-18 * * * importOdds</code>（flock付き・毎分）。<b>6分前ちょうどを狙って動くのではなく、毎分動いて該当スロットを埋める作り</b>。B22の実測はこのログを見ることになる</td></tr>
+<tr><td class="id">B22</td><td><b>6分前スロットの実際の取得開始・完了時刻を実測する</b></td><td class="st don">済</td><td><b>ご指摘005-2。こちらが気づいていなかった論点です。</b>仕様は observed_at ≤ available_at ≤ cutoff_at で、cutoff_at = anchor_at − 6分。<b>6分前ちょうどに取得を始めて、受信完了が6分前を過ぎるとavailable_at &gt; cutoff_at になり、入力検証で弾かれます。</b><br><b>調べ方（サーバで3コマンド）：</b>①<code>crontab -l</code> でオッズ取得の起動時刻 ②取得バッチのログで1レースあたりの所要時間 <b>実測しました（10/18）。</b><code>importOdds</code> は毎分起動し、36レース分の取得が<b>開始と終了が同じ秒で完了</b>しています（例：18:53:02開始→18:53:02終了。40件すべて同秒）。<b>ただしこれは1回の処理時間で、予定時刻からのずれではありません（ご指摘006-3）。ずれはB26で測り直しました。</b><b>所要時間は1秒未満。</b>cronの起動が毎分01〜02秒なので、<b>前版で「cutoff_at を1〜2秒だけ超える」と書いたのは誤りで、実測は約13秒でした</b>（B26・Q08）</td></tr>
+<tr><td class="id">B05</td><td><code>sampling_policy</code> の決定</td><td class="st jdg">要判断</td><td>同一馬・同一スロットの重複をどう1観測に確定するか。<b>重複入力は拒否される</b>ので現状の重複有無の実測が先</td></tr>
+<tr><td class="id">B06</td><td><code>anchor_kind</code>（SALES_CLOSE_TIME か POST_TIME）</td><td class="st jdg">要判断</td><td>POST_TIMEなら発走時刻の正本と照合。販売締切と同一視しない</td></tr>
+<tr><td class="id">B07</td><td><code>cutoff_at</code> = anchor_at − 6分</td><td class="st chk">要確認</td><td>B06待ち</td></tr>
+<tr><td class="id">B08</td><td><code>reply_deadline</code> / <code>publish_deadline</code> / <code>safety_margin_ms</code></td><td class="st jdg">要判断</td><td>現行の公開期限の運用と整合させる</td></tr>
+<tr><td class="id">B09</td><td>observed_at ≤ available_at ≤ cutoff_at の検証実装</td><td class="st blk">ブロック中</td><td>B03・B04待ち</td></tr>
+<tr><td class="id">B10</td><td>coverage ①<code>past_runs</code></td><td class="st chk">要確認</td><td>現行の過去走ブロック</td></tr>
+<tr><td class="id">B11</td><td>coverage ②<code>OPI</code></td><td class="st chk">要確認</td><td>OBSERVEDとして受け、算出版と取得時刻を監査保存</td></tr>
+<tr><td class="id">B12</td><td>coverage ③<code>estimated_odds</code></td><td class="st chk">要確認</td><td>現行の推定確定オッズ</td></tr>
+<tr><td class="id">B13</td><td>coverage ④<code>recovery_statistics</code></td><td class="st chk">要確認</td><td>現行の乖離帯別・OPI別・フェーズパターン別回収率</td></tr>
+<tr><td class="id">B14</td><td>coverage ⑤<code>similar_statistics</code></td><td class="st chk">要確認</td><td>現行の類似レース統計</td></tr>
+<tr><td class="id">B15</td><td>coverage ⑥<code>legacy_qualifications</code></td><td class="st jdg">要判断</td><td>旧資格 F/R/O。r12.1では適格条件に使わないがcoverageとしては渡す。INCLUDEDかUNAVAILABLEかを決める</td></tr>
+<tr><td class="id">B16</td><td>coverage ⑦<code>gap_history</code></td><td class="st chk">要確認</td><td>現行の断層表と時系列</td></tr>
+<tr><td class="id">B17</td><td>追加項目を <code>extra_sources</code> / <code>extra_field_catalog</code> / <code>extra_indices</code> に載せる</td><td class="st chk">要確認</td><td>単複差・資金流入ランクなど</td></tr>
+<tr><td class="id">B18</td><td>洗い替えとexportのタイミング</td><td class="st jdg">要判断</td><td>凍結入力を新テーブルに持てば影響を受けない</td></tr>
+<tr><td class="id">B19</td><td>DECIMAL文字列を原文のまま保持する経路</td><td class="st chk">要確認</td><td><b>AI送信用 input_json / common_json は PHP float を通さない</b>（<code>adapter.db_decimal</code> 相当）</td></tr>
+</table>
+<h2>6. Laravel側の実装</h2><h3>6-0. 配分の全表（ご指摘②の訂正）</h3><p>順番は <b>1〜6番人気 / 7〜10番人気 / 11番人気以下</b>。構造上の不足調整<b>前</b>の基本配分です。2ndは「C≤5なら1stと同じ、C&gt;5ならB・Dを維持してA=5−B−D」で導かれます。</p><table>
+<tr><th>目標頭数C</th><th>判定</th><th>1st（=quota）</th><th>2nd</th></tr>
+<tr><td>C=4</td><td>堅い</td><td>3／1／0</td><td>3／1／0</td></tr>
+<tr><td>C=4</td><td>混戦</td><td>2／2／0</td><td>2／2／0</td></tr>
+<tr><td>C=4</td><td>波乱</td><td>2／1／1</td><td>2／1／1</td></tr>
+<tr><td>C=5</td><td>堅い</td><td>4／1／0</td><td>4／1／0</td></tr>
+<tr><td>C=5</td><td>混戦</td><td>3／2／0</td><td>3／2／0</td></tr>
+<tr><td>C=5</td><td>波乱</td><td>2／2／1</td><td>2／2／1</td></tr>
+<tr><td>C=6</td><td>堅い</td><td>4／2／0</td><td>3／2／0</td></tr>
+<tr><td>C=6</td><td>混戦</td><td>3／2／1</td><td>2／2／1</td></tr>
+<tr><td>C=6</td><td>波乱</td><td>3／2／1</td><td>2／2／1</td></tr>
+<tr><td><b>C=7</b></td><td><b>堅い</b></td><td><b>5／2／0</b></td><td><b>3／2／0</b></td></tr>
+<tr><td><b>C=7</b></td><td><b>混戦</b></td><td><b>3／3／1</b></td><td><b>1／3／1</b></td></tr>
+<tr><td><b>C=7</b></td><td><b>波乱</b></td><td><b>3／3／1</b></td><td><b>1／3／1</b></td></tr>
+<tr><td>C≤3</td><td>（全mode）</td><td>C／0／0</td><td>C／0／0</td></tr>
+</table>
+<p class="note">前回「C7は1st=3/3/1、2nd=1/3/1」と書いたのは<b>混戦・波乱の場合だけ</b>でした。堅いレースは1st=5/2/0・2nd=3/2/0です。<code>config.json</code> の <code>base_quota</code> と一致を確認しました。</p><h3>6-1. 演算の移植（<code>reference.py</code> 631行・37関数）</h3><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">L01</td><td><code>ratio_12dp</code>（第2親÷第1親・12桁ROUND_HALF_UP）</td><td class="st blk">ブロック中</td><td>BCMath</td></tr>
+<tr><td class="id">L02</td><td><code>shortening_12dp</code>（（第1親−第2親）÷第1親）</td><td class="st blk">ブロック中</td><td>BCMath</td></tr>
+<tr><td class="id">L03</td><td>W / P の算出（固定ペア・過去時点も同じペア）</td><td class="st blk">ブロック中</td><td><b>過去時点の隣接順位で組み替えない。</b><b>閾値比較は丸める前の分数で行う</b>（P06）</td></tr>
+<tr><td class="id">L04</td><td>X1（k=1..min(6,N−1)・W21≥2 かつ（W6&lt;2 または21→6短縮率≥0.20））</td><td class="st blk">ブロック中</td><td></td></tr>
+<tr><td class="id">L05</td><td>X2（k=1..min(10,N−1)・W6≥2 かつ P6&lt;1.50）</td><td class="st blk">ブロック中</td><td></td></tr>
+<tr><td class="id">L06</td><td>X3（N≥7で k=3,4,5,6 の W6&lt;1.50 が全成立。N&lt;7はFALSE）</td><td class="st blk">ブロック中</td><td></td></tr>
+<tr><td class="id">L07</td><td>X4（凍結7番人気以下の異なる2頭以上で複勝最小の21→6短縮率≥0.05 または 9→6短縮率≥0.03）</td><td class="st blk">ブロック中</td><td></td></tr>
+<tr><td class="id">L08</td><td>X5（k=7..min(10,N−1)・W6≥2）</td><td class="st blk">ブロック中</td><td></td></tr>
+<tr><td class="id">L09</td><td>X6（N≥7でUNKNOWN、N&lt;7でFALSE）</td><td class="st blk">ブロック中</td><td><code>x6_runtime: UNKNOWN_UNTIL_HISTORICAL_ADAPTER_VALIDATED</code>。<b>TRUE/FALSEを作らない</b></td></tr>
+<tr><td class="id">L10</td><td>Z（k=1..min(5,N−1)の異なる2境界以上で W21≥2・W6≥2・P6≥1.50）</td><td class="st blk">ブロック中</td><td></td></tr>
+<tr><td class="id">L11</td><td>S と mode（<code>mode_value</code>）</td><td class="st blk">ブロック中</td><td>FIRM≤1 / MIXED 2〜3 / VOLATILE≥4</td></tr>
+<tr><td class="id">L12</td><td><b>三値論理</b>（<code>tri_and</code>/<code>tri_or</code>/<code>at_least</code>・<code>signal_mode</code>）</td><td class="st blk">ブロック中</td><td>未知をFALSEにせず全ての可能なSを計算。複数modeにまたがれば mode=UNKNOWN・selection_enabled=false・quota=null・role_cap=0・public_candidates=[]。<b>UNKNOWNをFIRMと表示しない</b></td></tr>
+<tr><td class="id">L13</td><td>星（<code>rating_value</code>）</td><td class="st blk">ブロック中</td><td>S≤0→1 / 1→2 / 2〜3→3 / 4〜5→4 / ≥6→5。modeが確定し全可能Sの星が一致する場合だけ表示</td></tr>
+<tr><td class="id">L14</td><td>目標頭数C（<code>target_count</code>）</td><td class="st chk">要確認</td><td><b>現行と同じ値になります。</b>r12.1は N1-3→N / 4-8→4 / 9-13→5 / 14-15→6 / 16-18→7。現行の <code>N≦8→min(N,4)</code> はN=1〜3でもNと一致。<b>前回「扱いが違う」と書いたのは誤りでした</b></td></tr>
+<tr><td class="id">L15</td><td>基本配分表（<code>structural_quota</code>）</td><td class="st blk">ブロック中</td><td>6-0の全表のとおり</td></tr>
+<tr><td class="id">L16</td><td>構造上の不足の処理（<code>transfer</code>）</td><td class="st blk">ブロック中</td><td>min(要求枠,実在頭数)を先に予約 → D枠不足はB→A、B枠不足はD→A、A枠不足はB→D</td></tr>
+<tr><td class="id">L17</td><td>評価後の不足の処理</td><td class="st blk">ブロック中</td><td><b>D枠不足はBだけ、B枠不足はDだけ、A枠不足はB→D。</b>B/Dの評価後不足をAへ移さない（<code>hole_to_popular_fill: false</code>）。<b>構造調整と混同しない</b></td></tr>
+<tr><td class="id">L18</td><td><code>role_quota</code>（1st=quota、2ndはC≤5で同じ・C&gt;5でA=5−B−D）</td><td class="st blk">ブロック中</td><td><b>6-0の全表のとおり。modeごとに違う</b></td></tr>
+<tr><td class="id">L19</td><td>適格判定（<code>verified_evidence</code>・<code>applicable_ref</code>）</td><td class="st blk">ブロック中</td><td>5系統のうち個別SIGNAL1系統。HORSE/PAIR/COHORTのみ。<b>RACE・CONTEXTだけでは適格にしない</b></td></tr>
+<tr><td class="id">L20</td><td>禁止する一律除外の実装確認</td><td class="st blk">ブロック中</td><td>複数根拠必須／Tier A必須／旧F AND (R OR O)／OPI必須／複勝短縮必須／低配当／回収率40%／旧最低点／部分欠損だけによる削除 ── <b>全て禁止</b></td></tr>
+<tr><td class="id">L21</td><td>Tier判定と <code>independent_count</code></td><td class="st blk">ブロック中</td><td>A=独立2系統以上 / B=1系統 / C=5系統確認して有効根拠なし / UNVERIFIED。<b>同一系統・同じ元信号に依存する根拠を水増ししない</b></td></tr>
+<tr><td class="id">L22</td><td>採点上限の検証（<code>recover_scores</code>）</td><td class="st blk">ブロック中</td><td><b>不明はnull・total_score=null・observed_sum/observed_cap。</b>欠損を中立点で埋めない。100点へ比例換算しない</td></tr>
+<tr><td class="id">L23</td><td>順位方式（SCORE / EVIDENCE）の判定</td><td class="st blk">ブロック中</td><td>全適格馬completeならSCORE（合計点降順→V小計→H小計→馬番）。partialがあればEVIDENCE。<b>AIのrank_basis申告だけで変えない</b></td></tr>
+<tr><td class="id">L24</td><td><code>recover_rank</code>（予備順位と縮退）</td><td class="st blk">ブロック中</td><td>通常<code>band_ranks</code>と予備<code>evidence_band_ranks</code>の両方を必須検証。不備時は予備 → 独立根拠群数降順→馬番昇順へ縮退し<code>RANK_RECOVERY_FALLBACK</code>を表示</td></tr>
+<tr><td class="id">L25</td><td>統合（<code>merge_orders</code>）</td><td class="st blk">ブロック中</td><td><code>rank_score</code>=100×(K−r+1)/K の最大値。両AIの検証済み原公開候補と証明できた馬だけ+5。同点は 両AI一致→独立根拠群数→馬番昇順。<b>「勝率」「期待値」「おすすめ度100点」と表示しない</b></td></tr>
+<tr><td class="id">L26</td><td>最終選出（<code>select_final</code>・<code>cancellation_view</code>）</td><td class="st blk">ブロック中</td><td>統合後に取消馬を除き、残存馬で構造配分を調整。<b>不足は表示し、旧処理で人気上位を追加しない</b></td></tr>
+<tr><td class="id">L27</td><td><code>can_publish</code> / <code>publication_deadline</code></td><td class="st blk">ブロック中</td><td>実効公開期限 = min(凍結publish_deadline, 最新live_close − safety_margin_ms)</td></tr>
+<tr><td class="id">L28</td><td><code>verified_explanation</code>（画面用の定型説明）</td><td class="st blk">ブロック中</td><td><b>AIの原explanationを無検証で出さない</b></td></tr>
+</table>
+<h3>6-2. 入力・凍結・保存（<code>engine</code> / <code>store</code> / <code>journal</code> / <code>adapter</code>）</h3><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">C01</td><td>export（DB読取）→ <code>seed_from_export</code> 相当</td><td class="st blk">ブロック中</td><td>第5章が前提</td></tr>
+<tr><td class="id">C02</td><td><code>prepare</code> 相当（input_json・prompts・common_json・snapshot_hash を生成）</td><td class="st blk">ブロック中</td><td></td></tr>
+<tr><td class="id">C03</td><td><code>common_payload</code> と <code>canonical_hash</code></td><td class="st chk">要確認</td><td>共通入力から snapshot_hash 自身と ai_role/role_cap/role_quota を除いたJSONのSHA-256。<b>request_at やライブ状態は混ぜない</b></td></tr>
+<tr><td class="id">C04</td><td><code>install</code> 相当（凍結保存・generation管理）</td><td class="st blk">ブロック中</td><td><b>新generationへの自動再時刻付けで締切をやり直さない</b></td></tr>
+<tr><td class="id">C05</td><td>新テーブルの設計</td><td class="st blk">ブロック中</td><td><code>ai_attempts</code> の主キーは race_id/generation/ai_role/attempt_no。初回0・訂正1</td></tr>
+<tr><td class="id">C06</td><td>JSON/数値/日時の境界検査（<code>strict_loads</code>・<code>checked_json</code>・<code>timestamp</code>）</td><td class="st blk">ブロック中</td><td>4MiB・64MiB・64階層・20,000参照・128桁・指数±308。重複キー／NaN・Infinity／単独サロゲート／不正Unicodeは拒否。日時は秒必須・小数秒1〜6桁</td></tr>
+<tr><td class="id">C07</td><td><code>ExactJson</code> 相当（原トークン保持）</td><td class="st blk">ブロック中</td><td>小数・指数は文字列、大きな整数も文字列。整数ID・頭数・revisionは整数</td></tr>
+<tr><td class="id">C08</td><td><code>validate_coverage</code> / <code>validate_registry</code> / <code>formula_check</code> / <code>topological_refs</code></td><td class="st blk">ブロック中</td><td>派生値の未知親・循環・対象馬の不整合・時刻の不整合を拒否</td></tr>
+</table>
+<h3>6-3. キュー・AI呼び出し・訂正</h3><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">C09</td><td>1st/2nd を独立したキュージョブとして投入</td><td class="st blk">ブロック中</td><td><b>HTTPリクエスト内で完了を待たない</b></td></tr>
+<tr><td class="id">C10</td><td>provider の実装（1st=既存AnthropicService / 2nd=DeepSeek）</td><td class="st blk">ブロック中</td><td>引数 (system,user,timeoutSeconds)、戻り値 {text,complete}</td></tr>
+<tr><td class="id">C29</td><td><b>【ご指摘①】ジョブの再実行を抑止</b></td><td class="st blk">ブロック中</td><td>Laravel Queueの <code>tries=1</code>・<code>backoff</code>なし・<code>WithoutOverlapping</code>・<code>failed()</code> で再投入しない。<b>Laravelも設定によって同じジョブが二重処理され得る</b></td></tr>
+<tr><td class="id">C30</td><td><b>【ご指摘①】内部API通信の再送を0にする</b></td><td class="st blk">ブロック中</td><td><b>ジョブの再実行とは別物。</b>Guzzle/Laravel Http の <code>retry()</code> を使わない。現行の <code>sendWithRetry(maxAttempts:1)</code> と同じ方針</td></tr>
+<tr><td class="id">C31</td><td><b>【ご指摘①】呼出枠の重複防止</b></td><td class="st blk">ブロック中</td><td>主キーで予約を一意にし、再実行・再起動・期限切れでも<b>同じ枠を再発行しない</b></td></tr>
+<tr><td class="id">C11</td><td>呼出枠の予約→commit→原応答保存→訂正判定 の順序</td><td class="st blk">ブロック中</td><td>初回未受領またはFAILEDなら訂正を予約しない</td></tr>
+<tr><td class="id">C12</td><td>訂正（<code>inspect_for_correction</code>・<code>correction_plan</code>・<code>apply_correction</code>）</td><td class="st blk">ブロック中</td><td>各role初回＋1回まで（<code>correction_calls_per_role_max: 1</code>）。両role合計最大4回。repair_scopeは6種</td></tr>
+<tr><td class="id">C13</td><td>原応答検証（<code>parse_response</code>）</td><td class="st blk">ブロック中</td><td>BEGIN1行＋JSON1個＋END1行のみ。Markdown・旧候補行・追加キー・末尾カンマ・数値欄の数値文字列を許容しない</td></tr>
+<tr><td class="id">C14</td><td>不一致時の扱い（<code>partition_rows</code>・<code>diagnose</code>）</td><td class="st blk">ブロック中</td><td>識別子・race_id・role・snapshot_hash・mode・quota の不一致は応答全体を不採用。<b>馬番欠落/重複/未知馬/局所不正は該当範囲だけ隔離</b>（<code>isolate_identity_group_preserve_other_horses</code>）</td></tr>
+<tr><td class="id">C15</td><td>3種のhashを分けて保存</td><td class="st blk">ブロック中</td><td><code>response_hash</code>／<code>source_hash</code>／<code>public_proof_hash</code></td></tr>
+<tr><td class="id">C16</td><td><code>attempts</code> が配列でない/3本以上はAI_FAILUREで隔離</td><td class="st blk">ブロック中</td><td></td></tr>
+<tr><td class="id">C17</td><td><code>response_revision</code> の数え方（4枠全受領で8）</td><td class="st blk">ブロック中</td><td>単純な回答本数ではない</td></tr>
+<tr><td class="id">C18</td><td><code>outcome_unknown</code> の扱い</td><td class="st blk">ブロック中</td><td>自動再送しない</td></tr>
+<tr><td class="id">C19</td><td><code>keep_correction</code>（訂正の採否）</td><td class="st blk">ブロック中</td><td>初回の正常根拠を全て失う、completeをpartialへ悪化させる等は初回を保持</td></tr>
+</table>
+<h3>6-4. 公開・競合・期限・取消・API</h3><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">C20</td><td><code>publishSaved</code> 相当（<code>resolve</code>）</td><td class="st blk">ブロック中</td><td>手渡しの応答配列を使わない</td></tr>
+<tr><td class="id">C21</td><td>公開intent（race_id / generation / 3つのrevision / job_id）</td><td class="st blk">ブロック中</td><td>同じintentの再実行は同じ publication_id</td></tr>
+<tr><td class="id">C22</td><td>commit直前の短い取引で3つのrevisionを再比較</td><td class="st blk">ブロック中</td><td>重い検証は書込みロック外。MySQLのトランザクションで実装</td></tr>
+<tr><td class="id">C23</td><td>実効公開期限の判定（<code>can_publish</code>）</td><td class="st blk">ブロック中</td><td>期限ちょうどは可・超過は不可。開始後に前倒しされた場合も最新を優先</td></tr>
+<tr><td class="id">C24</td><td>検証開始≤検証完了≤commit直前 と時計逆行のrollback</td><td class="st blk">ブロック中</td><td><code>CLOCK_ROLLBACK</code>では訂正枠を消費しない</td></tr>
+<tr><td class="id">C25</td><td><code>updateLive</code> 相当</td><td class="st blk">ブロック中</td><td><b>取消は追加のみ。</b>解除・延長は拒否。変更なしの締切はnullだけ</td></tr>
+<tr><td class="id">C26</td><td>期限後は取消表示だけ更新</td><td class="st blk">ブロック中</td><td>取消候補は履歴に残し cancelled=true / display_status=CANCELLED / buy_recommended=false</td></tr>
+<tr><td class="id">C27</td><td><code>read</code> と <code>PublicView::build</code> 相当</td><td class="st blk">ブロック中</td><td>第3引数nowは本番で指定しない</td></tr>
+<tr><td class="id">C28</td><td>新APIに既存の認証・認可を適用</td><td class="st blk">ブロック中</td><td><b>内部CLI/claim/complete/fail/worker_state を公開HTTPに露出しない</b></td></tr>
+<tr><td class="id">C32</td><td><b>応答・失敗を保存した後に投入する統合ジョブ</b></td><td class="st blk">ブロック中</td><td><b>ご指摘003-3。</b>仕様書16章。片側結果の先行公開と、他方到着後の新intentでの再統合。<b>両側を無期限に待たない</b></td></tr>
+<tr><td class="id">C33</td><td><b>受領期限（reply_deadline）到達時に投入する回復用ジョブ</b></td><td class="st blk">ブロック中</td><td><b>ご指摘003-3。C32とは別のジョブ。</b><b>AI回答は保存できたのに、途中停止で公開されないケース</b>をここで回収する。仕様書16章「応答/失敗保存後に統合ジョブを投入し、reply_deadline到達時にも回復用ジョブを投入する」</td></tr>
+</table>
+<h3>6-5. 候補が0頭になる経路（003-1・003-2）</h3><div class="box warn"><b>X6だけが不明でもmodeが確定しない条件を計算で確認しました。ご指摘のとおりです。</b><br><span class="note">S = 2X1 + X2 + X3 + X4 + X5 + <b>X6</b> − 2Z で、X6の重みは+1。X6以外の合計を S0 とすると S は <b>S0 か S0+1</b> のどちらかになります。mode境界は FIRM≤1 / MIXED 2〜3 / VOLATILE≥4 なので──<br><b>S0=1 → S∈{1,2} → FIRM か MIXED で確定しない</b><br><b>S0=3 → S∈{3,4} → MIXED か VOLATILE で確定しない</b><br>S0=0→{0,1}ともFIRM／S0=2→{2,3}ともMIXED／S0=4→{4,5}ともVOLATILE で確定。<br><b>つまりX6がUNKNOWNのとき、S0が1か3のレースだけが選出停止になります。</b><br><span style="background:#fffdf0"><b>【訂正・005-1】</b>rev.3で「N≥7では必ずX6=UNKNOWNなので、該当するレースは毎開催で出ます」と書きましたが、<b>これは断定できません。</b>X6が不明でも、S0が1と3以外ならmodeは確定します。</span></span></div><p><b>10月17日・18日の72レースで実測しました</b>（<code>--mode-check</code>・AI呼び出し0回）。</p><table>
+<tr><th>S0</th><th>レース数</th><th>割合</th><th>取り得るmode</th></tr>
+<tr><td>−2</td><td>1件</td><td>1.4%</td><td>FIRM（確定）</td></tr>
+<tr><td>0</td><td>10件</td><td>13.9%</td><td>FIRM（確定）</td></tr>
+<tr><td><b>1</b></td><td><b>22件</b></td><td><b>30.6%</b></td><td><b>FIRM か MIXED → 判定不能</b></td></tr>
+<tr><td>2</td><td>15件</td><td>20.8%</td><td>MIXED（確定）</td></tr>
+<tr><td><b>3</b></td><td><b>12件</b></td><td><b>16.7%</b></td><td><b>MIXED か VOLATILE → 判定不能</b></td></tr>
+<tr><td>4</td><td>11件</td><td>15.3%</td><td>VOLATILE（確定）</td></tr>
+<tr><td>5</td><td>1件</td><td>1.4%</td><td>VOLATILE（確定）</td></tr>
+</table>
+<table>
+<tr><th></th><th>レース数</th><th>割合</th></tr>
+<tr><td><b>レース傾向（堅い／混戦／波乱）を確定できる</b></td><td><b>38件</b></td><td><b>52.8%</b></td></tr>
+<tr><td><b>mode判定不能 → 候補0頭</b></td><td><b>34件</b></td><td><b>47.2%</b></td></tr>
+<tr><td>計算不能（入力不足）</td><td>0件</td><td>0.0%</td></tr>
+</table>
+<p>確定した38レースの内訳は FIRM 11（28.9%）／MIXED 15（39.5%）／VOLATILE 12（31.6%）でした。信号ごとの成立件数は X1 24件（33.3%）／X2 30件（41.7%）／X3 16件（22.2%）／X4 31件（43.1%）／X5 14件（19.4%）／<b>Z 2件（2.8%）</b>です。</p><div class="box warn"><b>Zの成立が2.8%しかありません。</b><span class="note">Zは −2 の重みを持つ唯一の信号です。72レース中2件しか立たないので、<b>Sの分布は実質的に0〜5の範囲に偏ります。</b>S0=1と3という「またぐ値」がちょうどその中心付近にあるため、判定不能が47.2%まで膨らんでいます。この偏りが設計どおりかどうかも、Q09で合わせて確認します。</span></div><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">U01</td><td><b>保存済みの過去レースで選出停止率を実測する</b></td><td class="st don">済</td><td><b>実測しました（10/18・10月17日と18日の72レース）。</b>傾向を確定できた 38レース（52.8%）／<b>判定不能 34レース（47.2%）</b>／計算不能 0レース。<b>「候補を出せた割合」ではありません（ご指摘006-2・007-6）。これは傾向を確定できた割合です。</b>実際に候補を公開できるかは、入力時刻の検証・AI応答・根拠・公開期限を通さないと分かりません（AC09・AC14）。<code>mode_check_20261017_20261018.csv</code>（72行）</td></tr>
+<tr><td class="id">U14</td><td><b>S0=3の12レースの頭数（N）を数える</b></td><td class="st chk">要確認</td><td><b>Q11で分かったことの確認。</b>C6・C7では MIXED と VOLATILE の配分が同じなので、<b>S0=3 かつ N≥14 なら mode を確定させなくても配分が一意に決まります</b>。該当が何件あるかで、暫定規則が必要な範囲が決まります。<code>--mode-check</code> の出力にNが入っているので追加の実行は要りません（AI呼び出し0回）</td></tr>
+<tr><td class="id">U12</td><td><b>【最重要】X6未実装のままだと47.2%が候補0頭になる</b></td><td class="st blk">ブロック中</td><td><b>判定不能の内訳：S0=1 が22レース（30.6%）、S0=3 が12レース（16.7%）。</b>X6の値が分かれば、S0=1は FIRM か MIXED に、S0=3は MIXED か VOLATILE に確定します。<b>X6を決めないと、この34レースは永久に候補0頭です。</b>Q09で確認</td></tr>
+<tr><td class="id">U13</td><td>10/10〜12では実測できなかった</td><td class="st don">済</td><td><b>10月17日5:50の洗い替えでオッズが消えているため。</b>「オッズがありません」で3日とも飛びました。<b>これ以降、過去日の実測はできません</b>（毎週土曜5:50にTRUNCATE）</td></tr>
+<tr><td class="id">U09</td><td><code>--mode-check</code> が出すもの</td><td class="st chk">要確認</td><td>①傾向を確定できた割合 ②判定不能の内訳（S0=1／S0=3）③計算不能の内訳（入力不足の理由別）④S0の分布 ⑤確定レースのmode別 ⑥X1〜X5・Zの成立件数 ⑦1レース1行のCSV（<code>mode_check_*.csv</code>）</td></tr>
+<tr><td class="id">U10</td><td><b>たすき掛けで比較している（丸めない）</b></td><td class="st don">済</td><td>仕様書9章「閾値比較は元の十進数からの分数を使用し、表示用に丸めた比率を使用しない」に合わせ、<b>比率を作らずに掛け算で比べています</b>（W6>=2 → 下側 >= 2×上側）。割り算がないので丸めが入りません</td></tr>
+<tr><td class="id">U11</td><td>星が割れるケースも出す</td><td class="st don">済</td><td><code>--mode-check</code> のCSVで、modeは確定しても星が一致しない場合は星を空欄にしています（U04）</td></tr>
+<tr><td class="id">U02</td><td><b>X6だけがUNKNOWNのときにmodeが確定しない条件</b></td><td class="st blk">ブロック中</td><td><b>S0=1 または S0=3 のとき。</b>上の囲みの計算どおり。<code>signal_mode</code> / <code>tri_and</code> / <code>tri_or</code> / <code>at_least</code> の移植でここを再現する</td></tr>
+<tr><td class="id">U04</td><td><b>modeは確定しても星が確定しないケース</b></td><td class="st blk">ブロック中</td><td>星は S≤0→1 / 1→2 / 2〜3→3 / 4〜5→4 / ≥6→5。<b>S0=0 → S∈{0,1} → 星が1か2で一致しない</b>ので星は出せない（modeはFIRM確定）。S0=5 → 星が4か5で一致しない。<b>「modeは出るが星は出ない」表示が必要</b></td></tr>
+<tr><td class="id">U05</td><td><b>候補が出ない理由を分類して集計する</b></td><td class="st blk">ブロック中</td><td><b>ご指摘003-2。</b>①入力不足で停止（実観測時刻の欠落・順位矛盾・coverage不備）②波乱判定不能（mode=UNKNOWN）③AI失敗（AI_FAILURE・未受領・期限超過）④適格馬が0頭 ── を分けて数える</td></tr>
+<tr><td class="id">U06</td><td><b>対象全レースのうち候補を公開できた割合を出す</b></td><td class="st blk">ブロック中</td><td><b>ご指摘003-2。</b>分母は対象全レース。U05の分類と合わせて「何%が公開できたか」を示す</td></tr>
+<tr><td class="id">U07</td><td>過去レースは入力検証で止まる可能性があることの確認</td><td class="st blk">ブロック中</td><td><b>実観測時刻を復元できない過去レースは、そもそも入力検証を通らない。</b>B21の復元調査の結果と突き合わせ、<b>照合（T10〜T15）に使えるレースが何件あるか</b>を確定させる</td></tr>
+<tr><td class="id">U08</td><td><b>X6以外の指標が不明になるケースを別に確認する</b></td><td class="st blk">ブロック中</td><td><b>ご指摘005-1。</b>X1〜X5・Zも、オッズ欠損・頭数不足・coverage不備で不明になり得る。<b>X6以外が1つでも不明なら、取り得るSの幅はさらに広がる</b>ので判定不能の条件はS0=1・3だけではなくなる。不明になる指標の組み合わせごとに、modeが確定する条件を洗い出す</td></tr>
+<tr><td class="id">U03</td><td>UNKNOWN時の画面表示を決める</td><td class="st jdg">要判断</td><td>候補0頭でも全頭の評価・順位は返す。<b>利用者に何を見せるか</b>（PENDINGとは別の説明が必要）。F12と対応</td></tr>
+</table>
+<h3>6-6. 試験と照合</h3><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">T01</td><td>手元でPython実装の試験を全部通す</td><td class="st blk">ブロック中</td><td><b>これが正解の基準になる。</b><code>verify.py</code> の13系列・単体213件・異常応答304条件・Schema3種・fixture20件</td></tr>
+<tr><td class="id">T02</td><td>配分回帰12件をPHPUnitへ移植</td><td class="st blk">ブロック中</td><td>C4〜C7 × 3mode × 構造不足・評価後不足</td></tr>
+<tr><td class="id">T03</td><td>単体試験213件相当を移植</td><td class="st blk">ブロック中</td><td><code>test_*.py</code> 15本から対応づける</td></tr>
+<tr><td class="id">T04</td><td>異常応答304条件を移植</td><td class="st blk">ブロック中</td><td><code>test_malformed_responses.py</code></td></tr>
+<tr><td class="id">T05</td><td>fixture（正常11・不正9）で入出力が一致</td><td class="st blk">ブロック中</td><td><code>fixture_input.json</code> / <code>fixture_output.json</code></td></tr>
+<tr><td class="id">T06</td><td>B/D相互補充・穴不足時のA補充禁止</td><td class="st blk">ブロック中</td><td><b>AC03・AC04の核心</b></td></tr>
+<tr><td class="id">T07</td><td>片側AI失敗・取消後配分・旧版拒否</td><td class="st blk">ブロック中</td><td></td></tr>
+<tr><td class="id">T08</td><td>時刻境界・数値境界・永続性・公開競合</td><td class="st blk">ブロック中</td><td>AC07〜AC10に対応</td></tr>
+<tr><td class="id">T09</td><td>既存の受入試験280項目との関係を整理</td><td class="st jdg">要判断</td><td>旧経路の試験。並行稼働中は両方を維持するか</td></tr>
+<tr><td class="id">T10</td><td><b>【照合1】波乱判定（mode・S・星）が一致</b></td><td class="st blk">ブロック中</td><td>同じ凍結入力でPython実装とLaravel版を突き合わせる</td></tr>
+<tr><td class="id">T11</td><td><b>【照合2】候補（public_candidates）が一致</b></td><td class="st blk">ブロック中</td><td></td></tr>
+<tr><td class="id">T12</td><td><b>【照合3】配分（quota・role_quota）が一致</b></td><td class="st blk">ブロック中</td><td></td></tr>
+<tr><td class="id">T13</td><td><b>【照合4】除外・不足理由（nonselect_reason・shortfalls）が一致</b></td><td class="st blk">ブロック中</td><td>code（BAND_QUOTA/NO_EVIDENCE/UNVERIFIED/SELECTION_DISABLED）まで一致させる</td></tr>
+<tr><td class="id">T14</td><td><b>【照合5】数値（12桁・hash）が一致</b></td><td class="st blk">ブロック中</td><td>P06と対応</td></tr>
+<tr><td class="id">T15</td><td><b>【照合6】期限・取消処理が一致</b></td><td class="st blk">ブロック中</td><td>P05と対応</td></tr>
+<tr><td class="id">T16</td><td><b>AI回答を保存した後に途中停止した場合、回復用ジョブで公開されることの試験</b></td><td class="st blk">ブロック中</td><td><b>ご指摘003-3。</b>C32とC33の両方が動くことを確認する。保存済みなのに公開されないまま期限を過ぎる事故を防ぐ</td></tr>
+<tr><td class="id">T17</td><td><b>選出停止の分類と公開率の集計（U05・U06）を試験に入れる</b></td><td class="st blk">ブロック中</td><td><b>ご指摘003-2。</b>AC13の証跡になる</td></tr>
+</table>
+<h2>7. AI接続（課金が発生する工程）</h2><div class="box warn"><b>前回「1回で足りる」と書いたのは誤りでした。</b><span class="note">ご指摘のとおり、1回で分かるのはその1回の出力長と時間だけです。<b>両AI・必要時の訂正・通信遅延・複数レースの処理待ちまで含めて、期限内に公開できるか</b>を確認する必要があります。下のA03〜A10に分けました。<b>実行回数は事前に見積もって提示し、了解をもらってから回します。</b></span></div><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">A01</td><td>1st のモデルID・max_output_tokens・timeout を決める</td><td class="st jdg">要判断</td><td>現行は90秒。<b>18頭だと足りない見込み</b></td></tr>
+<tr><td class="id">A02</td><td>2nd（DeepSeek）の同上</td><td class="st jdg">要判断</td><td>現行の実測は39.6〜46.4秒・16〜20KB</td></tr>
+<tr><td class="id">A03</td><td>最大18頭での出力長と所要時間を実測</td><td class="st jdg">要判断</td><td><b>1回では足りない。</b>複数回・複数パターンで分布を見る</td></tr>
+<tr><td class="id">A08</td><td><b>複数レースを同時に処理したときの待ち時間を実測</b></td><td class="st jdg">要判断</td><td><b>1開催で24レース。</b>キューが詰まったときに期限内に終わるか</td></tr>
+<tr><td class="id">A09</td><td><b>訂正が入ったときの最長経路を実測</b></td><td class="st jdg">要判断</td><td>初回＋訂正×2role＝最大4回。これが期限内に収まるか</td></tr>
+<tr><td class="id">A10</td><td><b>通信遅延・タイムアウト時にも期限内に公開できるか</b></td><td class="st jdg">要判断</td><td>片側だけ先に公開して、他方到着後に再統合する経路（C32）の実測</td></tr>
+<tr><td class="id">A04</td><td>受領期限・公開期限・安全余裕を実測値から決める</td><td class="st jdg">要判断</td><td>A03・A08〜A10の結果から</td></tr>
+<tr><td class="id">A05</td><td><code>finish_reason</code> から complete を確定</td><td class="st blk">ブロック中</td><td><b>長さ打切り・未完了・通信失敗を true にしない</b></td></tr>
+<tr><td class="id">A06</td><td>HTTPクライアントの再送を0に設定</td><td class="st chk">要確認</td><td>C30と同じ。現行も maxAttempts:1</td></tr>
+<tr><td class="id">A07</td><td>原応答の保存（未完了本文も原文で保存。選出には使わない）</td><td class="st blk">ブロック中</td><td></td></tr>
+</table>
+<h2>8. Flutter</h2><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">F01</td><td>新DTOの型を定義</td><td class="st blk">ブロック中</td><td>手書きクラス＋<code>fromJson</code>/<code>toJson</code>（Freezedは使わない）</td></tr>
+<tr><td class="id">F02</td><td>PENDING / UNAVAILABLE / PUBLISHED / CANCELLED の4状態</td><td class="st blk">ブロック中</td><td><b>未公開DTOは候補が空配列で、公開時とは返却キーが違う。</b><code>publication_id</code> の存在を仮定しない</td></tr>
+<tr><td class="id">F03</td><td>版・頭数の表示を分ける</td><td class="st blk">ブロック中</td><td><code>publication_*</code>（履歴値）と<code>live_*</code>（現在）を混ぜない</td></tr>
+<tr><td class="id">F04</td><td><code>status_flags</code> の表示</td><td class="st blk">ブロック中</td><td>取消・状態変更・不足・縮退・AI検証問題</td></tr>
+<tr><td class="id">F05</td><td>候補理由を検証済み facts/counterfacts の定型表示で作る</td><td class="st blk">ブロック中</td><td><b>AIの原explanationを無検証で画面に出さない</b></td></tr>
+<tr><td class="id">F06</td><td>数値を double へ一律変換しない</td><td class="st blk">ブロック中</td><td>value_type で区別。numberは整数または十進数文字列</td></tr>
+<tr><td class="id">F07</td><td><code>buy_recommended=false</code> / <code>purchase_status=PENDING_VALIDATION</code> の表示</td><td class="st blk">ブロック中</td><td><b>いまの画面は購入推奨を出している</b>（D01）</td></tr>
+<tr><td class="id">F08</td><td>Flutter側で再選出・独自フィルターをしていないことの確認</td><td class="st chk">要確認</td><td>現行の <code>_calcOddsGapHorseNums()</code> / <code>_calcUpsetPickupHorseNums()</code> はアプリ側で計算している。r12.1ではサーバ側へ移る</td></tr>
+<tr><td class="id">F12</td><td><b>UNKNOWN（候補0頭）の画面</b></td><td class="st jdg">要判断</td><td>U03と対応</td></tr>
+<tr><td class="id">F13</td><td><b>「候補表示」と「購入推奨」を画面で区別する</b></td><td class="st chk">要確認</td><td><b>ご回答006のR04。</b>r12.1は <code>buy_recommended=false</code> 固定なので、候補は出るが購入推奨は出ない状態になります。<b>利用者が「推奨されたから買っていい」と誤解しない表示</b>にします。文言案は <code>lib/utility/functions.dart</code> に共通化</td></tr>
+<tr><td class="id">F09</td><td>未リリースの4ファイルの扱い</td><td class="st jdg">要判断</td><td>r12.1では意味が変わる</td></tr>
+<tr><td class="id">F10</td><td>共通化する処理は <code>lib/utility/functions.dart</code> に置く</td><td class="st chk">要確認</td><td></td></tr>
+<tr><td class="id">F11</td><td>リリース（App Store / Play / PWA）</td><td class="st blk">ブロック中</td><td>審査期間を見込む</td></tr>
+</table>
+<h2>9. 本番受入 AC01〜AC14</h2><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">AC01</td><td>版・旧処理分離</td><td class="st blk">ブロック中</td><td>旧brain・候補フィルター・旧マージが新経路に混入しない</td></tr>
+<tr><td class="id">AC02</td><td>DB入力</td><td class="st blk">ブロック中</td><td>実DBの値・時刻・順位・全7coverage・追加項目を照合</td></tr>
+<tr><td class="id">AC03</td><td>配分</td><td class="st blk">ブロック中</td><td><b>C7 混戦/波乱は1st 3/3/1・2nd 1/3/1、C7 堅いは1st 5/2/0・2nd 3/2/0。</b>C4〜C7の全mode、構造不足、評価後不足。<b>B/D不足をAで埋めない</b></td></tr>
+<tr><td class="id">AC04</td><td>穴馬保持</td><td class="st blk">ブロック中</td><td><b>個別SIGNAL1系統の馬を残す。</b>旧資格・低配当・部分欠損だけで削らない</td></tr>
+<tr><td class="id">AC05</td><td>実AI</td><td class="st blk">ブロック中</td><td>同一snapshotの全N頭を独立評価。最大18頭＋訂正が期限内</td></tr>
+<tr><td class="id">AC06</td><td>異常応答</td><td class="st blk">ブロック中</td><td>片側不正・欠落/重複馬・型不正・得点不正・未知参照・未完了</td></tr>
+<tr><td class="id">AC07</td><td>永続性</td><td class="st blk">ブロック中</td><td><b>読み替え：</b>共有SQLite→MySQL、永続ワーカー→Laravel Queue。<b>再試行は2つ別々に確認（C29ジョブ再実行／C30通信再送）＋呼出枠の重複防止（C31）。</b>同時起動・重複ジョブ・初回保存後停止・API中停止・訂正中停止・再起動</td></tr>
+<tr><td class="id">AC08</td><td>公開競合</td><td class="st blk">ブロック中</td><td>固定intentの再試行は同じ公開ID。古いcommitを拒否</td></tr>
+<tr><td class="id">AC09</td><td>時刻境界</td><td class="st blk">ブロック中</td><td>期限ちょうど/超過・締切前倒し・時計逆行・日時精度不正</td></tr>
+<tr><td class="id">AC10</td><td>数値</td><td class="st blk">ブロック中</td><td>DB→入力→保存→公開→HTTP→画面で保持。float丸めがない</td></tr>
+<tr><td class="id">AC11</td><td>取消・画面</td><td class="st blk">ブロック中</td><td>現在頭数と正式公開時頭数を区別。期限後の取消で履歴を改変しない</td></tr>
+<tr><td class="id">AC12</td><td>範囲</td><td class="st blk">ブロック中</td><td>COLLECT_ONLY / model_version=null / buy_recommended=false / PENDING_VALIDATION / 未検証X6=UNKNOWN を維持</td></tr>
+<tr><td class="id">AC14</td><td><b>Python参照実装とLaravel実装の一致検証</b></td><td class="st blk">ブロック中</td><td><b>ご回答006のP02の条件。</b>同じ入力JSONと同じAI応答を両方に通し、<b>候補・配分・数値・期限・取消処理が一致すること</b>を示します。突き合わせるのは7つ：selection_enabled / mode / role別の配分 / 候補馬番と順序 / 各数値（十進数文字列で桁まで一致） / cutoff_at・available_at / 取消（UNKNOWN時に候補を出さない挙動）。<b>実装一式のPython試験15本をそのまま回帰試験に使えます</b></td></tr>
+<tr><td class="id">AC13</td><td><b>UNKNOWNによる選出停止の実測（追加分）</b></td><td class="st blk">ブロック中</td><td><b>実データで何レースが選出停止になるかを数える。</b>U01〜U03と対応。<b>人気薄が消える問題に加えて、候補自体が出ない問題も見る</b></td></tr>
+</table>
+<h2>10. よっしーさんへの回答（仕様書22章の7問）</h2><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">Q01</td><td>実装する新API・キュージョブ・DBアダプタ・画面の変更箇所</td><td class="st blk">ブロック中</td><td>第6章・第8章から作る。<b>ZIPが来たので着手できる</b></td></tr>
+<tr><td class="id">Q02</td><td>実行環境、DB、ワーカー配置、バックアップ方法</td><td class="st jdg">要判断</td><td>第1章の読み替えを説明。Laravel＋MySQL＋Laravel Queue</td></tr>
+<tr><td class="id">Q03</td><td>anchor基準、observed_at/available_at対応、sampling_policy、期限</td><td class="st blk">ブロック中</td><td><b>B03・B04・B20・B21。</b>取得側に記録する方向で進める</td></tr>
+<tr><td class="id">Q04</td><td>7区分coverageと追加項目の対応表</td><td class="st chk">要確認</td><td>B10〜B17から作る。<code>legacy_qualifications</code> は要相談（B15）</td></tr>
+<tr><td class="id">Q05</td><td>1st/2ndの実モデル、再試行設定、出力上限、実測時間</td><td class="st jdg">要判断</td><td>第7章。<b>実行回数を見積もって提示してから回す</b></td></tr>
+<tr><td class="id">Q06</td><td>AC01〜AC14の確認結果と証跡、未解決事項、切替手順・予定</td><td class="st blk">ブロック中</td><td>第9章</td></tr>
+<tr><td class="id">Q07</td><td>仕様変更が必要な場合の対象条項・理由・影響</td><td class="st jdg">要判断</td><td><b>第1章の読み替え表がそのまま回答。</b>影響は照合（T10〜T15）の結果で示す</td></tr>
+<tr><td class="id">Q09</td><td><b>【最重要】X6の扱いをどうするか</b></td><td class="st jdg">要判断</td><td><b>実測で47.2%が候補0頭になりました。</b>3案をお出しします。<br><b>A：X6の実履歴集計アダプタを今回の範囲に入れる</b>（仕様書2章では範囲外。追加作業が要るが、根本解決）<br><b>B：X6がUNKNOWNのときのmode決定ルールを定める</b>（例：またぐときは保守側に倒す／MIXEDに寄せる。仕様書9章の三値論理の例外になるので、よっしーさんの承認が要る）<br><b>C：47.2%が候補0頭のまま進める</b>（仕様どおりだが、運用として成立するか要確認）<br><b>X6をFALSE固定する案は採りません</b>（仕様書9章「汎用統計や任意フラグでTRUE/FALSEを作らない」に反するため）。<br><b>【006のご回答】C案は勧めないとのことで取り下げ。必要データと工数を先に提示せよ、とのご指示。</b>第0-0章の囲みに出しました。要点は2つ。<b>①「類似レース」の定義と rate / baseline の意味が仕様書・実装一式のどこにも無い</b>（<code>engine.py</code> は意図的に <code>None</code> を渡しています）。<b>② race_results も毎週洗い替えされるため、race_count ≥ 50 の母数がゼロから</b>。→ 案Aは「定義をいただく」＋「50件たまるまで蓄積」の2段で、<b>10月24日には間に合いません</b></td></tr>
+<tr><td class="id">Q10</td><td><b>observed_at の定義を確認する</b></td><td class="st jdg">要判断</td><td><b>ご指摘006-3から派生。006で「各観測スロットで実観測時刻が予定時刻以前」という条件があるとご教示いただきました。</b>ここで確認させてください。<b>6分前の値は、6分前を過ぎないとJRA側に出ません。</b>したがって受信時刻を observed_at と読むと、<b>どの時点スロットでも「実観測時刻 ≤ 予定時刻」は原理的に成立しません</b>。<b>【007-2のご回答】案A（予定時刻で実観測時刻を埋める）は不採用。</b>元仕様の「予定時刻で実観測時刻を埋めない」と衝突するとのご指摘です。取り下げます。<br><b>ご指示は「予定・取得元の更新・受信完了の3つを区別し、取得の許容期限を定める」。</b>こちらで取れるものを整理すると：<br><b>①予定観測時刻</b>＝発走時刻−時点の分数。<code>races.start_time</code> から計算で出せます。<b>取れます</b><br><b>②取得元（JRA）の更新時刻</b>＝<b>取っていません。</b>ページから値だけを読んでいて、更新時刻は保存していません。取るには取得側の改修が必要です（B03）<br><b>③受信完了時刻</b>＝<code>odds_get_timing.get_datetime</code>。<b>既存データで取れます</b><br><b>→ ②が無いので、いま決められるのは「①と③の差を何秒まで許すか」です。</b>その許容期限（秒）をご指定ください。再計算した実測値（B26）を添えて改めてお出しします</td></tr>
+<tr><td class="id">Q11</td><td><b>X6がUNKNOWNのときの暫定規則を設計して提示する</b></td><td class="st jdg">要判断</td><td><b>006で「暫定処理なら、人気側へ偏らない明確な規則と比較検証が必要」とご指示いただきました。</b><b>【007-3のご回答】条件付きで検討可。</b>条件は（a）X6が確認できたことにしない（b）暫定扱いを明示する（c）根拠のない穴馬を入れない（d）仕様・参照実装・Laravel側を同じ改訂内容にそろえる。<b>すべて承諾します。</b><br><b>「必ず穴枠が増える」と書いたのは誤りでした（ご指摘007-3）。</b><code>config.json</code> の <code>base_quota</code> を確認しました。<b>C6 は MIXED [3,2,1]・VOLATILE [3,2,1]、C7 は MIXED [3,3,1]・VOLATILE [3,3,1] で完全に同じ</b>です。違うのは C4（[2,2,0] と [2,1,1]）と C5（[3,2,0] と [2,2,1]）だけ。訂正します。<br><b>そこから1つ分かりました。</b><code>target_count(n)</code> は n≤3→n / n≤8→4 / n≤13→5 / n≤15→6 / 16以上→7 なので<b>C≥6 は N≥14</b>。S0=3 がまたぐのは MIXED と VOLATILE なので、<b>S0=3 かつ N≥14 のレースは mode を確定させなくても配分が一意に決まります。</b>暫定規則すら不要です。該当件数をU14で数えます。<br><b>残る暫定規則は S0=1（FIRMとMIXEDは必ず違う）と、S0=3 かつ N≤13 のぶんだけ</b>です。規則案は「またぐ2つのうち穴枠が少なくない側」＝S0=1なら MIXED、S0=3なら VOLATILE。比較検証は両方のmodeで配分と候補を出して並べ、差が出たレースを一覧にします</td></tr>
+<tr><td class="id">Q12</td><td><b>観測時点の欠測をどこまで許容するか ─ 決着</b></td><td class="st don">済</td><td><b>実測で、72レース中1レースに欠測がありました（B29）。</b>10/18 4回新潟2日目4Rの18分前が1件。18分前は信号計算に使わないので計算自体は通りますが、coverage をどう立てるかで扱いが変わります。<br><b>【007-4のご回答】欠測だけでレース全体を止める必要はない。r12.1は欠けた時点を欠損として扱えるので、「6時点必須」という新しい足切りは追加しない。</b>→ <b>A で決着</b>。6時点必須にはしません。<br><b>あわせてのご注意も記録します。</b>「21・9・6分前がそろっただけで公開成功まで保証されるわけではない」。入力時刻の検証・AI応答・根拠・公開期限を通す必要があり、AC09とAC14で確認します</td></tr>
+<tr><td class="id">Q08</td><td><b>6分前スロットの available_at の扱いを確認する</b></td><td class="st jdg">要判断</td><td><b>ご指摘005-2から派生。</b>6分前の値を取りに行く以上、受信完了は必ず6分前より後になります。<b>この運用で available_at ≤ cutoff_at を満たせるのか</b>をよっしーさんに確認します。<b>B26で実測しました。ずれは約13秒です（前版の「1〜2秒」は訂正）。</b>取得自体は1秒未満ですが、cronの起動と処理で予定時刻から13秒ほど後ろにずれます。<b>案A（前倒し）は原理的に不可能</b>（6分前の値は6分前を過ぎないと出ないため）。<b>案B（safety_margin_msの流用）も006で却下。</b><b>残るのは、仕様側で available_at の上限を定義し直すことです。</b>Q10と一体でご判断をお願いします</td></tr>
+<tr><td class="id">S01</td><td><b>正本ZIPの受領</b></td><td class="st don">済</td><td>10/18受領・SHA256SUMS全件OK</td></tr>
+<tr><td class="id">S02</td><td><b>① 時刻記録の開始日</b></td><td class="st blk">ブロック中</td><td><b>いちばん急ぐ回答。</b>取得バッチに <code>observed_at</code> / <code>available_at</code> を記録し始める日（B20）。過去復元（B21）とは分けて出す</td></tr>
+<tr><td class="id">S03</td><td><b>② 実環境試験日</b></td><td class="st blk">ブロック中</td><td>第4章・第6章が終わってから</td></tr>
+<tr><td class="id">S04</td><td><b>③ アプリ反映日</b></td><td class="st blk">ブロック中</td><td>審査期間を含める</td></tr>
+<tr><td class="id">S05</td><td><b>④ 10月24日の運用の可否</b></td><td class="st blk">ブロック中</td><td><b>S02〜S04から逆算して可否を言う。</b>「間に合わない」なら何がいつまでに必要かを添える。<b>「今の資料だけでは24・25日は大丈夫と判断できない」</b>というご指摘（005）のとおりなので、可否は<b>B22・U01・T10〜T15の結果が出てから</b>言います</td></tr>
+</table>
+<h2>11. 判断が必要なこと・リスク</h2><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">R01</td><td>実装一式ZIPの受領</td><td class="st don">済</td><td>10/18受領・全件照合OK</td></tr>
+<tr><td class="id">R02</td><td><b>実観測時刻を取得側に記録する改修</b></td><td class="st blk">ブロック中</td><td><b>緩和しない方針で確定。</b>新レースでの取得（B20）が先、過去復元（B21）は並行調査。<b>必要日数をS02で出す</b></td></tr>
+<tr><td class="id">R03</td><td>Laravel＋Flutterで実装する方針</td><td class="st don">済</td><td><b>条件付き合意（P05〜P08）</b></td></tr>
+<tr><td class="id">R04</td><td>購入推奨が画面から無くなることの確認</td><td class="st jdg">要判断</td><td>r12.1は buy_recommended=false 固定</td></tr>
+<tr><td class="id">R05</td><td>旧経路と新経路の2系統並行をいつまで続けるか</td><td class="st jdg">要判断</td><td></td></tr>
+<tr><td class="id">R06</td><td>キューワーカーの運用方法</td><td class="st jdg">要判断</td><td>supervisor か cron＋<code>queue:work --stop-when-empty</code></td></tr>
+<tr><td class="id">R07</td><td>Flutterのリリースが必須になる</td><td class="st jdg">要判断</td><td>審査期間を見込んだ切替計画</td></tr>
+<tr><td class="id">R08</td><td>18頭での出力長・所要時間・同時処理が未知</td><td class="st jdg">要判断</td><td><b>A03・A08〜A10。1回の実測では足りない</b></td></tr>
+<tr><td class="id">R09</td><td>移植の正しさをどう示すか</td><td class="st jdg">要判断</td><td><b>T10〜T15の6項目の照合。</b>件数一致だけでは移植完了にしない</td></tr>
+<tr><td class="id">R10</td><td>BCMathが無い場合の代替</td><td class="st chk">要確認</td><td>GMP か <code>brick/math</code></td></tr>
+<tr><td class="id">R11</td><td>洗い替えの対象に新テーブルを含めない</td><td class="st jdg">要判断</td><td>E09・B18</td></tr>
+<tr><td class="id">R12</td><td>10/17・18の据え置き検証データを先に確定させる</td><td class="st chk">要確認</td><td>D06</td></tr>
+<tr><td class="id">R13</td><td>r12.1は「利益・的中を保証しない」と明記されている</td><td class="st don">済</td><td>仕様書2章・21章。OEM販売の話とつなげるときは混同しない</td></tr>
+<tr><td class="id">R14</td><td>受入完了の定義</td><td class="st chk">要確認</td><td>purchase_ready / live_learning_ready を自動でtrueにしない</td></tr>
+<tr><td class="id">R15</td><td><b>UNKNOWNで候補が0頭になる問題</b></td><td class="st blk">ブロック中</td><td><b>人気薄が消える問題とは別の問題。</b>U01〜U03・AC13・F12</td></tr>
+<tr><td class="id">R16</td><td><b>学習・払戻取込・購入推奨は今回の範囲外</b></td><td class="st don">済</td><td>仕様書2章・18章と一致。<b>今回も記録まで</b></td></tr>
+</table>
+<h2>12. 進め方</h2><table>
+<tr><th>段</th><th>やること</th><th>前提</th></tr>
+<tr><td><b>第0段</b></td><td><b>①このチェックリストでよっしーさんと合意を取る（W01）</b><br><b>②4つの日付を出す（S02時刻記録の開始日／S03実環境試験日／S04アプリ反映日／S05 24日運用の可否）</b><br><b>③10行の読み替え表を確認してもらう（P02）</b><br><b>④S0=1・S0=3のレース数を実測する（U01）── AIを呼ばずに計算できる</b><br><b>⑤次のご指摘が来たら、X01・X04・X05をまとめて第54章へ（X08）</b><br>あわせて10/17・18の検証結果を保存（R12・X07）</td><td>いますぐ</td></tr>
+<tr><td>第1段</td><td>資材を読む（M04・M08・M11）と環境確認（E01〜E05・E11・R10）</td><td>ZIP受領済み</td></tr>
+<tr><td>第2段</td><td><b>手元でPython実装の試験を全部通す（T01）。</b>これが照合の正解になる</td><td>第1段</td></tr>
+<tr><td>第3段</td><td><b>演算の移植（6-1）と照合（T10〜T15）。</b>fixtureで入出力が一致することを先に示す</td><td>第2段</td></tr>
+<tr><td>第4段</td><td>DB・時刻・coverageの対応表（第5章）。Q02・Q03・Q04を回答</td><td>B20の改修が進んでから</td></tr>
+<tr><td>第5段</td><td>入力・凍結・保存・キュー・公開・API（6-2〜6-4）</td><td>第3段・第4段</td></tr>
+<tr><td>第6段</td><td>選出停止の分類と公開率の集計（U05〜U07）</td><td>第3段・第4段</td></tr>
+<tr><td>第7段</td><td>実AIの実測（第7章・課金あり）。Q05を回答</td><td>第5段</td></tr>
+<tr><td>第8段</td><td>Flutter改修とリリース（第8章）</td><td>第5段と並行可</td></tr>
+<tr><td>第9段</td><td>保存済み実レースの同一snapshotで照合し、AC01〜AC14の証跡（第9章）</td><td>第7段・第8段</td></tr>
+<tr><td>第10段</td><td>新規レースから切替。進行中snapshotと旧履歴は維持</td><td>第9段</td></tr>
+</table>
+<div class="box"><b>いま出せる見立て</b><br><span class="note"><b>第2段と第3段が本体です。</b>Python実装は約1,500行で、構造も関数に分かれているので移植先は見えています。ただし<b>「移植できた」と言えるのは T10〜T15 の6項目が同じ入力で一致したときです。</b>それまで「影響なし」「あとは配線」とは言いません。<br><b>最長の経路は実観測時刻（R02）です。</b>新しいレースで6時点の時刻を取り始めるまでは、AC02の証跡が作れません。ここの必要日数をS02で先に出します。<br>10月24日・25日の予定に対する見通しは、S02〜S04をまとめてお出しします。</span></div><h2>13. 旧経路（10月15日の報告書）の宿題 ─ 004のご指摘</h2><p class="note">この章は<b>r12.1とは別系統</b>です。10月15日の報告書（第53章まで）と10月10〜12日の72レースの検証に対するご指摘で、<b>よっしーさんから求められている提出物は3点</b>（第51章の利益説明の訂正／17日・18日だけの再検証結果／元CSVと実行ログ）です。</p><div class="box stop"><b>X01の訂正は重いものです。意味が真逆になります。</b><br><span class="note">第51章 51-2で「136.2%の正体は1番人気を10頭外していただけ」と書きましたが、<b>13頭を分けて計算すると違いました。</b>ご指摘を受けて検算しました。</span><table>
+<tr><th>見送った馬</th><th>頭数</th><th>購入額</th><th>複勝払戻</th><th>複勝回収率</th><th>損益</th></tr>
+<tr><td>低配当・1番人気</td><td>10頭</td><td>1,000円</td><td>1,000円</td><td><b>100.0%</b></td><td><b>±0円</b></td></tr>
+<tr><td><b>最低基準点未満・5〜6番人気</b></td><td><b>3頭</b></td><td>300円</td><td>770円</td><td><b>256.7%</b></td><td><b>+470円</b></td></tr>
+<tr><td>合計</td><td>13頭</td><td>1,300円</td><td>1,770円</td><td>136.2%</td><td>+470円</td></tr>
+</table>
+<span class="note"><b>プラス470円は全部、最低基準点未満で見送った3頭から出ています。</b>低配当の1番人気10頭はちょうど100.0%で、損も得もしていません。<br>その3頭のうち2頭は <b>6番人気・単勝19.4倍・複勝530円</b> と <b>5番人気・単勝11.9倍・複勝240円</b>。<br><b>つまり「点数の最低基準が、妙味のある人気薄を見送っていた」</b>という話でした。「低配当の人気馬を外していただけ」と書いたのは逆の意味です。</span></div><div class="box warn"><b>これは r12.1 を進める根拠になります。</b><br><span class="note">r12.1は「<b>旧最低点による一律除外を禁止</b>」としています（第6章 L20）。X01で出た3頭は、まさにその禁止が狙っている取りこぼしの実例です。第49章の「最低基準点未満をやめると回収率 +0.7pt」（19頭・3着内5頭・26.3%・回収率89.5%）とも向きが一致します。<br><b>ただし3頭です。</b>よっしーさんも「基準撤廃を決めるには不足している」と書かれています。17日・18日を足して確かめます（X02）。</span></div><table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">X01</td><td><b>第51章 51-2 の利益説明を訂正する</b></td><td class="st jdg">要判断</td><td><b>訂正の中身は検算して確定しています。</b>低配当10頭=100.0%・±0円／最低基準点未満3頭=256.7%・+470円。<b>ただし最低基準点未満の全19頭は89.5%（第49章）。</b>利益の出た3頭だけで購入基準の撤廃は判断しない（ご指摘005-3）。<b>HTMLへの反映はX08でまとめて行います</b>（次のご指摘を待ってから。手戻り防止・10/18判断）</td></tr>
+<tr><td class="id">X02</td><td><b>17日・18日だけの再検証結果を出す</b></td><td class="st blk">ブロック中</td><td><b>10/10〜12とは分けて集計する。</b>12コマンドの結果。とくに最低基準点未満で見送った馬の成績</td></tr>
+<tr><td class="id">X03</td><td><b>元CSVと実行ログを提出する</b></td><td class="st blk">ブロック中</td><td><code>avoid_verify_*.csv</code>（380行）・<code>wave_accuracy_*.csv</code>（72行）・<code>longshot_*.csv</code>・<code>missed_analysis_*.json</code>・<code>v04_selftest_*.json</code>（280項目の試験結果）。<b>HTML報告書だけでは裏付けにならない</b></td></tr>
+<tr><td class="id">X04</td><td><b>「10倍台でしか効かない」を訂正する</b></td><td class="st jdg">要判断</td><td><b>訂正の中身は確定しています。</b>5〜9.9倍×断層2本以上＝110.8%・13頭／10〜19.9倍×断層2本以上＝61.9%・16頭。オッズ帯だけでは切れない。<b>反映はX08</b></td></tr>
+<tr><td class="id">X05</td><td>低配当フラグの比較に「どちらも100%未満」を明記する</td><td class="st jdg">要判断</td><td><b>文面は確定しています。</b>同額予算で +347円 の計算は合っているが、77.4% と 78.5% はどちらも損。「損の少なさ」を比べているだけ。<b>反映はX08</b></td></tr>
+<tr><td class="id">X06</td><td><b>最低基準点未満で見送った馬を全部洗い出す</b></td><td class="st blk">ブロック中</td><td><b>ご指摘005-3の本体。</b>3日で19頭・3着内5頭・26.3%・<b>複勝回収率89.5%（100%未満）</b>。利益が出た3頭はこの19頭の一部にすぎない。<b>19頭を1頭ずつ（人気・単勝オッズ・複勝払戻・着順・点数）出し、3頭と残り16頭の両方を並べる。</b><code>--avoid-verify</code> に明細を足せば出せる（AI呼び出しなし）</td></tr>
+<tr><td class="id">X07</td><td>10/17・18の据え置き検証データの保存</td><td class="st chk">要確認</td><td>D06・R12と同じ。<b>X02の入力になる</b></td></tr>
+<tr><td class="id">X09</td><td><b>実測の裏付け（元データと計算コード）を提出する ─ 用意できました</b></td><td class="st don">済</td><td><b>ご指摘005-3・007-5。HTML1本では再現確認ができない、というご指摘です。</b>提出するもの：<br>① <code>delay_all.tsv</code> ─ 全647件の「予定観測時刻・受信完了時刻・遅れ（秒）」（B26の再計算の生データ）<br>② <code>odds_get_timing_20261018.tsv</code> ─ 取得時刻の全件（648行）<br>③ <code>mode_check_20261017_20261018.txt</code> ─ U01の実行結果そのもの（AI呼び出し0回）<br>④ <code>mode_check_code.txt</code> ─ X1〜X5・Z・S0 を計算しているコードの該当部分（<code>SummaryAiAnalysisCompensate.php</code> md5 <code>639f484a248a2974e0201bf0c3346656</code> の9640〜10080行）<br><b>置き場はプロジェクト外の <code>~/baganriki_20261018/</code>。10/18に4ファイルそろいました。</b><code>delay_all.tsv</code> 648行 md5 <code>d49842a924492a32fec2e5dded87c5cb</code>／<code>odds_get_timing_20261018.tsv</code> 648行 md5 <code>d46bc65f570674f3d478961586b0f9e1</code>／<code>mode_check_20261017_20261018.txt</code> md5 <code>1f2ca4fab4057327e8e0b40ac82e5e74</code>／<code>mode_check_code.txt</code> 441行 md5 <code>40ab97fea4b9d72c66636b3ed3675d89</code>。計算に使ったSQLも <code>delay.sql</code> md5 <code>7d04ff7c8c65bcdb7cec7a5a3bd6805d</code> で同梱します</td></tr>
+<tr><td class="id">X10</td><td><b>退避した中身の確認証跡を出す ─ 一部できました</b></td><td class="st chk">要確認</td><td><b>ご指摘007（データ退避は前進だが、保存内容の確認証跡が別途必要）。</b><code>gzip -t</code> でダンプの健全性、<code>zcat | grep -c</code> で主要テーブルのINSERT件数、<code>ls -lR</code> と <code>md5sum</code> の一覧を出します。<br><b>10/18時点：<code>gzip -t</code> は OK。</b>ダンプ 15MB・退避フォルダ全体63MB。md5一覧は <code>MD5SUMS.txt</code> に作りましたが、<b>ログのフォルダが入っていないので作り直します</b>（<code>md5sum *</code> がディレクトリでエラーになりました）。<b>INSERT文の本数での件数確認は使えません</b>（mysqldumpは1テーブル1文にまとめるため、odds が1と出ます）。テーブルごとの実件数を <code>SELECT COUNT(*)</code> で出し直します</td></tr>
+<tr><td class="id">X08</td><td><b>X01・X04・X05をまとめて第54章として報告書に追記する</b></td><td class="st jdg">要判断</td><td><b>いますぐは書きません（10/18の判断）。</b>チェックリストを送った直後なので、<b>次のご指摘を受けてから一度にまとめて反映</b>します。個別に書くと手戻りになるためです。内容はX01・X04・X05で確定済み</td></tr>
+</table>
+<h2>14. 今回やること／今回やらないこと（005-4）</h2><div class="box warn"><b>混同しやすいので線を引いておきます。</b><br><span class="note">ご指摘005-4「候補選出の改善と、回収率100%以上を目指す購入判断は、分けて確認する必要がある」への対応です。<b>r12.1で良くなるのは「候補の選び方」までで、「買って儲かるか」はまだ手を付けていません。</b></span></div><table>
+<tr><th></th><th>今回の範囲</th><th>今回やらないこと</th></tr>
+<tr><td><b>候補の選び方</b></td><td>レース傾向の判定（X1〜X6・Z・S・mode）／3帯の配分／個別SIGNAL1系統での適格／旧フィルターの撤廃／両AIの統合</td><td>─</td></tr>
+<tr><td><b>断層の学習</b></td><td><b>記録・蓄積まで</b>（learning_stage=COLLECT_ONLY・model_version=null）</td><td><b>学習結果を選出に反映すること。</b>SHADOW_EVAL / LIVE_VALIDATED は入力拒否</td></tr>
+<tr><td><b>購入判断</b></td><td><b>無効のまま</b>（buy_recommended=false・purchase_status=PENDING_VALIDATION）</td><td><b>券種・点数・資金配分・購入条件を定める購入戦略。</b>回収率100%以上を目指す仕組みは別実装</td></tr>
+<tr><td><b>結果の取込み</b></td><td>─</td><td><b>実着順・払戻の取込み機能。</b>評価指標・比較方法・昇格条件も別途</td></tr>
+<tr><td><b>X6</b></td><td>N≥7でUNKNOWNのまま</td><td><b>実履歴集計アダプタ。</b>汎用統計や任意フラグでTRUE/FALSEを作らない</td></tr>
+</table>
+<table>
+<tr><th>ID</th><th>項目</th><th>状態</th><th>備考・判断材料</th></tr>
+<tr><td class="id">Z01</td><td><b>候補選出の改善と購入回収率の改善を分けて報告する</b></td><td class="st don">済</td><td><b>10/18に決めました。</b>r12.1の受入は「候補が正しく選べているか」まで。<b>回収率100%以上は別の話として扱う</b></td></tr>
+<tr><td class="id">Z02</td><td>受入完了時に purchase_ready / live_learning_ready を自動でtrueにしない</td><td class="st chk">要確認</td><td>仕様書20章末尾。R14と同じ</td></tr>
+<tr><td class="id">Z03</td><td>「候補表示の本番接続完了」を「学習・購入機能の完成」と扱わない</td><td class="st chk">要確認</td><td>仕様書18章</td></tr>
+<tr><td class="id">Z05</td><td><b>【期限あり】10/17・18分を10月24日5:50より前に退避する</b></td><td class="st chk">要確認</td><td><b>ご指摘006-4。次の洗い替えは10月24日（土）5:50＝本番運用予定日の朝です。</b>退避するもの：DB全テーブルのダンプ／<code>odds_get_timing</code> の全件TSV（B26）／<code>storage/logs</code> 一式（B27・laravel.log も毎週空にされる）／<code>storage/app/prompt_sent</code>（送信本文）。<b>新テーブルを洗い替え対象から外すだけでは今回分は守れません</b>（ご指摘のとおりです）。退避先はプロジェクト外（<code>~/baganriki_20261018/</code>）。<b>10/18 20:57 JST に完了しました。</b>DB全テーブルのダンプ 15MB／<code>odds_get_timing</code> 全648行のTSV 33KB／<code>storage/logs</code> 一式。<code>prompt_sent</code> は <code>storage/logs/prompt_sent/</code> に出力される作りなのでこれに含まれます。合計62MB</td></tr>
+<tr><td class="id">Z04</td><td><b>r12.1は利益・的中を保証しないことを報告書に明記する</b></td><td class="st chk">要確認</td><td>仕様書2章・21章「実レースの高配当捕捉率・回収率改善は未検証」。<b>OEM販売の話とつなげるときに混同しない</b>（R13）</td></tr>
+</table>
+<hr><p class="small">このチェックリストは1ファイルで管理し、進むたびに上書きします（別ファイルを増やしません）。状態は「ブロック中／要判断／要確認／済／未着手」の5つです。</p></body></html>
