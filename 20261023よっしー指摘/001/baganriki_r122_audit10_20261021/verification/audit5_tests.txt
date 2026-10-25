@@ -1,0 +1,43 @@
+PASS invalid score reference is nulled locally: H1 unknown
+PASS invalid score reference is nulled locally: H1 other-horse
+PASS invalid score reference is nulled locally: H2 unknown
+PASS invalid score reference is nulled locally: H2 other-horse
+PASS invalid score reference is nulled locally: H3 unknown
+PASS invalid score reference is nulled locally: H3 other-horse
+PASS invalid score reference is nulled locally: H4 unknown
+PASS invalid score reference is nulled locally: H4 other-horse
+PASS invalid score reference is nulled locally: H5 unknown
+PASS invalid score reference is nulled locally: H5 other-horse
+PASS invalid score reference is nulled locally: V1 unknown
+PASS invalid score reference is nulled locally: V1 other-horse
+PASS invalid score reference is nulled locally: V2 unknown
+PASS invalid score reference is nulled locally: V2 other-horse
+PASS invalid score reference is nulled locally: V3 unknown
+PASS invalid score reference is nulled locally: V3 other-horse
+PASS invalid score reference is nulled locally: V4 unknown
+PASS invalid score reference is nulled locally: V4 other-horse
+PASS invalid score reference is nulled locally: V5 unknown
+PASS invalid score reference is nulled locally: V5 other-horse
+PASS all bad score references retain own signal but no score
+PASS score reference and arithmetic defects remain local: unknown sum
+PASS score reference and arithmetic defects remain local: unknown other-score
+PASS score reference and arithmetic defects remain local: unknown score-container
+PASS score reference and arithmetic defects remain local: other-horse sum
+PASS score reference and arithmetic defects remain local: other-horse other-score
+PASS score reference and arithmetic defects remain local: other-horse score-container
+PASS score salvage cannot bypass a simultaneous invalid eligibility
+PASS valid score reference remains accepted: own-horse
+PASS valid score reference remains accepted: race
+PASS valid score reference remains accepted: applicable-cohort
+PASS bad scoring reference cannot rescue a missing horse as a valid correction
+PASS corrected scoring reference restores valid points and proof
+PASS invalid correction row cannot reject a valid correction for another horse
+PASS valid out-of-scope correction still rejects the attempt
+PASS rank mode uses merged rows after a partial correction: missing
+PASS rank mode uses merged rows after a partial correction: duplicated
+PASS rank mode uses merged rows after a partial correction: invalid-summary
+PASS retained initial rank is also checked against the merged scoring state
+PASS score repair and earlier deadline compose with cancellation: active
+PASS score repair and earlier deadline compose with cancellation: cancelled
+PASS late correction with score repairs is excluded without losing initial valid evidence
+AUDIT5 RESULT: 42 passed, 0 failed. PHP with DB/HTTP doubles; no real database or external AI.

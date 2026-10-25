@@ -1,0 +1,140 @@
+FAIL raw numeric value survives registry and wire: above two tan: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: above two fuku_min: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: above two fuku_max: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: below two tan: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: below two fuku_min: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: below two fuku_max: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: large integer tan: RuntimeException exact numeric batch rejected
+FAIL raw numeric value survives registry and wire: large integer fuku_min: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: large integer fuku_max: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: small exponent tan: RuntimeException exact numeric batch rejected
+FAIL raw numeric value survives registry and wire: small exponent fuku_min: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: small exponent fuku_max: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: fraction exponent tan: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: fraction exponent fuku_min: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: fraction exponent fuku_max: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: 128 integer digits tan: RuntimeException exact numeric batch rejected
+FAIL raw numeric value survives registry and wire: 128 integer digits fuku_min: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: 128 integer digits fuku_max: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: 128 significant digits tan: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: 128 significant digits fuku_min: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric value survives registry and wire: 128 significant digits fuku_max: RuntimeException raw number rounded or lost before registry
+FAIL raw numeric popularity is exact: fraction: RuntimeException rounding turned different odds into a horse-number tie
+FAIL raw numeric popularity is exact: large integers: RuntimeException gather failed
+PASS equal values with different numeric spellings keep horse-number tie break
+FAIL duplicate JSON keys reject only their batch: cancel overwritten slot 6: RuntimeException bad batch adopted or good backup lost
+FAIL duplicate JSON keys reject only their batch: cancel overwritten slot 21: RuntimeException bad batch adopted or good backup lost
+FAIL duplicate JSON keys reject only their batch: escaped key alias slot 6: RuntimeException bad batch adopted or good backup lost
+FAIL duplicate JSON keys reject only their batch: escaped key alias slot 21: RuntimeException bad batch adopted or good backup lost
+FAIL duplicate JSON keys reject only their batch: identical duplicate slot 6: RuntimeException bad batch adopted or good backup lost
+FAIL duplicate JSON keys reject only their batch: identical duplicate slot 21: RuntimeException bad batch adopted or good backup lost
+FAIL duplicate JSON keys reject only their batch: horse overwritten slot 6: RuntimeException bad batch adopted or good backup lost
+FAIL duplicate JSON keys reject only their batch: horse overwritten slot 21: RuntimeException bad batch adopted or good backup lost
+FAIL duplicate JSON keys reject only their batch: root key overwritten slot 6: RuntimeException bad batch adopted or good backup lost
+FAIL duplicate JSON keys reject only their batch: root key overwritten slot 21: RuntimeException bad batch adopted or good backup lost
+FAIL duplicate JSON keys reject only their batch: nested key overwritten slot 6: RuntimeException bad batch adopted or good backup lost
+FAIL duplicate JSON keys reject only their batch: nested key overwritten slot 21: RuntimeException bad batch adopted or good backup lost
+FAIL invalid raw horse number is never coerced: "1x" slot 6: RuntimeException bad batch adopted or good backup lost
+FAIL invalid raw horse number is never coerced: "1x" slot 21: RuntimeException bad batch adopted or good backup lost
+FAIL invalid raw horse number is never coerced: 1.9 slot 6: RuntimeException bad batch adopted or good backup lost
+FAIL invalid raw horse number is never coerced: 1.9 slot 21: RuntimeException bad batch adopted or good backup lost
+FAIL invalid raw horse number is never coerced: 1.0 slot 6: RuntimeException bad batch adopted or good backup lost
+FAIL invalid raw horse number is never coerced: 1.0 slot 21: RuntimeException bad batch adopted or good backup lost
+FAIL invalid raw horse number is never coerced: 1e0 slot 6: RuntimeException bad batch adopted or good backup lost
+FAIL invalid raw horse number is never coerced: 1e0 slot 21: RuntimeException bad batch adopted or good backup lost
+FAIL invalid raw horse number is never coerced: true slot 6: RuntimeException bad batch adopted or good backup lost
+FAIL invalid raw horse number is never coerced: true slot 21: RuntimeException bad batch adopted or good backup lost
+PASS invalid raw horse number is never coerced: false slot 6
+FAIL invalid raw horse number is never coerced: false slot 21: RuntimeException bad batch adopted or good backup lost
+PASS invalid raw horse number is never coerced: [] slot 6
+FAIL invalid raw horse number is never coerced: [] slot 21: RuntimeException bad batch adopted or good backup lost
+PASS invalid raw horse number is never coerced: {} slot 6
+FAIL invalid raw horse number is never coerced: {} slot 21: RuntimeException bad batch adopted or good backup lost
+PASS invalid raw horse number is never coerced: null slot 6
+FAIL invalid raw horse number is never coerced: null slot 21: RuntimeException bad batch adopted or good backup lost
+PASS invalid raw horse number is never coerced: 0 slot 6
+FAIL invalid raw horse number is never coerced: 0 slot 21: RuntimeException bad batch adopted or good backup lost
+PASS invalid raw horse number is never coerced: -1 slot 6
+FAIL invalid raw horse number is never coerced: -1 slot 21: RuntimeException bad batch adopted or good backup lost
+PASS invalid raw horse number is never coerced: "9223372036854775808" slot 6
+PASS invalid raw horse number is never coerced: "9223372036854775808" slot 21
+PASS invalid raw horse number is never coerced: 9223372036854775808 slot 6
+FAIL invalid raw horse number is never coerced: 9223372036854775808 slot 21: RuntimeException bad batch adopted or good backup lost
+FAIL malformed extra row cannot silently disappear: null: RuntimeException bad batch adopted or good backup lost
+FAIL malformed extra row cannot silently disappear: true: RuntimeException bad batch adopted or good backup lost
+FAIL malformed extra row cannot silently disappear: 123: RuntimeException bad batch adopted or good backup lost
+FAIL malformed extra row cannot silently disappear: "row": RuntimeException bad batch adopted or good backup lost
+FAIL malformed extra row cannot silently disappear: []: RuntimeException bad batch adopted or good backup lost
+FAIL malformed extra row cannot silently disappear: {}: RuntimeException bad batch adopted or good backup lost
+FAIL malformed extra row cannot silently disappear: {"tan":"4.5"}: RuntimeException bad batch adopted or good backup lost
+FAIL malformed extra row cannot silently disappear: {"num":0,"tan":"4.5"}: RuntimeException bad batch adopted or good backup lost
+PASS positive raw horse identity remains supported: 1
+PASS positive raw horse identity remains supported: "1"
+PASS positive raw horse identity remains supported: "01"
+PASS positive raw horse identity remains supported: " 1 "
+PASS legacy row collection shape remains supported: list
+PASS legacy row collection shape remains supported: named object
+PASS legacy row collection shape remains supported: numeric object
+FAIL invalid raw win odds do not satisfy six-minute completeness: true: RuntimeException bad batch adopted or good backup lost
+PASS invalid raw win odds do not satisfy six-minute completeness: false
+FAIL invalid raw win odds do not satisfy six-minute completeness: []: ErrorException Array to string conversion
+FAIL invalid raw win odds do not satisfy six-minute completeness: {}: ErrorException Array to string conversion
+FAIL invalid raw win odds do not satisfy six-minute completeness: [2.1]: ErrorException Array to string conversion
+FAIL invalid raw win odds do not satisfy six-minute completeness: {"value":2.1}: ErrorException Array to string conversion
+PASS invalid raw win odds do not satisfy six-minute completeness: null
+PASS invalid raw win odds do not satisfy six-minute completeness: 0
+PASS invalid raw win odds do not satisfy six-minute completeness: -2.1
+PASS invalid raw win odds do not satisfy six-minute completeness: "NaN"
+PASS invalid raw win odds do not satisfy six-minute completeness: "Infinity"
+FAIL partial earlier slot preserves missing odds: tan true: RuntimeException invalid field became a numeric source
+FAIL partial earlier slot preserves missing odds: tan []: ErrorException Array to string conversion
+FAIL partial earlier slot preserves missing odds: tan {}: ErrorException Array to string conversion
+PASS partial earlier slot preserves missing odds: fuku_min true
+FAIL partial earlier slot preserves missing odds: fuku_min []: ErrorException Array to string conversion
+FAIL partial earlier slot preserves missing odds: fuku_min {}: ErrorException Array to string conversion
+PASS partial earlier slot preserves missing odds: fuku_max true
+FAIL partial earlier slot preserves missing odds: fuku_max []: ErrorException Array to string conversion
+FAIL partial earlier slot preserves missing odds: fuku_max {}: ErrorException Array to string conversion
+FAIL missing six-minute place odds do not erase valid wins: fuku_min: ErrorException Array to string conversion
+FAIL missing six-minute place odds do not erase valid wins: fuku_max: ErrorException Array to string conversion
+PASS valid cancellation remains local to adopted batch: 取消
+PASS valid cancellation remains local to adopted batch: 除外
+FAIL all malformed six-minute candidates stop input even with earlier data: RuntimeException malformed freeze batch produced sendable input
+PASS raw parser does not weaken acquisition gates: hash mismatch
+PASS raw parser does not weaken acquisition gates: uncommitted
+PASS raw parser does not weaken acquisition gates: late
+PASS existing raw set integrity remains enforced: unknown horse
+PASS existing raw set integrity remains enforced: duplicate horse
+PASS existing raw set integrity remains enforced: duplicate padded horse
+PASS existing raw set integrity remains enforced: cancel conflict
+PASS empty or malformed root cannot qualify six-minute input: []
+PASS empty or malformed root cannot qualify six-minute input: {}
+PASS empty or malformed root cannot qualify six-minute input: null
+PASS empty or malformed root cannot qualify six-minute input: true
+PASS empty or malformed root cannot qualify six-minute input: 42
+PASS empty or malformed root cannot qualify six-minute input: "text"
+PASS empty or malformed root cannot qualify six-minute input: [
+PASS empty or malformed root cannot qualify six-minute input: [NaN]
+PASS empty or malformed root cannot qualify six-minute input: [Infinity]
+PASS empty or malformed root cannot qualify six-minute input: [] trailing
+PASS raw payload byte boundary: -1
+PASS raw payload byte boundary: 0
+FAIL raw payload byte boundary: 1: RuntimeException raw byte bound incorrect
+PASS raw payload depth boundary: 64
+FAIL raw payload depth boundary: 65: RuntimeException raw depth bound incorrect
+FAIL invalid raw token excludes batch: 129 digits: RuntimeException bad batch adopted or good backup lost
+FAIL invalid raw token excludes batch: positive exponent: RuntimeException bad batch adopted or good backup lost
+FAIL invalid raw token excludes batch: negative exponent: RuntimeException bad batch adopted or good backup lost
+PASS invalid raw token excludes batch: invalid UTF-8
+PASS numeric predicate safely rejects unsupported PHP value: null
+PASS numeric predicate safely rejects unsupported PHP value: true
+FAIL numeric predicate safely rejects unsupported PHP value: array: ErrorException Array to string conversion
+FAIL numeric predicate safely rejects unsupported PHP value: object: Error Object of class stdClass could not be converted to string
+PASS numeric predicate safely rejects unsupported PHP value: nonfinite
+PASS numeric predicate safely rejects unsupported PHP value: nan
+FAIL numeric predicate safely rejects unsupported PHP value: stringable: RuntimeException unsupported PHP value accepted
+PASS numeric predicate keeps supported PHP values: integer
+PASS numeric predicate keeps supported PHP values: float
+PASS numeric predicate keeps supported PHP values: string
+PASS numeric predicate keeps supported PHP values: decimal
+RESULT: 56 passed, 83 failed

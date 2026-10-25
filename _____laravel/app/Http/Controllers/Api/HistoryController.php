@@ -383,4 +383,87 @@ return response()->json(['data' => $result]);
 
     }
 
+    /**
+     * 20261026: 1日分のAI結果（1st / 2nd）を、保存済みの回答だけからまとめて返す
+     *
+     * 【なぜ必要か】
+     *   Flutter の「過去レースのオッズ遷移表」は、日付を開くとレースごとに
+     *   getHorseOddsFinderAiAnalysis / getHorseOddsFinderSecondAiOpinion（AiController）を1回ずつ呼んでいた
+     *   （1日36レースなら72回）。API の回数制限（429）に当たっていたうえ、
+     *   保存済みの回答が無いレースでは、その場で AI（有料）を呼びに行く作りだった。
+     * 【動き】
+     *   ・保存済みの回答を読むだけ。AI は呼ばない。ロックも取らない。
+     *   ・画面用に整える処理は AiController のものをそのまま使う（二重管理しない）。
+     *     1st は publicPart()（内部監査用JSONを落とす）を通して返す。
+     *     2nd は getHorseOddsFinderSecondAiOpinion のキャッシュ返却と同じ条件（_canReturnSecondAiCache）を
+     *     満たすときだけ、同じ形（analysis_text + _loadSavedMergeResult）で返す。満たさなければ null。
+     *
+     * @return \Illuminate\Http\JsonResponse  { data: [ { date, kaisuu, basho_code, day, race, first_analysis_text, second }, ... ] }
+     */
+    public function getHorseOddsFinderAiAnalysisByDate(Request $request)
+    {
+        $date = (string) $request->query('date', '');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return response()->json(['error' => 'date が不正です'], 422);
+        }
+
+        /** @var \App\Http\Controllers\Api\AiController $ai */
+        $ai = app(\App\Http\Controllers\Api\AiController::class);
+
+        $cols = ['kaisuu', 'basho_code', 'day', 'race', 'analysis_text'];
+
+        $firstRows = DB::table('t_horse_odds_finder_ai_analysis')
+            ->where('date', $date)
+            ->get($cols);
+
+        $secondRows = DB::table('t_horse_odds_finder_ai_analysis2')
+            ->where('date', $date)
+            ->get($cols);
+
+        $keyOf = static function ($r): string {
+            return ((int) $r->kaisuu) . '_' . ((string) $r->basho_code) . '_' . ((int) $r->day) . '_' . ((int) $r->race);
+        };
+
+        $blank = static function ($r) use ($date): array {
+            return [
+                'date'                => $date,
+                'kaisuu'              => (int) $r->kaisuu,
+                'basho_code'          => (string) $r->basho_code,
+                'day'                 => (int) $r->day,
+                'race'                => (int) $r->race,
+                'first_analysis_text' => null,
+                'second'              => null,
+            ];
+        };
+
+        $items = [];
+
+        foreach ($firstRows as $r) {
+            $k = $keyOf($r);
+            if (!isset($items[$k])) {
+                $items[$k] = $blank($r);
+            }
+            $items[$k]['first_analysis_text'] = trim(AiController::publicPart((string) $r->analysis_text));
+        }
+
+        foreach ($secondRows as $r) {
+            $k = $keyOf($r);
+            if (!isset($items[$k])) {
+                $items[$k] = $blank($r);
+            }
+            if ($ai->_canReturnSecondAiCache($date, $r->kaisuu, $r->basho_code, $r->day, $r->race)) {
+                $items[$k]['second'] = array_merge([
+                    'date'          => $date,
+                    'kaisuu'        => $r->kaisuu,
+                    'basho_code'    => $r->basho_code,
+                    'day'           => $r->day,
+                    'race'          => $r->race,
+                    'analysis_text' => trim(AiController::publicPart((string) $r->analysis_text)),
+                ], $ai->_loadSavedMergeResult($date, $r->kaisuu, $r->basho_code, $r->day, $r->race));
+            }
+        }
+
+        return response()->json(['data' => array_values($items)]);
+    }
+
 }

@@ -1,0 +1,29 @@
+PASS proof covers effective band order: unchanged valid correction
+PASS proof covers effective band order: changed outside correction scope
+PASS incomplete score data cannot claim complete: all-null
+PASS incomplete score data cannot claim complete: one-null
+PASS incomplete score data cannot claim complete: missing-key
+PASS partial score data cannot carry a numeric total
+PASS all valid scores cannot falsely claim partial
+PASS invalid score-evidence container cannot retain unverified scores: 0
+PASS invalid score-evidence container cannot retain unverified scores: 1
+PASS invalid score-evidence container cannot retain unverified scores: 2
+PASS invalid score-evidence container cannot retain unverified scores: 3
+PASS rank-band repair permits necessary per-horse rank-mode corrections
+PASS rank-band permission remains limited: other-field
+PASS rank-band permission remains limited: other-band
+PASS rank-band permission remains limited: change-band
+PASS complete score with an invalid component uses verified evidence order
+PASS valid status and rank mode remain accepted: partial
+PASS valid status and rank mode remain accepted: complete
+PASS score salvage followed by whole-band rank-mode correction is accepted
+PASS publication rechecks state under commit lock: state_revision
+PASS publication rechecks state under commit lock: response_revision
+PASS publication rechecks state under commit lock: publication_revision
+PASS publication rechecks state under commit lock: deadline
+PASS publication write failure rolls back and retry is idempotent: baganriki_publication_intents
+PASS publication write failure rolls back and retry is idempotent: baganriki_publications
+PASS publication write failure rolls back and retry is idempotent: baganriki_live_states
+PASS interrupted first-response processing never repeats HTTP: received-write
+PASS interrupted first-response processing never repeats HTTP: validation-write
+AUDIT3 RESULT: 28 passed, 0 failed. Standalone PHP with database doubles; no real database or external AI.

@@ -1,0 +1,68 @@
+馬眼力 r12.2 確認範囲と未確認項目
+2026年10月21日／再精査10版
+
+これは提供コードと詳細設計書から整理した主要工程の確認表です。
+実際に実行した1,291個の検査は verification/全検査項目一覧.txt に全件記載しています。
+「実行済」はスタンドアロンPHP上の試験成功を意味します。実Laravel／MySQLの成功ではありません。
+「静的確認」はコード・設定の照合まで、「未確認」は必要な環境／資料がない項目です。
+各条件を無限に組み合わせた網羅証明や、原本の全業務機能の完全検証ではありません。
+
+番号 | 工程・確認点 | 結果 | 根拠・残る条件
+01 | JSONの構文、UTF-8、重複キー、末尾、深さ、数値桁・指数 | 実行済 | legacy R122-J02〜J05、run
+02 | 数値と文字列、nullと欠落、長い小数、整数範囲超過 | 実行済 | run、audit、audit6、audit9、audit10。取得原JSONからの保持も確認
+03 | 入力生成4 MiB境界、NaN文字列と実非有限数の区別 | 実行済 | audit9。実APIのtoken容量は別項目
+04 | 入力canonical、role共通hash、保存本文の再利用 | 実行済＋静的確認 | legacy R122-H01/P01、Controller凍結／送信経路
+05 | RFC3339、JST DB日時、マイクロ秒、繰上がり禁止 | 実行済 | audit7、audit8、legacy R122-T00
+06 | 6入力スロットの取得猶予・情報上限・未確定除外 | 実行済 | audit8、legacy R122-T01〜T05/A01〜A03
+07 | 採用バッチのpayload/hash、重複JSONキー、正常別バッチの保持 | 実行済 | audit8、audit9、audit10。実取得側の記録は未確認
+08 | 出馬表必須、宣言頭数、馬番不正、重複の矛盾 | 実行済 | audit9、legacy R122-D01。num_horsesの実DB意味を要照合
+09 | 凍結前取消、取消後の実オッズ、未採用取消の隔離 | 実行済 | audit9、legacy R122-D03/D04
+10 | 凍結順位、同値、長い小数、取消後も順位を詰めない | 実行済 | legacy R122-F01/E07/E08/P03、audit10の原JSONからの順位確認
+11 | 原オッズと比率・縮小率の境界、X1〜X6/Z | 実行済 | legacy R122-E01〜E06/S01〜S04/Z01。基準率未定義のX6はUNKNOWN
+12 | mode、暫定mode、目標数、帯配分、2nd枠 | 実行済 | legacy R122-01〜07、E、quota群。定数は原本と同一
+13 | 構造上の不足と資格不足の補充方向 | 実行済 | legacy R122-Q03/P03、配分関連自己試験
+14 | 5系統レビュー、出典の実在・適用先、SIGNAL資格 | 実行済 | audit4/5/9。PAIR・適用COHORTは再精査9版で修正済み
+15 | H1〜V5満点、0点、欠測、部分採点、合計再計算 | 実行済 | audit3/5/7、legacy score/hv群
+16 | 不正採点だけnull化、正常な個別根拠を保持 | 実行済 | audit5/7/9
+17 | 適格馬だけのSCORE/EVIDENCE判定、縮退順位 | 実行済 | audit3/4/5、legacy R122-R02
+18 | rank/public候補の整合、原応答と実効結果の一致証明 | 実行済 | audit3/5/6/9。正しいEVIDENCE順位の一致加点も維持
+19 | 順位点、両role最大点、証明つき+5、同点順序 | 実行済 | legacy R122-R01/R03/S01、公開試験
+20 | 封筒識別子・role・hash・mode・配分・必須null | 実行済 | audit4/6、legacy R122-V01
+21 | 不正馬番・重複・欠落・局所不正の隔離 | 実行済 | audit4、audit9、legacy R122-V02
+22 | 訂正の対象範囲、正常初回保持、悪化禁止、順位再検査 | 実行済 | audit3/5/7/8/9、legacy R122-V03/V05
+23 | 未完了・遅着・received_at不明の不採用 | 実行済 | audit、audit4/7/8。実APIの終了理由対応は未確認
+24 | Job対象選択、所有権、停止後の同期再送防止 | 実行済＋静的確認 | run、audit、R122Jobs
+25 | 初回1枠・訂正1枠、RESERVED/SENT/RECEIVED/UNKNOWN | 実行済 | run、audit、audit2。本物の複数worker競合は未確認
+26 | queue投入とmarkerのrollback、pending抑制 | 実行済＋静的確認 | run、audit。単一writerの実DB設定を要確認
+27 | 送信直前のロック所有、最新live、時計再照合 | 実行済 | audit、audit2、audit8。実GET_LOCK・切断は未確認
+28 | 期限前倒し、後ろ倒しで延長しない、読めないlive締切 | 実行済 | audit4/7/8、legacy R122-T00
+29 | 累積取消、全頭取消、revision競合、REPLAY世代 | 実行済 | run、audit、audit8。正式イベント接続は未確認
+30 | 公開intent・結果・pointerの原子性と再実行 | 実行済 | run、audit、audit5/6/7/8/9。DBは代替実装
+31 | DB数値保存型、JSON型拒否、decimalの往復 | 実行済＋静的確認 | ExactStorage/run/audit。実MySQLでの往復は未確認
+32 | 統計原値・行ごとの実時刻・遅い集計の不採用 | 実行済 | audit9。DB原値を保持、既存の派生式の丸め仕様は維持
+33 | coverage7区分、過去走の期間・時刻、旧資格の不使用 | 静的確認＋一部実行 | Controllerの材料接続、audit9の統計。実データ7区分の結合は未確認
+34 | DB重複と他障害の区別 | 実行済 | audit9。MySQL実例外とLaravelラッパーの結合は未確認
+35 | 型不正による異常終了 | 実行済 | mutations 1,053ケースは1頭の117箇所×9種類に限定。別途audit10で取得側の不正型を確認
+36 | PHP構文、定数、変更範囲、パッチ適用、同梱整合 | 実行済 | 35ファイル、105定数、11基準、manifest/ZIP検証
+37 | migrations・専用queue・Supervisor・scheduler | 静的確認 | 設定例とpreflight.sql。実登録・起動・負荷は未確認
+38 | PHP8.3.6／Laravel依存版／MySQL8.4.9実行 | 未確認 | composer.lock、実プロジェクト、検証DBが必要
+39 | 複数worker、worker kill、接続断、REPEATABLE READ競合 | 未確認 | 実MySQLとSupervisorで、README第6節の障害試験が必要
+40 | APIモデルID、完全応答、usage、終了理由、費用 | 未確認 | 実APIは未呼出し。サービス実装と許可された検証が必要
+41 | 17／18頭の入力容量、12レース同時処理性能 | 未解決／未確認 | 既知の容量問題は本修正では解消しない。実データ・計測が必要
+42 | 全route認可、非公開隔離、Flutter表示、公開後運用 | 未確認 | routes、認証設定、画面、正式取得側の接続が必要
+43 | 予測精度・学習・購入推奨・本番品質 | 未評価 | 本件は制御と整合性の修正。予測性能や本番無障害を保証しない
+44 | 原JSONの行・馬番・オッズ型、容量・深さ、部分欠損の維持 | 実行済 | audit10。boolの数値化・配列等の変換エラーを防止。実取得形式との照合は未確認
+
+実機受入を完了させるための資料・作業
+
+A. 秘密情報を除いたLaravelプロジェクト、composer.lock、routes、Constants、
+   AnthropicService、正式取得／取消処理、DDL／migration／一意制約を照合する。
+   完全なserver_contractと入出力JSON Schema、実raw_payloadの形式・サイズも確認する。
+B. 検証DBでpreflight.sqlを実行し、InnoDB、同一接続、本文の保存型、マイクロ秒、
+   宣言頭数列の意味、SQLモードを確認する。
+C. README第6節の並列・停止復旧・期限／取消競合・rollback・数値往復試験を実施する。
+D. 17／18頭を含む実入力で容量を解決・確認してから、モデル契約と費用を確認する。
+E. 非公開検証の対象レース・API実行の許可条件を満たした環境で実測する。
+
+ここに未確認と記したものを「問題なし」に読み替えないでください。
+本番用.env、APIキー、認証Cookieを提出する必要はありません。

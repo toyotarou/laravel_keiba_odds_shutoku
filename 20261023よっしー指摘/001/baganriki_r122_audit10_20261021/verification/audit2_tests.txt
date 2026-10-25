@@ -1,0 +1,7 @@
+PASS transient correction conflict remains retryable without repeating initial HTTP
+PASS send uses locked live row, not old repeatable-read snapshot: cancelled
+PASS send uses locked live row, not old repeatable-read snapshot: earlier-close
+PASS real controller send/receive/inspect/settle/publish pipeline: normal
+PASS real controller send/receive/inspect/settle/publish pipeline: correction
+PASS real controller send/receive/inspect/settle/publish pipeline: reservation-conflict
+AUDIT2 RESULT: 6 passed, 0 failed. DB read-view/queue/HTTP doubles; no real concurrent database.

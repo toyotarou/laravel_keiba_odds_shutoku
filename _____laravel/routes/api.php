@@ -73,6 +73,7 @@ Route::get('getHorseOddsFinderJockeyScores', [RaceController::class, 'getHorseOd
 //   getHorseOddsFinderShutsubaHistory           : 複数馬名の出走履歴一括取得
 //   getHorseOddsFinderBestHorseWeight           : 全馬の最高着順時の馬体重
 //   getHorseOddsFinderRaceIntrospection         : AI によるレース振り返り
+//   getHorseOddsFinderAiAnalysisByDate          : 1日分の 1st / 2nd AI 結果（保存済みのみ・AIは呼ばない）
 ////////////////////////////////////////////////////////////////////////////////////
 
 // 指定馬（cname）の詳細情報をJRAサイトからスクレイピングして返す
@@ -93,6 +94,8 @@ Route::get('getHorseOddsFinderShutsubaHistory', [HistoryController::class, 'getH
 Route::get('getHorseOddsFinderBestHorseWeight', [HistoryController::class, 'getHorseOddsFinderBestHorseWeight']);
 // 指定レースの AI による振り返りコメントを返す
 Route::get('getHorseOddsFinderRaceIntrospection', [HistoryController::class, 'getHorseOddsFinderRaceIntrospection']);
+// 20261026: 1日分の 1st / 2nd AI 結果を、保存済みの回答だけからまとめて返す（AIは呼ばない。過去レースの画面用）
+Route::get('getHorseOddsFinderAiAnalysisByDate', [HistoryController::class, 'getHorseOddsFinderAiAnalysisByDate']);
 
 ////////////////////////////////////////////////////////////////////////////////////
 // AnalysisController — 統計・分析
@@ -147,7 +150,7 @@ Route::get('getHorseOddsFinderAiRecoverySummary', [AiController::class, 'getHors
 //   読み取りだけです。AI送信も再選出も起こしません。
 //   原AI応答・予約token・内部認証情報は返しません。
 // ─────────────────────────────────────────────────────────────────────
-Route::get('baganriki/r12-2/races/{race_id}', [AiController::class, 'getBaganrikiR122Race'])
+Route::get('baganriki/r12-2/races/{race_id}', [AiController::class, 'getBaganrikiPublishedPrediction'])
     ->where('race_id', '[A-Za-z0-9_\-]+');
 
 Route::get('getHorseOddsFinderAiAnalysisRecord', [AiController::class, 'getHorseOddsFinderAiAnalysisRecord']);

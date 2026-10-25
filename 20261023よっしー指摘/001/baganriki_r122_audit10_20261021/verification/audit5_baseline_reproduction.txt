@@ -1,0 +1,43 @@
+FAIL invalid score reference is nulled locally: H1 unknown: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: H1 other-horse: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: H2 unknown: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: H2 other-horse: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: H3 unknown: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: H3 other-horse: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: H4 unknown: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: H4 other-horse: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: H5 unknown: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: H5 other-horse: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: V1 unknown: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: V1 other-horse: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: V2 unknown: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: V2 other-horse: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: V3 unknown: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: V3 other-horse: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: V4 unknown: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: V4 other-horse: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: V5 unknown: RuntimeException unverified score survived
+FAIL invalid score reference is nulled locally: V5 other-horse: RuntimeException unverified score survived
+FAIL all bad score references retain own signal but no score: RuntimeException normal signal lost or unverified scores retained
+FAIL score reference and arithmetic defects remain local: unknown sum: RuntimeException combined score defects removed a horse with a valid own signal
+FAIL score reference and arithmetic defects remain local: unknown other-score: RuntimeException combined score defects removed a horse with a valid own signal
+FAIL score reference and arithmetic defects remain local: unknown score-container: RuntimeException combined score defects removed a horse with a valid own signal
+FAIL score reference and arithmetic defects remain local: other-horse sum: RuntimeException combined score defects removed a horse with a valid own signal
+FAIL score reference and arithmetic defects remain local: other-horse other-score: RuntimeException combined score defects removed a horse with a valid own signal
+FAIL score reference and arithmetic defects remain local: other-horse score-container: RuntimeException combined score defects removed a horse with a valid own signal
+PASS score salvage cannot bypass a simultaneous invalid eligibility
+PASS valid score reference remains accepted: own-horse
+PASS valid score reference remains accepted: race
+PASS valid score reference remains accepted: applicable-cohort
+FAIL bad scoring reference cannot rescue a missing horse as a valid correction: RuntimeException unvalidated correction rescued a horse
+PASS corrected scoring reference restores valid points and proof
+FAIL invalid correction row cannot reject a valid correction for another horse: RuntimeException one invalid correction rejected every valid repair: 訂正を採用しません（馬番 2 の採点を complete から悪化させる訂正）。初回の正常部分を残します
+PASS valid out-of-scope correction still rejects the attempt
+FAIL rank mode uses merged rows after a partial correction: missing: RuntimeException SCORE rank based on incomplete correction survived merge
+FAIL rank mode uses merged rows after a partial correction: duplicated: RuntimeException SCORE rank based on incomplete correction survived merge
+FAIL rank mode uses merged rows after a partial correction: invalid-summary: RuntimeException SCORE rank based on incomplete correction survived merge
+FAIL retained initial rank is also checked against the merged scoring state: RuntimeException incompatible initial SCORE order reused after rescue
+PASS score repair and earlier deadline compose with cancellation: active
+PASS score repair and earlier deadline compose with cancellation: cancelled
+FAIL late correction with score repairs is excluded without losing initial valid evidence: RuntimeException late correction restored invalid score or normal signal was lost
+AUDIT5 RESULT: 8 passed, 34 failed. PHP with DB/HTTP doubles; no real database or external AI.

@@ -1,0 +1,7 @@
+FAIL transient correction conflict remains retryable without repeating initial HTTP: RuntimeException assertion failed
+FAIL send uses locked live row, not old repeatable-read snapshot: cancelled: RuntimeException assertion failed
+FAIL send uses locked live row, not old repeatable-read snapshot: earlier-close: RuntimeException assertion failed
+PASS real controller send/receive/inspect/settle/publish pipeline: normal
+PASS real controller send/receive/inspect/settle/publish pipeline: correction
+FAIL real controller send/receive/inspect/settle/publish pipeline: reservation-conflict: RuntimeException correction conflict incorrectly settled
+AUDIT2 RESULT: 2 passed, 4 failed. DB read-view/queue/HTTP doubles; no real concurrent database.

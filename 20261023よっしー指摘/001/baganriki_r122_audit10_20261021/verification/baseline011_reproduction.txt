@@ -1,0 +1,30 @@
+FAIL retry a transient pre-reservation failure: RuntimeException assertion failed
+FAIL do not enqueue duplicate pending role jobs after throttle expiry: RuntimeException assertion failed
+FAIL all-cancelled race cannot consume a reserved send right: RuntimeException assertion failed
+FAIL send gate checks fresh time after lock acquisition: RuntimeException assertion failed
+FAIL missing finish reason is incomplete: 1st: RuntimeException assertion failed
+FAIL missing finish reason is incomplete: 2nd: RuntimeException assertion failed
+FAIL malformed nested evidence is isolated: decimal_entry: Error Cannot use object of type App\Support\Baganriki\Decimal as array
+FAIL malformed nested evidence is isolated: empty_object_entry: Error Cannot use object of type stdClass as array
+FAIL malformed nested evidence is isolated: bad_source_refs: Error Object of class stdClass could not be converted to string
+FAIL malformed nested evidence is isolated: bad_family_refs: Error Object of class stdClass could not be converted to string
+FAIL unsafe MySQL JSON storage is blocked before saving Decimal values: RuntimeException assertion failed
+FAIL missing validation table must not be treated as successful inspection: RuntimeException assertion failed
+FAIL invalid calendar close timestamp is rejected: RuntimeException assertion failed
+FAIL live update cannot modify a replay generation: RuntimeException assertion failed
+FAIL frozen input keeps exact values in correction payload: RuntimeException assertion failed
+FAIL out-of-scope missing versus null field is not silently equal: RuntimeException assertion failed
+FAIL metadata database writes wait until after raw response handling: RuntimeException assertion failed
+FAIL conflicting confirmed cancellation is reapplied to fresh revision: RuntimeException STATE_CHANGED: reread trusted source
+FAIL complete score summary requires an integer total: RuntimeException assertion failed
+FAIL job marker and queue insert roll back together: RuntimeException assertion failed
+FAIL active worker suppresses duplicate; released worker lock permits recovery: RuntimeException assertion failed
+PASS SENT journal is never sent again by recovery
+PASS one reserved slot grants the send right only once
+PASS processing exception leaves role unsettled and clears role context
+PASS received is not settled; both processed roles are required before deadline
+PASS repeat live update is idempotent despite an old caller revision
+FAIL no send when the remaining first-response window is too short: RuntimeException assertion failed
+FAIL replay generation cannot publish even after reply deadline: RuntimeException assertion failed
+PASS disabled owned race does not fall back to legacy send permission
+AUDIT RESULT: 6 passed, 23 failed. DB/queue/lock doubles; no external HTTP.

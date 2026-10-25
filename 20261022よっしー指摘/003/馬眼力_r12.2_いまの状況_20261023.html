@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力 r12.2 いまの状況</title>
+<style>
+:root{
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1f2328; --sub:#5b6370; --line:#e3e1dc;
+  --ok:#1f7a4d; --okbg:#e7f4ec; --warn:#9a5b00; --warnbg:#fbf1df;
+  --ask:#2457a6; --askbg:#e8eefa; --code:#f0eee9;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#16181b; --card:#1f2226; --ink:#e8e6e1; --sub:#a3a9b2; --line:#33373d;
+    --ok:#6fcf9b; --okbg:#1d3328; --warn:#f0b65a; --warnbg:#3a2e1a;
+    --ask:#8fb4f2; --askbg:#1e2a40; --code:#2a2d32;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:16px;line-height:1.75}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.35rem;margin:0 0 4px}
+.meta{color:var(--sub);font-size:.85rem;margin-bottom:20px}
+h2{font-size:1.08rem;margin:28px 0 10px;padding-left:10px;border-left:4px solid var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0}
+.lead{font-size:1.02rem}
+ul{padding-left:1.2em;margin:6px 0}
+li{margin:4px 0}
+.tag{display:inline-block;font-size:.78rem;font-weight:700;border-radius:6px;padding:1px 8px;margin-right:6px}
+.ok{color:var(--ok);background:var(--okbg)}
+.warn{color:var(--warn);background:var(--warnbg)}
+.askt{color:var(--ask);background:var(--askbg)}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{border-bottom:1px solid var(--line);padding:7px 4px;text-align:left;vertical-align:top}
+th{color:var(--sub);font-weight:600}
+.q{border-left:4px solid var(--ask)}
+.q h3{font-size:1rem;margin:0 0 6px}
+.opt{background:var(--code);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:.93rem}
+.opt b{margin-right:4px}
+.note{color:var(--sub);font-size:.85rem}
+.reply{background:var(--askbg);border-radius:10px;padding:10px 12px;font-size:.95rem}
+</style>
+</head>
+<body>
+<main>
+
+<h1>馬眼力 r12.2 いまの状況</h1>
+<div class="meta">2026年10月23日（金）10時時点／ふなっしー（豊田）より</div>
+
+<div class="card lead">
+いまの予想（旧来の予想）は、全レースで今までどおり動いています。<br>
+新しい予想（r12.2）は、<b>18頭のレースで実際にAIを呼んで、公開の手前まで通りました。</b><br>
+土曜日（24日）は<b>東京9R・10Rの2レースだけ</b>、お客さんには見せないまま本番の流れで動かします。<br>
+最後に、お返事をいただきたいことが<b>6つ</b>あります（A／Bで選ぶだけです）。
+</div>
+
+<h2>1. できたこと</h2>
+
+<div class="card">
+<span class="tag ok">済</span><b>新しい予想を、いまの予想と別に動かせるようにしました</b>
+<ul>
+<li>新しい予想を動かしても、いまの予想は止まりません。</li>
+<li>新しい予想は、こちらで決めたレースだけで動きます。決めていないレースへは1回も送りません。</li>
+</ul>
+</div>
+
+<div class="card">
+<span class="tag ok">済</span><b>誰もアプリを開かなくても、新しい予想が自動で動くようにしました</b>
+<ul>
+<li>これまでは、だれかがそのレースを開いたときにしか動きませんでした。</li>
+<li>発走の約5分半前に、サーバが自分で入力を固めて、AIへ送ります。</li>
+<li>1つめのAIと2つめのAIを、同時に送るようにしました（前は順番待ちで、時間が足りないことがありました）。</li>
+</ul>
+</div>
+
+<div class="card">
+<span class="tag ok">済</span><b>アプリの画面に、見えていなかった情報を足しました</b>
+<ul>
+<li>公開したときの頭数と、入力を固めたときの頭数。</li>
+<li>6分前のオッズを取り終えた時刻。</li>
+<li>候補が足りずに、別の枠へ回したときの理由。</li>
+</ul>
+<div class="note">アプリへの配布はまだです（確認がすんでから出します）。</div>
+</div>
+
+<div class="card">
+<span class="tag ok">済</span><b>試験は全部通りました</b>
+<ul>
+<li>判定の試験は662件すべて合格。お金のかからない試験は全部合格しています。</li>
+<li>本番の判定と、検証用の判定を72レースで突き合わせ、食い違いは0でした。</li>
+</ul>
+</div>
+
+<h2>2. 18頭のレースで、実際にAIを呼んで測りました</h2>
+
+<div class="card">
+<p style="margin-top:0">10月18日 新潟10R（18頭）の保存データで、5回測りました。費用は合計で約3ドルです。</p>
+<table>
+<tr><th>回</th><th>結果</th></tr>
+<tr><td>1</td><td>1つめのAIは、18頭ぶんの入力が大きすぎて受け付けられませんでした。</td></tr>
+<tr><td>2</td><td>AIを新しいもの（Haiku 5.5）に替えました。今度は「考える時間」に出力を使い切って、答えが空でした。</td></tr>
+<tr><td>3</td><td>「考える時間」を止めると、<b>公開まで通りました。</b>ただし訂正は時間切れでした。</td></tr>
+<tr><td>4</td><td>訂正を待つ時間を延ばすと、1つめのAIは訂正まで期限内に返りました。公開は3頭でした。</td></tr>
+<tr><td>5</td><td>同じ設定でもう一度測りました。公開は4頭でした。</td></tr>
+</table>
+</div>
+
+<div class="card">
+<span class="tag warn">課題</span><b>公開できる馬が少ない理由</b>
+<ul>
+<li>AIが自分で書く「点数の合計」が、実際の合計より2〜3点小さいことが多いです。合計が合わない馬は、決まりどおり候補から外れます。</li>
+<li>18頭のうち9頭ぶんを、AIが書き落とすことがありました。</li>
+<li>訂正をお願いしても、AIが直してほしい馬以外まで書き換えてしまい、訂正が使えないことがありました。</li>
+</ul>
+<div class="note">仕組みは正しく動いています。候補が少ないのは、AIの答えの質と、受け付けの決まりの厳しさが原因です。このあとの質問2で、受け付け方を選んでください。</div>
+</div>
+
+<h2>3. 土曜日（24日）にやること</h2>
+
+<div class="card">
+<ul>
+<li>対象は<b>東京9R・10R</b>の2レースだけです。</li>
+<li><b>お客さんには見せません。</b>画面は「まだ公開していません」のままです。</li>
+<li>いまの予想は、全レースで今までどおり出ます。</li>
+<li>取得の時刻、入力を固めた時刻、AIが返るまでの秒数、訂正、公開の結果を記録します。</li>
+<li>費用は2レースで1〜2ドルの見込みです。</li>
+</ul>
+<div class="note">結果は、火曜日にこの続きとしてお渡しします。設計書も1.5版に更新して、そのときに一緒にお送りします。</div>
+</div>
+
+<h2>4. お返事をいただきたいこと（6つ）</h2>
+<p class="note">どれも A か B を選ぶだけです。迷ったら「A」でかまいません（Aは、いま入っている設定のままです）。</p>
+
+<div class="card q">
+<h3>質問1　1つめのAIを、新しいAI（Haiku 5.5）に替えてよいですか</h3>
+<div class="opt"><b>A</b>替える。18頭でも動きます。費用は1レースで最大0.6ドルほどです。</div>
+<div class="opt"><b>B</b>替えない。18頭のレースでは、1つめのAIが受け付けられず、新しい予想が出ません。</div>
+</div>
+
+<div class="card q">
+<h3>質問2　訂正の受け付け方</h3>
+<div class="opt"><b>A</b>今までどおり。訂正の中に1頭でも「直してと言っていない馬」の書き換えがあれば、訂正を丸ごと使いません。安全ですが、候補は少なめになります。</div>
+<div class="opt"><b>B</b>勝手に書き換えた馬だけを捨てて、ほかの馬の訂正は使う。候補は増えやすくなりますが、AIの訂正を一部だけ信じることになります。</div>
+</div>
+
+<div class="card q">
+<h3>質問3　「公開」したら、お客さんの画面に出しますか</h3>
+<div class="opt"><b>A</b>しばらくは出さない。こちらで中身を確かめる期間にします。</div>
+<div class="opt"><b>B</b>出す。公開したらすぐに、お客さんが新しい予想を見られます。</div>
+</div>
+
+<div class="card q">
+<h3>質問4　新しい予想を見られる人</h3>
+<div class="opt"><b>A</b>関係者だけ。合言葉を知っている人しか見られません。</div>
+<div class="opt"><b>B</b>アプリを使う人全員。</div>
+</div>
+
+<div class="card q">
+<h3>質問5　投票の締め切りを「発走1分前」としてよいですか</h3>
+<div class="opt"><b>A</b>よい。JRAの「ネット投票は発走1分前まで」に合わせます（いまの設定）。</div>
+<div class="opt"><b>B</b>別の時刻にする（何分前かを教えてください）。早めるほど、AIに使える時間が短くなります。</div>
+</div>
+
+<div class="card q">
+<h3>質問6　土曜の2レースのあと、どう広げますか</h3>
+<div class="opt"><b>A</b>次は12レースを、お客さんに見せないまま動かす。それで問題がなければ公開へ進みます。</div>
+<div class="opt"><b>B</b>土曜の2レースで問題がなければ、すぐ公開へ進む。</div>
+</div>
+
+<div class="card reply">
+お返事の例：「1A 2B 3A 4A 5A 6A」<br>
+火曜日にまとめていただければ大丈夫です。
+</div>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>これを見ろ：馬眼力 OEM 施策</title>
+<style>
+  :root { --bg:#0f1419; --card:#1a2129; --line:#2c3540; --text:#e6e9ee; --sub:#9aa5b1; --acc:#5fb3ff; --warn:#ffb347; --bad:#ff6b6b; --ok:#5fd18b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; font-size:15px; line-height:1.7; }
+  header { padding:20px 16px 12px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:20px; }
+  header p { margin:6px 0 0; color:var(--sub); font-size:12px; }
+  nav { position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line); overflow-x:auto; white-space:nowrap; padding:8px 12px; z-index:5; }
+  nav a { display:inline-block; color:var(--acc); text-decoration:none; font-size:13px; padding:4px 10px; margin-right:4px; border:1px solid var(--line); border-radius:999px; }
+  main { padding:8px 16px 48px; max-width:760px; margin:0 auto; }
+  section { margin-top:22px; }
+  h2 { font-size:17px; border-left:4px solid var(--acc); padding-left:8px; margin:0 0 10px; }
+  h3 { font-size:15px; margin:16px 0 6px; color:var(--acc); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin:10px 0; }
+  .warn { border-color:var(--warn); }
+  .bad { border-color:var(--bad); }
+  .tag { display:inline-block; font-size:11px; padding:1px 8px; border-radius:999px; margin-right:6px; vertical-align:middle; }
+  .t-must { background:var(--bad); color:#fff; }
+  .t-yes { background:var(--acc); color:#04111e; }
+  .t-no { background:#55606c; color:#fff; }
+  .t-ok { background:var(--ok); color:#04111e; }
+  ol, ul { padding-left:20px; margin:6px 0; }
+  li { margin:4px 0; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { border-bottom:1px solid var(--line); padding:6px 4px; text-align:left; vertical-align:top; }
+  th { color:var(--sub); font-weight:normal; white-space:nowrap; }
+  .scroll { overflow-x:auto; }
+  code { background:#0b0f13; border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:12px; word-break:break-all; }
+  pre { background:#0b0f13; border:1px solid var(--line); border-radius:8px; padding:10px; overflow-x:auto; font-size:12px; line-height:1.5; }
+  .sub { color:var(--sub); font-size:12px; }
+  hr { border:none; border-top:1px dashed var(--line); margin:16px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>これを見ろ：馬眼力 OEM 施策</h1>
+  <p>OEM のコピー馬眼力を作るときに、最初に読むファイル。<br>作成：2026-10-26（JST）／調査対象：123（49.212.166.123）の本番サーバ</p>
+</header>
+<nav>
+  <a href="#first">まずここ</a>
+  <a href="#steps">新サーバ手順</a>
+  <a href="#today">今回の施策</a>
+  <a href="#rewrite">書き換える値</a>
+  <a href="#tables">テーブル</a>
+  <a href="#now">今の123</a>
+  <a href="#cron">cron</a>
+  <a href="#env">.env</a>
+  <a href="#trap">ハマりどころ</a>
+  <a href="#weak">直しておきたい所</a>
+  <a href="#decide">決定事項</a>
+</nav>
+<main>
+
+<section id="first">
+  <h2>まずここ（5行で）</h2>
+  <div class="card bad">
+    <ol>
+      <li><b>Laravel が 8（PHP 8.0 で動作中）</b>。OEM で新しい PHP（8.3 / 8.4）を入れるなら、<b>Laravel のバージョンアップが先に必要</b>。ここが一番大きい作業。</li>
+      <li>サーバの設定（nginx・php-fpm・cron・PM2・Cloudflare）は<b>コードと一緒にコピーされない</b>。このファイルの手順で作り直す。</li>
+      <li>ドメイン <code>baganriki.com</code> とパス <code>/var/www/horse_odds_finder</code> が<b>コードに直接書かれている</b>所がある。コピー先に合わせて書き換えが必要。</li>
+      <li>AI の API キー（Anthropic・DeepSeek）は<b>OEM ごとに別にする</b>。費用と利用上限を馬眼力本体と分けるため。</li>
+      <li>今回の php2shell 対策（PHP の応急処置）は、<b>新しい PHP を入れるなら不要</b>。ただし「php-fpm で動かす」「PHP を定期的に更新する」は守る。</li>
+    </ol>
+  </div>
+</section>
+
+<section id="steps">
+  <h2>新サーバを作る手順（この順番で）</h2>
+  <div class="card">
+    <ol>
+      <li><b>サーバ用意</b>：メモリ <b>4GB 以上</b>（今の123は2GBで、スワップを1.4GB使っている）。OS は CentOS Stream 9 系（AlmaLinux / Rocky でも可）。</li>
+      <li><b>SSH を先に固める</b>：鍵ログインのみ・root ログイン禁止（<a href="#weak">直しておきたい所</a>参照）。</li>
+      <li><b>ファイアウォールを有効化</b>：22 / 80 / 443 だけ開ける（今の123は無効のまま）。</li>
+      <li><b>スワップ作成</b>：合計 3GB 程度（今の123は <code>/swapfile</code> 1GB＋<code>/swapfile2</code> 2GB）。</li>
+      <li><b>MySQL 8.4</b> を入れる。外部には公開しない。アプリ用ユーザーを作り、root はアプリに使わない。</li>
+      <li><b>PHP（php-fpm）</b>を入れる。<b>mod_php（Apache の PHP モジュール）は使わない</b>。拡張は <a href="#now">今の123</a> の一覧と同じものを入れる。<code>session.upload_progress.enabled = Off</code> も入れておく（害はない）。</li>
+      <li><b>php-fpm のプール設定</b>を写す（<code>/etc/php-fpm.d/www.conf</code>）。実行ユーザーは <code>apache</code>、待ち受けは <code>/run/php-fpm/www.sock</code>。</li>
+      <li><b>nginx</b> を入れ、<code>/etc/nginx/conf.d/</code> の4ファイルを写して、ドメインを書き換える（<code>baganriki.conf</code>・<code>horse_odds_finder.conf</code>・<code>php-fpm.conf</code>・<code>cloudflare_realip.conf</code>）。</li>
+      <li><b>SSL</b>：certbot（Let's Encrypt）で証明書を取る。自動更新のタイマー（<code>certbot-renew.timer</code>）が動いているか確認。</li>
+      <li><b>Node.js（v24）と Playwright</b> を入れる。スクレイパー（<code>scripts/*.mjs</code> の15本）が使う。</li>
+      <li><b>Laravel を配置</b>：<code>/var/www/（OEM名）</code>。<code>.env</code> を作り、<b>所有者 <code>centos:apache</code>・権限 <code>640</code></b> にする（<a href="#trap">ハマりどころ</a>①）。</li>
+      <li><b>DB を作る</b>：123 から<b>テーブル定義だけ</b>写す（<code>x_____</code> 付きは除く）。データは<b>過去からの撮り溜め4表だけ</b>本体からもらう（<a href="#tables">テーブルの分類</a>①）。</li>
+      <li><b>PM2</b> で WebSocket（<code>php artisan websockets:serve --port=8084</code>）を常駐させ、<code>pm2 startup</code> で自動起動にする。</li>
+      <li><b>予測ワーカー</b>（<code>/etc/systemd/system/baganriki-prediction-worker@.service</code>）を写す。</li>
+      <li><b>cron</b> を写す（<a href="#cron">cron</a> 参照）。<b><code>sudo -u apache</code> が付いている行は外さない</b>（<a href="#trap">ハマりどころ</a>②）。</li>
+      <li><b>Cloudflare</b>：DNS をプロキシ（オレンジ雲）で登録、Service Worker 用の Cache Rule を作る、キャッシュ削除用の API トークンを作る。</li>
+      <li><b>Flutter</b>：<a href="#rewrite">書き換える値</a> を直して、<code>deploy.sh</code> の転送先・Zone ID・トークンを OEM 用にしてデプロイ。</li>
+      <li><b>動作確認</b>：トップページ・過去レース画面・プッシュ通知・AI予想（1レースだけ）・429 が出ないか（<a href="#today">今回の施策</a>の確認コマンド）。</li>
+    </ol>
+  </div>
+</section>
+
+<section id="today">
+  <h2>今回（2026-10-24〜26）入れた施策</h2>
+  <p class="sub">「OEM」欄：<span class="tag t-must">必須</span>新サーバでも必ずやる　<span class="tag t-yes">自動</span>コードに入っているのでコピーすれば付いてくる　<span class="tag t-no">不要</span>新サーバでは要らない</p>
+
+  <div class="card">
+    <h3><span class="tag t-must">必須</span>Cloudflare の後ろで、利用者本人の IP を使う</h3>
+    <ul>
+      <li>ファイル：<code>/etc/nginx/conf.d/cloudflare_realip.conf</code>（サーバ設定なのでコードに含まれない）</li>
+      <li>理由：これが無いと Laravel から全員が「Cloudflare の IP」に見え、回数制限を他人と共有してしまう。アクセスログも誰のものか分からない。</li>
+      <li>中身：Cloudflare の IP 一覧（<code>https://www.cloudflare.com/ips-v4</code> と <code>ips-v6</code>）を <code>set_real_ip_from</code> で並べ、最後に <code>real_ip_header CF-Connecting-IP;</code></li>
+      <li>確認：<code>sudo tail -5 /var/log/nginx/access.log</code> の左端が Cloudflare（<code>172.64.</code>・<code>162.159.</code> など）ではなく利用者の IP になっていること。</li>
+      <li>年1回くらい、Cloudflare の IP 一覧が変わっていないか見比べる。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3><span class="tag t-yes">自動</span>API の回数制限を 60 → 300 回／分</h3>
+    <ul>
+      <li>ファイル：<code>app/Providers/RouteServiceProvider.php</code> の <code>configureRateLimiting()</code></li>
+      <li>理由：トップページ＋過去レース画面で1分60回を超えていた（10/25 は 429 が 1277 件）。</li>
+      <li>下の2つの施策で呼び出し回数自体を減らしたので、今は余裕がある。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3><span class="tag t-yes">自動</span>過去レース画面：払戻をまとめて取得</h3>
+    <ul>
+      <li>ファイル：Flutter <code>lib/screens/components/past_race_odds_transition_alert.dart</code></li>
+      <li>以前：画面が描き直されるたびに「1日1回 × 全日付（約90日）」を一斉に呼び、失敗すると描き直しでまた呼ぶ（雪だるま式）。</li>
+      <li>今：開いたら1回だけ、5日分ずつまとめて順番に取得。失敗は最大3回まで再試行。</li>
+      <li>結果：92回（うち78回が 429）→ 18回（全部成功）。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3><span class="tag t-yes">自動</span>過去レース画面：AI 結果を1日分まとめて取得（新しい API）</h3>
+    <ul>
+      <li>新しい API：<code>getHorseOddsFinderAiAnalysisByDate?date=YYYY-MM-DD</code>（<code>HistoryController.php</code>）</li>
+      <li>以前：日付を開くとレースごとに 1st / 2nd AI を1回ずつ（1日36レースで72回）。しかも<b>保存済みの回答が無いレースでは、その場で有料の AI を呼ぶ作り</b>だった。</li>
+      <li>今：1日分を1回で返す。<b>保存済みの回答を読むだけで AI は呼ばない</b>。</li>
+      <li>画面用に整える処理は <code>AiController.php</code> のもの（<code>publicPart</code>・<code>_canReturnSecondAiCache</code>・<code>_loadSavedMergeResult</code>）をそのまま使う。このため3つを <code>public</code> にした（中身は変えていない）。</li>
+      <li>Flutter 側：<code>functions.dart</code> に <code>fetchAiAnalysisByDate</code> / <code>aiByDateKey</code>、<code>path.dart</code> に API 名を追加。</li>
+      <li>確認：<code>curl -s 'https://（ドメイン）/api/getHorseOddsFinderAiAnalysisByDate?date=（開催日）'</code> でレース数分が返ること。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3><span class="tag t-no">不要</span>php2shell（CVE-2026-109618 / 109619）の対策</h3>
+    <ul>
+      <li>123：PHP を <code>8.0.30-9</code> に更新、<code>/etc/php.ini</code> で <code>session.upload_progress.enabled = Off</code>。</li>
+      <li>新サーバ：修正済みの新しい PHP を入れるので不要。<code>session.upload_progress.enabled = Off</code> は入れておいても害はない。</li>
+      <li>守ること：<b>PHP は php-fpm で動かす（mod_php は一番危険な構成だった）</b>、<b>PHP は定期的に <code>dnf update 'php*'</code> する</b>。</li>
+    </ul>
+  </div>
+
+  <h3>429 が出ていないかの確認コマンド</h3>
+<pre>sudo awk '$9==429 {print substr($4,2,14)}' /var/log/nginx/access.log | sort | uniq -c</pre>
+  <p class="sub">何も出なければ OK。出たら「日付:時」ごとの件数が出る。</p>
+</section>
+
+<section id="rewrite">
+  <h2>コピー時に書き換える値</h2>
+  <div class="card warn">
+    <h3>Flutter（<code>keiba_odds_finder</code>）</h3>
+    <div class="scroll"><table>
+      <tr><th>場所</th><th>今の値</th></tr>
+      <tr><td><code>lib/data/http/client.dart</code> 103行目付近 <code>apiEndPoint</code></td><td><code>baganriki.com</code></td></tr>
+      <tr><td><code>lib/services/fcm_service_web.dart</code>（2か所）</td><td><code>baganriki.com</code></td></tr>
+      <tr><td><code>lib/services/odds_websocket_service.dart</code> <code>_host</code></td><td><code>baganriki.com</code></td></tr>
+      <tr><td><code>web/index.html</code>・<code>web/manifest.json</code></td><td>アプリ名「馬眼力OddsFinder」</td></tr>
+      <tr><td>画面の文言（説明・利用規約など）</td><td>「馬眼力」「馬眼力指数」など多数。OEM で名前を変えるなら全部</td></tr>
+      <tr><td><code>deploy.sh</code></td><td>転送先 <code>centos@49.212.166.123:/var/www/horse_odds_finder/...</code>、Cloudflare の Zone ID・トークン、<code>--base-href /horse_odds_finder/</code></td></tr>
+    </table></div>
+
+    <h3>Laravel</h3>
+    <div class="scroll"><table>
+      <tr><th>場所</th><th>今の値</th></tr>
+      <tr><td><code>/var/www/horse_odds_finder</code> の直書き</td><td>手元にあるファイルだけで <b>15ファイル・75か所</b>（AiController・各 Console コマンドなど）。サーバの全ファイルではもっと多い可能性あり</td></tr>
+      <tr><td><code>app/Services/WebPushService.php</code>（2か所）</td><td>通知のリンク先 <code>https://baganriki.com/horse_odds_finder/</code></td></tr>
+      <tr><td><code>ImportKeibaOdds.php</code>・<code>ImportKeibaJraRaceOneResult.php</code></td><td>通知のリンク先 <code>https://baganriki.com/horse_odds_finder/?...</code></td></tr>
+      <tr><td>cron（全行）</td><td><code>/var/www/horse_odds_finder/artisan</code> と <code>storage/logs/...</code></td></tr>
+      <tr><td>nginx の <code>server_name</code></td><td><code>baganriki.com www.baganriki.com</code>、<code>49.212.166.123</code></td></tr>
+    </table></div>
+    <p class="sub">おすすめ：コピーする前に、パスとドメインを <code>.env</code>（または <code>config</code>）に1か所でまとめておくと、OEM が増えても書き換えが1か所で済む。</p>
+  </div>
+</section>
+
+<section id="tables">
+  <h2>テーブルの分類（OEM で写すか）</h2>
+  <p class="sub">2026-10-26 時点（データは 10/25 開催分まで）。10/17 の分類表（<code>baganriki_テーブル分類_20261017.xlsx</code>）をもとに、その後に増えたテーブルを足して見直した。行数は今日数えた値。</p>
+
+  <div class="card bad">
+    <h3>① 過去からの撮り溜め（JRA の事実データ）<span class="tag t-must">本体からもらう</span></h3>
+    <p class="sub">誰が取っても同じ中身。OEM が自分で取り直すと、JRA に何年分もアクセスすることになる。</p>
+    <div class="scroll"><table>
+      <tr><th>テーブル</th><th>期間</th><th>行数</th></tr>
+      <tr><td><code>race_result_history</code></td><td>2023-01-05〜</td><td>181,622</td></tr>
+      <tr><td><code>race_result_payout</code></td><td>2023-01-05〜</td><td>13,013</td></tr>
+      <tr><td><code>races_popularity_ratio</code></td><td>2023-01-05〜</td><td>13,119</td></tr>
+      <tr><td><code>shutsuba_history</code></td><td>2023-02-18〜</td><td>27,307</td></tr>
+    </table></div>
+    <p class="sub">※テーブル名の頭の <code>t_horse_odds_finder_</code> は省略。実際の取り溜めは約4年分（2023年1月〜）。</p>
+  </div>
+
+  <div class="card warn">
+    <h3>② 馬眼力が動きながら溜めているもの <span class="tag t-no">写さない</span></h3>
+    <p class="sub">馬眼力が自分で取った・作ったデータ。<b>あとから取り直せない</b>（特にオッズ推移）。OEM は動かし始めた日から溜まっていく。</p>
+    <div class="scroll"><table>
+      <tr><th>テーブル</th><th>期間</th><th>中身</th></tr>
+      <tr><td><code>summary</code></td><td>2026-06-06〜</td><td>レースごとのオッズ推移。下の③-2 の回収率集計の元</td></tr>
+      <tr><td><code>race_introspection</code></td><td>2026-06-06〜</td><td>AI の振り返り（馬眼力の脳みその元）</td></tr>
+      <tr><td><code>popularity_horse_check</code></td><td>2026-07-18〜</td><td>ピックアップ馬の的中チェック</td></tr>
+      <tr><td><code>ai_analysis2</code> / <code>ai_analysis</code></td><td>2026-08-15〜 / 08-29〜</td><td>2nd / 1st AI の予想</td></tr>
+      <tr><td><code>ai_merge_result</code></td><td>2026-09-22〜</td><td>1st・2nd の統合結果</td></tr>
+      <tr><td><code>market_score_log</code>・<code>ml_snapshot</code>・<code>high_payout_shadow_log</code></td><td>2026-09-19〜</td><td>検証用のログ（<code>ml_snapshot</code> は 80MB で一番大きい）</td></tr>
+      <tr><td><code>baganriki_race_runs</code> ほか <code>baganriki_*</code> 8表</td><td>2026-10-21〜</td><td>新しい予測の仕組み（10/17 の表には無かった）</td></tr>
+      <tr><td><code>websockets_statistics_entries</code></td><td>2026-08-19〜</td><td>WebSocket の利用ログ</td></tr>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <h3>③ 集計結果（毎晩の cron で自動で作られる）<span class="tag t-no">写さない</span></h3>
+    <p><b>③-1 元データが①</b> → ①をもらえば、OEM でも<b>最初の晩から</b>作られる</p>
+    <ul>
+      <li><code>popularity_rank_average</code>・<code>fuku_popularity_rank_average</code>・<code>similar_race_stats</code>（元：<code>race_result_history</code>）</li>
+      <li><code>horse_scores</code>・<code>jockey_scores</code>（元：<code>shutsuba_history</code>）</li>
+    </ul>
+    <p><b>③-2 元データが②（<code>summary</code>）</b> → OEM では<b>②が溜まるまで数字が出ない／ぶれる</b></p>
+    <ul>
+      <li><code>compute_odds_correction</code>（6分前→確定の補正係数）</li>
+      <li><code>opi_recovery</code>・<code>phase_pattern_recovery</code>・<code>odds_gap_recovery</code>（回収率系）</li>
+      <li><code>ml_snapshot</code> の正解ラベル、馬眼力の脳みそ（<code>makeBaganrikiBrain</code>）も <code>summary</code> を使う</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>④ 洗い替え（毎週土曜 5:50 に空にする）<span class="tag t-no">不要</span></h3>
+    <p><code>horses</code>・<code>odds</code>・<code>odds_get_timing</code>・<code>race_results</code>・<code>races</code>・<code>schedules</code>・<code>push_send_logs</code>・<code>forecast_from_last_race</code>・<code>popularity_rank_median</code>（9表。中身は今週分だけ）</p>
+  </div>
+
+  <div class="card">
+    <h3>⑤ 利用者のデータ <span class="tag t-no">写さない</span></h3>
+    <p><code>login_users</code>・<code>line_users</code>・<code>push_subscriptions</code>（OEM の利用者は別）</p>
+  </div>
+
+  <div class="card">
+    <h3>⑥ Laravel の仕組み用 <span class="tag t-no">空で作る</span></h3>
+    <p><code>jobs</code>・<code>job_batches</code>・<code>failed_jobs</code></p>
+  </div>
+
+  <div class="card">
+    <h3>⑦ 使っていない（名前の頭が <code>x_____</code>）<span class="tag t-no">作らない</span></h3>
+    <p>11表（netkeiba 系・odds_wide・fcm_tokens・Laravel 標準の旧テーブルなど）。ただし <code>x_____t_horse_odds_finder_ai_analysis_check</code> と <code>x_____t_horse_odds_finder_ai_recovery</code> は、<b>コードが「x_____ なし」の旧名のまま参照している</b>（該当の cron は停止中）。動かすとエラーになるので、OEM でもそのコマンドは動かさない。</p>
+  </div>
+
+  <div class="card warn">
+    <h3>①のもらい方（保留：OEM の販売が実際に決まってから考える）</h3>
+    <p>方向としては「本体から API でもらう」。やり方は2通りあり、2026-10-26 時点では<b>案2が有力</b>。</p>
+    <div class="scroll"><table>
+      <tr><th></th><th>案1：OEM はテーブルを持たず、毎回本体の API を読む</th><th>案2：本体が毎晩 API で配り、OEM は同じ名前のテーブルに入れる</th></tr>
+      <tr><td>減るもの</td><td>テーブル4つ</td><td>過去分を取る cron とスクレイパー（テーブルは残る）</td></tr>
+      <tr><td>コード</td><td>4表を読み書きしている約150か所（手元だけで25ファイル以上）を書き換え</td><td>そのまま（受け取る仕組みを1つ足すだけ）</td></tr>
+      <tr><td>本体が止まったら</td><td>OEM の予想作成も止まる（開催中でも）</td><td>前日までのデータで動き続ける</td></tr>
+      <tr><td>本体の負荷</td><td>OEM の数だけ毎回問い合わせが来る</td><td>1日1回、差分を渡すだけ</td></tr>
+    </table></div>
+    <p class="sub">注意：<code>race_result_payout</code> は開催日に毎分、その日の払戻を書き込むテーブルでもある（<code>importJraRaceOneResult</code>）。案2でも、その日のデータを書く cron は OEM に残す必要がある。どの cron を止められるかは、そのときに1つずつ確認する。</p>
+    <p class="sub">OEM が増えると、開催日の毎分のオッズ取得も社の数だけ JRA に飛ぶ。社数が増えたら「オッズ取得だけ本体でまとめて取って配る」も検討する。</p>
+  </div>
+</section>
+
+<section id="now">
+  <h2>今の 123 の構成（2026-10-26 時点）</h2>
+  <div class="card">
+    <div class="scroll"><table>
+      <tr><th>項目</th><th>内容</th></tr>
+      <tr><td>OS</td><td>CentOS Stream 9（カーネル 5.14）</td></tr>
+      <tr><td>メモリ</td><td>1.9GB（使用 1.0GB）</td></tr>
+      <tr><td>スワップ</td><td>3GB（<code>/swapfile</code> 1GB ＋ <code>/swapfile2</code> 2GB）、<b>1.4GB 使用中</b></td></tr>
+      <tr><td>ディスク</td><td>50GB（使用 11GB）</td></tr>
+      <tr><td>PHP</td><td>8.0.30（php-fpm）。拡張：bz2 calendar ctype curl date dom exif fileinfo filter ftp gd gettext hash iconv intl json libxml mbstring mysqli mysqlnd openssl pcntl pcre PDO pdo_mysql pdo_sqlite Phar readline ほか（opcache 有効）</td></tr>
+      <tr><td>php.ini</td><td><code>memory_limit 128M</code>、<code>max_execution_time 0</code>、<code>post_max_size 8M</code>、<code>upload_max_filesize 2M</code>、<code>date.timezone</code> 未設定、<code>session.upload_progress.enabled Off</code>、<code>opcache.memory_consumption 128</code></td></tr>
+      <tr><td>php-fpm</td><td>user/group <code>apache</code>、<code>/run/php-fpm/www.sock</code>、<code>pm = dynamic</code>、<code>max_children 8</code>、<code>start 2 / min 1 / max_spare 3</code>、<code>request_terminate_timeout 120s</code>、slowlog 有効</td></tr>
+      <tr><td>Laravel</td><td><b>8.83.29</b>（composer：<code>php ^7.3|^8.0</code>、<code>laravel/framework ^8.75</code>、<code>minishlink/web-push ^8.0</code>）</td></tr>
+      <tr><td>MySQL</td><td>8.4.9 Community</td></tr>
+      <tr><td>nginx</td><td>1.20.1。<code>conf.d</code>：<code>baganriki.conf</code>・<code>horse_odds_finder.conf</code>・<code>php-fpm.conf</code>・<code>cloudflare_realip.conf</code></td></tr>
+      <tr><td>nginx の主な設定</td><td><code>index.html</code>・<code>flutter_service_worker.js</code> は no-cache、静的ファイルは 1年キャッシュ、<code>/app/</code> は WebSocket（8084）へ、<code>Service-Worker-Allowed "/"</code>、<code>.data</code>・<code>.txt</code> の公開フォルダ（prompt・prompt_2nd・generated_prompt_list・race_introspection）</td></tr>
+      <tr><td>SSL</td><td>Let's Encrypt（certbot、自動更新タイマー有効）＋ Cloudflare</td></tr>
+      <tr><td>Node.js</td><td>v24.15.0 / npm 11.12.1</td></tr>
+      <tr><td>PM2</td><td>v7.0.3。<code>websockets</code>（<code>php artisan websockets:serve --port=8084</code>）、<code>pm2-centos.service</code> で自動起動</td></tr>
+      <tr><td>systemd（自作）</td><td><code>baganriki-prediction-worker@.service</code>（予測ワーカー）</td></tr>
+      <tr><td>スクレイパー</td><td><code>/var/www/horse_odds_finder/scripts/</code> に 15本（Payout・Schedule・RaceCourseDist・RaceResultHistory・RaceList・HorseDetail・RaceInnerOuter・RaceGrade・CollectStartTime・FinishingPosition・Tanpuku・JraRaceResult・Wide・RaceResult・Shutsuba）。手元のソースは <code>KEIBA/_____mjs/</code></td></tr>
+      <tr><td>public 直下</td><td><code>baganriki_brain</code>・<code>forecast_from_last_race</code>・<code>generated_prompt_list</code>・<code>horse_odds_finder</code>（Flutter）・<code>manual.html</code>・<code>prompt</code>・<code>prompt_2nd</code>・<code>race_introspection</code>・<code>robots.txt</code></td></tr>
+      <tr><td>権限</td><td><code>.env</code> centos:apache 640、<code>storage</code> と <code>storage/logs</code> は 777、<code>bootstrap/cache</code> 775</td></tr>
+      <tr><td>ファイアウォール</td><td><b>無効</b>（firewalld 停止）、SELinux も無効</td></tr>
+      <tr><td>動いているサービス</td><td>mysqld・nginx・php-fpm・crond・sshd・chronyd・rsyslog・tuned ほか OS 標準</td></tr>
+    </table></div>
+  </div>
+</section>
+
+<section id="cron">
+  <h2>cron（centos ユーザー）</h2>
+  <p class="sub">Laravel のスケジューラ（<code>schedule:list</code>）は使っておらず、全部 crontab に直接書かれている。root と apache の crontab は無し。新サーバでは <code>crontab -l</code> の内容をそのまま写して、パスだけ書き換える。</p>
+  <div class="card">
+    <div class="scroll"><table>
+      <tr><th>いつ</th><th>コマンド（<code>keiba:</code> 以降）</th><th>内容</th></tr>
+      <tr><td>土 5:50</td><td>deleteKeibaTableRecords</td><td>全テーブル TRUNCATE（毎週の洗い替え）</td></tr>
+      <tr><td>毎日 6:00</td><td>importSchedule</td><td>スケジュール・レース・馬情報</td></tr>
+      <tr><td>土 6:10</td><td>summaryRacesPopularityRatio</td><td>類似リスト用</td></tr>
+      <tr><td>毎日 6:20</td><td>summaryCalculateHorseScore</td><td>馬スコア</td></tr>
+      <tr><td>毎日 6:30</td><td>summaryCalculateJockeyScore</td><td>騎手スコア</td></tr>
+      <tr><td>（停止中）</td><td>ai-analysis-check</td><td>AI 的中率（コメントアウト）</td></tr>
+      <tr><td>毎日 7:00</td><td>importBaseOdds</td><td>初回オッズ</td></tr>
+      <tr><td>毎日 7:30</td><td>summaryForecastFromLastRace</td><td>過去出走から注目馬番（Claude API・有料）</td></tr>
+      <tr><td>毎日 8:00</td><td>ImportRacesPopularityRatio</td><td>類似リスト比較</td></tr>
+      <tr><td>毎日 8:30</td><td>summaryPopularityRankMedian</td><td>期待数値の比較用</td></tr>
+      <tr><td>9〜18時 毎分</td><td>importOdds</td><td>JRA オッズ</td></tr>
+      <tr><td>9〜19時 毎分</td><td>importJraRaceOneResult</td><td>レース結果</td></tr>
+      <tr><td>9〜18時 毎分</td><td>repairStartTime</td><td>発走時刻の変更を反映</td></tr>
+      <tr><td>9〜16時 毎分</td><td>ai-analysis-compensate --quiet-skip</td><td>6分前オッズが揃ったレースの AI 予想を先回り作成（<b>sudo -u apache</b>・有料）</td></tr>
+      <tr><td>9〜17時 毎分</td><td>ai-analysis-compensate --prediction-sweep（1st / 2nd の2行）</td><td>予測の巡回（<b>sudo -u apache</b>）</td></tr>
+      <tr><td>毎日 20:10</td><td>summary</td><td>サマリ</td></tr>
+      <tr><td>毎日 20:20</td><td>importJraRaceResult</td><td>レース結果更新</td></tr>
+      <tr><td>金以外 20:30</td><td>importRaceResultHistory</td><td>波乱度用データ</td></tr>
+      <tr><td>毎日 20:40</td><td>summaryHistoryFinishingPosition</td><td>着順</td></tr>
+      <tr><td>毎日 20:50</td><td>SummaryRacesIntrospection</td><td>反省文（AI・有料）</td></tr>
+      <tr><td>毎日 21:00</td><td>summaryHistoryPopularityRank</td><td>人気順</td></tr>
+      <tr><td>土以外 21:10</td><td>summaryPopularityRankAverage</td><td>人気順平均オッズ</td></tr>
+      <tr><td>毎日 21:20</td><td>SummaryComputeOddsCorrection</td><td>6分前→確定の補正係数</td></tr>
+      <tr><td>毎日 21:30</td><td>popularityHorseCheck</td><td>ピックアップ馬の的中チェック</td></tr>
+      <tr><td>毎日 21:40</td><td>SummaryOddsPhasePatternRecoveryRate</td><td>オッズの動きのパターン別回収率</td></tr>
+      <tr><td>毎日 21:50</td><td>importRaceResultPayout</td><td>払戻金</td></tr>
+      <tr><td>毎日 22:00</td><td>summaryFukuPopularityRankAverage</td><td>複勝 OPI 用</td></tr>
+      <tr><td>毎日 22:10</td><td>importShutsubaHistory</td><td>出走情報</td></tr>
+      <tr><td>毎日 22:20</td><td>SummaryOddsGapRecoveryRate</td><td>変化率帯×人気帯の回収率</td></tr>
+      <tr><td>毎日 22:30</td><td>SummaryOpiRecoveryRate</td><td>人気順ごとの過去平均オッズ</td></tr>
+      <tr><td>毎日 22:40</td><td>importPayoutCourseDist</td><td>払戻にコース・距離</td></tr>
+      <tr><td>毎日 22:50</td><td>importPayoutInnerOuter</td><td>払戻に内・外</td></tr>
+      <tr><td>毎日 23:00</td><td>importPayoutGrade</td><td>レースのグレード</td></tr>
+      <tr><td>毎日 23:10</td><td>summarySimilarRaceStats</td><td>類似レース統計</td></tr>
+      <tr><td>毎日 23:20</td><td>ai-analysis-compensate</td><td>AI 予想の取りこぼし補完（<b>sudo -u apache</b>・有料）</td></tr>
+      <tr><td>毎日 23:40</td><td>updateMlResultLabels</td><td>断層パターン学習の正解ラベル</td></tr>
+      <tr><td>毎日 23:50</td><td>makeBaganrikiBrain</td><td>馬眼力の脳みそ作成</td></tr>
+    </table></div>
+    <p class="sub">多くの行に <code>flock -n /tmp/keiba_〇〇.lock</code> が付いている（二重起動防止）。そのまま写す。</p>
+  </div>
+</section>
+
+<section id="env">
+  <h2>.env のキー（値はここに書かない）</h2>
+  <div class="card">
+    <p><b>OEM ごとに必ず別の値にする</b>：<code>APP_KEY</code>・<code>APP_URL</code>・<code>DB_*</code>・<code>ANTHROPIC_API_KEY</code>・<code>DEEPSEEK_API_KEY</code>・<code>VAPID_PUBLIC_KEY</code> / <code>VAPID_PRIVATE_KEY</code> / <code>VAPID_SUBJECT</code>・<code>PUSHER_*</code>・<code>MAIL_*</code>・<code>FCM_PROJECT_ID</code> / <code>FIREBASE_CREDENTIALS</code></p>
+    <p><b>馬眼力の動作切替</b>（本体と同じ値から始めてよい）：<code>BAGANRIKI_R122_AUDIT</code>・<code>_PROMPT</code>・<code>_QUEUE</code>・<code>_JOBS</code>・<code>_TARGETS</code>・<code>_TARGETS_ENFORCE</code>・<code>_1ST_MODEL</code>・<code>_1ST_THINKING</code>・<code>_1ST_MAX_TOKENS</code>・<code>_2ND_MAX_TOKENS</code>・<code>_FIX_MAX_WAIT</code>・<code>_FAKE_AI</code>、<code>BAGANRIKI_SALES_CLOSE_DERIVE</code>・<code>BAGANRIKI_SALES_CLOSE_OFFSET_SEC</code>・<code>BAGANRIKI_PAST_RUNS_MAX</code></p>
+    <p class="sub">注意：今の .env は <code>MAIL_*</code> と <code>PUSHER_*</code> が<b>2回ずつ書かれている</b>（後に書いた方が効く）。コピーするときに1つにまとめる。</p>
+  </div>
+</section>
+
+<section id="trap">
+  <h2>ハマりどころ（実際に起きたこと）</h2>
+  <div class="card warn">
+    <ol>
+      <li><b>.env の権限</b>：<code>centos:apache</code>・<code>640</code> でないと apache が読めず、<b>全 API が 500</b>（DB ユーザーが forge になる）。.env を触ったら必ず：
+<pre>sudo chgrp apache .env && sudo chmod 640 .env
+sudo -u apache test -r .env && echo 読める</pre></li>
+      <li><b>AI 補完は apache で動かす</b>：<code>ai-analysis-compensate</code> は <code>sudo -u apache</code> 必須。centos のまま動かすとロックファイルが作れず全レース失敗する（2026-09-28 判明）。</li>
+      <li><b>Flutter の更新が反映されない</b>：Service Worker のキャッシュ。nginx で <code>index.html</code>・<code>flutter_service_worker.js</code> を no-cache にし、Cloudflare にも Cache Rule を作る。<code>deploy.sh</code> の最後で Cloudflare のキャッシュを全削除している。</li>
+      <li><b>php-fpm の並列数</b>：<code>pm.max_children = 8</code>。利用者が増えると待ちが出る。メモリを増やしたら合わせて増やす。</li>
+      <li><b>CentOS Stream のミラーエラー</b>：<code>dnf</code> で「checksum doesn't match」が出ることがある。ミラー側の一時的な不整合で、時間を置くと直る（2026-10-24 に発生、翌日は解消）。</li>
+      <li><b>MCP（odds_mysql）の日時</b>：UTC で返るので +9時間して読む。</li>
+      <li><b>毎週土曜 5:50 に全テーブル TRUNCATE</b>：OEM でも同じ設計なら、データの洗い替えを前提に作る。</li>
+    </ol>
+  </div>
+</section>
+
+<section id="weak">
+  <h2>OEM の前に直しておきたい所</h2>
+  <div class="card bad">
+    <div class="scroll"><table>
+      <tr><th>重要度</th><th>内容</th><th>なぜ</th></tr>
+      <tr><td>高</td><td><b>Laravel 8 → 10 / 11 へ更新</b>（PHP 8.3 / 8.4 で動かすため）</td><td>Laravel 8 も PHP 8.0 も公式サポート終了済み。新しい PHP では Laravel 8 が動かない可能性が高い</td></tr>
+      <tr><td>高</td><td><b>ファイアウォール有効化</b>（22 / 80 / 443 のみ）</td><td>今は無効。MySQL などが外から見えないかは設定頼み</td></tr>
+      <tr><td>高</td><td><b>SSH を鍵のみ・root 禁止</b>（<code>PasswordAuthentication no</code>、<code>PermitRootLogin no</code>）</td><td>今は既定のまま。123 でもログイン失敗が来ている（205・135 はさらに多い）</td></tr>
+      <tr><td>高</td><td><b>AI の API キーを OEM ごとに分け、利用上限を設定</b></td><td>費用の切り分けと、暴走時の上限</td></tr>
+      <tr><td>中</td><td><b>MySQL：アプリ用ユーザーと読み取り専用ユーザーを分ける</b></td><td>MCP の設定ファイルに root の平文パスワードがある（宿題）</td></tr>
+      <tr><td>中</td><td><b>メモリ 4GB 以上</b></td><td>今はスワップを 1.4GB 使っていて、遅くなる原因</td></tr>
+      <tr><td>中</td><td><b>パス・ドメインの直書きをやめる</b>（<code>.env</code> / <code>config</code> に寄せる）</td><td>OEM が増えるたびに75か所以上を書き換えることになる</td></tr>
+      <tr><td>中</td><td><b>storage の権限を 777 → 775（apache グループ）</b></td><td>777 は誰でも書き込める</td></tr>
+      <tr><td>低</td><td><b>.env の重複キーを整理</b></td><td>どちらが効いているか分かりにくい</td></tr>
+      <tr><td>低</td><td><b>AI を呼ぶ API の入口をもう一度点検</b></td><td>過去レース画面のように「見るだけで有料 AI が呼ばれる」所が他に無いか</td></tr>
+    </table></div>
+  </div>
+</section>
+
+<section id="decide">
+  <h2>決まっていること</h2>
+  <div class="card">
+    <div class="scroll"><table>
+      <tr><th>項目</th><th>決定</th><th>これで変わること</th></tr>
+      <tr><td>サーバ</td><td><b>OEM ごとに分ける</b></td><td>このファイルの手順を OEM の数だけ行う。cron・スクレイピングも社ごとに動く（JRA へのアクセスも社の数だけ増える）</td></tr>
+      <tr><td>データ</td><td><b>基本は写さない。空から別に動かす</b><br>ただし<b>過去からの撮り溜め（JRA の事実データ4表）は本体からもらう</b></td><td>どれをもらうかは <a href="#tables">テーブルの分類</a>。馬眼力が溜めたオッズ推移（<code>summary</code>）は写さないので、それを元にした回収率系の数字は<b>溜まるまで出ない／ぶれる</b></td></tr>
+      <tr><td>コード</td><td><b>そのままコピー</b></td><td>社ごとの改変はしない</td></tr>
+      <tr><td>AI 予想</td><td><b>共有しない。社ごとに別に回す</b></td><td>AI の費用は社ごと。API キーと利用上限も社ごとに設定する</td></tr>
+    </table></div>
+    <h3>コード</h3>
+    <ul>
+      <li><b>馬眼力のコードをそのままコピーするだけ</b>。社ごとにプロンプトや処理を変えることはしない。</li>
+      <li>コピー後に変えるのは <a href="#rewrite">書き換える値</a>（ドメイン・パス・アプリ名・<code>deploy.sh</code>）と <code>.env</code> だけ。</li>
+    </ul>
+  </div>
+</section>
+
+<hr>
+<p class="sub">このファイルの元データ：123 で 2026-10-26 07:44（JST）に取得した構成一覧、手元の Flutter（<code>keiba_odds_finder</code>）と Laravel（<code>_____laravel</code>）。手元の Laravel は一部のファイルだけなので、「直書きの数」はサーバ全体ではもっと多い可能性あり。</p>
+</main>
+</body>
+</html>

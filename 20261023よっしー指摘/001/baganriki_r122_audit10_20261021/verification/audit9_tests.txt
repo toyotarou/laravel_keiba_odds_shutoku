@@ -1,0 +1,112 @@
+PASS applicable SIGNAL survives qualification: HORSE partial
+PASS two-role publication retains scoped evidence: HORSE partial
+PASS applicable SIGNAL survives qualification: HORSE complete
+PASS two-role publication retains scoped evidence: HORSE complete
+PASS applicable SIGNAL survives qualification: PAIR partial
+PASS two-role publication retains scoped evidence: PAIR partial
+PASS applicable SIGNAL survives qualification: PAIR complete
+PASS two-role publication retains scoped evidence: PAIR complete
+PASS applicable SIGNAL survives qualification: COHORT partial
+PASS two-role publication retains scoped evidence: COHORT partial
+PASS applicable SIGNAL survives qualification: COHORT complete
+PASS two-role publication retains scoped evidence: COHORT complete
+PASS bad score preserves applicable signal: PAIR
+PASS valid correction restores scoped score: PAIR
+PASS bad score preserves applicable signal: COHORT
+PASS valid correction restores scoped score: COHORT
+PASS unqualified evidence stays excluded: foreign HORSE
+PASS unqualified evidence stays excluded: foreign PAIR
+PASS unqualified evidence stays excluded: foreign COHORT
+PASS unqualified evidence stays excluded: RACE only
+PASS unqualified evidence stays excluded: PAIR context
+PASS unqualified evidence stays excluded: COHORT context
+PASS unqualified evidence stays excluded: unknown scope
+PASS ordinary text is not a nonfinite number: Infinity Stable
+PASS ordinary text is not a nonfinite number: NaN recorded
+PASS ordinary text is not a nonfinite number: text -Infinity only
+PASS ordinary text is not a nonfinite number: 説明にNaNという文字がある
+PASS actual nonfinite number rejected: positive
+PASS actual nonfinite number rejected: negative
+PASS actual nonfinite number rejected: nan
+PASS generated JSON enforces exact 4 MiB boundary: -1
+PASS generated JSON enforces exact 4 MiB boundary: 0
+PASS generated JSON enforces exact 4 MiB boundary: 1
+PASS multibyte JSON limit counts bytes
+PASS canonical JSON keeps order independence and null/zero distinction
+PASS later adopted odds cannot resurrect cancellation: 21
+PASS later adopted odds cannot resurrect cancellation: 18
+PASS later adopted odds cannot resurrect cancellation: 15
+PASS later adopted odds cannot resurrect cancellation: 12
+PASS later adopted odds cannot resurrect cancellation: 9
+PASS earlier odds then later cancellation remains valid
+PASS repeated cancellation does not create conflict
+PASS unadopted cancellation cannot pollute conflict detection: uncommitted
+PASS unadopted cancellation cannot pollute conflict detection: hash-mismatch
+PASS unadopted cancellation cannot pollute conflict detection: late
+PASS declared headcount mismatch or invalid value stops input: 3
+PASS declared headcount mismatch or invalid value stops input: "3"
+PASS declared headcount mismatch or invalid value stops input: 0
+PASS declared headcount mismatch or invalid value stops input: -1
+PASS declared headcount mismatch or invalid value stops input: "2.5"
+PASS declared headcount mismatch or invalid value stops input: "broken"
+PASS matching or absent declared headcount remains supported: 2
+PASS matching or absent declared headcount remains supported: "2"
+PASS matching or absent declared headcount remains supported: null
+PASS invalid entry horse identity cannot be coerced: "1x"
+PASS invalid entry horse identity cannot be coerced: 1.5
+PASS invalid entry horse identity cannot be coerced: true
+PASS invalid entry horse identity cannot be coerced: []
+PASS invalid entry horse identity cannot be coerced: null
+PASS invalid entry horse identity cannot be coerced: "9223372036854775808"
+PASS invalid entry horse identity cannot be coerced: 0
+PASS invalid entry horse identity cannot be coerced: -1
+PASS conflicting duplicate entry cannot silently overwrite its name
+PASS identical duplicate and padded integer database key stay supported
+PASS recovery raw numeric precision retained: recovery_rate
+PASS recovery raw numeric precision retained: win_rate
+PASS recovery raw numeric precision retained: sample_count
+PASS similarity raw value retained: top3_rate
+PASS similarity raw value retained: top5_rate
+PASS similarity raw value retained: avg_finishing_position
+PASS similarity raw value retained: outside_rate
+PASS similarity raw value retained: sample_count
+PASS similarity raw value retained: reliability
+PASS invalid row cannot borrow another row timestamp: popavg null
+PASS invalid row cannot borrow another row timestamp: popavg "bad"
+PASS invalid row cannot borrow another row timestamp: popavg "2026-02-30 10:00:00"
+PASS invalid row cannot borrow another row timestamp: popavg "2026-10-24 11:55:00.000001"
+PASS invalid row cannot borrow another row timestamp: fukuavg null
+PASS invalid row cannot borrow another row timestamp: fukuavg "bad"
+PASS invalid row cannot borrow another row timestamp: fukuavg "2026-02-30 10:00:00"
+PASS invalid row cannot borrow another row timestamp: fukuavg "2026-10-24 11:55:00.000001"
+PASS invalid row cannot borrow another row timestamp: corr null
+PASS invalid row cannot borrow another row timestamp: corr "bad"
+PASS invalid row cannot borrow another row timestamp: corr "2026-02-30 10:00:00"
+PASS invalid row cannot borrow another row timestamp: corr "2026-10-24 11:55:00.000001"
+PASS valid statistics keep their own row timestamp: popavg
+PASS verified_at fallback and exact cutoff remain valid: popavg
+PASS malformed recorded computed_at cannot use verified_at fallback: popavg
+PASS valid statistics keep their own row timestamp: fukuavg
+PASS verified_at fallback and exact cutoff remain valid: fukuavg
+PASS malformed recorded computed_at cannot use verified_at fallback: fukuavg
+PASS valid statistics keep their own row timestamp: corr
+PASS verified_at fallback and exact cutoff remain valid: corr
+PASS malformed recorded computed_at cannot use verified_at fallback: corr
+PASS market raw numeric precision retained: popavg_rank1_win_odds
+PASS market raw numeric precision retained: popavg_rank1_count
+PASS market raw numeric precision retained: fukuavg_rank1_place_min
+PASS market raw numeric precision retained: fukuavg_rank1_count
+PASS market raw numeric precision retained: corr_rank1_avg_correction_ratio
+PASS market raw numeric precision retained: corr_rank1_std_correction_ratio
+PASS market raw numeric precision retained: corr_rank1_sample_count
+PASS unavailable statistics stay unavailable when every timestamp is missing
+PASS nonduplicate database error is not disguised: 1048
+PASS nonduplicate database error is not disguised: 1451
+PASS nonduplicate database error is not disguised: 1452
+PASS nonduplicate database error is not disguised: 3819
+PASS nonduplicate database error is not disguised: 1213
+PASS nonduplicate database error is not disguised: 1205
+PASS duplicate error identified by vendor code even when localized
+PASS unstructured SQL-like value is not a duplicate error
+PASS legacy duplicate-entry message remains recognized
+AUDIT9 RESULT: 111 passed, 0 failed. PHP with DB/HTTP doubles; no real database or external AI.

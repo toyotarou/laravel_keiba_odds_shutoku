@@ -1,0 +1,42 @@
+PASS numeric and quoted string stay distinct
+PASS decimal and container types round-trip
+PASS comparison rejects numeric-to-string change
+PASS comparison rejects empty list-to-object change
+PASS integer syntax differs; equivalent decimal syntax agrees
+PASS object member order is not a change
+PASS array element order remains meaningful
+PASS edited number is saved instead of stale path value
+PASS ordinary json_encode fails instead of quoting number
+PASS integer beyond PHP range remains exact
+PASS 5001st number survives audit path cap
+PASS strict parser rejects invalid case 1
+PASS strict parser rejects invalid case 2
+PASS strict parser rejects invalid case 3
+PASS strict parser rejects invalid case 4
+PASS strict parser rejects invalid case 5
+PASS strict parser rejects invalid case 6
+PASS strict parser rejects invalid case 7
+PASS numeric exponent limits remain usable
+PASS race identifier parses explicitly
+PASS invalid calendar date is rejected
+PASS separate Decimal instances compare by value and type
+PASS unchanged full correction row is accepted
+PASS out-of-scope numeric/string mutation is rejected
+PASS allowed summary edit keeps equal Decimal evidence
+PASS slow second role cannot cause early publication
+PASS reply equality is still a response window
+PASS deadline can aggregate while one role is unfinished
+PASS both fully processed roles may aggregate early
+PASS changed journal invalidates prior settled marker
+PASS publication after its deadline is rejected
+PASS real extract/envelope/isolate/diagnose pipeline accepts fixture
+PASS controller validation storage preserves precision and container type
+PASS saved normal row can be reread and compared exactly
+PASS publication proof survives separately parsed equal Decimal values
+PASS Decimal score cannot masquerade as integer
+PASS Decimal rank cannot coerce to horse 1
+PASS Decimal public candidate cannot coerce to horse 1
+PASS Decimal role cap is rejected without integer coercion
+PASS empty object quota is rejected without object subscript error
+PASS validation write failure propagates instead of silently settling
+RESULT: 41 passed, 0 failed. In-memory DB only; no API calls.

@@ -1,0 +1,29 @@
+Supplied original controller SHA256: 4594d52bdfeaf8d3ae3f887238fdf20bf30f6ec732a773ce1e0adf84e5d8726f
+AiController.patch: git apply --check PASS; exact byte reproduction PASS.
+Initial 011 controller SHA256: 6ad0f63b605d65e626b4c6f6d41a17d100a8a315e542233643463f44e9735af9
+011_to_rechecked_AiController.patch: git apply --check PASS; exact byte reproduction PASS.
+First re-audit controller SHA256: 3c191946c2e031805751a9be697ffd9af76e0420579014dbcfa352c829188c3e
+reaudit1_to_reaudit10_AiController.patch: git apply --check PASS; exact byte reproduction PASS.
+Second re-audit controller SHA256: ff10a872e75e0eb7df1f932721cc2a82df57a805b575d10d8cc90e26c6a92a86
+reaudit2_to_reaudit10_AiController.patch: git apply --check PASS; exact byte reproduction PASS.
+Third re-audit controller SHA256: f85bbd4d0a5ae76d97d1953694a181b7f61cdc9bd076cc74465f9f84bfca9d56
+reaudit3_to_reaudit10_AiController.patch: git apply --check PASS; exact byte reproduction PASS.
+Fourth re-audit controller SHA256: 7cc7ad93eca39d6e5c4cf3b2520171dfb29db3270d8cf920f9bb265d6cff1856
+reaudit4_to_reaudit10_AiController.patch: git apply --check PASS; exact byte reproduction PASS.
+Fifth re-audit controller SHA256: 29b3df339b4355f5c31837610997faebebe2813b557697e51a4715d88eb2e0f5
+reaudit5_to_reaudit10_AiController.patch: git apply --check PASS; exact byte reproduction PASS.
+Sixth re-audit controller SHA256: 2b138c5bf7d06ea3438ef3bfeaf5ced8a5f416713faaef3b51a66dc165bb6b6a
+reaudit6_to_reaudit10_AiController.patch: git apply --check PASS; exact byte reproduction PASS.
+Seventh re-audit controller SHA256: ae642ffa95197be0f68fd4c95761549ba9cb35ffd63a93325a9b5e95ab33466d
+reaudit7_to_reaudit10_AiController.patch: git apply --check PASS; exact byte reproduction PASS.
+Eighth re-audit controller SHA256: 3a336048b8888032abd0501da2c3c32aa56e1173f4824adf4700ed22651018e0
+reaudit8_to_reaudit10_AiController.patch: git apply --check PASS; exact byte reproduction PASS.
+Ninth re-audit controller SHA256: 9d960d7577fee678f97f487fce2d7752670236c76b0a8b9ac0d48857457065f8
+reaudit9_to_reaudit10_AiController.patch: git apply --check PASS; exact byte reproduction PASS.
+Current controller SHA256: fc928e4b7c4115a06457db19acaade6069272ccff71a262e3c5fbc08aa9e435f
+Class constant declarations compared: 105; all byte-identical.
+Method inventory: unchanged. Modified methods from supplied original: 40; matches MODIFIED_METHODS.txt.
+Changes relative to ninth re-audit: AiController::r122GatherContext, BaganrikiAcquisition::usableDecimal
+Support, Jobs, Console, config and migrations: byte-identical to ninth re-audit.
+All pre-existing test PHP files and embedded selftest: byte-identical to ninth re-audit.
+Other three supplied Summary PHP files: not modified, not included as replacements.

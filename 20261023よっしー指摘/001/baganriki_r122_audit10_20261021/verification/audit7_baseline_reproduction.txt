@@ -1,0 +1,68 @@
+FAIL unsupported zero is null and cannot force SCORE: H1: RuntimeException unsupported zero counted as observed
+PASS supported zero remains a complete score: H1
+FAIL unsupported zero is null and cannot force SCORE: H2: RuntimeException unsupported zero counted as observed
+PASS supported zero remains a complete score: H2
+FAIL unsupported zero is null and cannot force SCORE: H3: RuntimeException unsupported zero counted as observed
+PASS supported zero remains a complete score: H3
+FAIL unsupported zero is null and cannot force SCORE: H4: RuntimeException unsupported zero counted as observed
+PASS supported zero remains a complete score: H4
+FAIL unsupported zero is null and cannot force SCORE: H5: RuntimeException unsupported zero counted as observed
+PASS supported zero remains a complete score: H5
+FAIL unsupported zero is null and cannot force SCORE: V1: RuntimeException unsupported zero counted as observed
+PASS supported zero remains a complete score: V1
+FAIL unsupported zero is null and cannot force SCORE: V2: RuntimeException unsupported zero counted as observed
+PASS supported zero remains a complete score: V2
+FAIL unsupported zero is null and cannot force SCORE: V3: RuntimeException unsupported zero counted as observed
+PASS supported zero remains a complete score: V3
+FAIL unsupported zero is null and cannot force SCORE: V4: RuntimeException unsupported zero counted as observed
+PASS supported zero remains a complete score: V4
+FAIL unsupported zero is null and cannot force SCORE: V5: RuntimeException unsupported zero counted as observed
+PASS supported zero remains a complete score: V5
+FAIL unverifiable zero entry remains local: null-entry: RuntimeException unverifiable zero survived or valid qualification lost
+FAIL unverifiable zero entry remains local: empty-object: RuntimeException unverifiable zero survived or valid qualification lost
+FAIL unverifiable zero entry remains local: missing-refs: RuntimeException unverifiable zero survived or valid qualification lost
+FAIL all unobserved zeros cannot fabricate complete scoring: RuntimeException unobserved zeros still fabricate completeness
+FAIL unobserved zero correction cannot restore completeness: RuntimeException unsupported zero was applied as a valid repair
+PASS supported zero correction restores valid scoring and proof
+FAIL two-role publication with zero evidence: missing: RuntimeException wrong proof bonus persisted
+PASS two-role publication with zero evidence: supported
+FAIL invalid database time is not normalized: input 2026-02-30 12:00:00: RuntimeException invalid or over-precision time was silently changed
+FAIL invalid database time is not normalized: input 2026-10-24 12:60:00: RuntimeException invalid or over-precision time was silently changed
+FAIL invalid database time is not normalized: input 2026-10-24 12:00:60: RuntimeException invalid or over-precision time was silently changed
+FAIL invalid database time is not normalized: input 2026-10-24 12:00:00.1234567: RuntimeException invalid or over-precision time was silently changed
+FAIL invalid database time is not normalized: input 2026-10-24 12:00:00junk: RuntimeException invalid or over-precision time was silently changed
+FAIL invalid database time is not normalized: input 2026-10-24 12:00:00+00:00: RuntimeException invalid or over-precision time was silently changed
+FAIL invalid database time is not normalized: input 2026-00-24 12:00:00: RuntimeException invalid or over-precision time was silently changed
+FAIL invalid database time is not normalized: input 2026-10-00 12:00:00: RuntimeException invalid or over-precision time was silently changed
+PASS invalid database time is not normalized: registry 2026-02-30 12:00:00
+FAIL invalid database time is not normalized: registry 2026-10-24 12:60:00: RuntimeException invalid or over-precision time was silently changed
+FAIL invalid database time is not normalized: registry 2026-10-24 12:00:60: RuntimeException invalid or over-precision time was silently changed
+FAIL invalid database time is not normalized: registry 2026-10-24 12:00:00.1234567: RuntimeException invalid or over-precision time was silently changed
+PASS invalid database time is not normalized: registry 2026-10-24 12:00:00junk
+PASS invalid database time is not normalized: registry 2026-10-24 12:00:00+00:00
+PASS invalid database time is not normalized: registry 2026-00-24 12:00:00
+PASS invalid database time is not normalized: registry 2026-10-00 12:00:00
+FAIL invalid database time is not normalized: deadline 2026-02-30 12:00:00: RuntimeException invalid or over-precision time was silently changed
+FAIL invalid database time is not normalized: deadline 2026-10-24 12:60:00: RuntimeException invalid or over-precision time was silently changed
+FAIL invalid database time is not normalized: deadline 2026-10-24 12:00:60: RuntimeException invalid or over-precision time was silently changed
+PASS invalid database time is not normalized: deadline 2026-10-24 12:00:00.1234567
+PASS invalid database time is not normalized: deadline 2026-10-24 12:00:00junk
+PASS invalid database time is not normalized: deadline 2026-10-24 12:00:00+00:00
+FAIL invalid database time is not normalized: deadline 2026-00-24 12:00:00: RuntimeException invalid or over-precision time was silently changed
+FAIL invalid database time is not normalized: deadline 2026-10-00 12:00:00: RuntimeException invalid or over-precision time was silently changed
+PASS valid database time preserves microseconds: input seconds
+PASS valid database time preserves microseconds: input 0
+PASS valid database time preserves microseconds: input 000001
+PASS valid database time preserves microseconds: input 123456
+PASS valid database time preserves microseconds: registry seconds
+PASS valid database time preserves microseconds: registry 0
+PASS valid database time preserves microseconds: registry 000001
+PASS valid database time preserves microseconds: registry 123456
+PASS valid database time preserves microseconds: deadline seconds
+PASS valid database time preserves microseconds: deadline 0
+PASS valid database time preserves microseconds: deadline 000001
+PASS valid database time preserves microseconds: deadline 123456
+PASS DATE-only registry input and DateTime deadline input stay supported
+FAIL input time conversion cannot truncate a late batch into the cutoff: RuntimeException over-precision receipt was moved onto the exact cutoff
+FAIL unparseable received_at cannot authorize publication: RuntimeException invalid calendar receipt accepted
+AUDIT7 RESULT: 33 passed, 34 failed. PHP with DB/HTTP doubles; no real database or external AI.

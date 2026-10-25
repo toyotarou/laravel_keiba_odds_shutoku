@@ -1,0 +1,2648 @@
+再精査10版 全機能検査の実行項目
+2026-10-21 / PHP 8.3.33 WASM CLI
+DB/Queue/HTTP/lockは代替実装。実環境の結合・並列動作を保証しない。
+同じIDの自己試験でも、確認点ごとに別項目として計数している。
+型置換1,053ケース、構文確認、差分適用は別集計。
+
+
+tests/run.php: 41成功 / 0失敗
+0001 PASS numeric and quoted string stay distinct
+0002 PASS decimal and container types round-trip
+0003 PASS comparison rejects numeric-to-string change
+0004 PASS comparison rejects empty list-to-object change
+0005 PASS integer syntax differs; equivalent decimal syntax agrees
+0006 PASS object member order is not a change
+0007 PASS array element order remains meaningful
+0008 PASS edited number is saved instead of stale path value
+0009 PASS ordinary json_encode fails instead of quoting number
+0010 PASS integer beyond PHP range remains exact
+0011 PASS 5001st number survives audit path cap
+0012 PASS strict parser rejects invalid case 1
+0013 PASS strict parser rejects invalid case 2
+0014 PASS strict parser rejects invalid case 3
+0015 PASS strict parser rejects invalid case 4
+0016 PASS strict parser rejects invalid case 5
+0017 PASS strict parser rejects invalid case 6
+0018 PASS strict parser rejects invalid case 7
+0019 PASS numeric exponent limits remain usable
+0020 PASS race identifier parses explicitly
+0021 PASS invalid calendar date is rejected
+0022 PASS separate Decimal instances compare by value and type
+0023 PASS unchanged full correction row is accepted
+0024 PASS out-of-scope numeric/string mutation is rejected
+0025 PASS allowed summary edit keeps equal Decimal evidence
+0026 PASS slow second role cannot cause early publication
+0027 PASS reply equality is still a response window
+0028 PASS deadline can aggregate while one role is unfinished
+0029 PASS both fully processed roles may aggregate early
+0030 PASS changed journal invalidates prior settled marker
+0031 PASS publication after its deadline is rejected
+0032 PASS real extract/envelope/isolate/diagnose pipeline accepts fixture
+0033 PASS controller validation storage preserves precision and container type
+0034 PASS saved normal row can be reread and compared exactly
+0035 PASS publication proof survives separately parsed equal Decimal values
+0036 PASS Decimal score cannot masquerade as integer
+0037 PASS Decimal rank cannot coerce to horse 1
+0038 PASS Decimal public candidate cannot coerce to horse 1
+0039 PASS Decimal role cap is rejected without integer coercion
+0040 PASS empty object quota is rejected without object subscript error
+0041 PASS validation write failure propagates instead of silently settling
+
+tests/audit.php: 29成功 / 0失敗
+0042 PASS retry a transient pre-reservation failure
+0043 PASS do not enqueue duplicate pending role jobs after throttle expiry
+0044 PASS all-cancelled race cannot consume a reserved send right
+0045 PASS send gate checks fresh time after lock acquisition
+0046 PASS missing finish reason is incomplete: 1st
+0047 PASS missing finish reason is incomplete: 2nd
+0048 PASS malformed nested evidence is isolated: decimal_entry
+0049 PASS malformed nested evidence is isolated: empty_object_entry
+0050 PASS malformed nested evidence is isolated: bad_source_refs
+0051 PASS malformed nested evidence is isolated: bad_family_refs
+0052 PASS unsafe MySQL JSON storage is blocked before saving Decimal values
+0053 PASS missing validation table must not be treated as successful inspection
+0054 PASS invalid calendar close timestamp is rejected
+0055 PASS live update cannot modify a replay generation
+0056 PASS frozen input keeps exact values in correction payload
+0057 PASS out-of-scope missing versus null field is not silently equal
+0058 PASS metadata database writes wait until after raw response handling
+0059 PASS conflicting confirmed cancellation is reapplied to fresh revision
+0060 PASS complete score summary requires an integer total
+0061 PASS job marker and queue insert roll back together
+0062 PASS active worker suppresses duplicate; released worker lock permits recovery
+0063 PASS SENT journal is never sent again by recovery
+0064 PASS one reserved slot grants the send right only once
+0065 PASS processing exception leaves role unsettled and clears role context
+0066 PASS received is not settled; both processed roles are required before deadline
+0067 PASS repeat live update is idempotent despite an old caller revision
+0068 PASS no send when the remaining first-response window is too short
+0069 PASS replay generation cannot publish even after reply deadline
+0070 PASS disabled owned race does not fall back to legacy send permission
+
+tests/legacy.php: 662成功 / 0失敗
+0071 PASS E-T01 | mode
+     期待値: "VOLATILE"
+     得た値: "VOLATILE"
+0072 PASS E-T01 | S
+     期待値: 4
+     得た値: 4
+0073 PASS E-T01 | S_min
+     期待値: 4
+     得た値: 4
+0074 PASS E-T01 | S_max
+     期待値: 4
+     得た値: 4
+0075 PASS E-T01 | unknown_features
+     期待値: []
+     得た値: []
+0076 PASS E-T01 | mode_has_unknown
+     期待値: false
+     得た値: false
+0077 PASS E-T01 | allocation_mode
+     期待値: "VOLATILE"
+     得た値: "VOLATILE"
+0078 PASS E-T01 | target_count
+     期待値: 7
+     得た値: 7
+0079 PASS E-T01 | quota
+     期待値: {"A":3,"B":3,"D":1}
+     得た値: {"A":3,"B":3,"D":1}
+0080 PASS E-T02 | mode
+     期待値: "VOLATILE"
+     得た値: "VOLATILE"
+0081 PASS E-T02 | S
+     期待値: 4
+     得た値: 4
+0082 PASS E-T02 | S_min
+     期待値: 4
+     得た値: 4
+0083 PASS E-T02 | S_max
+     期待値: 4
+     得た値: 4
+0084 PASS E-T02 | unknown_features
+     期待値: []
+     得た値: []
+0085 PASS E-T02 | mode_has_unknown
+     期待値: false
+     得た値: false
+0086 PASS E-T02 | allocation_mode
+     期待値: "VOLATILE"
+     得た値: "VOLATILE"
+0087 PASS E-T02 | target_count
+     期待値: 6
+     得た値: 6
+0088 PASS E-T02 | quota
+     期待値: {"A":3,"B":2,"D":1}
+     得た値: {"A":3,"B":2,"D":1}
+0089 PASS E-T03 | mode
+     期待値: "VOLATILE"
+     得た値: "VOLATILE"
+0090 PASS E-T03 | S
+     期待値: 4
+     得た値: 4
+0091 PASS E-T03 | S_min
+     期待値: 4
+     得た値: 4
+0092 PASS E-T03 | S_max
+     期待値: 4
+     得た値: 4
+0093 PASS E-T03 | unknown_features
+     期待値: []
+     得た値: []
+0094 PASS E-T03 | mode_has_unknown
+     期待値: false
+     得た値: false
+0095 PASS E-T03 | allocation_mode
+     期待値: "VOLATILE"
+     得た値: "VOLATILE"
+0096 PASS E-T03 | target_count
+     期待値: 5
+     得た値: 5
+0097 PASS E-T03 | quota
+     期待値: {"A":2,"B":2,"D":1}
+     得た値: {"A":2,"B":2,"D":1}
+0098 PASS E-T04 | mode
+     期待値: "VOLATILE"
+     得た値: "VOLATILE"
+0099 PASS E-T04 | S
+     期待値: 4
+     得た値: 4
+0100 PASS E-T04 | S_min
+     期待値: 4
+     得た値: 4
+0101 PASS E-T04 | S_max
+     期待値: 4
+     得た値: 4
+0102 PASS E-T04 | unknown_features
+     期待値: []
+     得た値: []
+0103 PASS E-T04 | mode_has_unknown
+     期待値: false
+     得た値: false
+0104 PASS E-T04 | allocation_mode
+     期待値: "VOLATILE"
+     得た値: "VOLATILE"
+0105 PASS E-T04 | target_count
+     期待値: 4
+     得た値: 4
+0106 PASS E-T04 | quota
+     期待値: {"A":2,"B":2,"D":0}
+     得た値: {"A":2,"B":2,"D":0}
+0107 PASS E-T05 | mode
+     期待値: "FIRM"
+     得た値: "FIRM"
+0108 PASS E-T05 | S
+     期待値: null
+     得た値: null
+0109 PASS E-T05 | S_min
+     期待値: 0
+     得た値: 0
+0110 PASS E-T05 | S_max
+     期待値: 1
+     得た値: 1
+0111 PASS E-T05 | unknown_features
+     期待値: ["X6"]
+     得た値: ["X6"]
+0112 PASS E-T05 | mode_has_unknown
+     期待値: true
+     得た値: true
+0113 PASS E-T05 | allocation_mode
+     期待値: "FIRM"
+     得た値: "FIRM"
+0114 PASS E-T05 | target_count
+     期待値: 7
+     得た値: 7
+0115 PASS E-T05 | quota
+     期待値: {"A":5,"B":2,"D":0}
+     得た値: {"A":5,"B":2,"D":0}
+0116 PASS E-T06 | mode
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0117 PASS E-T06 | S
+     期待値: null
+     得た値: null
+0118 PASS E-T06 | S_min
+     期待値: 1
+     得た値: 1
+0119 PASS E-T06 | S_max
+     期待値: 3
+     得た値: 3
+0120 PASS E-T06 | unknown_features
+     期待値: ["X1"]
+     得た値: ["X1"]
+0121 PASS E-T06 | mode_has_unknown
+     期待値: true
+     得た値: true
+0122 PASS E-T06 | allocation_mode
+     期待値: null
+     得た値: null
+0123 PASS E-T06 | target_count
+     期待値: 7
+     得た値: 7
+0124 PASS E-T06 | quota
+     期待値: null
+     得た値: null
+0125 PASS E-T07 | mode
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0126 PASS E-T07 | S
+     期待値: null
+     得た値: null
+0127 PASS E-T07 | S_min
+     期待値: 0
+     得た値: 0
+0128 PASS E-T07 | S_max
+     期待値: 3
+     得た値: 3
+0129 PASS E-T07 | unknown_features
+     期待値: ["X4","X5","X6"]
+     得た値: ["X4","X5","X6"]
+0130 PASS E-T07 | mode_has_unknown
+     期待値: true
+     得た値: true
+0131 PASS E-T07 | allocation_mode
+     期待値: null
+     得た値: null
+0132 PASS E-T07 | target_count
+     期待値: 7
+     得た値: 7
+0133 PASS E-T07 | quota
+     期待値: null
+     得た値: null
+0134 PASS E-T08 | mode
+     期待値: "FIRM"
+     得た値: "FIRM"
+0135 PASS E-T08 | S
+     期待値: null
+     得た値: null
+0136 PASS E-T08 | S_min
+     期待値: -2
+     得た値: -2
+0137 PASS E-T08 | S_max
+     期待値: 0
+     得た値: 0
+0138 PASS E-T08 | unknown_features
+     期待値: ["Z"]
+     得た値: ["Z"]
+0139 PASS E-T08 | mode_has_unknown
+     期待値: true
+     得た値: true
+0140 PASS E-T08 | allocation_mode
+     期待値: "FIRM"
+     得た値: "FIRM"
+0141 PASS E-T08 | target_count
+     期待値: 7
+     得た値: 7
+0142 PASS E-T08 | quota
+     期待値: {"A":5,"B":2,"D":0}
+     得た値: {"A":5,"B":2,"D":0}
+0143 PASS E-T09 | mode
+     期待値: "FIRM"
+     得た値: "FIRM"
+0144 PASS E-T09 | S
+     期待値: -2
+     得た値: -2
+0145 PASS E-T09 | S_min
+     期待値: -2
+     得た値: -2
+0146 PASS E-T09 | S_max
+     期待値: -2
+     得た値: -2
+0147 PASS E-T09 | unknown_features
+     期待値: []
+     得た値: []
+0148 PASS E-T09 | mode_has_unknown
+     期待値: false
+     得た値: false
+0149 PASS E-T09 | allocation_mode
+     期待値: "FIRM"
+     得た値: "FIRM"
+0150 PASS E-T09 | target_count
+     期待値: 7
+     得た値: 7
+0151 PASS E-T09 | quota
+     期待値: {"A":5,"B":2,"D":0}
+     得た値: {"A":5,"B":2,"D":0}
+0152 PASS E-T10 | mode
+     期待値: "MIXED"
+     得た値: "MIXED"
+0153 PASS E-T10 | S
+     期待値: 3
+     得た値: 3
+0154 PASS E-T10 | S_min
+     期待値: 3
+     得た値: 3
+0155 PASS E-T10 | S_max
+     期待値: 3
+     得た値: 3
+0156 PASS E-T10 | unknown_features
+     期待値: []
+     得た値: []
+0157 PASS E-T10 | mode_has_unknown
+     期待値: false
+     得た値: false
+0158 PASS E-T10 | allocation_mode
+     期待値: "MIXED"
+     得た値: "MIXED"
+0159 PASS E-T10 | target_count
+     期待値: 7
+     得た値: 7
+0160 PASS E-T10 | quota
+     期待値: {"A":3,"B":3,"D":1}
+     得た値: {"A":3,"B":3,"D":1}
+0161 PASS E-T11 | mode
+     期待値: "MIXED"
+     得た値: "MIXED"
+0162 PASS E-T11 | S
+     期待値: 2
+     得た値: 2
+0163 PASS E-T11 | S_min
+     期待値: 2
+     得た値: 2
+0164 PASS E-T11 | S_max
+     期待値: 2
+     得た値: 2
+0165 PASS E-T11 | unknown_features
+     期待値: []
+     得た値: []
+0166 PASS E-T11 | mode_has_unknown
+     期待値: false
+     得た値: false
+0167 PASS E-T11 | allocation_mode
+     期待値: "MIXED"
+     得た値: "MIXED"
+0168 PASS E-T11 | target_count
+     期待値: 7
+     得た値: 7
+0169 PASS E-T11 | quota
+     期待値: {"A":3,"B":3,"D":1}
+     得た値: {"A":3,"B":3,"D":1}
+0170 PASS E-T12 | mode
+     期待値: "FIRM"
+     得た値: "FIRM"
+0171 PASS E-T12 | S
+     期待値: 0
+     得た値: 0
+0172 PASS E-T12 | S_min
+     期待値: 0
+     得た値: 0
+0173 PASS E-T12 | S_max
+     期待値: 0
+     得た値: 0
+0174 PASS E-T12 | unknown_features
+     期待値: []
+     得た値: []
+0175 PASS E-T12 | mode_has_unknown
+     期待値: false
+     得た値: false
+0176 PASS E-T12 | allocation_mode
+     期待値: "FIRM"
+     得た値: "FIRM"
+0177 PASS E-T12 | target_count
+     期待値: 3
+     得た値: 3
+0178 PASS E-T12 | quota
+     期待値: {"A":3,"B":0,"D":0}
+     得た値: {"A":3,"B":0,"D":0}
+0179 PASS R122-01 | mode_status
+     期待値: "PROVISIONAL"
+     得た値: "PROVISIONAL"
+0180 PASS R122-01 | allocation_mode
+     期待値: "MIXED"
+     得た値: "MIXED"
+0181 PASS R122-01 | S0
+     期待値: 1
+     得た値: 1
+0182 PASS R122-01 | display_rating
+     期待値: null
+     得た値: null
+0183 PASS R122-01 | quota
+     期待値: {"A":3,"B":3,"D":1}
+     得た値: {"A":3,"B":3,"D":1}
+0184 PASS R122-01 | quota_2nd
+     期待値: {"A":1,"B":3,"D":1}
+     得た値: {"A":1,"B":3,"D":1}
+0185 PASS R122-01 | mode=UNKNOWNのまま
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0186 PASS R122-01 | mode_policy_id
+     期待値: "X6_ONLY_UPPER_MODE_V1"
+     得た値: "X6_ONLY_UPPER_MODE_V1"
+0187 PASS R122-01 | selection_enabled
+     期待値: true
+     得た値: true
+0188 PASS R122-02 | mode_status
+     期待値: "PROVISIONAL"
+     得た値: "PROVISIONAL"
+0189 PASS R122-02 | allocation_mode
+     期待値: "VOLATILE"
+     得た値: "VOLATILE"
+0190 PASS R122-02 | S0
+     期待値: 3
+     得た値: 3
+0191 PASS R122-02 | display_rating
+     期待値: null
+     得た値: null
+0192 PASS R122-02 | quota
+     期待値: {"A":3,"B":3,"D":1}
+     得た値: {"A":3,"B":3,"D":1}
+0193 PASS R122-02 | quota_2nd
+     期待値: {"A":1,"B":3,"D":1}
+     得た値: {"A":1,"B":3,"D":1}
+0194 PASS R122-02 | mode=UNKNOWNのまま
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0195 PASS R122-02 | mode_policy_id
+     期待値: "X6_ONLY_UPPER_MODE_V1"
+     得た値: "X6_ONLY_UPPER_MODE_V1"
+0196 PASS R122-02 | selection_enabled
+     期待値: true
+     得た値: true
+0197 PASS R122-03 | mode_status
+     期待値: "CONFIRMED"
+     得た値: "CONFIRMED"
+0198 PASS R122-03 | allocation_mode
+     期待値: "FIRM"
+     得た値: "FIRM"
+0199 PASS R122-03 | S0
+     期待値: 0
+     得た値: 0
+0200 PASS R122-03 | display_rating
+     期待値: null
+     得た値: null
+0201 PASS R122-03 | quota
+     期待値: {"A":5,"B":2,"D":0}
+     得た値: {"A":5,"B":2,"D":0}
+0202 PASS R122-03 | quota_2nd
+     期待値: {"A":3,"B":2,"D":0}
+     得た値: {"A":3,"B":2,"D":0}
+0203 PASS R122-04 | mode_status
+     期待値: "UNRESOLVED"
+     得た値: "UNRESOLVED"
+0204 PASS R122-04 | allocation_mode
+     期待値: null
+     得た値: null
+0205 PASS R122-04 | S0
+     期待値: null
+     得た値: null
+0206 PASS R122-04 | display_rating
+     期待値: null
+     得た値: null
+0207 PASS R122-04 | quota
+     期待値: null
+     得た値: null
+0208 PASS R122-04 | quota_2nd
+     期待値: null
+     得た値: null
+0209 PASS R122-04 | selection_enabled
+     期待値: false
+     得た値: false
+0210 PASS R122-05 | mode_status
+     期待値: "PROVISIONAL"
+     得た値: "PROVISIONAL"
+0211 PASS R122-05 | allocation_mode
+     期待値: "VOLATILE"
+     得た値: "VOLATILE"
+0212 PASS R122-05 | S0
+     期待値: 3
+     得た値: 3
+0213 PASS R122-05 | display_rating
+     期待値: null
+     得た値: null
+0214 PASS R122-05 | quota
+     期待値: {"A":2,"B":3,"D":0}
+     得た値: {"A":2,"B":3,"D":0}
+0215 PASS R122-05 | quota_2nd
+     期待値: {"A":2,"B":3,"D":0}
+     得た値: {"A":2,"B":3,"D":0}
+0216 PASS R122-05 | mode=UNKNOWNのまま
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0217 PASS R122-05 | mode_policy_id
+     期待値: "X6_ONLY_UPPER_MODE_V1"
+     得た値: "X6_ONLY_UPPER_MODE_V1"
+0218 PASS R122-05 | selection_enabled
+     期待値: true
+     得た値: true
+0219 PASS R122-06 | mode_status
+     期待値: "CONFIRMED"
+     得た値: "CONFIRMED"
+0220 PASS R122-06 | allocation_mode
+     期待値: "FIRM"
+     得た値: "FIRM"
+0221 PASS R122-06 | S0
+     期待値: 0
+     得た値: 0
+0222 PASS R122-06 | display_rating
+     期待値: 1
+     得た値: 1
+0223 PASS R122-06 | quota
+     期待値: {"A":5,"B":2,"D":0}
+     得た値: {"A":5,"B":2,"D":0}
+0224 PASS R122-06 | quota_2nd
+     期待値: {"A":3,"B":2,"D":0}
+     得た値: {"A":3,"B":2,"D":0}
+0225 PASS R122-07 | 移動記録の件数
+     期待値: 1
+     得た値: 1
+0226 PASS R122-07 | 移動記録のreason
+     期待値: "BAND_CAPACITY"
+     得た値: "BAND_CAPACITY"
+0227 PASS R122-07 | 移動元
+     期待値: "D"
+     得た値: "D"
+0228 PASS R122-07 | 移動先
+     期待値: "B"
+     得た値: "B"
+0229 PASS R122-T00 | cutoff_at = T−360秒
+     期待値: "2026-10-17T14:54:00.000000+09:00"
+     得た値: "2026-10-17T14:54:00.000000+09:00"
+0230 PASS R122-T00 | input_freeze_at = T−330秒
+     期待値: "2026-10-17T14:54:30.000000+09:00"
+     得た値: "2026-10-17T14:54:30.000000+09:00"
+0231 PASS R122-T00 | 6分前の予定
+     期待値: "2026-10-17T14:54:00.000000+09:00"
+     得た値: "2026-10-17T14:54:00.000000+09:00"
+0232 PASS R122-T00 | 6分前の期限（+30秒）
+     期待値: "2026-10-17T14:54:30.000000+09:00"
+     得た値: "2026-10-17T14:54:30.000000+09:00"
+0233 PASS R122-T00 | 9分前の期限（+120秒）
+     期待値: "2026-10-17T14:53:00.000000+09:00"
+     得た値: "2026-10-17T14:53:00.000000+09:00"
+0234 PASS R122-T00 | 30分前は予想入力スロットでない
+     期待値: null
+     得た値: null
+0235 PASS R122-T00 | publish_deadline = 締切−60秒
+     期待値: "2026-10-17T14:58:00.000000+09:00"
+     得た値: "2026-10-17T14:58:00.000000+09:00"
+0236 PASS R122-T00 | reply_deadline = 公開期限−30秒
+     期待値: "2026-10-17T14:57:30.000000+09:00"
+     得た値: "2026-10-17T14:57:30.000000+09:00"
+0237 PASS R122-T00 | 締切前倒しは即反映
+     期待値: "2026-10-17T14:57:00.000000+09:00"
+     得た値: "2026-10-17T14:57:00.000000+09:00"
+0238 PASS R122-T00 | 延長で猶予を増やさない
+     期待値: "2026-10-17T14:58:00.000000+09:00"
+     得た値: "2026-10-17T14:58:00.000000+09:00"
+0239 PASS R122-T00 | 小数秒7桁は拒否
+     期待値: null
+     得た値: null
+0240 PASS R122-T00 | タイムゾーン無しは拒否
+     期待値: null
+     得た値: null
+0241 PASS R122-T00 | 小文字のt/zは許容
+     期待値: true
+     得た値: true
+0242 PASS R122-T01 | 6分前 +30秒ちょうどは採用
+     期待値: true
+     得た値: true
+0243 PASS R122-T01 | 1マイクロ秒後は不採用
+     期待値: false
+     得た値: false
+0244 PASS R122-T01 | その理由コード
+     期待値: "ACQUISITION_DEADLINE_EXCEEDED"
+     得た値: "ACQUISITION_DEADLINE_EXCEEDED"
+0245 PASS R122-T02 | 9分前 +120秒ちょうどは採用
+     期待値: true
+     得た値: true
+0246 PASS R122-T02 | 9分前 その1マイクロ秒後は不採用
+     期待値: false
+     得た値: false
+0247 PASS R122-T03 | 受信は期限内だが利用可能が期限後 → 不採用
+     期待値: false
+     得た値: false
+0248 PASS R122-T04 | 要求開始が予定より前 → 不採用
+     期待値: "REQUEST_BEFORE_SCHEDULE"
+     得た値: "REQUEST_BEFORE_SCHEDULE"
+0249 PASS R122-T04 | 時計逆行 → 不採用
+     期待値: "CLOCK_REVERSED"
+     得た値: "CLOCK_REVERSED"
+0250 PASS R122-T05 | 情報上限を超えた到着 → 不採用
+     期待値: false
+     得た値: false
+0251 PASS R122-A01 | available_at の早い方を採用
+     期待値: "a"
+     得た値: "a"
+0252 PASS R122-A01 | 同時刻は batch_id のバイト順
+     期待値: "a"
+     得た値: "a"
+0253 PASS R122-A01 | 未確定の監査行は採用しない
+     期待値: "y"
+     得た値: "y"
+0254 PASS R122-A02 | 6分前に1頭欠けたら採用しない
+     期待値: "UNAVAILABLE"
+     得た値: "UNAVAILABLE"
+0255 PASS R122-A02 | その理由コード
+     期待値: "FREEZE_ODDS_MISSING"
+     得た値: "FREEZE_ODDS_MISSING"
+0256 PASS R122-A02 | 揃っていれば採用
+     期待値: "ADOPTED"
+     得た値: "ADOPTED"
+0257 PASS R122-A02 | 「取消」は使える値にしない
+     期待値: false
+     得た値: false
+0258 PASS R122-A02 | 0 は使える値にしない
+     期待値: false
+     得た値: false
+0259 PASS R122-A03 | 採用スロットは ADOPTED
+     期待値: "ADOPTED"
+     得た値: "ADOPTED"
+0260 PASS R122-A03 | 欠損スロットは UNAVAILABLE
+     期待値: "UNAVAILABLE"
+     得た値: "UNAVAILABLE"
+0261 PASS R122-A03 | 欠損の理由は空にしない
+     期待値: true
+     得た値: true
+0262 PASS R122-D01 | 出馬表欠損で停止
+     期待値: "ENTRY_MISSING"
+     得た値: "ENTRY_MISSING"
+0263 PASS R122-D01 | 9頭立てとして進まない
+     期待値: null
+     得た値: null
+0264 PASS R122-D01 | 宣言頭数が合わない
+     期待値: "ENTRY_SET_MISMATCH"
+     得た値: "ENTRY_SET_MISMATCH"
+0265 PASS R122-D01 | 出馬表に無い馬番
+     期待値: "ENTRY_SET_MISMATCH"
+     得た値: "ENTRY_SET_MISMATCH"
+0266 PASS R122-D04 | 取消矛盾は CANCEL_CONFLICT
+     期待値: "CANCEL_CONFLICT"
+     得た値: "CANCEL_CONFLICT"
+0267 PASS R122-D04 | active_count は null
+     期待値: null
+     得た値: null
+0268 PASS R122-D03 | 凍結後の取消は N に残す
+     期待値: 8
+     得た値: 8
+0269 PASS R122-D03 | active_count だけ減る
+     期待値: 7
+     得た値: 7
+0270 PASS R122-D03 | 凍結前の取消は N から外す
+     期待値: 8
+     得た値: 8
+0271 PASS R122-F01 | 単勝の昇順
+     期待値: 1
+     得た値: 1
+0272 PASS R122-F01 | 同値は馬番の小さい順
+     期待値: 2
+     得た値: 2
+0273 PASS R122-F01 | 同値の後ろ
+     期待値: 3
+     得た値: 3
+0274 PASS R122-F01 | 読めない値は停止
+     期待値: "FREEZE_ODDS_MISSING"
+     得た値: "FREEZE_ODDS_MISSING"
+0275 PASS R122-F01 | 十進数は1万倍の整数
+     期待値: 21000
+     得た値: 21000
+0276 PASS R122-F01 | scale（表示用）は5桁を表せない
+     期待値: null
+     得た値: null
+0277 PASS R122-F01 | 凍結順位は5桁でも読める
+     期待値: "2.12345"
+     得た値: "2.12345"
+0278 PASS R122-F01 | 20桁の小数でも読める
+     期待値: "1.1234567890123456789"
+     得た値: "1.1234567890123456789"
+0279 PASS R122-F01 | 0は受け取らない
+     期待値: null
+     得た値: null
+0280 PASS R122-F01 | 取消は受け取らない
+     期待値: null
+     得た値: null
+0281 PASS R122-F01 | 1.00001 と 1.00000 の大小がつく
+     期待値: 1
+     得た値: 1
+0282 PASS R122-F01 | 桁数が違っても正しく比べる
+     期待値: -1
+     得た値: -1
+0283 PASS R122-F01 | 同じ値は0
+     期待値: 0
+     得た値: 0
+0284 PASS R122-F01 | 5桁の小数でも凍結順位が出る
+     期待値: true
+     得た値: true
+0285 PASS R122-F01 | 5桁目の違いで順位がつく
+     期待値: {"3":1,"1":2,"2":3,"4":4}
+     得た値: {"3":1,"1":2,"2":3,"4":4}
+0286 PASS R122-H01 | 両roleで共通JSONが一致
+     期待値: "{\"mode\":\"UNKNOWN\",\"race_id\":\"R1\",\"x\":{\"a\":\"1.0\"}}"
+     得た値: "{\"mode\":\"UNKNOWN\",\"race_id\":\"R1\",\"x\":{\"a\":\"1.0\"}}"
+0287 PASS R122-H01 | hashも一致
+     期待値: "bbd541a69a2a50ce35bb3d390c53b6d7f9669e4e9ac08f577e568a27e0205a72"
+     得た値: "bbd541a69a2a50ce35bb3d390c53b6d7f9669e4e9ac08f577e568a27e0205a72"
+0288 PASS R122-H01 | hash方式
+     期待値: "exact-common-payload-sha256-r8"
+     得た値: "exact-common-payload-sha256-r8"
+0289 PASS R122-H01 | role情報が混ざっていない
+     期待値: false
+     得た値: false
+0290 PASS R122-P01 | キー順の正規化（数字キーも文字列として昇順）
+     期待値: "{\"10\":\"x\",\"9\":\"y\",\"a\":{\"c\":[3,1],\"d\":2},\"b\":1}"
+     得た値: "{\"10\":\"x\",\"9\":\"y\",\"a\":{\"c\":[3,1],\"d\":2},\"b\":1}"
+0291 PASS R122-P01 | 配列の順は変えない
+     期待値: "[{\"n\":2},{\"n\":1}]"
+     得た値: "[{\"n\":2},{\"n\":1}]"
+0292 PASS R122-P01 | 非ASCIIはエスケープしない
+     期待値: "{\"k\":\"あ/い\"}"
+     得た値: "{\"k\":\"あ/い\"}"
+0293 PASS R122-P01 | 小数秒が0なら付けない
+     期待値: "2026-10-17T15:00:00+09:00"
+     得た値: "2026-10-17T15:00:00+09:00"
+0294 PASS R122-P01 | 小数秒があれば残す
+     期待値: "2026-10-17T15:00:00.500000+09:00"
+     得た値: "2026-10-17T15:00:00.500000+09:00"
+0295 PASS R122-P01 | 索引キー（スロットあり）
+     期待値: "horse/3/win_odds/6"
+     得た値: "horse/3/win_odds/6"
+0296 PASS R122-P01 | 索引キー（スロットなし）
+     期待値: "horse/3/past_performance/None"
+     得た値: "horse/3/past_performance/None"
+0297 PASS R122-P01 | 両roleで共通hashが一致
+     期待値: "82dfe90c1f71630f310384ed577f27d08cea9b0d02b5820eb1465de0d0529ec9"
+     得た値: "82dfe90c1f71630f310384ed577f27d08cea9b0d02b5820eb1465de0d0529ec9"
+0298 PASS R122-P01 | 共通本文はrole情報を含まない
+     期待値: "{\"race_id\":\"R\"}"
+     得た値: "{\"race_id\":\"R\"}"
+0299 PASS R122-P01 | hash方式名
+     期待値: "exact-common-payload-sha256-r8"
+     得た値: "exact-common-payload-sha256-r8"
+0300 PASS R122-P01 | NaNは送らない
+     期待値: false
+     得た値: false
+0301 PASS R122-P01 | 129桁の整数は送らない（指数表記も展開して数える）
+     期待値: true
+     得た値: true
+0302 PASS R122-P01 | 普通のオッズは桁あふれにしない
+     期待値: null
+     得た値: null
+0303 PASS R122-P01 | 投票締切が無ければ送信文を作らない
+     期待値: "SALES_CLOSE_UNRESOLVED"
+     得た値: "SALES_CLOSE_UNRESOLVED"
+0304 PASS R122-P01 | 6分前の監査が無ければ送信文を作らない
+     期待値: "COLLECTION_AUDIT_MISSING"
+     得た値: "COLLECTION_AUDIT_MISSING"
+0305 PASS R122-P01 | roleは1stか2ndだけ
+     期待値: "ROLE_INVALID"
+     得た値: "ROLE_INVALID"
+0306 PASS R122-P01 | 本文が空なら送らない
+     期待値: true
+     得た値: true
+0307 PASS R122-Z01 | Z（元値は2未満なので成立しない）
+     期待値: "FALSE"
+     得た値: "FALSE"
+0308 PASS R122-Z01 | X1
+     期待値: "FALSE"
+     得た値: "FALSE"
+0309 PASS R122-Z01 | X2
+     期待値: "FALSE"
+     得た値: "FALSE"
+0310 PASS R122-Z01 | X3
+     期待値: "TRUE"
+     得た値: "TRUE"
+0311 PASS R122-Z01 | X4
+     期待値: "FALSE"
+     得た値: "FALSE"
+0312 PASS R122-Z01 | X5
+     期待値: "FALSE"
+     得た値: "FALSE"
+0313 PASS R122-Z01 | X6（N>=7で基準率未定義）
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0314 PASS R122-Z01 | S_min
+     期待値: 1
+     得た値: 1
+0315 PASS R122-Z01 | S_max
+     期待値: 2
+     得た値: 2
+0316 PASS R122-Z01 | mode
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0317 PASS R122-Z01 | mode_status
+     期待値: "PROVISIONAL"
+     得た値: "PROVISIONAL"
+0318 PASS R122-Z01 | allocation_mode
+     期待値: "MIXED"
+     得た値: "MIXED"
+0319 PASS R122-Z01 | mode_policy_id
+     期待値: "X6_ONLY_UPPER_MODE_V1"
+     得た値: "X6_ONLY_UPPER_MODE_V1"
+0320 PASS R122-Z01 | target_count
+     期待値: 7
+     得た値: 7
+0321 PASS R122-Z01 | 1stの配分 A
+     期待値: 3
+     得た値: 3
+0322 PASS R122-Z01 | 1stの配分 B
+     期待値: 3
+     得た値: 3
+0323 PASS R122-Z01 | 1stの配分 D
+     期待値: 1
+     得た値: 1
+0324 PASS R122-Z01 | 2ndの配分 A
+     期待値: 1
+     得た値: 1
+0325 PASS R122-Z01 | 2ndの配分 B
+     期待値: 3
+     得た値: 3
+0326 PASS R122-Z01 | 2ndの配分 D
+     期待値: 1
+     得た値: 1
+0327 PASS R122-Z01 | 表示用のW21は丸めると2.0000
+     期待値: "2.0000"
+     得た値: "2.0000"
+0328 PASS R122-Z01 | 元値の比は2未満
+     期待値: false
+     得た値: false
+0329 PASS R122-E07 | 小数5桁も受け取る
+     期待値: true
+     得た値: true
+0330 PASS R122-E07 | 小数20桁も受け取る
+     期待値: true
+     得た値: true
+0331 PASS R122-E07 | 129桁の整数は受け取らない
+     期待値: false
+     得た値: false
+0332 PASS R122-E07 | 0は受け取らない
+     期待値: false
+     得た値: false
+0333 PASS R122-E07 | 普通のオッズは数値になる
+     期待値: 2.1
+     得た値: 2.1
+0334 PASS R122-E07 | 整数はintになる
+     期待値: 11
+     得た値: 11
+0335 PASS R122-E07 | 丸めが起きる桁は数値にしない
+     期待値: true
+     得た値: true
+0336 PASS R122-E07 | 19桁の整数は数値にしない
+     期待値: true
+     得た値: true
+0337 PASS R122-E07 | 本番のペアは代替経路へ落ちない
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0338 PASS R122-E08 | 20桁の小数はPHPの数値にしない
+     期待値: true
+     得た値: true
+0339 PASS R122-E08 | 20桁の小数は十進数の形として受け取れる
+     期待値: "1.99999999999999999999"
+     得た値: "1.99999999999999999999"
+0340 PASS R122-E08 | 20桁の小数は2未満と正しく比べられる（floatなら2.0になる）
+     期待値: -1
+     得た値: -1
+0341 PASS R122-E08 | floatを通すと2と見分けが付かなくなることの確認
+     期待値: true
+     得た値: true
+0342 PASS R122-E08 | 信号の経路が20桁の小数を桁落ちなく受け取る
+     期待値: "1.99999999999999999999"
+     得た値: "1.99999999999999999999"
+0343 PASS R122-E08 | 十進数の形でないものは受け取らない
+     期待値: null
+     得た値: null
+0344 PASS R122-E08 | 129桁は受け取らない
+     期待値: null
+     得た値: null
+0345 PASS R122-E08 | 十進数文字列への変換で文字列は素通り
+     期待値: "0.1234567890123456"
+     得た値: "0.1234567890123456"
+0346 PASS R122-E08 | 13桁目以降を落とさない（floatへ戻して一致する）
+     期待値: true
+     得た値: true
+0347 PASS R122-E08 | 整数はそのまま
+     期待値: "11"
+     得た値: "11"
+0348 PASS R122-E08 | 指数表記は十進数へ直す
+     期待値: "0.0000001"
+     得た値: "0.0000001"
+0349 PASS R122-E08 | 大きい指数も十進数へ直す
+     期待値: "100000000000000000000"
+     得た値: "100000000000000000000"
+0350 PASS R122-E08 | 読めない指数表記は作り話をしない
+     期待値: ""
+     得た値: ""
+0351 PASS R122-E08 | scale() の呼び出しはこの試験の2か所だけ（判定経路からは消しました）
+     期待値: 2
+     得た値: 2
+0352 PASS R122-J02 | 普通のJSONは通る
+     期待値: true
+     得た値: true
+0353 PASS R122-J02 | 値は json_decode と同じ
+     期待値: {"a":1,"b":[1,2,{"c":null}]}
+     得た値: {"a":1,"b":[1,2,{"c":null}]}
+0354 PASS R122-J02 | 同じ階層の重複キーは拒否
+     期待値: "JSON_DUPLICATE_KEY"
+     得た値: "JSON_DUPLICATE_KEY"
+0355 PASS R122-J02 | 別の階層の同じキーは通る
+     期待値: true
+     得た値: true
+0356 PASS R122-J02 | 指数が大きすぎる（1e400）
+     期待値: "JSON_EXPONENT_RANGE"
+     得た値: "JSON_EXPONENT_RANGE"
+0357 PASS R122-J02 | 指数が小さすぎる（1e-400）
+     期待値: "JSON_EXPONENT_RANGE"
+     得た値: "JSON_EXPONENT_RANGE"
+0358 PASS R122-J02 | 指数308ちょうどは通る
+     期待値: true
+     得た値: true
+0359 PASS R122-J02 | 指数-308ちょうどは通る
+     期待値: true
+     得た値: true
+0360 PASS R122-J02 | 有効桁128はちょうど通る
+     期待値: true
+     得た値: true
+0361 PASS R122-J02 | 有効桁129は拒否
+     期待値: "JSON_TOO_MANY_DIGITS"
+     得た値: "JSON_TOO_MANY_DIGITS"
+0362 PASS R122-J02 | 先頭の0は有効桁に数えない
+     期待値: true
+     得た値: true
+0363 PASS R122-J02 | 先頭0の整数（011）は拒否
+     期待値: "JSON_INVALID"
+     得た値: "JSON_INVALID"
+0364 PASS R122-J02 | 小数点から始まる数値は拒否
+     期待値: "JSON_INVALID"
+     得た値: "JSON_INVALID"
+0365 PASS R122-J02 | NaN は拒否
+     期待値: "JSON_INVALID"
+     得た値: "JSON_INVALID"
+0366 PASS R122-J02 | 末尾の読点は拒否
+     期待値: "JSON_INVALID"
+     得た値: "JSON_INVALID"
+0367 PASS R122-J02 | 文字列の中の生の改行は拒否
+     期待値: "JSON_INVALID"
+     得た値: "JSON_INVALID"
+0368 PASS R122-J02 | 後ろに余分な文字があれば拒否
+     期待値: "JSON_TRAILING"
+     得た値: "JSON_TRAILING"
+0369 PASS R122-J02 | 64階層ちょうどは通る
+     期待値: true
+     得た値: true
+0370 PASS R122-J02 | 65階層は拒否
+     期待値: "JSON_TOO_DEEP"
+     得た値: "JSON_TOO_DEEP"
+0371 PASS R122-J02 | 4MiB超は拒否
+     期待値: "JSON_TOO_LARGE"
+     得た値: "JSON_TOO_LARGE"
+0372 PASS R122-J02 | UTF-8でない本文は拒否
+     期待値: "JSON_NOT_UTF8"
+     得た値: "JSON_NOT_UTF8"
+0373 PASS R122-J02 | 生の日本語は通る
+     期待値: true
+     得た値: true
+0374 PASS R122-J02 | extract は重複キーを拒否する
+     期待値: false
+     得た値: false
+0375 PASS R122-J02 | その理由が読める
+     期待値: true
+     得た値: true
+0376 PASS R122-J02 | extract は普通の応答を通す
+     期待値: {"a":1}
+     得た値: {"a":1}
+0377 PASS R122-J03 | 普通の整数は通る
+     期待値: true
+     得た値: true
+0378 PASS R122-J03 | 普通の小数は通る
+     期待値: true
+     得た値: true
+0379 PASS R122-J03 | 0 は通る
+     期待値: true
+     得た値: true
+0380 PASS R122-J03 | 負の小数も通る
+     期待値: true
+     得た値: true
+0381 PASS R122-J03 | 末尾0の小数も通る
+     期待値: true
+     得た値: true
+0382 PASS R122-J03 | 指数つきの小さい数も通る
+     期待値: true
+     得た値: true
+0383 PASS R122-J03 | 安全に持てる整数は通る
+     期待値: true
+     得た値: true
+0384 PASS R122-J03 | 1e308 は有限なので通る
+     期待値: true
+     得た値: true
+0385 PASS R122-J03 | 小数も数値として正確に再保存できる
+     期待値: "{\"a\":2.1,\"b\":[1,2]}"
+     得た値: "{\"a\":2.1,\"b\":[1,2]}"
+0386 PASS R122-J03 | 普通の数は丸め扱いにしない
+     期待値: 0
+     得た値: 0
+0387 PASS R122-J03 | 数値トークンの数を数えている
+     期待値: 3
+     得た値: 3
+0388 PASS R122-J04 | 20桁の小数は通す
+     期待値: true
+     得た値: true
+0389 PASS R122-J04 | 20桁の小数はDecimalで保持し数値として保存
+     期待値: true
+     得た値: true
+0390 PASS R122-J04 | 丸まったことを控えている
+     期待値: 1
+     得た値: 1
+0391 PASS R122-J04 | その原表現も控えている
+     期待値: ["1.99999999999999999999"]
+     得た値: ["1.99999999999999999999"]
+0392 PASS R122-J04 | PHP整数を超える整数は通す
+     期待値: true
+     得た値: true
+0393 PASS R122-J04 | 大きい整数はDecimalで保持し数値として保存
+     期待値: true
+     得た値: true
+0394 PASS R122-J04 | 2e308 も通す
+     期待値: true
+     得た値: true
+0395 PASS R122-J04 | 2e308 を無限大にしない
+     期待値: true
+     得た値: true
+0396 PASS R122-J04 | 2e308 は309桁の十進数になる
+     期待値: 309
+     得た値: 309
+0397 PASS R122-J04 | 2e308 の先頭は 2
+     期待値: "2"
+     得た値: "2"
+0398 PASS R122-J04 | 有効桁128は通る
+     期待値: true
+     得た値: true
+0399 PASS R122-J04 | 有効桁128は原表現のまま持つ
+     期待値: "{\"a\":1.9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}"
+     得た値: "{\"a\":1.9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}"
+0400 PASS R122-J04 | 混在：丸まらない整数は整数のまま
+     期待値: 11
+     得た値: 11
+0401 PASS R122-J04 | 混在：丸まらない小数は小数のまま
+     期待値: "2.5"
+     得た値: "2.5"
+0402 PASS R122-J04 | 混在：長い小数も正確な数値のまま
+     期待値: "1.99999999999999999999"
+     得た値: "1.99999999999999999999"
+0403 PASS R122-J04 | 混在：ほかの位置はずれていない
+     期待値: ["a","b","c"]
+     得た値: ["a","b","c"]
+0404 PASS R122-J04 | 丸まる数値でも extract は読める
+     期待値: true
+     得た値: true
+0405 PASS R122-J04 | extract もDecimalを経由して正確な数値を返す
+     期待値: "{\"a\":1.99999999999999999999}"
+     得た値: "{\"a\":1.99999999999999999999}"
+0406 PASS R122-J04 | 採点は整数しか受け取らない条件が診断に入っている
+     期待値: 2
+     得た値: 2
+0407 PASS R122-J05 | 丸まる数値もそのまま値は読める
+     期待値: true
+     得た値: true
+0408 PASS R122-J05 | 最初から文字列の方は文字列のまま
+     期待値: {"a":"1.99999999999999999999"}
+     得た値: {"a":"1.99999999999999999999"}
+0409 PASS R122-J05 | しかし数値だった位置は控えている
+     期待値: 1
+     得た値: 1
+0410 PASS R122-J05 | 文字列だった位置は控えない
+     期待値: 0
+     得た値: 0
+0411 PASS R122-J05 | 再保存すると数値は数値に戻る
+     期待値: "{\"a\":1.99999999999999999999}"
+     得た値: "{\"a\":1.99999999999999999999}"
+0412 PASS R122-J05 | 再保存しても文字列は文字列のまま
+     期待値: "{\"a\":\"1.99999999999999999999\"}"
+     得た値: "{\"a\":\"1.99999999999999999999\"}"
+0413 PASS R122-J05 | AIが引用符付きで返した数は数値に変えない
+     期待値: []
+     得た値: []
+0414 PASS R122-J05 | 混在：再保存で型が入れ替わらない
+     期待値: "{\"a\":11,\"b\":1.99999999999999999999,\"c\":\"2.5\",\"d\":2.5}"
+     得た値: "{\"a\":11,\"b\":1.99999999999999999999,\"c\":\"2.5\",\"d\":2.5}"
+0415 PASS R122-J05 | 入れ子でも数値の位置が分かる
+     期待値: 1
+     得た値: 1
+0416 PASS R122-J05 | 入れ子でも再保存で数値に戻る
+     期待値: "{\"horses\":[{\"scores\":{\"H1\":12345678901234567890}}]}"
+     得た値: "{\"horses\":[{\"scores\":{\"H1\":12345678901234567890}}]}"
+0417 PASS R122-J05 | 有効桁128も再保存で数値に戻る
+     期待値: "{\"a\":1.9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}"
+     得た値: "{\"a\":1.9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}"
+0418 PASS R122-J05 | 満点ちょうどは整数のまま
+     期待値: true
+     得た値: true
+0419 PASS R122-J05 | 満点をわずかに超える数は整数にならない
+     期待値: false
+     得た値: false
+0420 PASS R122-J05 | エスケープした同じキーの重複を見つける
+     期待値: "JSON_DUPLICATE_KEY"
+     得た値: "JSON_DUPLICATE_KEY"
+0421 PASS R122-J05 | 素のままの重複も、これまでどおり見つける
+     期待値: "JSON_DUPLICATE_KEY"
+     得た値: "JSON_DUPLICATE_KEY"
+0422 PASS R122-J05 | 違うキーなら通す
+     期待値: true
+     得た値: true
+0423 PASS R122-J05 | エスケープを復号した値になる
+     期待値: {"馬":1}
+     得た値: {"馬":1}
+0424 PASS R122-J05 | 代理対も組み立てる
+     期待値: {"a":"😀"}
+     得た値: {"a":"😀"}
+0425 PASS R122-J05 | 上位代理だけなら断る
+     期待値: "JSON_BAD_SURROGATE"
+     得た値: "JSON_BAD_SURROGATE"
+0426 PASS R122-J05 | 下位代理だけでも断る
+     期待値: "JSON_BAD_SURROGATE"
+     得た値: "JSON_BAD_SURROGATE"
+0427 PASS R122-J05 | extract も型の印を引き継ぐ
+     期待値: 1
+     得た値: 1
+0428 PASS R122-J05 | extract の結果も再保存で数値に戻る
+     期待値: "{\"a\":1.99999999999999999999}"
+     得た値: "{\"a\":1.99999999999999999999}"
+0429 PASS R122-P01 | coverageは7区分そろえる
+     期待値: ["past_runs","OPI","estimated_odds","recovery_statistics","similar_statistics","legacy_qualifications","gap_history"]
+     得た値: ["past_runs","OPI","estimated_odds","recovery_statistics","similar_statistics","legacy_qualifications","gap_history"]
+0430 PASS R122-P01 | 入れていない区分はUNAVAILABLEと理由
+     期待値: "UNAVAILABLE"
+     得た値: "UNAVAILABLE"
+0431 PASS R122-CL01 | 投票締切は発走の60秒前
+     期待値: 1792285440000000
+     得た値: 1792285440000000
+0432 PASS R122-CL02 | 発走時刻と同一視しない
+     期待値: false
+     得た値: false
+0433 PASS R122-CL03 | 公開期限は発走の120秒前
+     期待値: 1792285380000000
+     得た値: 1792285380000000
+0434 PASS R122-CL04 | 応答期限は発走の150秒前
+     期待値: 1792285350000000
+     得た値: 1792285350000000
+0435 PASS R122-CL05 | 入力の凍結は応答期限より前
+     期待値: true
+     得た値: true
+0436 PASS R122-CL06 | 6分前の取得期限は入力の凍結より前
+     期待値: true
+     得た値: true
+0437 PASS R122-CL07 | 既定の前倒しは60秒
+     期待値: 60
+     得た値: 60
+0438 PASS R122-CL08 | 出どころの名前
+     期待値: "JRA_INTERNET_1MIN_BEFORE_POST"
+     得た値: "JRA_INTERNET_1MIN_BEFORE_POST"
+0439 PASS R122-R01 | 順位点 K=8 r=1
+     期待値: 100
+     得た値: 100
+0440 PASS R122-R01 | 順位点 K=8 r=8
+     期待値: 12.5
+     得た値: 12.5
+0441 PASS R122-R02 | 全頭completeならSCORE
+     期待値: "SCORE"
+     得た値: "SCORE"
+0442 PASS R122-R02 | partialが混ざればEVIDENCE
+     期待値: "EVIDENCE"
+     得た値: "EVIDENCE"
+0443 PASS R122-R02 | EVIDENCEでは点数を順位キーにしない
+     期待値: 1
+     得た値: 1
+0444 PASS R122-R02 | SCOREでは点数順
+     期待値: 1
+     得た値: 1
+0445 PASS R122-R03 | 証明が無ければ加点しない
+     期待値: 0
+     得た値: 0
+0446 PASS R122-R03 | 証明が無ければ100点のまま
+     期待値: 100
+     得た値: 100
+0447 PASS R122-R03 | 加点しなかった理由を残す
+     期待値: "両roleの原公開を証明できないため加点しません"
+     得た値: "両roleの原公開を証明できないため加点しません"
+0448 PASS R122-R03 | 両AIの証明がそろえば+5
+     期待値: 5
+     得た値: 5
+0449 PASS R122-R03 | 統合点は両roleの最大＋加点
+     期待値: 105
+     得た値: 105
+0450 PASS R122-R03 | 片側だけなら加点しない
+     期待値: 0
+     得た値: 0
+0451 PASS R122-R03 | 片側の証明が不正なら加点しない
+     期待値: 0
+     得た値: 0
+0452 PASS R122-Q03 | D不足はBだけから補う
+     期待値: 4
+     得た値: 4
+0453 PASS R122-Q03 | Aへ流さない
+     期待値: 3
+     得た値: 3
+0454 PASS R122-Q03 | Dは0になる
+     期待値: 0
+     得た値: 0
+0455 PASS R122-Q03 | B不足はDだけから補う
+     期待値: 3
+     得た値: 3
+0456 PASS R122-Q03 | このときもAは増えない
+     期待値: 3
+     得た値: 3
+0457 PASS R122-P03 | 取消で active_count が減る
+     期待値: 10
+     得た値: 10
+0458 PASS R122-P03 | D枠はBへ移る
+     期待値: 4
+     得た値: 4
+0459 PASS R122-P03 | 人気を詰め直さない（Aは変わらない）
+     期待値: 3
+     得た値: 3
+0460 PASS R122-V01 | 一致すれば採用
+     期待値: true
+     得た値: true
+0461 PASS R122-V01 | allocation_mode 不一致は応答ごと不採用
+     期待値: false
+     得た値: false
+0462 PASS R122-V01 | AIが暫定を確定へ書き換えたら不採用
+     期待値: false
+     得た値: false
+0463 PASS R122-V02 | 重複した馬を除き正常な馬だけ残る
+     期待値: 1
+     得た値: 1
+0464 PASS R122-V02 | 重複は隔離
+     期待値: true
+     得た値: true
+0465 PASS R122-V02 | 未知馬は隔離
+     期待値: true
+     得た値: true
+0466 PASS R122-V02 | 欠落は不足として返す
+     期待値: [3]
+     得た値: [3]
+0467 PASS R122-V01 | 選出停止（role_quota=null）の応答は採用できる
+     期待値: true
+     得た値: true
+0468 PASS R122-V01 | 停止なのに枠を返したら不採用
+     期待値: false
+     得た値: false
+0469 PASS R122-V01 | 枠があるのにnullを返したら不採用
+     期待値: false
+     得た値: false
+0470 PASS R122-V03 | 根拠を全部消す訂正は採用しない
+     期待値: false
+     得た値: false
+0471 PASS R122-V03 | completeをpartialへ悪化させる訂正は採用しない
+     期待値: false
+     得た値: false
+0472 PASS R122-V03 | 凍結集合にない馬番を足す訂正は採用しない
+     期待値: false
+     得た値: false
+0473 PASS R122-V03 | 凍結集合にいる欠落馬は救済する
+     期待値: true
+     得た値: true
+0474 PASS R122-V03 | 救済した馬番を返す
+     期待値: [3]
+     得た値: [3]
+0475 PASS R122-V03 | 救済した馬が結果へ入る
+     期待値: "complete"
+     得た値: "complete"
+0476 PASS R122-V03 | repair_scopeの対象外を変える訂正は採用しない
+     期待値: false
+     得た値: false
+0477 PASS R122-V03 | repair_scopeの対象内なら採用する
+     期待値: true
+     得た値: true
+0478 PASS R122-V05 | 全頭返す訂正を受け入れる（未変更の再掲）
+     期待値: true
+     得た値: true
+0479 PASS R122-V05 | 対象の馬だけ当てる
+     期待値: [1]
+     得た値: [1]
+0480 PASS R122-V05 | 未変更の再掲は再掲として分ける
+     期待値: [2]
+     得た値: [2]
+0481 PASS R122-V05 | 対象外の馬は初回のまま
+     期待値: true
+     得た値: true
+0482 PASS R122-V05 | 対象外の行を本当に変える訂正は拒否
+     期待値: false
+     得た値: false
+0483 PASS R122-V05 | キーの並びが違うだけなら同じ中身
+     期待値: true
+     得た値: true
+0484 PASS R122-V05 | 中身が違えば別物
+     期待値: false
+     得た値: false
+0485 PASS R122-V05 | row_valid を渡さない訂正は採用しない
+     期待値: false
+     得た値: false
+0486 PASS R122-V05 | 救済馬が horses の対象外なら採用しない
+     期待値: false
+     得た値: false
+0487 PASS R122-V03 | row_valid=false は適用しない
+     期待値: [2]
+     得た値: [2]
+0488 PASS R122-V03 | row_valid=true だけ適用する
+     期待値: [1]
+     得た値: [1]
+0489 PASS R122-V03 | row_valid=false の行は初回のまま
+     期待値: 1
+     得た値: 1
+0490 PASS R122-V03 | 受領時刻が初回より前なら採用しない
+     期待値: false
+     得た値: false
+0491 PASS R122-V03 | 同一時刻は許容
+     期待値: true
+     得た値: true
+0492 PASS R122-V03 | 対象外の正常行は初回のまま
+     期待値: 2
+     得た値: 2
+0493 PASS R122-V03 | 訂正した行は差し替わる
+     期待値: "complete"
+     得た値: "complete"
+0494 PASS R122-V04 | BEGIN/ENDが無ければ不採用
+     期待値: false
+     得た値: false
+0495 PASS R122-V04 | 挟まれたJSONを読む
+     期待値: 1
+     得た値: 1
+0496 PASS R122-U01 | 全頭取消は CANCELLED
+     期待値: "CANCELLED"
+     得た値: "CANCELLED"
+0497 PASS R122-U01 | 公開済みは PUBLISHED
+     期待値: "PUBLISHED"
+     得た値: "PUBLISHED"
+0498 PASS R122-U01 | 入力不正は期限前でも UNAVAILABLE
+     期待値: "UNAVAILABLE"
+     得た値: "UNAVAILABLE"
+0499 PASS R122-U01 | 未公開で期限超過は UNAVAILABLE
+     期待値: "UNAVAILABLE"
+     得た値: "UNAVAILABLE"
+0500 PASS R122-U01 | 処理中で期限内は PENDING
+     期待値: "PENDING"
+     得た値: "PENDING"
+0501 PASS R122-U01 | 暫定MIXEDの表示
+     期待値: "混戦として暫定選出"
+     得た値: "混戦として暫定選出"
+0502 PASS R122-U01 | 暫定VOLATILEの表示
+     期待値: "波乱として暫定選出"
+     得た値: "波乱として暫定選出"
+0503 PASS R122-U01 | 暫定では星を出さない
+     期待値: null
+     得た値: null
+0504 PASS R122-U01 | 購入推奨は常にfalse
+     期待値: false
+     得た値: false
+0505 PASS R122-U01 | 学習段階は COLLECT_ONLY
+     期待値: "COLLECT_ONLY"
+     得た値: "COLLECT_ONLY"
+0506 PASS R122-U01 | model_version は null
+     期待値: null
+     得た値: null
+0507 PASS R122-E01 | 4.0/2.0 は 2 以上
+     期待値: true
+     得た値: true
+0508 PASS R122-E01 | 3.9/2.0 は 2 未満
+     期待値: false
+     得た値: false
+0509 PASS R122-E01 | 4.00001/2 は 2 以上
+     期待値: true
+     得た値: true
+0510 PASS R122-E01 | 3.99999/2 は 2 未満
+     期待値: false
+     得た値: false
+0511 PASS R122-E02 | 2.9/2.0 は 1.50 未満
+     期待値: true
+     得た値: true
+0512 PASS R122-E02 | 3.0/2.0 は 1.50 未満でない
+     期待値: false
+     得た値: false
+0513 PASS R122-E03 | 縮小ちょうど20%は成立
+     期待値: true
+     得た値: true
+0514 PASS R122-E03 | 縮小19%は不成立
+     期待値: false
+     得た値: false
+0515 PASS R122-E04 | 複勝ちょうど5%は成立
+     期待値: true
+     得た値: true
+0516 PASS R122-E04 | 複勝4.9%は不成立
+     期待値: false
+     得た値: false
+0517 PASS R122-E05 | 小数第5位を拒否しない
+     期待値: true
+     得た値: true
+0518 PASS R122-E05 | 小数第5位を切り捨てない
+     期待値: true
+     得た値: true
+0519 PASS R122-E05 | 129桁は制御されたエラー
+     期待値: null
+     得た値: null
+0520 PASS R122-E05 | 「取消」は数値にしない
+     期待値: null
+     得た値: null
+0521 PASS R122-E05 | 0 は有効なオッズにしない
+     期待値: false
+     得た値: false
+0522 PASS R122-E06 | 30桁×30桁は60桁
+     期待値: 60
+     得た値: 60
+0523 PASS R122-E06 | 巨大な値でも大小が壊れない
+     期待値: true
+     得た値: true
+0524 PASS R122-S01 | K=3 r=2 は分数のまま
+     期待値: {"n":200,"d":3}
+     得た値: {"n":200,"d":3}
+0525 PASS R122-S01 | K=7 r=3 は分数のまま
+     期待値: {"n":500,"d":7}
+     得た値: {"n":500,"d":7}
+0526 PASS R122-S01 | 500/7 > 200/3
+     期待値: true
+     得た値: true
+0527 PASS R122-S01 | +5 を分数で足す
+     期待値: {"n":215,"d":3}
+     得た値: {"n":215,"d":3}
+0528 PASS R122-S01 | 200/3 と 600/9 は同値
+     期待値: 0
+     得た値: 0
+0529 PASS R122-S01 | 1100/16 > 200/3
+     期待値: true
+     得た値: true
+0530 PASS R122-S02 | W=1.9999999999 が 2.00 以上か
+     期待値: false
+     得た値: false
+0531 PASS R122-S02 | W=2 が 2.00 以上か
+     期待値: true
+     得た値: true
+0532 PASS R122-S02 | W=2.0000000001 が 2.00 以上か
+     期待値: true
+     得た値: true
+0533 PASS R122-S02 | P=1.4999999999 が 1.50 未満か
+     期待値: true
+     得た値: true
+0534 PASS R122-S02 | P=1.5 が 1.50 未満か
+     期待値: false
+     得た値: false
+0535 PASS R122-S02 | P=1.5000000001 が 1.50 未満か
+     期待値: false
+     得た値: false
+0536 PASS R122-S02 | W=1.4999999999 が 1.50 未満か
+     期待値: true
+     得た値: true
+0537 PASS R122-S02 | W=1.5 が 1.50 未満か
+     期待値: false
+     得た値: false
+0538 PASS R122-S02 | W21=5 W6=4 で縮小20%以上か
+     期待値: true
+     得た値: true
+0539 PASS R122-S02 | W21=5 W6=4.0000000001 で縮小20%以上か
+     期待値: false
+     得た値: false
+0540 PASS R122-S02 | W21=5 W6=3.9999999999 で縮小20%以上か
+     期待値: true
+     得た値: true
+0541 PASS R122-S02 | 複勝 21=2.0 6=1.9 で5%以上か
+     期待値: true
+     得た値: true
+0542 PASS R122-S02 | 複勝 21=2.0 6=1.9000000001 で5%以上か
+     期待値: false
+     得た値: false
+0543 PASS R122-S02 | 複勝 21=2.0 6=1.8999999999 で5%以上か
+     期待値: true
+     得た値: true
+0544 PASS R122-S02 | 複勝 9=1.0 6=0.97 で3%以上か
+     期待値: true
+     得た値: true
+0545 PASS R122-S02 | 複勝 9=1.0 6=0.9700000001 で3%以上か
+     期待値: false
+     得た値: false
+0546 PASS R122-S03 | X1 が元値の経路と手組みで一致
+     期待値: "TRUE"
+     得た値: "TRUE"
+0547 PASS R122-S03 | X2 が元値の経路と手組みで一致
+     期待値: "TRUE"
+     得た値: "TRUE"
+0548 PASS R122-S03 | X3 が元値の経路と手組みで一致
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0549 PASS R122-S03 | X4 が元値の経路と手組みで一致
+     期待値: "FALSE"
+     得た値: "FALSE"
+0550 PASS R122-S03 | X5 が元値の経路と手組みで一致
+     期待値: "FALSE"
+     得た値: "FALSE"
+0551 PASS R122-S03 | Z が元値の経路と手組みで一致
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0552 PASS R122-S04 | 小数部128桁は読める
+     期待値: true
+     得た値: true
+0553 PASS R122-S04 | 有効桁129桁は拒否
+     期待値: null
+     得た値: null
+0554 PASS R122-S04 | 整数部128桁は読める
+     期待値: true
+     得た値: true
+0555 PASS R122-S04 | 指数表記は切り捨てず拒否
+     期待値: null
+     得た値: null
+0556 PASS R122-S04 | 符号つきは拒否（オッズは正のみ）
+     期待値: null
+     得た値: null
+0557 PASS R122-S04 | 128桁どうしでも大小がつく
+     期待値: true
+     得た値: true
+0558 PASS F-tri | tri_at_least([T,U],2)
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0559 PASS F-tri | tri_at_least([T,F,U],2)
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0560 PASS F-tri | tri_at_least([T,T,U],2)
+     期待値: "TRUE"
+     得た値: "TRUE"
+0561 PASS F-tri | tri_at_least([F,U],2)
+     期待値: "FALSE"
+     得た値: "FALSE"
+0562 PASS F-tri | tri_any([])（構造的非該当）
+     期待値: "FALSE"
+     得た値: "FALSE"
+0563 PASS F-tri | tri_any([F,U])
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0564 PASS F-cap | target_count(3)
+     期待値: 3
+     得た値: 3
+0565 PASS F-cap | target_count(8)
+     期待値: 4
+     得た値: 4
+0566 PASS F-cap | target_count(9)
+     期待値: 5
+     得た値: 5
+0567 PASS F-cap | target_count(13)
+     期待値: 5
+     得た値: 5
+0568 PASS F-cap | target_count(14)
+     期待値: 6
+     得た値: 6
+0569 PASS F-cap | target_count(16)
+     期待値: 7
+     得た値: 7
+0570 PASS F-cap | target_count(0)
+     期待値: 0
+     得た値: 0
+0571 PASS F-derive | X1
+     期待値: "TRUE"
+     得た値: "TRUE"
+0572 PASS F-derive | X2
+     期待値: "TRUE"
+     得た値: "TRUE"
+0573 PASS F-derive | X3（N<7は構造的非該当）
+     期待値: "FALSE"
+     得た値: "FALSE"
+0574 PASS F-derive | X5（対象境界なし）
+     期待値: "FALSE"
+     得た値: "FALSE"
+0575 PASS F-derive | X6（N<7は構造的非該当）
+     期待値: "FALSE"
+     得た値: "FALSE"
+0576 PASS F-derive | X6（N>=7で基準率未定義）
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0577 PASS B-T09 | X1=TRUE（21分2.5→6分1.8、k<=6）
+     期待値: "TRUE"
+     得た値: "TRUE"
+0578 PASS B-T10 | X2=TRUE（W6>=2かつP6<1.5）
+     期待値: "TRUE"
+     得た値: "TRUE"
+0579 PASS B-T11 | X4=TRUE（2頭以上が5%以上短縮）
+     期待値: "TRUE"
+     得た値: "TRUE"
+0580 PASS B-T11 | X4=FALSE（成立1頭・不明0件では2件に届かない）
+     期待値: "FALSE"
+     得た値: "FALSE"
+0581 PASS B-T11 | X4=UNKNOWN（成立1頭＋不明1頭）
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0582 PASS B-T21 | X6=UNKNOWN
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0583 PASS B-T21 | X6=UNKNOWN（母数49件を渡されても旧判定へ進まない）
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0584 PASS B-T21 | X6=UNKNOWN（母数50件・差10ppでも旧判定へ進まない）
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0585 PASS B-T21 | X6=FALSE（N<7は構造的非該当）
+     期待値: "FALSE"
+     得た値: "FALSE"
+0586 PASS B-T21 | 基準率は未合意のまま
+     期待値: null
+     得た値: null
+0587 PASS B-T12 | Tier=A（ability＋gapの2独立群）
+     期待値: "A"
+     得た値: "A"
+0588 PASS B-T12 | 独立群数
+     期待値: 2
+     得た値: 2
+0589 PASS ability | 出所と分量がそろえば採用
+     期待値: true
+     得た値: true
+0590 PASS ability | 採用1件
+     期待値: 1
+     得た値: 1
+0591 PASS ability | source_refsが空なら却下
+     期待値: false
+     得た値: false
+0592 PASS ability | 却下理由を残す
+     期待値: ["source_refsが空"]
+     得た値: ["source_refsが空"]
+0593 PASS ability | descriptionが短ければ却下
+     期待値: false
+     得た値: false
+0594 PASS ability | H1がnullなら却下
+     期待値: false
+     得た値: false
+0595 PASS ability | 過去走0走なら却下
+     期待値: false
+     得た値: false
+0596 PASS ability | 却下後は独立群が市場系だけ
+     期待値: []
+     得た値: []
+0597 PASS ability | 根拠なしはTier C
+     期待値: "C"
+     得た値: "C"
+0598 PASS B-T13 | 上位人気だけで埋めず帯別に確保
+     期待値: {"A":4,"B":2,"D":1}
+     得た値: {"A":4,"B":2,"D":1}
+0599 PASS B-T13 | 人気薄（11番人気）が残っている
+     期待値: true
+     得た値: true
+0600 PASS B-T13 | B帯の不足1をA帯から補充
+     期待値: 1
+     得た値: 1
+0601 PASS B-T14 | Tier Cを採用していない
+     期待値: []
+     得た値: []
+0602 PASS B-T14 | PARTIAL_COUNTが出る
+     期待値: true
+     得た値: true
+0603 PASS B-T14 | 採用はA帯の実在6頭まで
+     期待値: 6
+     得た値: 6
+0604 PASS valid-only | 厳密選出は採点なしで0頭
+     期待値: 0
+     得た値: 0
+0605 PASS valid-only | 厳密選出はPARTIAL_COUNTを出す
+     期待値: true
+     得た値: true
+0606 PASS valid-only | 非選出理由に順位捏造の禁止を書く
+     期待値: true
+     得た値: true
+0607 PASS valid-only | basis=VALID_SCORE_ONLY
+     期待値: "VALID_SCORE_ONLY"
+     得た値: "VALID_SCORE_ONLY"
+0608 PASS valid-only | 参考選出は別名で採用される
+     期待値: 6
+     得た値: 6
+0609 PASS valid-only | basis=EVIDENCE_ONLY_NO_HV_SCORE
+     期待値: "EVIDENCE_ONLY_NO_HV_SCORE"
+     得た値: "EVIDENCE_ONLY_NO_HV_SCORE"
+0610 PASS B-T04 | D帯不存在を別帯で補充して4頭
+     期待値: 4
+     得た値: 4
+0611 PASS B-T04 | PARTIAL_COUNTは出ない
+     期待値: null
+     得た値: null
+0612 PASS B-T04 | CROSS_BAND_FILLに記録
+     期待値: 1
+     得た値: 1
+0613 PASS B-T15 | 全頭JSONは読める
+     期待値: true
+     得た値: true
+0614 PASS B-T15 | 公開候補0でも採点が届く
+     期待値: 1
+     得た値: 1
+0615 PASS B-T15 | マーカー欠落は別状態
+     期待値: false
+     得た値: false
+0616 PASS B-T16 | 内部点が無ければ不一致にしない
+     期待値: false
+     得た値: false
+0617 PASS B-T16 | 1回目は訂正要求
+     期待値: true
+     得た値: true
+0618 PASS B-T16 | 2回目は内部未検証扱い
+     期待値: "UNVERIFIED_SCORE"
+     得た値: "UNVERIFIED_SCORE"
+0619 PASS B-T17 | 公開一致のみ加点
+     期待値: [2]
+     得た値: [2]
+0620 PASS B-T17 | 内部採点のみ一致は加点しない
+     期待値: [4]
+     得た値: [4]
+0621 PASS B-T18 | UNDETERMINED
+     期待値: "UNDETERMINED"
+     得た値: "UNDETERMINED"
+0622 PASS B-T22 | 混入馬番を検出
+     期待値: [1]
+     得た値: [1]
+0623 PASS B-T22 | 欠落馬番を検出
+     期待値: [2,3]
+     得た値: [2,3]
+0624 PASS hv-fix | 不備なしなら指摘0件
+     期待値: []
+     得た値: []
+0625 PASS hv-fix | 上限超過を拾う
+     期待値: 1
+     得た値: 1
+0626 PASS hv-fix | 上限超過の文面
+     期待値: true
+     得た値: true
+0627 PASS hv-fix | 項目欠落を拾う
+     期待値: true
+     得た値: true
+0628 PASS hv-fix | 実在しない馬番と欠落の両方を拾う
+     期待値: 2
+     得た値: 2
+0629 PASS hv-dup | 重複した馬番を記録する
+     期待値: [1]
+     得た値: [1]
+0630 PASS hv-dup | 重複があれば未検証扱い
+     期待値: false
+     得た値: false
+0631 PASS hv-dup | 2回目は採用しない（1頭のまま）
+     期待値: 1
+     得た値: 1
+0632 PASS hv-dup | 最初の行を残す（tier=C）
+     期待値: "C"
+     得た値: "C"
+0633 PASS hv-dup | 契約検証でUNDETERMINED
+     期待値: "UNDETERMINED"
+     得た値: "UNDETERMINED"
+0634 PASS id-echo | race_id一致なら通る
+     期待値: "OK"
+     得た値: "OK"
+0635 PASS id-echo | race_id不一致はUNDETERMINED
+     期待値: "UNDETERMINED"
+     得た値: "UNDETERMINED"
+0636 PASS id-echo | race_idが無ければ照合できないと記録
+     期待値: true
+     得た値: true
+0637 PASS count | 頭数不一致はPARTIAL
+     期待値: "PARTIAL"
+     得た値: "PARTIAL"
+0638 PASS count | 頭数不一致を文面に出す
+     期待値: true
+     得た値: true
+0639 PASS count | 出走頭数の不一致はDATA_INVALID
+     期待値: "DATA_INVALID"
+     得た値: "DATA_INVALID"
+0640 PASS count | 理由に不一致を書く
+     期待値: true
+     得た値: true
+0641 PASS race-guard | 1st回答の控えを捨てる
+     期待値: null
+     得た値: null
+0642 PASS race-guard | 2nd回答の控えを捨てる
+     期待値: null
+     得た値: null
+0643 PASS race-guard | 過去走件数の控えを捨てる
+     期待値: []
+     得た値: []
+0644 PASS race-guard | 構造判定の控えを捨てる
+     期待値: []
+     得た値: []
+0645 PASS race-guard | 同じレースなら捨てない
+     期待値: "同じレースの2nd回答"
+     得た値: "同じレースの2nd回答"
+0646 PASS B-T20 | 信号キーはX1〜X6とZだけ
+     期待値: ["X1","X2","X3","X4","X5","X6","Z"]
+     得た値: ["X1","X2","X3","X4","X5","X6","Z"]
+0647 PASS B-T20 | EXTREMEは通常の配分表に無い
+     期待値: false
+     得た値: false
+0648 PASS score | 全項目あり→valid
+     期待値: "valid"
+     得た値: "valid"
+0649 PASS score | 1項目欠損→partial
+     期待値: "partial"
+     得た値: "partial"
+0650 PASS score | partialのtotal_scoreはnull
+     期待値: null
+     得た値: null
+0651 PASS score | 上限超過→invalid
+     期待値: "invalid"
+     得た値: "invalid"
+0652 PASS score | 満点は100
+     期待値: 100
+     得た値: 100
+0653 PASS score | 信頼度小計は60
+     期待値: 60
+     得た値: 60
+0654 PASS score | 妙味代理小計は40
+     期待値: 40
+     得た値: 40
+0655 PASS DATA_INVALID | 馬番重複でDATA_INVALID
+     期待値: "DATA_INVALID"
+     得た値: "DATA_INVALID"
+0656 PASS DATA_INVALID | allocation_mode=NONE
+     期待値: "NONE"
+     得た値: "NONE"
+0657 PASS quota | 合計 target_count=7 mode=FIRM
+     期待値: 7
+     得た値: 7
+0658 PASS quota | 合計 target_count=7 mode=MIXED
+     期待値: 7
+     得た値: 7
+0659 PASS quota | 合計 target_count=7 mode=VOLATILE
+     期待値: 7
+     得た値: 7
+0660 PASS quota | 合計 target_count=6 mode=FIRM
+     期待値: 6
+     得た値: 6
+0661 PASS quota | 合計 target_count=6 mode=MIXED
+     期待値: 6
+     得た値: 6
+0662 PASS quota | 合計 target_count=6 mode=VOLATILE
+     期待値: 6
+     得た値: 6
+0663 PASS quota | 合計 target_count=5 mode=FIRM
+     期待値: 5
+     得た値: 5
+0664 PASS quota | 合計 target_count=5 mode=MIXED
+     期待値: 5
+     得た値: 5
+0665 PASS quota | 合計 target_count=5 mode=VOLATILE
+     期待値: 5
+     得た値: 5
+0666 PASS quota | 合計 target_count=4 mode=FIRM
+     期待値: 4
+     得た値: 4
+0667 PASS quota | 合計 target_count=4 mode=MIXED
+     期待値: 4
+     得た値: 4
+0668 PASS quota | 合計 target_count=4 mode=VOLATILE
+     期待値: 4
+     得た値: 4
+0669 PASS F-T01 | 不足数 need
+     期待値: 1
+     得た値: 1
+0670 PASS F-T02 | B方式は統合点の高い順に補充
+     期待値: [16]
+     得た値: [16]
+0671 PASS F-T03 | 独立根拠の記録が無ければC方式はnull
+     期待値: null
+     得た値: null
+0672 PASS F-T04 | 充足していれば need=0
+     期待値: 0
+     得た値: 0
+0673 PASS F-T05 | 充足していれば補充0頭
+     期待値: []
+     得た値: []
+0674 PASS F-T06 | 統合点が無い馬は補充しない
+     期待値: []
+     得た値: []
+0675 PASS F-T07 | 取消・除外の馬は補充しない
+     期待値: []
+     得た値: []
+0676 PASS F-T08 | 着順データが無い日は着順で落とさない
+     期待値: [2]
+     得た値: [2]
+0677 PASS F-T09 | 同点は馬番の小さい順
+     期待値: [3]
+     得た値: [3]
+0678 PASS F-T10 | C方式は独立根拠2系統以上だけ
+     期待値: [3]
+     得た値: [3]
+0679 PASS F-T11 | B方式は根拠を問わず点数順
+     期待値: [2,3]
+     得た値: [2,3]
+0680 PASS F-T12 | 独立根拠の記録ありを検出
+     期待値: true
+     得た値: true
+0681 PASS F-T13 | C方式は不足しても弱い根拠で埋めない
+     期待値: [3]
+     得た値: [3]
+0682 PASS F-T14 | そのときB方式は点数順で埋める
+     期待値: [2,3,4]
+     得た値: [2,3,4]
+0683 PASS FM-T01 | A方式は補充しない
+     期待値: false
+     得た値: false
+0684 PASS FM-T02 | A方式の理由文
+     期待値: "資格未達の7番人気以下（数合わせには使わない）"
+     得た値: "資格未達の7番人気以下（数合わせには使わない）"
+0685 PASS FM-T03 | B方式は記録が無くても補充する
+     期待値: true
+     得た値: true
+0686 PASS FM-T04 | B方式は独立根拠0でも補充する
+     期待値: true
+     得た値: true
+0687 PASS FM-T05 | C方式は記録が無ければ補充しない
+     期待値: false
+     得た値: false
+0688 PASS FM-T06 | C方式は独立根拠1系統なら補充しない
+     期待値: false
+     得た値: false
+0689 PASS FM-T07 | C方式は独立根拠2系統なら補充する
+     期待値: true
+     得た値: true
+0690 PASS FM-T08 | C方式は独立根拠3系統なら補充する
+     期待値: true
+     得た値: true
+0691 PASS FM-T09 | 補充枠の馬は購入推奨にしない
+     期待値: false
+     得た値: false
+0692 PASS FM-T10 | 購入回避フラグが立つ馬は購入推奨にしない
+     期待値: [false,false,false,false]
+     得た値: [false,false,false,false]
+0693 PASS FM-T11 | どれも立っていなければ購入推奨
+     期待値: true
+     得た値: true
+0694 PASS FM-T12 | 補充方式の既定はA
+     期待値: "A"
+     得た値: "A"
+0695 PASS AB-T01 | 信号が空でも落ちず不明扱い
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0696 PASS AB-T02 | 知らない文字列は不明として扱う
+     期待値: "UNKNOWN"
+     得た値: "UNKNOWN"
+0697 PASS AB-T03 | 不明があればSはnull
+     期待値: null
+     得た値: null
+0698 PASS AB-T04 | 出走頭数0の目標数は0
+     期待値: 0
+     得た値: 0
+0699 PASS AB-T05 | 負の出走頭数も0
+     期待値: 0
+     得た値: 0
+0700 PASS AB-T06 | 極端に多い頭数は上限7
+     期待値: 7
+     得た値: 7
+0701 PASS AB-T07 | 出走頭数0の配分はnull
+     期待値: null
+     得た値: null
+0702 PASS AB-T08 | 全項目nullはpartial
+     期待値: "partial"
+     得た値: "partial"
+0703 PASS AB-T09 | 全項目nullの合計はnull
+     期待値: null
+     得た値: null
+0704 PASS AB-T10 | 採点が空でも落ちずpartial
+     期待値: "partial"
+     得た値: "partial"
+0705 PASS AB-T11 | 負の点数はinvalid
+     期待値: "invalid"
+     得た値: "invalid"
+0706 PASS AB-T12 | 文字列の点数は採点にしない
+     期待値: null
+     得た値: null
+0707 PASS AB-T13 | 空文字の回答でも落ちない
+     期待値: true
+     得た値: true
+0708 PASS AB-T14 | 空文字はマーカーなし扱い
+     期待値: false
+     得た値: false
+0709 PASS AB-T15 | 壊れたJSONでも落ちない
+     期待値: true
+     得た値: true
+0710 PASS AB-T16 | 壊れたJSONは採用しない
+     期待値: false
+     得た値: false
+0711 PASS AB-T17 | 0頭のJSONでも落ちない
+     期待値: true
+     得た値: true
+0712 PASS AB-T18 | 出走馬0頭でも落ちず選出0頭
+     期待値: []
+     得た値: []
+0713 PASS AB-T19 | 馬番0や負の馬は選出しない
+     期待値: []
+     得た値: []
+0714 PASS AB-T20 | 全頭が空でも落ちず補充0頭
+     期待値: []
+     得た値: []
+0715 PASS AB-T21 | 全頭が空でもCはnull
+     期待値: null
+     得た値: null
+0716 PASS AB-T22 | 配列でない行は飛ばす
+     期待値: [3]
+     得た値: [3]
+0717 PASS AB-T23 | 目標数が負でも不足は0
+     期待値: 0
+     得た値: 0
+0718 PASS AB-T24 | 公開候補に重複があっても補充は1頭だけ
+     期待値: [2]
+     得た値: [2]
+0719 PASS AB-T25 | 知らない方式はB相当にしない（既定Aの扱い）
+     期待値: true
+     得た値: true
+0720 PASS AB-T26 | 小文字のcはC扱いにしない
+     期待値: true
+     得た値: true
+0721 PASS AB-T27 | 採点が1頭も無ければ採用しない
+     期待値: "UNDETERMINED"
+     得た値: "UNDETERMINED"
+0722 PASS AB-T28 | 欠けている馬番を記録する
+     期待値: [1,2,3]
+     得た値: [1,2,3]
+0723 PASS AS-T01 | 全頭採点を受け取れる
+     期待値: true
+     得た値: true
+0724 PASS AS-T02 | 馬番は昇順で返す
+     期待値: [1,2,3]
+     得た値: [1,2,3]
+0725 PASS AS-T03 | 総合点を馬番ごとに返す
+     期待値: 55
+     得た値: 55
+0726 PASS AS-T04 | 点数の降順で1位を決める
+     期待値: 1
+     得た値: 1
+0727 PASS AS-T05 | 同点は馬番の小さい順で2位
+     期待値: 2
+     得た値: 2
+0728 PASS AS-T06 | 点の低い馬は3位
+     期待値: 3
+     得た値: 3
+0729 PASS AS-T07 | 総合点が無い馬は点をnullで返す
+     期待値: null
+     得た値: null
+0730 PASS AS-T08 | 総合点が無い馬は順位の後ろへ
+     期待値: 2
+     得た値: 2
+0731 PASS AS-T09 | マーカーが無ければ未受領で返す
+     期待値: false
+     得た値: false
+0732 PASS AS-T10 | 未受領でも点数の欄は空配列で返す
+     期待値: []
+     得た値: []
+
+tests/audit2.php: 6成功 / 0失敗
+0733 PASS transient correction conflict remains retryable without repeating initial HTTP
+0734 PASS send uses locked live row, not old repeatable-read snapshot: cancelled
+0735 PASS send uses locked live row, not old repeatable-read snapshot: earlier-close
+0736 PASS real controller send/receive/inspect/settle/publish pipeline: normal
+0737 PASS real controller send/receive/inspect/settle/publish pipeline: correction
+0738 PASS real controller send/receive/inspect/settle/publish pipeline: reservation-conflict
+
+tests/audit3.php: 28成功 / 0失敗
+0739 PASS proof covers effective band order: unchanged valid correction
+0740 PASS proof covers effective band order: changed outside correction scope
+0741 PASS incomplete score data cannot claim complete: all-null
+0742 PASS incomplete score data cannot claim complete: one-null
+0743 PASS incomplete score data cannot claim complete: missing-key
+0744 PASS partial score data cannot carry a numeric total
+0745 PASS all valid scores cannot falsely claim partial
+0746 PASS invalid score-evidence container cannot retain unverified scores: 0
+0747 PASS invalid score-evidence container cannot retain unverified scores: 1
+0748 PASS invalid score-evidence container cannot retain unverified scores: 2
+0749 PASS invalid score-evidence container cannot retain unverified scores: 3
+0750 PASS rank-band repair permits necessary per-horse rank-mode corrections
+0751 PASS rank-band permission remains limited: other-field
+0752 PASS rank-band permission remains limited: other-band
+0753 PASS rank-band permission remains limited: change-band
+0754 PASS complete score with an invalid component uses verified evidence order
+0755 PASS valid status and rank mode remain accepted: partial
+0756 PASS valid status and rank mode remain accepted: complete
+0757 PASS score salvage followed by whole-band rank-mode correction is accepted
+0758 PASS publication rechecks state under commit lock: state_revision
+0759 PASS publication rechecks state under commit lock: response_revision
+0760 PASS publication rechecks state under commit lock: publication_revision
+0761 PASS publication rechecks state under commit lock: deadline
+0762 PASS publication write failure rolls back and retry is idempotent: baganriki_publication_intents
+0763 PASS publication write failure rolls back and retry is idempotent: baganriki_publications
+0764 PASS publication write failure rolls back and retry is idempotent: baganriki_live_states
+0765 PASS interrupted first-response processing never repeats HTTP: received-write
+0766 PASS interrupted first-response processing never repeats HTTP: validation-write
+
+tests/audit4.php: 26成功 / 0失敗
+0767 PASS invalid horse identity is isolated locally: duplicate-same
+0768 PASS invalid horse identity is isolated locally: duplicate-conflicting
+0769 PASS invalid horse identity is isolated locally: string-number
+0770 PASS invalid horse identity is isolated locally: legacy-num-only
+0771 PASS duplicate isolation rejects every duplicate occurrence
+0772 PASS corrected invalid horse identity can be rescued: duplicate
+0773 PASS corrected invalid horse identity can be rescued: string-number
+0774 PASS rank mode ignores noneligible partial horse per design section 8: NO_EVIDENCE
+0775 PASS rank mode ignores noneligible partial horse per design section 8: UNVERIFIED
+0776 PASS horses must be a JSON list, not an object: named-object
+0777 PASS horses must be a JSON list, not an object: numeric-object
+0778 PASS malformed identity must not suppress a separate valid integer row
+0779 PASS isolated invalid eligibility cannot switch a valid band to evidence mode
+0780 PASS eligible claim needs a verifiable own signal even without a registry: empty
+0781 PASS eligible claim needs a verifiable own signal even without a registry: absent
+0782 PASS valid incomplete scoring stays EVIDENCE with both eligible horses
+0783 PASS valid integer identities stay usable
+0784 PASS earlier live close revalidates received timestamp at publication: offset -1
+0785 PASS earlier live close revalidates received timestamp at publication: offset 0
+0786 PASS earlier live close revalidates received timestamp at publication: offset 1
+0787 PASS late correction cannot replace an on-time initial response or its ranks
+0788 PASS missing or invalid receive time cannot prove eligibility: null
+0789 PASS missing or invalid receive time cannot prove eligibility: not-a-timestamp
+0790 PASS unknown frozen close fails closed while preserving audit material
+0791 PASS duplicate isolation and correction reach actual publication: isolated
+0792 PASS duplicate isolation and correction reach actual publication: rescued
+
+tests/audit5.php: 42成功 / 0失敗
+0793 PASS invalid score reference is nulled locally: H1 unknown
+0794 PASS invalid score reference is nulled locally: H1 other-horse
+0795 PASS invalid score reference is nulled locally: H2 unknown
+0796 PASS invalid score reference is nulled locally: H2 other-horse
+0797 PASS invalid score reference is nulled locally: H3 unknown
+0798 PASS invalid score reference is nulled locally: H3 other-horse
+0799 PASS invalid score reference is nulled locally: H4 unknown
+0800 PASS invalid score reference is nulled locally: H4 other-horse
+0801 PASS invalid score reference is nulled locally: H5 unknown
+0802 PASS invalid score reference is nulled locally: H5 other-horse
+0803 PASS invalid score reference is nulled locally: V1 unknown
+0804 PASS invalid score reference is nulled locally: V1 other-horse
+0805 PASS invalid score reference is nulled locally: V2 unknown
+0806 PASS invalid score reference is nulled locally: V2 other-horse
+0807 PASS invalid score reference is nulled locally: V3 unknown
+0808 PASS invalid score reference is nulled locally: V3 other-horse
+0809 PASS invalid score reference is nulled locally: V4 unknown
+0810 PASS invalid score reference is nulled locally: V4 other-horse
+0811 PASS invalid score reference is nulled locally: V5 unknown
+0812 PASS invalid score reference is nulled locally: V5 other-horse
+0813 PASS all bad score references retain own signal but no score
+0814 PASS score reference and arithmetic defects remain local: unknown sum
+0815 PASS score reference and arithmetic defects remain local: unknown other-score
+0816 PASS score reference and arithmetic defects remain local: unknown score-container
+0817 PASS score reference and arithmetic defects remain local: other-horse sum
+0818 PASS score reference and arithmetic defects remain local: other-horse other-score
+0819 PASS score reference and arithmetic defects remain local: other-horse score-container
+0820 PASS score salvage cannot bypass a simultaneous invalid eligibility
+0821 PASS valid score reference remains accepted: own-horse
+0822 PASS valid score reference remains accepted: race
+0823 PASS valid score reference remains accepted: applicable-cohort
+0824 PASS bad scoring reference cannot rescue a missing horse as a valid correction
+0825 PASS corrected scoring reference restores valid points and proof
+0826 PASS invalid correction row cannot reject a valid correction for another horse
+0827 PASS valid out-of-scope correction still rejects the attempt
+0828 PASS rank mode uses merged rows after a partial correction: missing
+0829 PASS rank mode uses merged rows after a partial correction: duplicated
+0830 PASS rank mode uses merged rows after a partial correction: invalid-summary
+0831 PASS retained initial rank is also checked against the merged scoring state
+0832 PASS score repair and earlier deadline compose with cancellation: active
+0833 PASS score repair and earlier deadline compose with cancellation: cancelled
+0834 PASS late correction with score repairs is excluded without losing initial valid evidence
+
+tests/audit6.php: 40成功 / 0失敗
+0835 PASS explicit nulls remain valid for UNRESOLVED
+0836 PASS missing nullable envelope field is rejected: allocation_mode
+0837 PASS missing nullable envelope field is rejected: role_quota
+0838 PASS existing envelope mismatch still rejected: prompt_version
+0839 PASS existing envelope mismatch still rejected: schema_version
+0840 PASS existing envelope mismatch still rejected: race_id
+0841 PASS existing envelope mismatch still rejected: ai_role
+0842 PASS existing envelope mismatch still rejected: snapshot_hash
+0843 PASS existing envelope mismatch still rejected: mode
+0844 PASS existing envelope mismatch still rejected: mode_status
+0845 PASS existing envelope mismatch still rejected: allocation_mode
+0846 PASS existing envelope mismatch still rejected: mode_policy_id
+0847 PASS existing envelope mismatch still rejected: role_cap
+0848 PASS existing envelope mismatch still rejected: role_quota
+0849 PASS invalid role quota is an envelope failure: extra-band
+0850 PASS invalid role quota is an envelope failure: extra-numbered-key
+0851 PASS invalid role quota is an envelope failure: extra-case-key
+0852 PASS invalid role quota is an envelope failure: missing-band
+0853 PASS invalid role quota is an envelope failure: string-count
+0854 PASS invalid role quota is an envelope failure: decimal-count
+0855 PASS invalid role quota is an envelope failure: bool-count
+0856 PASS invalid role quota is an envelope failure: list
+0857 PASS invalid role quota is an envelope failure: empty-object
+0858 PASS invalid role quota is an envelope failure: scalar
+0859 PASS object key order is immaterial: ABD
+0860 PASS object key order is immaterial: ADB
+0861 PASS object key order is immaterial: BAD
+0862 PASS object key order is immaterial: BDA
+0863 PASS object key order is immaterial: DAB
+0864 PASS object key order is immaterial: DBA
+0865 PASS reordered quota retains proven two-role bonus: quota
+0866 PASS reordered quota retains proven two-role bonus: role_quota
+0867 PASS quota order equivalence does not hide a real difference: changed-value
+0868 PASS quota order equivalence does not hide a real difference: extra-key
+0869 PASS quota order equivalence does not hide a real difference: string
+0870 PASS quota order equivalence does not hide a real difference: decimal
+0871 PASS quota order equivalence does not hide a real difference: list
+0872 PASS bad correction envelope preserves initial usable rows
+0873 PASS invalid role cannot alter the other valid role publication
+0874 PASS reordered valid quota composes with cancellation and an earlier deadline
+
+tests/audit7.php: 67成功 / 0失敗
+0875 PASS unsupported zero is null and cannot force SCORE: H1
+0876 PASS supported zero remains a complete score: H1
+0877 PASS unsupported zero is null and cannot force SCORE: H2
+0878 PASS supported zero remains a complete score: H2
+0879 PASS unsupported zero is null and cannot force SCORE: H3
+0880 PASS supported zero remains a complete score: H3
+0881 PASS unsupported zero is null and cannot force SCORE: H4
+0882 PASS supported zero remains a complete score: H4
+0883 PASS unsupported zero is null and cannot force SCORE: H5
+0884 PASS supported zero remains a complete score: H5
+0885 PASS unsupported zero is null and cannot force SCORE: V1
+0886 PASS supported zero remains a complete score: V1
+0887 PASS unsupported zero is null and cannot force SCORE: V2
+0888 PASS supported zero remains a complete score: V2
+0889 PASS unsupported zero is null and cannot force SCORE: V3
+0890 PASS supported zero remains a complete score: V3
+0891 PASS unsupported zero is null and cannot force SCORE: V4
+0892 PASS supported zero remains a complete score: V4
+0893 PASS unsupported zero is null and cannot force SCORE: V5
+0894 PASS supported zero remains a complete score: V5
+0895 PASS unverifiable zero entry remains local: null-entry
+0896 PASS unverifiable zero entry remains local: empty-object
+0897 PASS unverifiable zero entry remains local: missing-refs
+0898 PASS all unobserved zeros cannot fabricate complete scoring
+0899 PASS unobserved zero correction cannot restore completeness
+0900 PASS supported zero correction restores valid scoring and proof
+0901 PASS two-role publication with zero evidence: missing
+0902 PASS two-role publication with zero evidence: supported
+0903 PASS invalid database time is not normalized: input 2026-02-30 12:00:00
+0904 PASS invalid database time is not normalized: input 2026-10-24 12:60:00
+0905 PASS invalid database time is not normalized: input 2026-10-24 12:00:60
+0906 PASS invalid database time is not normalized: input 2026-10-24 12:00:00.1234567
+0907 PASS invalid database time is not normalized: input 2026-10-24 12:00:00junk
+0908 PASS invalid database time is not normalized: input 2026-10-24 12:00:00+00:00
+0909 PASS invalid database time is not normalized: input 2026-00-24 12:00:00
+0910 PASS invalid database time is not normalized: input 2026-10-00 12:00:00
+0911 PASS invalid database time is not normalized: registry 2026-02-30 12:00:00
+0912 PASS invalid database time is not normalized: registry 2026-10-24 12:60:00
+0913 PASS invalid database time is not normalized: registry 2026-10-24 12:00:60
+0914 PASS invalid database time is not normalized: registry 2026-10-24 12:00:00.1234567
+0915 PASS invalid database time is not normalized: registry 2026-10-24 12:00:00junk
+0916 PASS invalid database time is not normalized: registry 2026-10-24 12:00:00+00:00
+0917 PASS invalid database time is not normalized: registry 2026-00-24 12:00:00
+0918 PASS invalid database time is not normalized: registry 2026-10-00 12:00:00
+0919 PASS invalid database time is not normalized: deadline 2026-02-30 12:00:00
+0920 PASS invalid database time is not normalized: deadline 2026-10-24 12:60:00
+0921 PASS invalid database time is not normalized: deadline 2026-10-24 12:00:60
+0922 PASS invalid database time is not normalized: deadline 2026-10-24 12:00:00.1234567
+0923 PASS invalid database time is not normalized: deadline 2026-10-24 12:00:00junk
+0924 PASS invalid database time is not normalized: deadline 2026-10-24 12:00:00+00:00
+0925 PASS invalid database time is not normalized: deadline 2026-00-24 12:00:00
+0926 PASS invalid database time is not normalized: deadline 2026-10-00 12:00:00
+0927 PASS valid database time preserves microseconds: input seconds
+0928 PASS valid database time preserves microseconds: input 0
+0929 PASS valid database time preserves microseconds: input 000001
+0930 PASS valid database time preserves microseconds: input 123456
+0931 PASS valid database time preserves microseconds: registry seconds
+0932 PASS valid database time preserves microseconds: registry 0
+0933 PASS valid database time preserves microseconds: registry 000001
+0934 PASS valid database time preserves microseconds: registry 123456
+0935 PASS valid database time preserves microseconds: deadline seconds
+0936 PASS valid database time preserves microseconds: deadline 0
+0937 PASS valid database time preserves microseconds: deadline 000001
+0938 PASS valid database time preserves microseconds: deadline 123456
+0939 PASS DATE-only registry input and DateTime deadline input stay supported
+0940 PASS input time conversion cannot truncate a late batch into the cutoff
+0941 PASS unparseable received_at cannot authorize publication
+
+tests/audit8.php: 100成功 / 0失敗
+0942 PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00+09:60"
+0943 PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00-03:60"
+0944 PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00+24:00"
+0945 PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00-24:00"
+0946 PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00+99:99"
+0947 PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00-99:99"
+0948 PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00Z\n"
+0949 PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00+09:00\n"
+0950 PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00.1234567Z"
+0951 PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00"
+0952 PASS valid offset keeps the same instant: 2026-10-24T03:04:05.123456Z
+0953 PASS valid offset keeps the same instant: 2026-10-24t03:04:05.123456z
+0954 PASS valid offset keeps the same instant: 2026-10-24T03:04:05.123456+00:00
+0955 PASS valid offset keeps the same instant: 2026-10-24T03:04:05.123456-00:00
+0956 PASS valid offset keeps the same instant: 2026-10-24T12:04:05.123456+09:00
+0957 PASS valid offset keeps the same instant: 2026-10-24T08:49:05.123456+05:45
+0958 PASS valid offset keeps the same instant: 2026-10-23T23:34:05.123456-03:30
+0959 PASS valid offset keeps the same instant: 2026-10-25T03:03:05.123456+23:59
+0960 PASS valid offset keeps the same instant: 2026-10-23T03:05:05.123456-23:59
+0961 PASS acquisition cutoff is inclusive to one microsecond: slot 21
+0962 PASS malformed explicit schedule is not reconstructed: slot 21
+0963 PASS absent or null schedule retains documented anchor fallback: slot 21
+0964 PASS complete audit timestamps do not require a second anchor: slot 21
+0965 PASS acquisition cutoff is inclusive to one microsecond: slot 18
+0966 PASS malformed explicit schedule is not reconstructed: slot 18
+0967 PASS absent or null schedule retains documented anchor fallback: slot 18
+0968 PASS complete audit timestamps do not require a second anchor: slot 18
+0969 PASS acquisition cutoff is inclusive to one microsecond: slot 15
+0970 PASS malformed explicit schedule is not reconstructed: slot 15
+0971 PASS absent or null schedule retains documented anchor fallback: slot 15
+0972 PASS complete audit timestamps do not require a second anchor: slot 15
+0973 PASS acquisition cutoff is inclusive to one microsecond: slot 12
+0974 PASS malformed explicit schedule is not reconstructed: slot 12
+0975 PASS absent or null schedule retains documented anchor fallback: slot 12
+0976 PASS complete audit timestamps do not require a second anchor: slot 12
+0977 PASS acquisition cutoff is inclusive to one microsecond: slot 9
+0978 PASS malformed explicit schedule is not reconstructed: slot 9
+0979 PASS absent or null schedule retains documented anchor fallback: slot 9
+0980 PASS complete audit timestamps do not require a second anchor: slot 9
+0981 PASS acquisition cutoff is inclusive to one microsecond: slot 6
+0982 PASS malformed explicit schedule is not reconstructed: slot 6
+0983 PASS absent or null schedule retains documented anchor fallback: slot 6
+0984 PASS complete audit timestamps do not require a second anchor: slot 6
+0985 PASS bad timestamp only rejects its own acquisition batch: request_started_at text
+0986 PASS bad timestamp only rejects its own acquisition batch: request_started_at array
+0987 PASS bad timestamp only rejects its own acquisition batch: request_started_at object
+0988 PASS bad timestamp only rejects its own acquisition batch: response_received_at text
+0989 PASS bad timestamp only rejects its own acquisition batch: response_received_at array
+0990 PASS bad timestamp only rejects its own acquisition batch: response_received_at object
+0991 PASS bad timestamp only rejects its own acquisition batch: available_at text
+0992 PASS bad timestamp only rejects its own acquisition batch: available_at array
+0993 PASS bad timestamp only rejects its own acquisition batch: available_at object
+0994 PASS bad timestamp only rejects its own acquisition batch: input_freeze_at text
+0995 PASS bad timestamp only rejects its own acquisition batch: input_freeze_at array
+0996 PASS bad timestamp only rejects its own acquisition batch: input_freeze_at object
+0997 PASS bad timestamp only rejects its own acquisition batch: slot_scheduled_at text
+0998 PASS bad timestamp only rejects its own acquisition batch: slot_scheduled_at array
+0999 PASS bad timestamp only rejects its own acquisition batch: slot_scheduled_at object
+1000 PASS bad timestamp only rejects its own acquisition batch: source_updated_at text
+1001 PASS bad timestamp only rejects its own acquisition batch: source_updated_at array
+1002 PASS bad timestamp only rejects its own acquisition batch: source_updated_at object
+1003 PASS invalid offsets cannot normalize into matching acquisition schedule
+1004 PASS all malformed schedules leave acquisition unavailable even with cancellation
+1005 PASS equivalent UTC and JST audit timestamps preserve selected batch
+1006 PASS database adapter cannot erase invalid timestamp: slot_scheduled_at broken
+1007 PASS database adapter cannot erase invalid timestamp: slot_scheduled_at 2026-02-30 11:54:00
+1008 PASS database adapter cannot erase invalid timestamp: slot_scheduled_at 2026-10-24 11:54:00.1234567
+1009 PASS database adapter cannot erase invalid timestamp: source_updated_at broken
+1010 PASS database adapter cannot erase invalid timestamp: source_updated_at 2026-02-30 11:54:00
+1011 PASS database adapter cannot erase invalid timestamp: source_updated_at 2026-10-24 11:54:00.1234567
+1012 PASS database schedule comparison uses instant, not fractional spelling: seconds
+1013 PASS database schedule comparison uses instant, not fractional spelling: .0
+1014 PASS database schedule comparison uses instant, not fractional spelling: .00
+1015 PASS database schedule comparison uses instant, not fractional spelling: .000
+1016 PASS database schedule comparison uses instant, not fractional spelling: .0000
+1017 PASS database schedule comparison uses instant, not fractional spelling: .00000
+1018 PASS database schedule comparison uses instant, not fractional spelling: .000000
+1019 PASS database adapter preserves nullable optional timestamps
+1020 PASS database schedule mismatch of one microsecond is rejected: 2026-10-24 11:53:59.999999
+1021 PASS database schedule mismatch of one microsecond is rejected: 2026-10-24 11:54:00.000001
+1022 PASS database adapter cannot manufacture a usable batch from invalid optional dates
+1023 PASS unreadable non-null live close cannot become no change: broken
+1024 PASS unreadable non-null live close cannot become no change: 0000-00-00 00:00:00
+1025 PASS unreadable non-null live close cannot become no change: 2026-02-30 12:00:00
+1026 PASS unreadable non-null live close cannot become no change: 2026-10-24 12:00:00.1234567
+1027 PASS valid live close keeps existing deadline policy: null-row
+1028 PASS valid live close keeps existing deadline policy: missing-field
+1029 PASS valid live close keeps existing deadline policy: null-field
+1030 PASS valid live close keeps existing deadline policy: earlier
+1031 PASS valid live close keeps existing deadline policy: later
+1032 PASS valid live close keeps existing deadline policy: datetime
+1033 PASS unreadable live deadline blocks reservation without consuming a slot
+1034 PASS unreadable live deadline blocks send right and preserves reservation
+1035 PASS normal null live deadline still permits one reservation and one send right
+1036 PASS unreadable live close preserves received evidence only for audit
+1037 PASS unreadable live close blocks publication without changing its pointer
+1038 PASS valid null live close still publishes at the frozen deadline
+1039 PASS earlier close with cancellation and corrected score: receipt offset -1
+1040 PASS earlier close with cancellation and corrected score: receipt offset 0
+1041 PASS earlier close with cancellation and corrected score: receipt offset 1
+
+tests/audit9.php: 111成功 / 0失敗
+1042 PASS applicable SIGNAL survives qualification: HORSE partial
+1043 PASS two-role publication retains scoped evidence: HORSE partial
+1044 PASS applicable SIGNAL survives qualification: HORSE complete
+1045 PASS two-role publication retains scoped evidence: HORSE complete
+1046 PASS applicable SIGNAL survives qualification: PAIR partial
+1047 PASS two-role publication retains scoped evidence: PAIR partial
+1048 PASS applicable SIGNAL survives qualification: PAIR complete
+1049 PASS two-role publication retains scoped evidence: PAIR complete
+1050 PASS applicable SIGNAL survives qualification: COHORT partial
+1051 PASS two-role publication retains scoped evidence: COHORT partial
+1052 PASS applicable SIGNAL survives qualification: COHORT complete
+1053 PASS two-role publication retains scoped evidence: COHORT complete
+1054 PASS bad score preserves applicable signal: PAIR
+1055 PASS valid correction restores scoped score: PAIR
+1056 PASS bad score preserves applicable signal: COHORT
+1057 PASS valid correction restores scoped score: COHORT
+1058 PASS unqualified evidence stays excluded: foreign HORSE
+1059 PASS unqualified evidence stays excluded: foreign PAIR
+1060 PASS unqualified evidence stays excluded: foreign COHORT
+1061 PASS unqualified evidence stays excluded: RACE only
+1062 PASS unqualified evidence stays excluded: PAIR context
+1063 PASS unqualified evidence stays excluded: COHORT context
+1064 PASS unqualified evidence stays excluded: unknown scope
+1065 PASS ordinary text is not a nonfinite number: Infinity Stable
+1066 PASS ordinary text is not a nonfinite number: NaN recorded
+1067 PASS ordinary text is not a nonfinite number: text -Infinity only
+1068 PASS ordinary text is not a nonfinite number: 説明にNaNという文字がある
+1069 PASS actual nonfinite number rejected: positive
+1070 PASS actual nonfinite number rejected: negative
+1071 PASS actual nonfinite number rejected: nan
+1072 PASS generated JSON enforces exact 4 MiB boundary: -1
+1073 PASS generated JSON enforces exact 4 MiB boundary: 0
+1074 PASS generated JSON enforces exact 4 MiB boundary: 1
+1075 PASS multibyte JSON limit counts bytes
+1076 PASS canonical JSON keeps order independence and null/zero distinction
+1077 PASS later adopted odds cannot resurrect cancellation: 21
+1078 PASS later adopted odds cannot resurrect cancellation: 18
+1079 PASS later adopted odds cannot resurrect cancellation: 15
+1080 PASS later adopted odds cannot resurrect cancellation: 12
+1081 PASS later adopted odds cannot resurrect cancellation: 9
+1082 PASS earlier odds then later cancellation remains valid
+1083 PASS repeated cancellation does not create conflict
+1084 PASS unadopted cancellation cannot pollute conflict detection: uncommitted
+1085 PASS unadopted cancellation cannot pollute conflict detection: hash-mismatch
+1086 PASS unadopted cancellation cannot pollute conflict detection: late
+1087 PASS declared headcount mismatch or invalid value stops input: 3
+1088 PASS declared headcount mismatch or invalid value stops input: "3"
+1089 PASS declared headcount mismatch or invalid value stops input: 0
+1090 PASS declared headcount mismatch or invalid value stops input: -1
+1091 PASS declared headcount mismatch or invalid value stops input: "2.5"
+1092 PASS declared headcount mismatch or invalid value stops input: "broken"
+1093 PASS matching or absent declared headcount remains supported: 2
+1094 PASS matching or absent declared headcount remains supported: "2"
+1095 PASS matching or absent declared headcount remains supported: null
+1096 PASS invalid entry horse identity cannot be coerced: "1x"
+1097 PASS invalid entry horse identity cannot be coerced: 1.5
+1098 PASS invalid entry horse identity cannot be coerced: true
+1099 PASS invalid entry horse identity cannot be coerced: []
+1100 PASS invalid entry horse identity cannot be coerced: null
+1101 PASS invalid entry horse identity cannot be coerced: "9223372036854775808"
+1102 PASS invalid entry horse identity cannot be coerced: 0
+1103 PASS invalid entry horse identity cannot be coerced: -1
+1104 PASS conflicting duplicate entry cannot silently overwrite its name
+1105 PASS identical duplicate and padded integer database key stay supported
+1106 PASS recovery raw numeric precision retained: recovery_rate
+1107 PASS recovery raw numeric precision retained: win_rate
+1108 PASS recovery raw numeric precision retained: sample_count
+1109 PASS similarity raw value retained: top3_rate
+1110 PASS similarity raw value retained: top5_rate
+1111 PASS similarity raw value retained: avg_finishing_position
+1112 PASS similarity raw value retained: outside_rate
+1113 PASS similarity raw value retained: sample_count
+1114 PASS similarity raw value retained: reliability
+1115 PASS invalid row cannot borrow another row timestamp: popavg null
+1116 PASS invalid row cannot borrow another row timestamp: popavg "bad"
+1117 PASS invalid row cannot borrow another row timestamp: popavg "2026-02-30 10:00:00"
+1118 PASS invalid row cannot borrow another row timestamp: popavg "2026-10-24 11:55:00.000001"
+1119 PASS invalid row cannot borrow another row timestamp: fukuavg null
+1120 PASS invalid row cannot borrow another row timestamp: fukuavg "bad"
+1121 PASS invalid row cannot borrow another row timestamp: fukuavg "2026-02-30 10:00:00"
+1122 PASS invalid row cannot borrow another row timestamp: fukuavg "2026-10-24 11:55:00.000001"
+1123 PASS invalid row cannot borrow another row timestamp: corr null
+1124 PASS invalid row cannot borrow another row timestamp: corr "bad"
+1125 PASS invalid row cannot borrow another row timestamp: corr "2026-02-30 10:00:00"
+1126 PASS invalid row cannot borrow another row timestamp: corr "2026-10-24 11:55:00.000001"
+1127 PASS valid statistics keep their own row timestamp: popavg
+1128 PASS verified_at fallback and exact cutoff remain valid: popavg
+1129 PASS malformed recorded computed_at cannot use verified_at fallback: popavg
+1130 PASS valid statistics keep their own row timestamp: fukuavg
+1131 PASS verified_at fallback and exact cutoff remain valid: fukuavg
+1132 PASS malformed recorded computed_at cannot use verified_at fallback: fukuavg
+1133 PASS valid statistics keep their own row timestamp: corr
+1134 PASS verified_at fallback and exact cutoff remain valid: corr
+1135 PASS malformed recorded computed_at cannot use verified_at fallback: corr
+1136 PASS market raw numeric precision retained: popavg_rank1_win_odds
+1137 PASS market raw numeric precision retained: popavg_rank1_count
+1138 PASS market raw numeric precision retained: fukuavg_rank1_place_min
+1139 PASS market raw numeric precision retained: fukuavg_rank1_count
+1140 PASS market raw numeric precision retained: corr_rank1_avg_correction_ratio
+1141 PASS market raw numeric precision retained: corr_rank1_std_correction_ratio
+1142 PASS market raw numeric precision retained: corr_rank1_sample_count
+1143 PASS unavailable statistics stay unavailable when every timestamp is missing
+1144 PASS nonduplicate database error is not disguised: 1048
+1145 PASS nonduplicate database error is not disguised: 1451
+1146 PASS nonduplicate database error is not disguised: 1452
+1147 PASS nonduplicate database error is not disguised: 3819
+1148 PASS nonduplicate database error is not disguised: 1213
+1149 PASS nonduplicate database error is not disguised: 1205
+1150 PASS duplicate error identified by vendor code even when localized
+1151 PASS unstructured SQL-like value is not a duplicate error
+1152 PASS legacy duplicate-entry message remains recognized
+
+tests/audit10.php: 139成功 / 0失敗
+1153 PASS raw numeric value survives registry and wire: above two tan
+1154 PASS raw numeric value survives registry and wire: above two fuku_min
+1155 PASS raw numeric value survives registry and wire: above two fuku_max
+1156 PASS raw numeric value survives registry and wire: below two tan
+1157 PASS raw numeric value survives registry and wire: below two fuku_min
+1158 PASS raw numeric value survives registry and wire: below two fuku_max
+1159 PASS raw numeric value survives registry and wire: large integer tan
+1160 PASS raw numeric value survives registry and wire: large integer fuku_min
+1161 PASS raw numeric value survives registry and wire: large integer fuku_max
+1162 PASS raw numeric value survives registry and wire: small exponent tan
+1163 PASS raw numeric value survives registry and wire: small exponent fuku_min
+1164 PASS raw numeric value survives registry and wire: small exponent fuku_max
+1165 PASS raw numeric value survives registry and wire: fraction exponent tan
+1166 PASS raw numeric value survives registry and wire: fraction exponent fuku_min
+1167 PASS raw numeric value survives registry and wire: fraction exponent fuku_max
+1168 PASS raw numeric value survives registry and wire: 128 integer digits tan
+1169 PASS raw numeric value survives registry and wire: 128 integer digits fuku_min
+1170 PASS raw numeric value survives registry and wire: 128 integer digits fuku_max
+1171 PASS raw numeric value survives registry and wire: 128 significant digits tan
+1172 PASS raw numeric value survives registry and wire: 128 significant digits fuku_min
+1173 PASS raw numeric value survives registry and wire: 128 significant digits fuku_max
+1174 PASS raw numeric popularity is exact: fraction
+1175 PASS raw numeric popularity is exact: large integers
+1176 PASS equal values with different numeric spellings keep horse-number tie break
+1177 PASS duplicate JSON keys reject only their batch: cancel overwritten slot 6
+1178 PASS duplicate JSON keys reject only their batch: cancel overwritten slot 21
+1179 PASS duplicate JSON keys reject only their batch: escaped key alias slot 6
+1180 PASS duplicate JSON keys reject only their batch: escaped key alias slot 21
+1181 PASS duplicate JSON keys reject only their batch: identical duplicate slot 6
+1182 PASS duplicate JSON keys reject only their batch: identical duplicate slot 21
+1183 PASS duplicate JSON keys reject only their batch: horse overwritten slot 6
+1184 PASS duplicate JSON keys reject only their batch: horse overwritten slot 21
+1185 PASS duplicate JSON keys reject only their batch: root key overwritten slot 6
+1186 PASS duplicate JSON keys reject only their batch: root key overwritten slot 21
+1187 PASS duplicate JSON keys reject only their batch: nested key overwritten slot 6
+1188 PASS duplicate JSON keys reject only their batch: nested key overwritten slot 21
+1189 PASS invalid raw horse number is never coerced: "1x" slot 6
+1190 PASS invalid raw horse number is never coerced: "1x" slot 21
+1191 PASS invalid raw horse number is never coerced: 1.9 slot 6
+1192 PASS invalid raw horse number is never coerced: 1.9 slot 21
+1193 PASS invalid raw horse number is never coerced: 1.0 slot 6
+1194 PASS invalid raw horse number is never coerced: 1.0 slot 21
+1195 PASS invalid raw horse number is never coerced: 1e0 slot 6
+1196 PASS invalid raw horse number is never coerced: 1e0 slot 21
+1197 PASS invalid raw horse number is never coerced: true slot 6
+1198 PASS invalid raw horse number is never coerced: true slot 21
+1199 PASS invalid raw horse number is never coerced: false slot 6
+1200 PASS invalid raw horse number is never coerced: false slot 21
+1201 PASS invalid raw horse number is never coerced: [] slot 6
+1202 PASS invalid raw horse number is never coerced: [] slot 21
+1203 PASS invalid raw horse number is never coerced: {} slot 6
+1204 PASS invalid raw horse number is never coerced: {} slot 21
+1205 PASS invalid raw horse number is never coerced: null slot 6
+1206 PASS invalid raw horse number is never coerced: null slot 21
+1207 PASS invalid raw horse number is never coerced: 0 slot 6
+1208 PASS invalid raw horse number is never coerced: 0 slot 21
+1209 PASS invalid raw horse number is never coerced: -1 slot 6
+1210 PASS invalid raw horse number is never coerced: -1 slot 21
+1211 PASS invalid raw horse number is never coerced: "9223372036854775808" slot 6
+1212 PASS invalid raw horse number is never coerced: "9223372036854775808" slot 21
+1213 PASS invalid raw horse number is never coerced: 9223372036854775808 slot 6
+1214 PASS invalid raw horse number is never coerced: 9223372036854775808 slot 21
+1215 PASS malformed extra row cannot silently disappear: null
+1216 PASS malformed extra row cannot silently disappear: true
+1217 PASS malformed extra row cannot silently disappear: 123
+1218 PASS malformed extra row cannot silently disappear: "row"
+1219 PASS malformed extra row cannot silently disappear: []
+1220 PASS malformed extra row cannot silently disappear: {}
+1221 PASS malformed extra row cannot silently disappear: {"tan":"4.5"}
+1222 PASS malformed extra row cannot silently disappear: {"num":0,"tan":"4.5"}
+1223 PASS positive raw horse identity remains supported: 1
+1224 PASS positive raw horse identity remains supported: "1"
+1225 PASS positive raw horse identity remains supported: "01"
+1226 PASS positive raw horse identity remains supported: " 1 "
+1227 PASS legacy row collection shape remains supported: list
+1228 PASS legacy row collection shape remains supported: named object
+1229 PASS legacy row collection shape remains supported: numeric object
+1230 PASS invalid raw win odds do not satisfy six-minute completeness: true
+1231 PASS invalid raw win odds do not satisfy six-minute completeness: false
+1232 PASS invalid raw win odds do not satisfy six-minute completeness: []
+1233 PASS invalid raw win odds do not satisfy six-minute completeness: {}
+1234 PASS invalid raw win odds do not satisfy six-minute completeness: [2.1]
+1235 PASS invalid raw win odds do not satisfy six-minute completeness: {"value":2.1}
+1236 PASS invalid raw win odds do not satisfy six-minute completeness: null
+1237 PASS invalid raw win odds do not satisfy six-minute completeness: 0
+1238 PASS invalid raw win odds do not satisfy six-minute completeness: -2.1
+1239 PASS invalid raw win odds do not satisfy six-minute completeness: "NaN"
+1240 PASS invalid raw win odds do not satisfy six-minute completeness: "Infinity"
+1241 PASS partial earlier slot preserves missing odds: tan true
+1242 PASS partial earlier slot preserves missing odds: tan []
+1243 PASS partial earlier slot preserves missing odds: tan {}
+1244 PASS partial earlier slot preserves missing odds: fuku_min true
+1245 PASS partial earlier slot preserves missing odds: fuku_min []
+1246 PASS partial earlier slot preserves missing odds: fuku_min {}
+1247 PASS partial earlier slot preserves missing odds: fuku_max true
+1248 PASS partial earlier slot preserves missing odds: fuku_max []
+1249 PASS partial earlier slot preserves missing odds: fuku_max {}
+1250 PASS missing six-minute place odds do not erase valid wins: fuku_min
+1251 PASS missing six-minute place odds do not erase valid wins: fuku_max
+1252 PASS valid cancellation remains local to adopted batch: 取消
+1253 PASS valid cancellation remains local to adopted batch: 除外
+1254 PASS all malformed six-minute candidates stop input even with earlier data
+1255 PASS raw parser does not weaken acquisition gates: hash mismatch
+1256 PASS raw parser does not weaken acquisition gates: uncommitted
+1257 PASS raw parser does not weaken acquisition gates: late
+1258 PASS existing raw set integrity remains enforced: unknown horse
+1259 PASS existing raw set integrity remains enforced: duplicate horse
+1260 PASS existing raw set integrity remains enforced: duplicate padded horse
+1261 PASS existing raw set integrity remains enforced: cancel conflict
+1262 PASS empty or malformed root cannot qualify six-minute input: []
+1263 PASS empty or malformed root cannot qualify six-minute input: {}
+1264 PASS empty or malformed root cannot qualify six-minute input: null
+1265 PASS empty or malformed root cannot qualify six-minute input: true
+1266 PASS empty or malformed root cannot qualify six-minute input: 42
+1267 PASS empty or malformed root cannot qualify six-minute input: "text"
+1268 PASS empty or malformed root cannot qualify six-minute input: [
+1269 PASS empty or malformed root cannot qualify six-minute input: [NaN]
+1270 PASS empty or malformed root cannot qualify six-minute input: [Infinity]
+1271 PASS empty or malformed root cannot qualify six-minute input: [] trailing
+1272 PASS raw payload byte boundary: -1
+1273 PASS raw payload byte boundary: 0
+1274 PASS raw payload byte boundary: 1
+1275 PASS raw payload depth boundary: 64
+1276 PASS raw payload depth boundary: 65
+1277 PASS invalid raw token excludes batch: 129 digits
+1278 PASS invalid raw token excludes batch: positive exponent
+1279 PASS invalid raw token excludes batch: negative exponent
+1280 PASS invalid raw token excludes batch: invalid UTF-8
+1281 PASS numeric predicate safely rejects unsupported PHP value: null
+1282 PASS numeric predicate safely rejects unsupported PHP value: true
+1283 PASS numeric predicate safely rejects unsupported PHP value: array
+1284 PASS numeric predicate safely rejects unsupported PHP value: object
+1285 PASS numeric predicate safely rejects unsupported PHP value: nonfinite
+1286 PASS numeric predicate safely rejects unsupported PHP value: nan
+1287 PASS numeric predicate safely rejects unsupported PHP value: stringable
+1288 PASS numeric predicate keeps supported PHP values: integer
+1289 PASS numeric predicate keeps supported PHP values: float
+1290 PASS numeric predicate keeps supported PHP values: string
+1291 PASS numeric predicate keeps supported PHP values: decimal
+
+合計: 1291成功 / 0失敗
+旧版での失敗再現はaudit10_baseline_reproduction.txtに別記。

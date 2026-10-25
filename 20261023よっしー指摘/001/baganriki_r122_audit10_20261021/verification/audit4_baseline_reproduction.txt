@@ -1,0 +1,27 @@
+FAIL invalid horse identity is isolated locally: duplicate-same: RuntimeException invalid horse retained or unaffected horse lost
+FAIL invalid horse identity is isolated locally: duplicate-conflicting: RuntimeException invalid horse retained or unaffected horse lost
+FAIL invalid horse identity is isolated locally: string-number: RuntimeException invalid horse retained or unaffected horse lost
+FAIL invalid horse identity is isolated locally: legacy-num-only: RuntimeException invalid horse retained or unaffected horse lost
+FAIL duplicate isolation rejects every duplicate occurrence: RuntimeException first duplicate was retained
+FAIL corrected invalid horse identity can be rescued: duplicate: RuntimeException valid identity correction not rescued: 訂正を反映しました（適用 1頭・救済 0頭・飛ばし 0頭）
+FAIL corrected invalid horse identity can be rescued: string-number: RuntimeException valid identity correction not rescued: 訂正を反映しました（適用 1頭・救済 0頭・飛ばし 0頭）
+FAIL rank mode ignores noneligible partial horse per design section 8: NO_EVIDENCE: RuntimeException valid complete eligible band rejected: [{"scope":"rank_bands","target":"A","code":"BASIS_MISMATCH","reason":"A\u5e2f\u306fEVIDENCE\u306e\u306f\u305a\u3067\u3059\uff08\u99ac\u756a 1\uff09"},{"scope":"rank_bands","target":"A","code":"EVIDENCE_ORDER","reason":"A\u5e2f\u306f\u70b9\u6570\u3092\u9806\u4f4d\u30ad\u30fc\u306b\u4f7f\u3048\u306a\u3044\u306e\u3067\u4e21\u65b9\u306e\u9806\u4f4d\u3092\u305d\u308d\u3048\u307e\u3059"}]
+FAIL rank mode ignores noneligible partial horse per design section 8: UNVERIFIED: RuntimeException valid complete eligible band rejected: [{"scope":"rank_bands","target":"A","code":"BASIS_MISMATCH","reason":"A\u5e2f\u306fEVIDENCE\u306e\u306f\u305a\u3067\u3059\uff08\u99ac\u756a 1\uff09"},{"scope":"rank_bands","target":"A","code":"EVIDENCE_ORDER","reason":"A\u5e2f\u306f\u70b9\u6570\u3092\u9806\u4f4d\u30ad\u30fc\u306b\u4f7f\u3048\u306a\u3044\u306e\u3067\u4e21\u65b9\u306e\u9806\u4f4d\u3092\u305d\u308d\u3048\u307e\u3059"}]
+FAIL horses must be a JSON list, not an object: named-object: RuntimeException object-shaped horse collection accepted
+FAIL horses must be a JSON list, not an object: numeric-object: RuntimeException object-shaped horse collection accepted
+PASS malformed identity must not suppress a separate valid integer row
+FAIL isolated invalid eligibility cannot switch a valid band to evidence mode: RuntimeException isolated row changed the valid horse score rank
+FAIL eligible claim needs a verifiable own signal even without a registry: empty: RuntimeException unverified eligible claims survived empty or missing registry
+FAIL eligible claim needs a verifiable own signal even without a registry: absent: RuntimeException unverified eligible claims survived empty or missing registry
+PASS valid incomplete scoring stays EVIDENCE with both eligible horses
+PASS valid integer identities stay usable
+PASS earlier live close revalidates received timestamp at publication: offset -1
+PASS earlier live close revalidates received timestamp at publication: offset 0
+FAIL earlier live close revalidates received timestamp at publication: offset 1: RuntimeException response after new deadline was published
+FAIL late correction cannot replace an on-time initial response or its ranks: RuntimeException late correction still adopted
+FAIL missing or invalid receive time cannot prove eligibility: null: RuntimeException unverifiable receive time accepted
+FAIL missing or invalid receive time cannot prove eligibility: not-a-timestamp: RuntimeException unverifiable receive time accepted
+FAIL unknown frozen close fails closed while preserving audit material: RuntimeException unknown deadline accepted
+FAIL duplicate isolation and correction reach actual publication: isolated: RuntimeException invalid horse leaked into publication or corrected horse was lost
+PASS duplicate isolation and correction reach actual publication: rescued
+AUDIT4 RESULT: 6 passed, 20 failed. PHP with DB/HTTP doubles; no production runtime or external AI.

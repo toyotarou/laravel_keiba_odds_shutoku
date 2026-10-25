@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力 r12.2 確認結果への回答</title>
+<style>
+:root{
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1f2328; --sub:#5b6370; --line:#e3e1dc;
+  --ok:#1f7a4d; --okbg:#e7f4ec; --warn:#9a5b00; --warnbg:#fbf1df;
+  --ask:#2457a6; --askbg:#e8eefa; --code:#f0eee9;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16181b; --card:#1f2226; --ink:#e8e6e1; --sub:#a3a9b2; --line:#33373d;
+    --ok:#6fcf9b; --okbg:#1d3328; --warn:#f0b65a; --warnbg:#3a2e1a;
+    --ask:#8fb4f2; --askbg:#1e2a40; --code:#2a2d32;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:16px;line-height:1.75}
+main{max-width:680px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.3rem;margin:0 0 4px}
+.meta{color:var(--sub);font-size:.85rem;margin-bottom:20px}
+h2{font-size:1.06rem;margin:28px 0 10px;padding-left:10px;border-left:4px solid var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0}
+.lead{font-size:1.02rem}
+ul{padding-left:1.2em;margin:6px 0}
+li{margin:4px 0}
+.tag{display:inline-block;font-size:.76rem;font-weight:700;border-radius:6px;padding:1px 8px;margin-right:6px;white-space:nowrap}
+.ok{color:var(--ok);background:var(--okbg)}
+.warn{color:var(--warn);background:var(--warnbg)}
+.askt{color:var(--ask);background:var(--askbg)}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th,td{border-bottom:1px solid var(--line);padding:7px 4px;text-align:left;vertical-align:top}
+th{color:var(--sub);font-weight:600}
+code{background:var(--code);border-radius:4px;padding:0 4px;font-size:.84em;word-break:break-all}
+.q{border-left:4px solid var(--ask)}
+.q h3{font-size:.98rem;margin:0 0 6px}
+.opt{background:var(--code);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:.92rem}
+.note{color:var(--sub);font-size:.84rem}
+.reply{background:var(--askbg);border-radius:10px;padding:10px 12px;font-size:.95rem}
+details summary{cursor:pointer;color:var(--sub);font-size:.9rem}
+</style>
+</head>
+<body>
+<main>
+
+<h1>馬眼力 r12.2　10月23日の確認結果への回答</h1>
+<div class="meta">2026年10月23日（金）16時30分／ふなっしー（豊田）より　よっしーさん・なるさんへ</div>
+
+<div class="card lead">
+確認ありがとうございました。ご指摘どおりに進めます。<br>
+<b>10月24日の非公開検証（有料のAI呼び出し）は中止しました。</b><br>
+重要1〜6のうち、<b>5つを直しました</b>。残る1つ（重要5）は、011再精査10版の zip が手元に届いていないため、まだです。<br>
+本物の worker（別プロセス）での受入試験は、<b>32件中31件が合格</b>しました（外部AIは呼んでいません。費用0円）。<br>
+お願いは<b>1つだけ</b>です（011版の zip）。
+</div>
+
+<h2>1. お願い（011版の zip）</h2>
+<div class="card q">
+<p style="margin-top:0">確認結果に出てくる<br><code>馬眼力_r12.2_PHP修正案011_再精査10版_20261021(1).zip</code><br>が、こちらに届いていないようです。手元のフォルダと過去のやり取りを全部探しましたが、見つかりませんでした。</p>
+<p style="margin-bottom:0"><b>原オッズの読み込みの修正（重要5）を統合するのに使うので、送っていただけますか？</b>届き次第、今回の版に統合して、1つのコード一式にしてお返しします。</p>
+</div>
+
+<h2>2. いまの状態</h2>
+<div class="card">
+<ul>
+<li>いまの予想（旧来の予想）は、全レースで今までどおり動いています。</li>
+<li>新しい予想は止めています（<code>BAGANRIKI_R122_QUEUE=0</code>）。入力の記録だけ、今までどおり取っています（費用0円）。</li>
+<li><code>APP_DEBUG=false</code> は、ご指摘どおり先に入れました（10月23日 14:15）。<code>APP_ENV</code> は、挙動の差を調べてから変えます。</li>
+<li>本番のサーバは Laravel 8.83.29 ／ PHP 8.0.30 のままです。常駐は systemd です。</li>
+</ul>
+</div>
+
+<h2>3. 重要1〜6への対応</h2>
+<div class="card tbl">
+<table>
+<tr><th style="width:4.5em">項目</th><th>やったこと</th></tr>
+<tr><td><span class="tag ok">済</span>重要1</td><td>
+新しい予想を送る入口を<b>1つに絞りました</b>。画面から呼ばれる旧入口（1st・2nd）は、旗に関わらず新しい予想を送りません（<code>legacyEntrySendsPrediction()</code> は常に false）。送信は <code>sendInitialAiRequest</code>（初回）と <code>sendCorrectionRequest</code>（訂正）だけで、ここで旗・対象レース・期限・経路を必ず見ます。<br>
+キャッシュの無い通常アクセスも、キャッシュ返却のときと同じ起動口を通ります（Jobの段なら積むだけです）。<br>
+対象レースが上限（既定12件。<code>BAGANRIKI_R122_TARGETS_MAX</code>）を超える設定では、1レースも送りません。<br>
+記録した経路（JOB／SYNC）は送信側でも守り、別の経路からは送りません。</td></tr>
+<tr><td><span class="tag ok">済</span>重要2</td><td>巡回が、対象レースのうち凍結の無いものを出馬表から見つけて凍結します（<code>sweepFreezeTargetRaces</code>）。凍結が早すぎて断られたレースも、次の巡回（5秒おき）でもう一度見ます。cron は 1st 用・2nd 用の2本です（毎分・55秒のあいだ5秒おき）。</td></tr>
+<tr><td><span class="tag ok">済</span>重要3</td><td>応答期限での集計を予約する共通の関数（<code>ensureDeadlineAggregation</code>）を作りました。新規の凍結・既存の凍結・回復（巡回）・実状態の変更（取消・締切の前倒し）の<b>すべての経路</b>から呼びます。同じ期限なら二重に積みません。前倒しになったら新しい期限で積みます。凍結Jobでは、role を積む<b>前に</b>期限の予約をするよう順番を入れ替えました。</td></tr>
+<tr><td><span class="tag ok">済</span>重要4</td><td>枠の状態で分けました。<br>
+・枠なし → 予約して送る<br>
+・予約済み・未送信 → <b>同じ token</b> で送信許可を取り直して送る<br>
+・送信済み・結果不明・失敗 → <b>送り直さない</b><br>
+・受領済み・採否未確定 → AIへは送り直さず、<b>保存した応答の診断・訂正・採否確定から再開</b>（<code>resumeReceivedRole</code>）<br>
+訂正の枠が「予約済み・未送信」で止まった場合も、同じ token で送ります。</td></tr>
+<tr><td><span class="tag warn">待ち</span>重要5</td><td>原オッズの読み込み（長い数値・重複キー・不正な馬番・<code>tan=true</code>）は、011版の修正を統合して直します。<b>zip が届いていないため、まだです</b>（上のお願い）。原DB値・原payload・保存済みhashは書き換えません。</td></tr>
+<tr><td><span class="tag ok">済</span>重要6</td><td>RunRoleJob が「このJobが打ち切られる時刻」を渡し、初回と訂正の<b>送信直前に</b>、応答期限と「Jobの残り時間−15秒（保存・診断のぶん）」の<b>両方</b>で待ち時間を決めます。タイムアウトを延ばしてレースの期限を越えることはしていません。</td></tr>
+</table>
+</div>
+
+<h2>4. 実機で追加確認する事項（4章）と、その他</h2>
+<div class="card tbl">
+<table>
+<tr><th style="width:4.5em">項目</th><th>状態</th></tr>
+<tr><td><span class="tag ok">済</span>4-A</td><td>起動したばかりの worker でも読めるよう、Job が最初に AiController を読み込みます（BaganrikiWorker は同じファイルの中のクラスのため）。新しい worker の最初のJobとして、1st・2nd・集計・凍結が動くことを、下の受入試験で確かめました。</td></tr>
+<tr><td><span class="tag warn">未</span>4-B</td><td>正式な取消・締切変更の取得元との接続は、まだです。取得元の特定から進めます。手動で関数を呼ぶ試験と、正式な取消が自動で届く試験は分けて記録します。</td></tr>
+<tr><td><span class="tag warn">一部</span>4-C</td><td>本物の worker で並行に動かした試験は通りました。印を付ける瞬間の版や、集計の commit 直前の競合を狙った試験は、まだです。</td></tr>
+<tr><td><span class="tag warn">未</span>4-D</td><td>実AIでの18頭・5走の実測（2ndも含む）は、ご指示どおり止めています（9章）。10月23日朝に、1st の実測を5回だけ行った記録はあります（費用は合計約3ドル）。</td></tr>
+<tr><td><span class="tag ok">済</span>6章</td><td><code>APP_DEBUG=false</code> にしました。<code>config:cache</code> は入れていません。</td></tr>
+</table>
+</div>
+
+<h2>5. 本物の worker での受入試験（8章の3・4）</h2>
+<div class="card">
+<p style="margin-top:0">10月23日 16:14、本番のサーバで worker を6本（凍結1・1st 2・2nd 2・集計1）立てて行いました。外部AIは呼ばず、<b>試験用のレース（場コード 90〜99。JRAには存在しない番号）のときだけ</b>保存済みの応答を返す仕組みを使いました。実在のレースには効きません。試験で作った行は、最後に試験用のレースの分だけ消しました。</p>
+<div class="tbl">
+<table>
+<tr><th>場面</th><th>結果</th></tr>
+<tr><td>対象外のレース</td><td><span class="tag ok">合格</span>凍結もせず、送信0回</td></tr>
+<tr><td>キャッシュの無い通常アクセス</td><td><span class="tag ok">合格</span>起動口から凍結Job→両role→公開まで</td></tr>
+<tr><td>誰も開かないレース</td><td><span class="tag ok">合格</span>巡回が見つけて凍結し、公開まで</td></tr>
+<tr><td>既存の凍結＋2ndが返らない</td><td><span class="tag ok">合格</span>2ndは待ち続けずに結果不明。1stだけで公開期限内に公開</td></tr>
+<tr><td>受領後に止まった両role</td><td><span class="tag ok">合格</span>初回の再送0回で再開し、採否確定して公開</td></tr>
+<tr><td>遅い1st（120秒）</td><td><span class="tag ok">合格</span>公開期限内に公開。訂正はJobの残り時間で切れて結果不明（送信中のまま残らない）</td></tr>
+<tr><td>1stが145秒かかる</td><td><span class="tag ok">合格</span>こちらの上限で切れて結果不明。2ndは確定し、引きずられない</td></tr>
+<tr><td>近接2レース（同じ発走時刻）</td><td><span class="tag ok">合格</span>両方とも公開期限内に公開</td></tr>
+<tr><td>失敗したJob</td><td><span class="tag ok">合格</span>0本</td></tr>
+</table>
+</div>
+<p class="note" style="margin-bottom:0">不合格の1件は、「145秒の1st」の場面で公開があったかどうかです。2ndだけが材料で、その応答は保存済みの1stの応答を流用したものなので、公開できるかは中身しだいです。判定の組み方の誤りとして、判定から外しました。</p>
+</div>
+
+<h2>6. 名前を付け替えました（追跡のお願い）</h2>
+<div class="card">
+<p style="margin-top:0">コードの中の <code>r122…</code> という版番号だけの名前を、何をするかが分かる名前に付け替えました。これまでの資料と突き合わせるときは、次の対応で読み替えてください（全134件の対応表は、コード一式に同梱します）。</p>
+<div class="tbl">
+<table>
+<tr><th>旧</th><th>新</th></tr>
+<tr><td><code>r122SendFirst</code></td><td><code>sendInitialAiRequest</code></td></tr>
+<tr><td><code>r122SendFix</code></td><td><code>sendCorrectionRequest</code></td></tr>
+<tr><td><code>r122AfterReceive</code></td><td><code>afterAiResponseReceived</code></td></tr>
+<tr><td><code>r122SweepPending</code></td><td><code>sweepPendingPredictions</code></td></tr>
+<tr><td><code>r122DispatchForRace</code></td><td><code>dispatchPredictionJobs</code></td></tr>
+<tr><td><code>r122QueueReserve</code></td><td><code>reserveAiSlot</code></td></tr>
+<tr><td><code>r122TargetCheck</code></td><td><code>checkPredictionTarget</code></td></tr>
+<tr><td><code>r122GatherContext</code></td><td><code>gatherPredictionContext</code></td></tr>
+<tr><td><code>R122○○Job</code></td><td><code>Prediction○○Job</code></td></tr>
+<tr><td><code>--r122-○○</code>（コマンド）</td><td><code>--prediction-○○</code></td></tr>
+</table>
+</div>
+<p class="note" style="margin-bottom:0"><code>.env</code> の旗名、DBの表と保存される値（<code>R122_ROLE_SETTLED</code> など）、読取APIのURL、待ち行列名、ログの印、これまでの目印のコメントは変えていません。</p>
+</div>
+
+<h2>7. 残っていること</h2>
+<div class="card">
+<ul>
+<li>011版の統合と、原オッズの読み込み（重要5）… zip が届き次第</li>
+<li>正式な取消・締切変更の取得元との接続（4-B）</li>
+<li>採否確定の瞬間を狙った競合の試験（4-C）</li>
+<li>実AIでの18頭・5走の実測（4-D）… 011版の統合となるさんの確認のあと</li>
+<li>基準hashを明記したコード一式、対応表、試験の記録（8章の1〜5）… 上が片付いたら、まとめてお送りします</li>
+</ul>
+</div>
+
+<h2>8. こちらで決めたこと</h2>
+<div class="card">
+<ul>
+<li><b>1つめのAIは新しいAI（Haiku 5.5）にします。</b>18頭が入らないと意味がないためです。費用は1レースで最大0.6ドルほどです。</li>
+<li><b>公開したら、お客さんの画面に出します。見られるのはアプリを使う人全員です。</b>OEMを考えている方に見ていただくためです。読取APIは <code>BAGANRIKI_R122_READ=open</code> で全員に開けます（公開を始めるときに切り替えます）。</li>
+<li><b>「6分前」のオッズは変えません。</b>投票の締め切り（発走1分前）は、公開の期限を計算するためだけに使っていて、6分前のオッズの取り方には関係しません。</li>
+<li><b>最終的には全レースを予想します。</b>対象レースに <code>ALL</code> と書けば実在の全レースが対象になるよう、仕組みを用意しました（いまは使っていません）。</li>
+</ul>
+</div>
+
+<h2>9. これからの進め方（こうします）</h2>
+<div class="card">
+<ul>
+<li><b>訂正の受け付け方は、契約どおりにします。</b>訂正の中に、直してと頼んでいない馬の書き換えがあれば、その訂正は使わず、初回の正しい部分を残します（いまの動きです）。</li>
+<li><b>広げ方は、変更計画書どおり段階を踏みます。</b>まず2レースを非公開で動かし、次に12レース、問題がなければ全レースへ広げ、そこから公開します。</li>
+<li><b>実AIでの検証（有料）は、なるさんのご指示どおり待ちます。</b>011版を統合して原オッズの読み込み（重要5）を直し、なるさんの確認が通ってから、2レースで始めます。</li>
+</ul>
+</div>
+
+<h2>10. 費用について（ご提案）</h2>
+<div class="card" style="border:2px solid var(--warn)">
+<p style="margin-top:0;font-size:1.03rem"><b>現在の仕様のまま全レースで運用すると、AIの費用が1日約2,500円（1レース約0.45ドル×36レース）、土日で約5,000円となる見込みです。予想のための費用としては過大と考えますので、見直させてください。</b></p>
+<p>費用が大きくなっている主な原因は、次の2点です。</p>
+<ul>
+<li><b>AIへの訂正の依頼</b><br>費用全体の約半分を占めます。10月23日の実測では2回依頼し、いずれもAIが依頼していない馬まで書き換えたため、決まりどおり採用できませんでした。費用をかけても結果に生かせていない状態です。</li>
+<li><b>AIに渡す入力の大きさ</b><br>18頭のレースで約94万文字あり、その約86％が「出典一覧」（1,470項目。項目ごとに同じ見出し名をくり返しています）です。このため入力が約22万トークンとなり、Haiku 5.5 では料金が5倍になる区分（10万トークン超）に入っています。</li>
+</ul>
+<p>つきましては、次の版から以下のとおり変更いたします。</p>
+<ul>
+<li>AIへの訂正の依頼は行いません。点数の合計のずれはサーバ側で計算し直します。AIに再度依頼するのは、馬の行が丸ごと欠けている場合など、サーバ側で補えないときに限ります。</li>
+<li>出典一覧は書き方を整理し、空の項目を省きます。全文はこれまでどおりサーバに保存します。</li>
+<li>AIに渡す入力は、10万トークン未満に収めます。</li>
+</ul>
+<p>これにより、<b>1レース4〜5円、1日150円前後</b>になる見込みです。実際の費用は、実AIでの検証の際に確認してご報告します。</p>
+<p class="note" style="margin-bottom:0">今後、AIの呼び出し回数や渡す材料が増える変更をご検討の際は、1レースあたりの費用の見込みを併せてご提示いただけますと幸いです。こちらからも、費用の見込みを添えてご相談いたします。</p>
+</div>
+
+<h2>11. 実装担当からのご提案</h2>
+<div class="card">
+<p style="margin-top:0">18頭のレースで実際に動かした結果から、次の点を見直すことで、<b>費用を抑え、応答を速くし、出せる候補も増やせる</b>と考えております。次の版から対応いたします。</p>
+<ol style="padding-left:1.3em">
+<li><b>点数の合計はサーバ側で計算します。</b><br>
+現在はAIが項目ごとの点数とあわせて合計も記入しており、この合計が2〜3点ずれることが多く、決まりどおりその馬を候補から外しています。10月23日の実測で18頭中3〜4頭しか出せなかった主な原因です。AIには項目ごとの点数のみを記入してもらい、合計はサーバ側で計算することで、誤りが減り、候補が増え、訂正の依頼も不要になります。</li>
+<li><b>AIの回答を必要な項目に絞ります。</b><br>
+現在の回答は1つのAIあたり約2万7千文字です。画面表示と選出に使う項目に絞ることで、回答が速くなり（期限に間に合いやすくなります）、費用も下がります。なお、回答（出力）の単価は入力の5倍です。</li>
+<li><b>新しい予想を出したレースでは、旧来の予想のAI呼び出しを停止します。</b><br>
+現在は同じレースで、旧来の予想と新しい予想の両方にAIの費用がかかっています。</li>
+<li><b>毎回共通の部分には、AIのキャッシュ機能を使います。</b><br>
+AIへの指示文や項目の説明はどのレースでも同じ内容です。キャッシュを使うと、2回目以降はその部分の費用が約1割になります。</li>
+<li><b>ご確認の進め方について。</b><br>
+ご指摘の際に、「どの処理をどう直すか（PHPの該当箇所）」と「1レースあたりの費用への影響」を併せてお示しいただけますと、こちらで速やかに対応でき、やり取りの回数も減らせます。</li>
+</ol>
+<p class="note" style="margin-bottom:0">1・2は、配布いただいた出力の書式を変更することになります。現在の書式が必要な理由がございましたら、お知らせください。</p>
+</div>
+
+<div class="card reply">
+お返事は「zip を送ります」だけで大丈夫です。
+</div>
+
+<details class="card">
+<summary>なるさん向け：今回のコードの版</summary>
+<ul class="note">
+<li>AiController.php　MD5 <code>503e7bcae33563f1b3a26fc351c53b16</code></li>
+<li>SummaryAiAnalysisCompensate.php　MD5 <code>d87c08a9dea591ddea5aa5eb5d450668</code>（受入試験の判定を1か所直した版）</li>
+<li>Jobs：PredictionJob／PredictionFreezeRaceJob／PredictionRunRoleJob／PredictionAggregateRaceJob／PredictionUpdateRaceLiveJob</li>
+<li>試験：受入662件・キュー・Job・読取・型保持・送信口・公開・応答検証・本体・e2e すべて合格（本番サーバ・書き込み0件）。worker の受入は上の5章</li>
+<li>コード一式・差分・対応表は、011版の統合が終わったら、基準hashを明記してまとめてお送りします</li>
+</ul>
+</details>
+
+</main>
+</body>
+</html>

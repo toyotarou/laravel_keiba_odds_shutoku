@@ -1,0 +1,118 @@
+馬眼力 r12.2 PHP修正案011 再精査2回目の結果
+2026年10月21日
+
+履歴資料です。最新の結果と差替先は「再精査5回目_20261021.txt」を参照してください。
+以下の試験件数・パッチ名は再精査2回目時点の記録です。
+
+結論
+
+直前の「再精査版」にもコード上の不具合が2箇所残っていました。
+今回は両方を修正し、問題の再現と、初回送信から訂正・公開までの接続を確認しました。
+前回の説明書にもAI終了理由の対応が逆の箇所があったため訂正しました。
+今回のZIPを最新の組込み候補としてください。
+
+1. 訂正予約が競合した後、完了とされて再開できない
+
+初回がRECEIVEDで、診断上は訂正が必要なとき、訂正本文の組立中などに
+state_revisionが更新されると、訂正のreserveがSTATE_CHANGEDで拒否されます。
+前回版は「初回RECEIVEDがあり、SENT／RESERVEDが残っていない」ことだけで
+roleをsettledにできたため、未送信の訂正が再判断されない場合がありました。
+
+修正: r122AfterReceiveで、Job内の未送信訂正がSTATE_CHANGEDなら例外として戻し、
+roleを未完了のままにします。次回の巡回では初回RECEIVEDから検証を再開し、
+現在の期限／状態で訂正を再判断します。初回のHTTPは再送しません。
+訂正が送信済みなら、その枠のジャーナルに従い再送しません。
+
+検証: 戻り値を使った再現に加え、実Controllerの訂正本文組立後にrevisionを変更して
+実際のreserveを競合させる試験を追加しました。
+競合時は初回1回のみ、再開して両AIの初回・訂正が各1回ずつの合計4回、
+公開1件となり、再実行で呼出し／公開が増えないことを確認しました。
+HTTP・DBは試験用代替実装で、実API呼出しはありません。
+
+2. 送信許可で、最新liveをロックしても古い取消／締切を使う
+
+allowSendは、事前にattemptを通常SELECTし、liveをFOR UPDATEで取得していましたが、
+そこで得たlive行を変数へ保存せず、後の通常SELECTで読み直していました。
+MySQLのREPEATABLE READでは、この通常読取が最初の読取時点の状態を参照し得ます。
+事前読取後からロック取得までに取消や締切前倒しが確定すると、ロック自体は取れても
+古いactive_count／live_closeで送信判定する経路がありました。
+
+修正: FOR UPDATEで取得したlive行をそのまま使います。
+ロック順は従来どおりlive→attemptで、送信直前の現在時刻による確認も維持します。
+
+検証: 通常読取は旧版、ロック読取は更新後という状態を明示的に再現する
+DBテストダブルを使い、全頭取消／締切前倒しの2ケースで送信権を拒否することを確認。
+これはMySQL公式仕様とコードの照合、および読取像を模した試験です。
+実MySQLの2接続による競合試験は未実施なので、READMEの受入項目に追加しました。
+
+3. 説明書の訂正
+
+前回報告の終了理由の説明が逆でした。正しくは次のとおりです。
+・1st: Anthropic、stop_reason=end_turn
+・2nd: DeepSeek、finish_reason=stop
+実装の対応は前回から正しく、今回は説明を訂正しています。
+採用モデルやAPIの切替は行っていません。
+
+検証結果
+
+今回の追加試験6項目:
+  直前の再精査版 2成功／4失敗 → 今回版 6成功／0失敗。
+  4失敗は2つの不具合を複数の経路で検査した結果で、独立した不具合4件ではありません。
+  通常の両AI初回→公開、両AI初回→訂正→公開、訂正予約競合後の復旧を含みます。
+
+異常入力の型置換試験:
+  1頭の検証用応答の117箇所を9種類の値に置き換えた1,053ケース。
+  直前版・今回版とも検証処理の異常終了0件。
+  不正入力の全網羅、意味的な正しさ、全レースの正しさを証明する試験ではありません。
+
+既存試験の再実行:
+  単体／Controller処理41項目、前回追加29項目、自己試験662項目はいずれも失敗0。
+  同梱PHP26ファイルの構文確認も通過しました。
+
+差分整合:
+  原本のクラス定数105宣言は今回もバイト単位で同一。
+  直前の再精査版からのController変更はr122AfterReceive／allowSendの2メソッドのみ。
+  採点式、配分、帯、閾値、モデルは変更していません。
+  原本／最初の011／直前の再精査版からの3種類のController差分について、
+  git apply --checkと、適用後の完全一致を確認しました。
+
+実行記録:
+  verification/audit2_baseline_reproduction.txt  直前版での失敗記録
+  verification/audit2_tests.txt                  今回の6項目
+  verification/audit2_mutations.txt              型置換試験
+  verification/unit_tests.txt                    既存41項目
+  verification/audit_tests.txt                   前回追加29項目
+  verification/legacy_selftests.txt              自己試験662項目
+  verification/php_lint.txt                      PHP構文確認
+  verification/patch_integrity.txt               原本と各差分の整合
+
+実行環境と未検証範囲
+
+PHP 8.3.33 WASM CLI。DB、Queue、MySQLロック、HTTPは試験用代替実装です。
+実Laravel、MySQL、Supervisor、複数OSプロセスを使った動作は未検証です。
+本番適用可や不具合ゼロとは判断していません。
+
+既存DDL／一意制約／InnoDB、composer.lock、AnthropicService、ルートとの接続と、
+実MySQLでの競合、worker停止／DB切断、期限処理、長い小数の保存往復を確認してください。
+InnoDBの確認用SELECTをpreflight.sqlへ追加しました。表の自動変更はしません。
+前回追加のmigration 000011は引き続き必要ですが、今回新たなmigrationは増やしていません。
+
+17／18頭の入力容量問題は今回も未解決です。モデル移行は別件です。
+24日の非公開試験は確定した同じ12 race_id、初回24回／訂正込み最大48回の条件を維持。
+採点・配分の変更、代替レースの追加、有料API呼出し、本番反映は行っていません。
+
+差替時の注意
+
+Controller全文を使うか、手元の基準に合う差分を一つだけ使います。
+・原本: integration/AiController.patch
+・最初の011: integration/011_to_rechecked_AiController.patch
+・直前の再精査版: integration/reaudit1_to_reaudit2_AiController.patch
+どの差分も対象はControllerのみです。基準が異なる差分の二重適用はしません。
+独自修正済みファイルはSHA256を照合し、全文上書きせず差分をマージしてください。
+組込み手順全体はREADMEを参照してください。
+
+今回照合した一次資料
+MySQL 8.4 Consistent Nonlocking Reads
+https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html
+MySQL 8.4 Locking Reads
+https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html

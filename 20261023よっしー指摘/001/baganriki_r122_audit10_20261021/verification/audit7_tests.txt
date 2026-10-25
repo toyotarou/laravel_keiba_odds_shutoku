@@ -1,0 +1,68 @@
+PASS unsupported zero is null and cannot force SCORE: H1
+PASS supported zero remains a complete score: H1
+PASS unsupported zero is null and cannot force SCORE: H2
+PASS supported zero remains a complete score: H2
+PASS unsupported zero is null and cannot force SCORE: H3
+PASS supported zero remains a complete score: H3
+PASS unsupported zero is null and cannot force SCORE: H4
+PASS supported zero remains a complete score: H4
+PASS unsupported zero is null and cannot force SCORE: H5
+PASS supported zero remains a complete score: H5
+PASS unsupported zero is null and cannot force SCORE: V1
+PASS supported zero remains a complete score: V1
+PASS unsupported zero is null and cannot force SCORE: V2
+PASS supported zero remains a complete score: V2
+PASS unsupported zero is null and cannot force SCORE: V3
+PASS supported zero remains a complete score: V3
+PASS unsupported zero is null and cannot force SCORE: V4
+PASS supported zero remains a complete score: V4
+PASS unsupported zero is null and cannot force SCORE: V5
+PASS supported zero remains a complete score: V5
+PASS unverifiable zero entry remains local: null-entry
+PASS unverifiable zero entry remains local: empty-object
+PASS unverifiable zero entry remains local: missing-refs
+PASS all unobserved zeros cannot fabricate complete scoring
+PASS unobserved zero correction cannot restore completeness
+PASS supported zero correction restores valid scoring and proof
+PASS two-role publication with zero evidence: missing
+PASS two-role publication with zero evidence: supported
+PASS invalid database time is not normalized: input 2026-02-30 12:00:00
+PASS invalid database time is not normalized: input 2026-10-24 12:60:00
+PASS invalid database time is not normalized: input 2026-10-24 12:00:60
+PASS invalid database time is not normalized: input 2026-10-24 12:00:00.1234567
+PASS invalid database time is not normalized: input 2026-10-24 12:00:00junk
+PASS invalid database time is not normalized: input 2026-10-24 12:00:00+00:00
+PASS invalid database time is not normalized: input 2026-00-24 12:00:00
+PASS invalid database time is not normalized: input 2026-10-00 12:00:00
+PASS invalid database time is not normalized: registry 2026-02-30 12:00:00
+PASS invalid database time is not normalized: registry 2026-10-24 12:60:00
+PASS invalid database time is not normalized: registry 2026-10-24 12:00:60
+PASS invalid database time is not normalized: registry 2026-10-24 12:00:00.1234567
+PASS invalid database time is not normalized: registry 2026-10-24 12:00:00junk
+PASS invalid database time is not normalized: registry 2026-10-24 12:00:00+00:00
+PASS invalid database time is not normalized: registry 2026-00-24 12:00:00
+PASS invalid database time is not normalized: registry 2026-10-00 12:00:00
+PASS invalid database time is not normalized: deadline 2026-02-30 12:00:00
+PASS invalid database time is not normalized: deadline 2026-10-24 12:60:00
+PASS invalid database time is not normalized: deadline 2026-10-24 12:00:60
+PASS invalid database time is not normalized: deadline 2026-10-24 12:00:00.1234567
+PASS invalid database time is not normalized: deadline 2026-10-24 12:00:00junk
+PASS invalid database time is not normalized: deadline 2026-10-24 12:00:00+00:00
+PASS invalid database time is not normalized: deadline 2026-00-24 12:00:00
+PASS invalid database time is not normalized: deadline 2026-10-00 12:00:00
+PASS valid database time preserves microseconds: input seconds
+PASS valid database time preserves microseconds: input 0
+PASS valid database time preserves microseconds: input 000001
+PASS valid database time preserves microseconds: input 123456
+PASS valid database time preserves microseconds: registry seconds
+PASS valid database time preserves microseconds: registry 0
+PASS valid database time preserves microseconds: registry 000001
+PASS valid database time preserves microseconds: registry 123456
+PASS valid database time preserves microseconds: deadline seconds
+PASS valid database time preserves microseconds: deadline 0
+PASS valid database time preserves microseconds: deadline 000001
+PASS valid database time preserves microseconds: deadline 123456
+PASS DATE-only registry input and DateTime deadline input stay supported
+PASS input time conversion cannot truncate a late batch into the cutoff
+PASS unparseable received_at cannot authorize publication
+AUDIT7 RESULT: 67 passed, 0 failed. PHP with DB/HTTP doubles; no real database or external AI.

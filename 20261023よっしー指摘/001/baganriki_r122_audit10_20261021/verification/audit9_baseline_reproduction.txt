@@ -1,0 +1,112 @@
+PASS applicable SIGNAL survives qualification: HORSE partial
+PASS two-role publication retains scoped evidence: HORSE partial
+PASS applicable SIGNAL survives qualification: HORSE complete
+PASS two-role publication retains scoped evidence: HORSE complete
+FAIL applicable SIGNAL survives qualification: PAIR partial: RuntimeException valid scope rejected or unnecessarily repaired
+FAIL two-role publication retains scoped evidence: PAIR partial: RuntimeException applicable signal disappeared at publication
+FAIL applicable SIGNAL survives qualification: PAIR complete: RuntimeException valid scope rejected or unnecessarily repaired
+FAIL two-role publication retains scoped evidence: PAIR complete: RuntimeException applicable signal disappeared at publication
+FAIL applicable SIGNAL survives qualification: COHORT partial: RuntimeException valid scope rejected or unnecessarily repaired
+FAIL two-role publication retains scoped evidence: COHORT partial: RuntimeException applicable signal disappeared at publication
+FAIL applicable SIGNAL survives qualification: COHORT complete: RuntimeException valid scope rejected or unnecessarily repaired
+FAIL two-role publication retains scoped evidence: COHORT complete: RuntimeException applicable signal disappeared at publication
+FAIL bad score preserves applicable signal: PAIR: RuntimeException local bad score erased applicable qualification
+FAIL valid correction restores scoped score: PAIR: ErrorException Undefined array key 1
+FAIL bad score preserves applicable signal: COHORT: RuntimeException local bad score erased applicable qualification
+FAIL valid correction restores scoped score: COHORT: ErrorException Undefined array key 1
+PASS unqualified evidence stays excluded: foreign HORSE
+PASS unqualified evidence stays excluded: foreign PAIR
+PASS unqualified evidence stays excluded: foreign COHORT
+PASS unqualified evidence stays excluded: RACE only
+PASS unqualified evidence stays excluded: PAIR context
+PASS unqualified evidence stays excluded: COHORT context
+PASS unqualified evidence stays excluded: unknown scope
+FAIL ordinary text is not a nonfinite number: Infinity Stable: RuntimeException literal text rejected
+FAIL ordinary text is not a nonfinite number: NaN recorded: RuntimeException literal text rejected
+FAIL ordinary text is not a nonfinite number: text -Infinity only: RuntimeException literal text rejected
+FAIL ordinary text is not a nonfinite number: 説明にNaNという文字がある: RuntimeException literal text rejected
+PASS actual nonfinite number rejected: positive
+PASS actual nonfinite number rejected: negative
+PASS actual nonfinite number rejected: nan
+PASS generated JSON enforces exact 4 MiB boundary: -1
+PASS generated JSON enforces exact 4 MiB boundary: 0
+FAIL generated JSON enforces exact 4 MiB boundary: 1: RuntimeException wrong generated-byte limit
+FAIL multibyte JSON limit counts bytes: RuntimeException UTF-8 characters counted instead of bytes
+FAIL canonical JSON keeps order independence and null/zero distinction: RuntimeException canonical object order changed
+FAIL later adopted odds cannot resurrect cancellation: 21: RuntimeException contradictory input continued as confirmed cancellation
+FAIL later adopted odds cannot resurrect cancellation: 18: RuntimeException contradictory input continued as confirmed cancellation
+FAIL later adopted odds cannot resurrect cancellation: 15: RuntimeException contradictory input continued as confirmed cancellation
+FAIL later adopted odds cannot resurrect cancellation: 12: RuntimeException contradictory input continued as confirmed cancellation
+FAIL later adopted odds cannot resurrect cancellation: 9: RuntimeException contradictory input continued as confirmed cancellation
+PASS earlier odds then later cancellation remains valid
+PASS repeated cancellation does not create conflict
+PASS unadopted cancellation cannot pollute conflict detection: uncommitted
+PASS unadopted cancellation cannot pollute conflict detection: hash-mismatch
+PASS unadopted cancellation cannot pollute conflict detection: late
+FAIL declared headcount mismatch or invalid value stops input: 3: RuntimeException declared headcount ignored
+FAIL declared headcount mismatch or invalid value stops input: "3": RuntimeException declared headcount ignored
+FAIL declared headcount mismatch or invalid value stops input: 0: RuntimeException declared headcount ignored
+FAIL declared headcount mismatch or invalid value stops input: -1: RuntimeException declared headcount ignored
+FAIL declared headcount mismatch or invalid value stops input: "2.5": RuntimeException declared headcount ignored
+FAIL declared headcount mismatch or invalid value stops input: "broken": RuntimeException declared headcount ignored
+PASS matching or absent declared headcount remains supported: 2
+PASS matching or absent declared headcount remains supported: "2"
+PASS matching or absent declared headcount remains supported: null
+FAIL invalid entry horse identity cannot be coerced: "1x": RuntimeException invalid authoritative horse identity was cast or silently dropped
+FAIL invalid entry horse identity cannot be coerced: 1.5: RuntimeException invalid authoritative horse identity was cast or silently dropped
+FAIL invalid entry horse identity cannot be coerced: true: RuntimeException invalid authoritative horse identity was cast or silently dropped
+FAIL invalid entry horse identity cannot be coerced: []: RuntimeException invalid authoritative horse identity was cast or silently dropped
+FAIL invalid entry horse identity cannot be coerced: null: RuntimeException invalid authoritative horse identity was cast or silently dropped
+FAIL invalid entry horse identity cannot be coerced: "9223372036854775808": RuntimeException invalid authoritative horse identity was cast or silently dropped
+FAIL invalid entry horse identity cannot be coerced: 0: RuntimeException invalid authoritative horse identity was cast or silently dropped
+FAIL invalid entry horse identity cannot be coerced: -1: RuntimeException invalid authoritative horse identity was cast or silently dropped
+FAIL conflicting duplicate entry cannot silently overwrite its name: RuntimeException conflicting duplicate entry accepted
+PASS identical duplicate and padded integer database key stay supported
+FAIL recovery raw numeric precision retained: recovery_rate: RuntimeException database number rounded or overflowed
+FAIL recovery raw numeric precision retained: win_rate: RuntimeException database number rounded or overflowed
+FAIL recovery raw numeric precision retained: sample_count: RuntimeException database number rounded or overflowed
+FAIL similarity raw value retained: top3_rate: RuntimeException database value rounded or overflowed
+FAIL similarity raw value retained: top5_rate: RuntimeException database value rounded or overflowed
+FAIL similarity raw value retained: avg_finishing_position: RuntimeException database value rounded or overflowed
+FAIL similarity raw value retained: outside_rate: RuntimeException database value rounded or overflowed
+FAIL similarity raw value retained: sample_count: RuntimeException database value rounded or overflowed
+PASS similarity raw value retained: reliability
+FAIL invalid row cannot borrow another row timestamp: popavg null: RuntimeException invalid row acquired another row timestamp
+FAIL invalid row cannot borrow another row timestamp: popavg "bad": RuntimeException invalid row acquired another row timestamp
+FAIL invalid row cannot borrow another row timestamp: popavg "2026-02-30 10:00:00": RuntimeException invalid row acquired another row timestamp
+PASS invalid row cannot borrow another row timestamp: popavg "2026-10-24 11:55:00.000001"
+FAIL invalid row cannot borrow another row timestamp: fukuavg null: RuntimeException invalid row acquired another row timestamp
+FAIL invalid row cannot borrow another row timestamp: fukuavg "bad": RuntimeException invalid row acquired another row timestamp
+FAIL invalid row cannot borrow another row timestamp: fukuavg "2026-02-30 10:00:00": RuntimeException invalid row acquired another row timestamp
+PASS invalid row cannot borrow another row timestamp: fukuavg "2026-10-24 11:55:00.000001"
+FAIL invalid row cannot borrow another row timestamp: corr null: RuntimeException invalid row acquired another row timestamp
+FAIL invalid row cannot borrow another row timestamp: corr "bad": RuntimeException invalid row acquired another row timestamp
+FAIL invalid row cannot borrow another row timestamp: corr "2026-02-30 10:00:00": RuntimeException invalid row acquired another row timestamp
+PASS invalid row cannot borrow another row timestamp: corr "2026-10-24 11:55:00.000001"
+FAIL valid statistics keep their own row timestamp: popavg: RuntimeException valid row received a peer timestamp or lost microseconds
+PASS verified_at fallback and exact cutoff remain valid: popavg
+FAIL malformed recorded computed_at cannot use verified_at fallback: popavg: RuntimeException invalid recorded time silently replaced
+FAIL valid statistics keep their own row timestamp: fukuavg: RuntimeException valid row received a peer timestamp or lost microseconds
+PASS verified_at fallback and exact cutoff remain valid: fukuavg
+FAIL malformed recorded computed_at cannot use verified_at fallback: fukuavg: RuntimeException invalid recorded time silently replaced
+FAIL valid statistics keep their own row timestamp: corr: RuntimeException valid row received a peer timestamp or lost microseconds
+PASS verified_at fallback and exact cutoff remain valid: corr
+FAIL malformed recorded computed_at cannot use verified_at fallback: corr: RuntimeException invalid recorded time silently replaced
+FAIL market raw numeric precision retained: popavg_rank1_win_odds: RuntimeException market raw value rounded or overflowed
+FAIL market raw numeric precision retained: popavg_rank1_count: RuntimeException market raw value rounded or overflowed
+FAIL market raw numeric precision retained: fukuavg_rank1_place_min: RuntimeException market raw value rounded or overflowed
+FAIL market raw numeric precision retained: fukuavg_rank1_count: RuntimeException market raw value rounded or overflowed
+FAIL market raw numeric precision retained: corr_rank1_avg_correction_ratio: RuntimeException market raw value rounded or overflowed
+FAIL market raw numeric precision retained: corr_rank1_std_correction_ratio: RuntimeException market raw value rounded or overflowed
+FAIL market raw numeric precision retained: corr_rank1_sample_count: RuntimeException market raw value rounded or overflowed
+PASS unavailable statistics stay unavailable when every timestamp is missing
+FAIL nonduplicate database error is not disguised: 1048: RuntimeException unrelated SQL failure treated as an occupied slot
+FAIL nonduplicate database error is not disguised: 1451: RuntimeException unrelated SQL failure treated as an occupied slot
+FAIL nonduplicate database error is not disguised: 1452: RuntimeException unrelated SQL failure treated as an occupied slot
+FAIL nonduplicate database error is not disguised: 3819: RuntimeException unrelated SQL failure treated as an occupied slot
+FAIL nonduplicate database error is not disguised: 1213: RuntimeException unrelated SQL failure treated as an occupied slot
+FAIL nonduplicate database error is not disguised: 1205: RuntimeException unrelated SQL failure treated as an occupied slot
+FAIL duplicate error identified by vendor code even when localized: RuntimeException MySQL duplicate vendor code not recognized
+FAIL unstructured SQL-like value is not a duplicate error: RuntimeException arbitrary 1062 substring classified as duplicate
+PASS legacy duplicate-entry message remains recognized
+AUDIT9 RESULT: 34 passed, 77 failed. PHP with DB/HTTP doubles; no real database or external AI.

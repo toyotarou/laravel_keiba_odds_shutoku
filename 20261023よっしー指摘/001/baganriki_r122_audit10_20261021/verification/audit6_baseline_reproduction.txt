@@ -1,0 +1,41 @@
+PASS explicit nulls remain valid for UNRESOLVED
+FAIL missing nullable envelope field is rejected: allocation_mode: RuntimeException missing required field accepted as null
+FAIL missing nullable envelope field is rejected: role_quota: RuntimeException missing required field accepted as null
+PASS existing envelope mismatch still rejected: prompt_version
+PASS existing envelope mismatch still rejected: schema_version
+PASS existing envelope mismatch still rejected: race_id
+PASS existing envelope mismatch still rejected: ai_role
+PASS existing envelope mismatch still rejected: snapshot_hash
+PASS existing envelope mismatch still rejected: mode
+PASS existing envelope mismatch still rejected: mode_status
+PASS existing envelope mismatch still rejected: allocation_mode
+PASS existing envelope mismatch still rejected: mode_policy_id
+PASS existing envelope mismatch still rejected: role_cap
+PASS existing envelope mismatch still rejected: role_quota
+FAIL invalid role quota is an envelope failure: extra-band: RuntimeException invalid quota only marked repairable
+FAIL invalid role quota is an envelope failure: extra-numbered-key: RuntimeException invalid quota only marked repairable
+FAIL invalid role quota is an envelope failure: extra-case-key: RuntimeException invalid quota only marked repairable
+PASS invalid role quota is an envelope failure: missing-band
+PASS invalid role quota is an envelope failure: string-count
+PASS invalid role quota is an envelope failure: decimal-count
+PASS invalid role quota is an envelope failure: bool-count
+PASS invalid role quota is an envelope failure: list
+PASS invalid role quota is an envelope failure: empty-object
+PASS invalid role quota is an envelope failure: scalar
+PASS object key order is immaterial: ABD
+FAIL object key order is immaterial: ADB: RuntimeException same JSON object falsely diagnosed: top_fields 2件
+FAIL object key order is immaterial: BAD: RuntimeException same JSON object falsely diagnosed: top_fields 2件
+FAIL object key order is immaterial: BDA: RuntimeException same JSON object falsely diagnosed: top_fields 2件
+FAIL object key order is immaterial: DAB: RuntimeException same JSON object falsely diagnosed: top_fields 2件
+FAIL object key order is immaterial: DBA: RuntimeException same JSON object falsely diagnosed: top_fields 2件
+FAIL reordered quota retains proven two-role bonus: quota: RuntimeException valid key order lost the verified +5 bonus
+FAIL reordered quota retains proven two-role bonus: role_quota: RuntimeException valid key order lost the verified +5 bonus
+PASS quota order equivalence does not hide a real difference: changed-value
+PASS quota order equivalence does not hide a real difference: extra-key
+PASS quota order equivalence does not hide a real difference: string
+PASS quota order equivalence does not hide a real difference: decimal
+PASS quota order equivalence does not hide a real difference: list
+FAIL bad correction envelope preserves initial usable rows: RuntimeException bad correction envelope was accepted
+FAIL invalid role cannot alter the other valid role publication: RuntimeException invalid role contaminated rank scores
+FAIL reordered valid quota composes with cancellation and an earlier deadline: RuntimeException frozen rank or valid bonus changed
+AUDIT6 RESULT: 25 passed, 15 failed. PHP with DB/HTTP doubles; no real database or external AI.

@@ -199,7 +199,8 @@ $prevMinutesBefore = ($prevDiff === $timings[0]) ? Constants::ODDS_DB_FIRST : $p
             // ─────────────────────────────────────────────────────────────
             $raceStart = microtime(true);
             // @ANCHOR-20261020-R122-AUDIT  要求を出す直前の実時刻
-            $r122ReqStartedAt = self::r122Now();
+            // $r122ReqStartedAt = self::r122Now();   // 旧（名前を意味のあるものへ変えました）
+            $acqRequestStartedAt = self::acquisitionNow();
             $command   = 'timeout 120 ' . $nodeBin . ' ' . escapeshellarg($script)
                 . ' ' . escapeshellarg($race->date)
                 . ' ' . escapeshellarg($race->kaisuu)
@@ -226,7 +227,8 @@ $prevMinutesBefore = ($prevDiff === $timings[0]) ? Constants::ODDS_DB_FIRST : $p
             $fetchMs  = round((microtime(true) - $raceStart) * 1000);
             $fetchSec = number_format($fetchMs / 1000, 2);
             // @ANCHOR-20261020-R122-AUDIT  受信し終えた実時刻（= observed_at）
-            $r122RespReceivedAt = self::r122Now();
+            // $r122RespReceivedAt = self::r122Now();   // 旧
+            $acqResponseReceivedAt = self::acquisitionNow();
 
             if (!$odds) {
                 $this->error("  [単複] オッズ取得失敗。このレースをスキップします。({$fetchSec}秒 / {$fetchMs}ms)");
@@ -236,9 +238,10 @@ $prevMinutesBefore = ($prevDiff === $timings[0]) ? Constants::ODDS_DB_FIRST : $p
                 //   採用しない監査行（committed=0・REJECTED）として入れます。
                 //   「記録が無い」と「取れなかった」を区別するためです。
                 // ─────────────────────────────────────────────────────
-                $this->r122RecordBatch($race, $diff, [
-                    'request_started_at'   => $r122ReqStartedAt,
-                    'response_received_at' => $r122RespReceivedAt,
+                // $this->r122RecordBatch($race, $diff, [   // 旧
+                $this->recordAcquisitionBatch($race, $diff, [
+                    'request_started_at'   => $acqRequestStartedAt,
+                    'response_received_at' => $acqResponseReceivedAt,
                     'available_at'         => null,
                     'raw_payload'          => (string) $output,
                     'validation_result'    => 'REJECTED',
@@ -371,15 +374,38 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
             //   available_at は「保存が終わって読めると確かめた実時刻」です。
             //   予定時刻で埋めません。ここは保存トランザクションの<b>後</b>です。
             // ─────────────────────────────────────────────────────────────
-            $this->r122RecordBatch($race, $diff, [
-                'request_started_at'   => $r122ReqStartedAt,
-                'response_received_at' => $r122RespReceivedAt,
-                'available_at'         => self::r122Now(),
+            // $this->r122RecordBatch($race, $diff, [   // 旧
+            $this->recordAcquisitionBatch($race, $diff, [
+                'request_started_at'   => $acqRequestStartedAt,
+                'response_received_at' => $acqResponseReceivedAt,
+                'available_at'         => self::acquisitionNow(),
                 'raw_payload'          => (string) $output,
                 'validation_result'    => 'ADOPTED',
                 'rejection_reason'     => null,
                 'committed'            => 1,
             ]);
+
+            // ─────────────────────────────────────────────────────────────
+            // 【ブロック 12】r12.2 正式な取消・発走時刻の前倒しを実状態へ入れる
+            // @ANCHOR-20261023-NARU-LIVE  （なる 10/23 4-B）
+            //   凍結（発走の約5分半前）より後に出た取消・除外と、早まった発走時刻を、
+            //   新しい予想の実状態（baganriki_live_states）へ入れます。
+            //   凍結していないレースでは何もしません。AIへの送信もしません。
+            //   失敗してもオッズ取得は止めません（呼び先の中で受け止めます）。
+            // ─────────────────────────────────────────────────────────────
+            try {
+                if (method_exists(\App\Http\Controllers\Api\AiController::class, 'syncLiveFromAcquisition')) {
+                    $live = \App\Http\Controllers\Api\AiController::syncLiveFromAcquisition($race, (string) $output);
+                    if (!empty($live['ran'])) {
+                        $this->info(sprintf('  [r12.2実状態] %s 取消=%s 締切の前倒し=%s',
+                            (string) ($live['code'] ?? ''),
+                            json_encode($live['cancellations'] ?? []),
+                            ($live['live_close_us'] ?? null) === null ? 'なし' : 'あり'));
+                    }
+                }
+            } catch (\Throwable $e) {
+                $this->warn('  [r12.2実状態] 入れられませんでした: ' . $e->getMessage());
+            }
 
             // ─────────────────────────────────────────────────────────
             // 【ブロック 10.5】WebSocket broadcast
@@ -439,7 +465,8 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
      * DATETIME(6) へそのまま入れられる形で返します。
      * サーバのタイムゾーン（JST）のままです。
      */
-    private static function r122Now(): string
+    // private static function r122Now(): string   // 旧（名前を意味のあるものへ変えました）
+    private static function acquisitionNow(): string
     {
         return (new \DateTimeImmutable('now'))->format('Y-m-d H:i:s.u');
     }
@@ -471,9 +498,10 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
      *
      * ■ 止め方
      *   .env に BAGANRIKI_R122_AUDIT=0 を入れると記録しません。
-     *   テーブルが無い環境では何もしません（--r122-install で作ります）。
+     *   テーブルが無い環境では何もしません（--prediction-install で作ります）。
      */
-    private function r122RecordBatch($race, int $diff, array $v): void
+    // private function r122RecordBatch($race, int $diff, array $v): void   // 旧（名前を意味のあるものへ変えました）
+    private function recordAcquisitionBatch($race, int $diff, array $v): void
     {
         try {
             $sw = (string) env('BAGANRIKI_R122_AUDIT', '1');
@@ -484,7 +512,10 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
                 return;
             }
 
-            $raceId = \App\Http\Controllers\Api\AiController::r122RaceId(
+            // @ANCHOR-20261023-RENAME-FIX  【旧】r122RaceId は名前を変えたので見つからず、
+            //   10/23 の差し替えの後は、この記録が例外で毎回抜けていました（本番の予想には影響なし）。
+            // $raceId = \App\Http\Controllers\Api\AiController::r122RaceId(   // 旧
+            $raceId = \App\Http\Controllers\Api\AiController::buildPredictionRaceId(
                 $race->date, $race->kaisuu, $race->basho, $race->day, $race->race);
 
             // 予定時刻は「発走時刻 − slot分」。実時刻の代わりには使いません。
@@ -514,7 +545,7 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
                 'validation_result'    => $v['validation_result'] ?? null,
                 'rejection_reason'     => $v['rejection_reason']  ?? null,
                 'committed'            => (int) ($v['committed'] ?? 0),
-                'created_at'           => self::r122Now(),
+                'created_at'           => self::acquisitionNow(),
             ]);
 
             $this->info(sprintf('  [r12.2監査] %s slot=%d %s hash=%s',

@@ -1,0 +1,101 @@
+FAIL invalid RFC timestamp rejected: "2026-10-24T12:00:00+09:60": RuntimeException invalid offset, suffix, precision or missing zone accepted
+FAIL invalid RFC timestamp rejected: "2026-10-24T12:00:00-03:60": RuntimeException invalid offset, suffix, precision or missing zone accepted
+FAIL invalid RFC timestamp rejected: "2026-10-24T12:00:00+24:00": RuntimeException invalid offset, suffix, precision or missing zone accepted
+FAIL invalid RFC timestamp rejected: "2026-10-24T12:00:00-24:00": RuntimeException invalid offset, suffix, precision or missing zone accepted
+FAIL invalid RFC timestamp rejected: "2026-10-24T12:00:00+99:99": RuntimeException invalid offset, suffix, precision or missing zone accepted
+FAIL invalid RFC timestamp rejected: "2026-10-24T12:00:00-99:99": RuntimeException invalid offset, suffix, precision or missing zone accepted
+FAIL invalid RFC timestamp rejected: "2026-10-24T12:00:00Z\n": RuntimeException invalid offset, suffix, precision or missing zone accepted
+FAIL invalid RFC timestamp rejected: "2026-10-24T12:00:00+09:00\n": RuntimeException invalid offset, suffix, precision or missing zone accepted
+PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00.1234567Z"
+PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00"
+PASS valid offset keeps the same instant: 2026-10-24T03:04:05.123456Z
+PASS valid offset keeps the same instant: 2026-10-24t03:04:05.123456z
+PASS valid offset keeps the same instant: 2026-10-24T03:04:05.123456+00:00
+PASS valid offset keeps the same instant: 2026-10-24T03:04:05.123456-00:00
+PASS valid offset keeps the same instant: 2026-10-24T12:04:05.123456+09:00
+PASS valid offset keeps the same instant: 2026-10-24T08:49:05.123456+05:45
+PASS valid offset keeps the same instant: 2026-10-23T23:34:05.123456-03:30
+PASS valid offset keeps the same instant: 2026-10-25T03:03:05.123456+23:59
+PASS valid offset keeps the same instant: 2026-10-23T03:05:05.123456-23:59
+PASS acquisition cutoff is inclusive to one microsecond: slot 21
+FAIL malformed explicit schedule is not reconstructed: slot 21: RuntimeException malformed explicit schedule replaced by anchor
+PASS absent or null schedule retains documented anchor fallback: slot 21
+PASS complete audit timestamps do not require a second anchor: slot 21
+PASS acquisition cutoff is inclusive to one microsecond: slot 18
+FAIL malformed explicit schedule is not reconstructed: slot 18: RuntimeException malformed explicit schedule replaced by anchor
+PASS absent or null schedule retains documented anchor fallback: slot 18
+PASS complete audit timestamps do not require a second anchor: slot 18
+PASS acquisition cutoff is inclusive to one microsecond: slot 15
+FAIL malformed explicit schedule is not reconstructed: slot 15: RuntimeException malformed explicit schedule replaced by anchor
+PASS absent or null schedule retains documented anchor fallback: slot 15
+PASS complete audit timestamps do not require a second anchor: slot 15
+PASS acquisition cutoff is inclusive to one microsecond: slot 12
+FAIL malformed explicit schedule is not reconstructed: slot 12: RuntimeException malformed explicit schedule replaced by anchor
+PASS absent or null schedule retains documented anchor fallback: slot 12
+PASS complete audit timestamps do not require a second anchor: slot 12
+PASS acquisition cutoff is inclusive to one microsecond: slot 9
+FAIL malformed explicit schedule is not reconstructed: slot 9: RuntimeException malformed explicit schedule replaced by anchor
+PASS absent or null schedule retains documented anchor fallback: slot 9
+PASS complete audit timestamps do not require a second anchor: slot 9
+PASS acquisition cutoff is inclusive to one microsecond: slot 6
+FAIL malformed explicit schedule is not reconstructed: slot 6: RuntimeException malformed explicit schedule replaced by anchor
+PASS absent or null schedule retains documented anchor fallback: slot 6
+PASS complete audit timestamps do not require a second anchor: slot 6
+PASS bad timestamp only rejects its own acquisition batch: request_started_at text
+FAIL bad timestamp only rejects its own acquisition batch: request_started_at array: TypeError App\Http\Controllers\Api\BaganrikiTime::us(): Argument #1 ($t) must be of type ?string, array given, called in /workspace/scratch/6c7f39c29d0b/audit8_baseline/baganriki_r122_audit7_20261021/app/Http/Controllers/Api/AiController.php on line 21431
+FAIL bad timestamp only rejects its own acquisition batch: request_started_at object: TypeError App\Http\Controllers\Api\BaganrikiTime::us(): Argument #1 ($t) must be of type ?string, stdClass given, called in /workspace/scratch/6c7f39c29d0b/audit8_baseline/baganriki_r122_audit7_20261021/app/Http/Controllers/Api/AiController.php on line 21431
+PASS bad timestamp only rejects its own acquisition batch: response_received_at text
+FAIL bad timestamp only rejects its own acquisition batch: response_received_at array: TypeError App\Http\Controllers\Api\BaganrikiTime::us(): Argument #1 ($t) must be of type ?string, array given, called in /workspace/scratch/6c7f39c29d0b/audit8_baseline/baganriki_r122_audit7_20261021/app/Http/Controllers/Api/AiController.php on line 21431
+FAIL bad timestamp only rejects its own acquisition batch: response_received_at object: TypeError App\Http\Controllers\Api\BaganrikiTime::us(): Argument #1 ($t) must be of type ?string, stdClass given, called in /workspace/scratch/6c7f39c29d0b/audit8_baseline/baganriki_r122_audit7_20261021/app/Http/Controllers/Api/AiController.php on line 21431
+PASS bad timestamp only rejects its own acquisition batch: available_at text
+FAIL bad timestamp only rejects its own acquisition batch: available_at array: TypeError App\Http\Controllers\Api\BaganrikiTime::us(): Argument #1 ($t) must be of type ?string, array given, called in /workspace/scratch/6c7f39c29d0b/audit8_baseline/baganriki_r122_audit7_20261021/app/Http/Controllers/Api/AiController.php on line 21431
+FAIL bad timestamp only rejects its own acquisition batch: available_at object: TypeError App\Http\Controllers\Api\BaganrikiTime::us(): Argument #1 ($t) must be of type ?string, stdClass given, called in /workspace/scratch/6c7f39c29d0b/audit8_baseline/baganriki_r122_audit7_20261021/app/Http/Controllers/Api/AiController.php on line 21431
+PASS bad timestamp only rejects its own acquisition batch: input_freeze_at text
+FAIL bad timestamp only rejects its own acquisition batch: input_freeze_at array: TypeError App\Http\Controllers\Api\BaganrikiTime::us(): Argument #1 ($t) must be of type ?string, array given, called in /workspace/scratch/6c7f39c29d0b/audit8_baseline/baganriki_r122_audit7_20261021/app/Http/Controllers/Api/AiController.php on line 21431
+FAIL bad timestamp only rejects its own acquisition batch: input_freeze_at object: TypeError App\Http\Controllers\Api\BaganrikiTime::us(): Argument #1 ($t) must be of type ?string, stdClass given, called in /workspace/scratch/6c7f39c29d0b/audit8_baseline/baganriki_r122_audit7_20261021/app/Http/Controllers/Api/AiController.php on line 21431
+FAIL bad timestamp only rejects its own acquisition batch: slot_scheduled_at text: RuntimeException bad audit row adopted or good batch lost
+FAIL bad timestamp only rejects its own acquisition batch: slot_scheduled_at array: TypeError App\Http\Controllers\Api\BaganrikiTime::us(): Argument #1 ($t) must be of type ?string, array given, called in /workspace/scratch/6c7f39c29d0b/audit8_baseline/baganriki_r122_audit7_20261021/app/Http/Controllers/Api/AiController.php on line 21438
+FAIL bad timestamp only rejects its own acquisition batch: slot_scheduled_at object: TypeError App\Http\Controllers\Api\BaganrikiTime::us(): Argument #1 ($t) must be of type ?string, stdClass given, called in /workspace/scratch/6c7f39c29d0b/audit8_baseline/baganriki_r122_audit7_20261021/app/Http/Controllers/Api/AiController.php on line 21438
+PASS bad timestamp only rejects its own acquisition batch: source_updated_at text
+FAIL bad timestamp only rejects its own acquisition batch: source_updated_at array: TypeError App\Http\Controllers\Api\BaganrikiTime::us(): Argument #1 ($t) must be of type ?string, array given, called in /workspace/scratch/6c7f39c29d0b/audit8_baseline/baganriki_r122_audit7_20261021/app/Http/Controllers/Api/AiController.php on line 21482
+FAIL bad timestamp only rejects its own acquisition batch: source_updated_at object: TypeError App\Http\Controllers\Api\BaganrikiTime::us(): Argument #1 ($t) must be of type ?string, stdClass given, called in /workspace/scratch/6c7f39c29d0b/audit8_baseline/baganriki_r122_audit7_20261021/app/Http/Controllers/Api/AiController.php on line 21482
+FAIL invalid offsets cannot normalize into matching acquisition schedule: RuntimeException invalid offset normalized into the expected schedule
+FAIL all malformed schedules leave acquisition unavailable even with cancellation: RuntimeException cancellation bypassed the timestamp requirement
+PASS equivalent UTC and JST audit timestamps preserve selected batch
+FAIL database adapter cannot erase invalid timestamp: slot_scheduled_at broken: RuntimeException database adapter laundered invalid timestamp into an accepted batch
+FAIL database adapter cannot erase invalid timestamp: slot_scheduled_at 2026-02-30 11:54:00: RuntimeException database adapter laundered invalid timestamp into an accepted batch
+FAIL database adapter cannot erase invalid timestamp: slot_scheduled_at 2026-10-24 11:54:00.1234567: RuntimeException database adapter laundered invalid timestamp into an accepted batch
+FAIL database adapter cannot erase invalid timestamp: source_updated_at broken: RuntimeException database adapter laundered invalid timestamp into an accepted batch
+FAIL database adapter cannot erase invalid timestamp: source_updated_at 2026-02-30 11:54:00: RuntimeException database adapter laundered invalid timestamp into an accepted batch
+FAIL database adapter cannot erase invalid timestamp: source_updated_at 2026-10-24 11:54:00.1234567: RuntimeException database adapter laundered invalid timestamp into an accepted batch
+PASS database schedule comparison uses instant, not fractional spelling: seconds
+PASS database schedule comparison uses instant, not fractional spelling: .0
+FAIL database schedule comparison uses instant, not fractional spelling: .00: RuntimeException same schedule instant rejected: {"ok":false,"ctx":null,"code":"SOURCE_REGISTRY_EMPTY","reason":"\u767b\u9332\u3067\u304d\u308b\u539f\u5024\u304c\u3042\u308a\u307e\u305b\u3093","race_id":"20261024-4-5-7-1","notes":[]}
+FAIL database schedule comparison uses instant, not fractional spelling: .000: RuntimeException same schedule instant rejected: {"ok":false,"ctx":null,"code":"SOURCE_REGISTRY_EMPTY","reason":"\u767b\u9332\u3067\u304d\u308b\u539f\u5024\u304c\u3042\u308a\u307e\u305b\u3093","race_id":"20261024-4-5-7-1","notes":[]}
+FAIL database schedule comparison uses instant, not fractional spelling: .0000: RuntimeException same schedule instant rejected: {"ok":false,"ctx":null,"code":"SOURCE_REGISTRY_EMPTY","reason":"\u767b\u9332\u3067\u304d\u308b\u539f\u5024\u304c\u3042\u308a\u307e\u305b\u3093","race_id":"20261024-4-5-7-1","notes":[]}
+FAIL database schedule comparison uses instant, not fractional spelling: .00000: RuntimeException same schedule instant rejected: {"ok":false,"ctx":null,"code":"SOURCE_REGISTRY_EMPTY","reason":"\u767b\u9332\u3067\u304d\u308b\u539f\u5024\u304c\u3042\u308a\u307e\u305b\u3093","race_id":"20261024-4-5-7-1","notes":[]}
+PASS database schedule comparison uses instant, not fractional spelling: .000000
+PASS database adapter preserves nullable optional timestamps
+PASS database schedule mismatch of one microsecond is rejected: 2026-10-24 11:53:59.999999
+PASS database schedule mismatch of one microsecond is rejected: 2026-10-24 11:54:00.000001
+FAIL database adapter cannot manufacture a usable batch from invalid optional dates: RuntimeException invalid-only audit still generated usable context
+FAIL unreadable non-null live close cannot become no change: broken: RuntimeException frozen deadline was used despite unreadable live change
+FAIL unreadable non-null live close cannot become no change: 0000-00-00 00:00:00: RuntimeException frozen deadline was used despite unreadable live change
+FAIL unreadable non-null live close cannot become no change: 2026-02-30 12:00:00: RuntimeException frozen deadline was used despite unreadable live change
+FAIL unreadable non-null live close cannot become no change: 2026-10-24 12:00:00.1234567: RuntimeException frozen deadline was used despite unreadable live change
+PASS valid live close keeps existing deadline policy: null-row
+PASS valid live close keeps existing deadline policy: missing-field
+PASS valid live close keeps existing deadline policy: null-field
+PASS valid live close keeps existing deadline policy: earlier
+PASS valid live close keeps existing deadline policy: later
+PASS valid live close keeps existing deadline policy: datetime
+FAIL unreadable live deadline blocks reservation without consuming a slot: RuntimeException invalid deadline authorized a reservation
+FAIL unreadable live deadline blocks send right and preserves reservation: RuntimeException invalid deadline authorized sending
+PASS normal null live deadline still permits one reservation and one send right
+FAIL unreadable live close preserves received evidence only for audit: RuntimeException response qualified without a readable effective deadline
+FAIL unreadable live close blocks publication without changing its pointer: RuntimeException job gate allowed invalid deadline
+PASS valid null live close still publishes at the frozen deadline
+PASS earlier close with cancellation and corrected score: receipt offset -1
+PASS earlier close with cancellation and corrected score: receipt offset 0
+PASS earlier close with cancellation and corrected score: receipt offset 1
+AUDIT8 RESULT: 52 passed, 48 failed. PHP with DB/HTTP doubles; no production runtime or external AI.

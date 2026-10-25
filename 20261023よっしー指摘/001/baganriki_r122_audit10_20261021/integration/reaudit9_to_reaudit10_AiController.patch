@@ -1,0 +1,79 @@
+--- a/app/Http/Controllers/Api/AiController.php
++++ b/app/Http/Controllers/Api/AiController.php
+@@ -16016,9 +16016,19 @@
+                     $vals = [];
+                     $cncl = [];
+                     if ($bad === null) {
+-                        $pl = json_decode($raw, true);
++                        // Verify raw JSON before coercion can erase duplicate keys,
++                        // horse identities, cancellation markers, or decimal digits.
++                        $pl = null;
++                        try {
++                            $pl = ExactJson::decode($raw);
++                        } catch (\Throwable $e) {
++                            $bad = '原ペイロードのJSONが不正です（' . $e->getMessage() . '）';
++                        }
++                        // Preserve legacy row collections keyed by a source row ID.
++                        // Cast only the root container, never individual field values.
++                        if ($pl instanceof \stdClass) $pl = (array) $pl;
+                         if (!is_array($pl)) {
+-                            $bad = '原ペイロードをJSONとして読めません';
++                            $bad ??= '原ペイロードが行の集合ではありません';
+                         } else {
+                             // ══════════════════════════════════════════
+                             // @ANCHOR-20261020-R122-PAYSET  007のご指摘5
+@@ -16033,15 +16043,22 @@
+                             //     します。</b>バッチごとに見るので、1つの
+                             //     バッチが汚れても他のバッチは使えます。
+                             $seenNum = []; $dupNum = []; $unkNum = []; $bothNum = [];
++                            $invalidRow = false;
+                             foreach ($pl as $h) {
+-                                $n = (int) ($h['num'] ?? 0);
+-                                if ($n <= 0) continue;
++                                if (!is_array($h)) { $invalidRow = true; continue; }
++                                $rawNo = $h['num'] ?? null;
++                                $digits = (is_int($rawNo) || is_string($rawNo)) ? trim((string) $rawNo) : '';
++                                $n = preg_match('/^\d+\z/', $digits)
++                                    ? filter_var(ltrim($digits, '0'), FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]])
++                                    : false;
++                                if ($n === false) { $invalidRow = true; continue; }
+                                 if (isset($seenNum[$n])) { $dupNum[$n] = true; }
+                                 $seenNum[$n] = true;
+                                 if ($entryNums !== [] && !in_array($n, $entryNums, true)) {
+                                     $unkNum[$n] = true;
+                                 }
+-                                $t = trim((string) ($h['tan'] ?? ''));
++                                $t = $h['tan'] ?? null;
++                                if (is_string($t)) $t = trim($t);
+                                 if ($t === '取消' || $t === '除外') {
+                                     if (isset($vals[$n])) { $bothNum[$n] = true; }
+                                     $cncl[] = $n;
+@@ -16049,7 +16066,7 @@
+                                 }
+                                 if (in_array($n, $cncl, true)) { $bothNum[$n] = true; }
+                                 $vals[$n] = [
+-                                    'win'       => BaganrikiAcquisition::usableDecimal($t) ? $t : null,
++                                    'win'       => BaganrikiAcquisition::usableDecimal($t) ? trim((string) $t) : null,
+                                     'place_min' => BaganrikiAcquisition::usableDecimal($h['fuku_min'] ?? null)
+                                                    ? trim((string) $h['fuku_min']) : null,
+                                     'place_max' => BaganrikiAcquisition::usableDecimal($h['fuku_max'] ?? null)
+@@ -16057,6 +16074,9 @@
+                                 ];
+                             }
+                             $why = [];
++                            if ($invalidRow) {
++                                $why[] = '行の形または馬番が不正です';
++                            }
+                             if ($dupNum !== []) {
+                                 $why[] = '同じ馬番が2回以上あります（'
+                                        . implode('・', array_keys($dupNum)) . '）';
+@@ -21646,7 +21666,8 @@
+     /** 使える十進数の文字列か（0・負・空・「取消」は不可） */
+     public static function usableDecimal($v): bool
+     {
+-        if ($v === null || is_bool($v)) { return false; }
++        if (!is_string($v) && !is_int($v) && !is_float($v)
++            && !$v instanceof \App\Support\Baganriki\Decimal) { return false; }
+         $s = trim((string) $v);
+         if ($s === '' || $s === '取消' || $s === '除外') { return false; }
+         // ══════════════════════════════════════════════════════════════

@@ -1,0 +1,474 @@
+--- a/app/Http/Controllers/Api/AiController.php
++++ b/app/Http/Controllers/Api/AiController.php
+@@ -15881,10 +15881,20 @@
+                     ->where('date', $date)->where('kaisuu', $kaisuu)
+                     ->where('basho', $basho)->where('day', $day)
+                     ->where('race', (int) $race)->get(['num', 'name']) as $h) {
+-            $n = (int) $h->num;
++            $rawNo = $h->num ?? null;
++            $digits = (is_int($rawNo) || is_string($rawNo)) ? trim((string) $rawNo) : '';
++            $n = preg_match('/^\d+\z/', $digits)
++                ? filter_var(ltrim($digits, '0'), FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]])
++                : false;
++            if ($n === false) {
++                return $ng('ENTRY_SET_MISMATCH', '出馬表に読めない馬番があります');
++            }
++            $nm = trim((string) ($h->name ?? ''));
++            if (isset($entryNums[$n]) && ($entryNames[$n] ?? '') !== $nm) {
++                return $ng('ENTRY_SET_MISMATCH', '出馬表の重複した馬番で馬名が矛盾しています（馬番 ' . $n . '）');
++            }
+             if ($n > 0) {
+                 $entryNums[$n] = true;
+-                $nm = trim((string) ($h->name ?? ''));
+                 if ($nm !== '') { $entryNames[$n] = $nm; }
+             }
+         }
+@@ -15893,6 +15903,18 @@
+         }
+         ksort($entryNums);
+         $entryNums = array_keys($entryNums);
++        // A declared race count is independent evidence, not the count of the
++        // odds that happened to arrive. Null remains the legacy unknown case.
++        $declaredRaw = $r->num_horses ?? null;
++        if ($declaredRaw !== null) {
++            $declared = (is_int($declaredRaw) || is_string($declaredRaw))
++                ? filter_var($declaredRaw, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]])
++                : false;
++            if ($declared === false || $declared !== count($entryNums)) {
++                return $ng('ENTRY_SET_MISMATCH',
++                    'レース情報の出走頭数と出馬表の頭数が合わないか、宣言頭数を読めません');
++            }
++        }
+ 
+         // ── オッズ（信号に使う6時点＋取消の見張り2時点） ───────────────
+         $first = \App\Constants\Constants::ODDS_DB_FIRST;
+@@ -15975,17 +15997,38 @@
+                     elseif (hash('sha256', $raw) !== $hash)           $bad = '原ペイロードのSHA-256が保存hashと違います';
+                     // 予定時刻は正本の発走時刻から作ったものと一致させます
+                     $schAt = BaganrikiPrompt::rfc3339(BaganrikiTime::slotScheduled($anchorUs, $slot));
+-                    $decl  = self::r122DbRfc3339($b->slot_scheduled_at);
+-                    if ($bad === null && $decl !== null && $decl !== $schAt) {
++                    $declRaw = $b->slot_scheduled_at ?? null;
++                    $decl = self::r122DbRfc3339($declRaw);
++                    $updatedRaw = $b->source_updated_at ?? null;
++                    $sourceUpdatedAt = self::r122DbRfc3339($updatedRaw);
++                    // Conversion to null must not turn an invalid recorded time
++                    // into an omitted optional field. Exclude only this batch.
++                    if ($bad === null && $declRaw !== null && $decl === null) {
++                        $bad = 'slot_scheduled_at が日時として読めません';
++                    } elseif ($bad === null && $updatedRaw !== null && $sourceUpdatedAt === null) {
++                        $bad = 'source_updated_at が日時として読めません';
++                    }
++                    if ($bad === null && $decl !== null
++                        && BaganrikiTime::us($decl) !== BaganrikiTime::us($schAt)) {
+                         $bad = '自己申告の予定時刻が正本の発走時刻から出した値と違います（'
+                              . $decl . ' / ' . $schAt . '）';
+                     }
+                     $vals = [];
+                     $cncl = [];
+                     if ($bad === null) {
+-                        $pl = json_decode($raw, true);
++                        // Verify raw JSON before coercion can erase duplicate keys,
++                        // horse identities, cancellation markers, or decimal digits.
++                        $pl = null;
++                        try {
++                            $pl = ExactJson::decode($raw);
++                        } catch (\Throwable $e) {
++                            $bad = '原ペイロードのJSONが不正です（' . $e->getMessage() . '）';
++                        }
++                        // Preserve legacy row collections keyed by a source row ID.
++                        // Cast only the root container, never individual field values.
++                        if ($pl instanceof \stdClass) $pl = (array) $pl;
+                         if (!is_array($pl)) {
+-                            $bad = '原ペイロードをJSONとして読めません';
++                            $bad ??= '原ペイロードが行の集合ではありません';
+                         } else {
+                             // ══════════════════════════════════════════
+                             // @ANCHOR-20261020-R122-PAYSET  007のご指摘5
+@@ -16000,15 +16043,22 @@
+                             //     します。</b>バッチごとに見るので、1つの
+                             //     バッチが汚れても他のバッチは使えます。
+                             $seenNum = []; $dupNum = []; $unkNum = []; $bothNum = [];
++                            $invalidRow = false;
+                             foreach ($pl as $h) {
+-                                $n = (int) ($h['num'] ?? 0);
+-                                if ($n <= 0) continue;
++                                if (!is_array($h)) { $invalidRow = true; continue; }
++                                $rawNo = $h['num'] ?? null;
++                                $digits = (is_int($rawNo) || is_string($rawNo)) ? trim((string) $rawNo) : '';
++                                $n = preg_match('/^\d+\z/', $digits)
++                                    ? filter_var(ltrim($digits, '0'), FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]])
++                                    : false;
++                                if ($n === false) { $invalidRow = true; continue; }
+                                 if (isset($seenNum[$n])) { $dupNum[$n] = true; }
+                                 $seenNum[$n] = true;
+                                 if ($entryNums !== [] && !in_array($n, $entryNums, true)) {
+                                     $unkNum[$n] = true;
+                                 }
+-                                $t = trim((string) ($h['tan'] ?? ''));
++                                $t = $h['tan'] ?? null;
++                                if (is_string($t)) $t = trim($t);
+                                 if ($t === '取消' || $t === '除外') {
+                                     if (isset($vals[$n])) { $bothNum[$n] = true; }
+                                     $cncl[] = $n;
+@@ -16016,7 +16066,7 @@
+                                 }
+                                 if (in_array($n, $cncl, true)) { $bothNum[$n] = true; }
+                                 $vals[$n] = [
+-                                    'win'       => BaganrikiAcquisition::usableDecimal($t) ? $t : null,
++                                    'win'       => BaganrikiAcquisition::usableDecimal($t) ? trim((string) $t) : null,
+                                     'place_min' => BaganrikiAcquisition::usableDecimal($h['fuku_min'] ?? null)
+                                                    ? trim((string) $h['fuku_min']) : null,
+                                     'place_max' => BaganrikiAcquisition::usableDecimal($h['fuku_max'] ?? null)
+@@ -16024,6 +16074,9 @@
+                                 ];
+                             }
+                             $why = [];
++                            if ($invalidRow) {
++                                $why[] = '行の形または馬番が不正です';
++                            }
+                             if ($dupNum !== []) {
+                                 $why[] = '同じ馬番が2回以上あります（'
+                                        . implode('・', array_keys($dupNum)) . '）';
+@@ -16044,7 +16097,7 @@
+                         'batch_id'             => (string) $b->batch_id,
+                         'payload_hash'         => $hash,
+                         'slot_scheduled_at'    => $schAt,
+-                        'source_updated_at'    => self::r122DbRfc3339($b->source_updated_at),
++                        'source_updated_at'    => $sourceUpdatedAt,
+                         'request_started_at'   => self::r122DbRfc3339($b->request_started_at),
+                         'response_received_at' => self::r122DbRfc3339($b->response_received_at),
+                         'available_at'         => self::r122DbRfc3339($b->available_at),
+@@ -16166,6 +16219,22 @@
+         } else {
+             // 実監査行があるときは、採用バッチの原値だけを使います
+             $cells = $batchCells;
++            // Only adopted audit batches may establish a cancellation conflict.
++            // A later available numeric observation cannot silently resurrect
++            // a horse whose cancellation was already available before freeze.
++            foreach ($batchCancel as $no => $cancelSlots) {
++                foreach ($cancelSlots as $cancelSlot) {
++                    $cancelUs = BaganrikiTime::us($audit[(string) $cancelSlot]['available_at'] ?? null);
++                    foreach ((array) ($batchCells[$no] ?? []) as $valueSlot => $values) {
++                        $valueUs = BaganrikiTime::us($audit[(string) $valueSlot]['available_at'] ?? null);
++                        if ($values !== [] && $cancelUs !== null && $valueUs !== null
++                            && $valueUs > $cancelUs) {
++                            return $ng('CANCEL_CONFLICT',
++                                '取消の時点より後に実オッズがあります（馬番 ' . $no . '）。実出走頭数を確定できません');
++                        }
++                    }
++                }
++            }
+             // ══════════════════════════════════════════════════════════
+             // @ANCHOR-20261020-R122-CANCELSRC  10月20日006のご指摘3-1
+             // ══════════════════════════════════════════════════════════
+@@ -17042,7 +17111,7 @@
+                     $add[$ref] = [
+                         'source_ref'           => $ref,
+                         'race_id'              => $raceId,
+-                        'value'                => ($f === 'sample_count') ? (int) $v : (float) $v,
++                        'value'                => self::r122NumValue(trim((string) $v)),
+                         'scope'                => 'COHORT',
+                         'horse_nos'            => [],
+                         'applicable_horse_nos' => $hit,
+@@ -17096,8 +17165,9 @@
+                     $v = $r->{$f};
+                     if ($v === null) continue;
+                     $ref = 'similar_' . $band . '_p' . $pop . '_' . $f;
+-                    $val = ($f === 'sample_count') ? (int) $v
+-                         : (($f === 'reliability') ? (string) $v : (float) $v);
++                    // Keep the recorded statistic exactly, including integers beyond PHP's range.
++                    $val = ($f === 'reliability') ? (string) $v
++                         : self::r122NumValue(trim((string) $v));
+                     $add[$ref] = [
+                         'source_ref'           => $ref,
+                         'race_id'              => $raceId,
+@@ -18955,7 +19025,12 @@
+                              . 'その日のレースを評価しないためです。', null];
+             }
+             $cAt = ($computedAt === null) ? null : self::r122DbTime($computedAt);
+-            if ($cAt !== null && $freezeUs !== null) {
++            // Validate each row before loading it. Another popularity rank's
++            // valid timestamp cannot establish availability for this row.
++            if ($cAt === null) {
++                return [false, 'この集計行の算出・利用可能時刻を確認できません', null];
++            }
++            if ($freezeUs !== null) {
+                 $cu = BaganrikiTime::us($cAt);
+                 if ($cu === null || $cu > $freezeUs) {
+                     return [false, 'この集計は情報上限より後に算出されています（算出 '
+@@ -18978,7 +19053,7 @@
+         // ── 表を読む ────────────────────────────────────────────────
+         $load = static function (string $table, string $valueCol, string $countCol)
+                 use ($check) {
+-            $rows = []; $win = null; $bad = null; $at = null; $atSrc = null;
++            $rows = []; $rowTimes = []; $win = null; $bad = null; $at = null; $atSrc = null;
+             foreach (\DB::table($table)->get() as $r) {
+                 // ══════════════════════════════════════════════════════
+                 // @ANCHOR-20261021-R122-VERIFIEDAT  10月21日008のご指摘8
+@@ -18998,6 +19073,7 @@
+                 $rk = (int) ($r->popularity_rank ?? 0);
+                 if ($rk <= 0) { continue; }
+                 $rows[$rk] = $r;
++                $rowTimes[$rk] = $cAt;
+                 if ($at === null || ($cAt !== null && strcmp($cAt, (string) $at) > 0)) {
+                     $at = $cAt; $atSrc = $cSrc;
+                 }
+@@ -19006,7 +19082,7 @@
+                             'end'   => substr((string) ($r->end_date ?? ''), 0, 10)];
+                 }
+             }
+-            return ['rows' => $rows, 'window' => $win, 'bad' => $bad,
++            return ['rows' => $rows, 'row_times' => $rowTimes, 'window' => $win, 'bad' => $bad,
+                     'computed_at' => $at,
+                     // @ANCHOR-20261021-R122-VERIFIEDAT  どちらの時刻を使ったか
+                     'time_source' => $atSrc];
+@@ -19097,39 +19173,39 @@
+ 
+         // ── ② 人気順位ごとの集計（その順位の馬にだけ当てはまります）───
+         foreach ($byRank as $rk => $list) {
+-            $at1 = $popAvg['computed_at'];
++            $at1 = ($popAvg['row_times'][$rk] ?? null);
+             if (isset($popAvg['rows'][$rk])) {
+                 $r = $popAvg['rows'][$rk];
+                 $v = self::r122DecOrNull($r->odds_average ?? null);
+                 if ($v !== null) {
+                     $ref = 'popavg_rank' . $rk . '_win_odds';
+-                    $put($add, $ref, $v, 'popavg_win_odds', 'odds', $list, $at1);
++                    $put($add, $ref, self::r122NumValue(trim((string) $r->odds_average)), 'popavg_win_odds', 'odds', $list, $at1);
+                     $refs['OPI'][] = $ref;
+                 }
+                 $n = self::r122IntOrNull($r->count ?? null);
+                 if ($n !== null) {
+                     $ref = 'popavg_rank' . $rk . '_count';
+-                    $put($add, $ref, $n, 'popavg_count', 'races', $list, $at1);
++                    $put($add, $ref, self::r122NumValue(trim((string) $r->count)), 'popavg_count', 'races', $list, $at1);
+                     $refs['OPI'][] = $ref;
+                 }
+             }
+-            $at2 = $fukuAvg['computed_at'];
++            $at2 = ($fukuAvg['row_times'][$rk] ?? null);
+             if (isset($fukuAvg['rows'][$rk])) {
+                 $r = $fukuAvg['rows'][$rk];
+                 $v = self::r122DecOrNull($r->odds_average ?? null);
+                 if ($v !== null) {
+                     $ref = 'fukuavg_rank' . $rk . '_place_min';
+-                    $put($add, $ref, $v, 'fukuavg_place_min', 'odds', $list, $at2);
++                    $put($add, $ref, self::r122NumValue(trim((string) $r->odds_average)), 'fukuavg_place_min', 'odds', $list, $at2);
+                     $refs['OPI'][] = $ref;
+                 }
+                 $n = self::r122IntOrNull($r->count ?? null);
+                 if ($n !== null) {
+                     $ref = 'fukuavg_rank' . $rk . '_count';
+-                    $put($add, $ref, $n, 'fukuavg_count', 'races', $list, $at2);
++                    $put($add, $ref, self::r122NumValue(trim((string) $r->count)), 'fukuavg_count', 'races', $list, $at2);
+                     $refs['OPI'][] = $ref;
+                 }
+             }
+-            $at3 = $corr['computed_at'];
++            $at3 = ($corr['row_times'][$rk] ?? null);
+             if (isset($corr['rows'][$rk])) {
+                 $r = $corr['rows'][$rk];
+                 foreach (['avg_correction_ratio' => 'ratio',
+@@ -19137,13 +19213,13 @@
+                     $v = self::r122DecOrNull($r->{$f} ?? null);
+                     if ($v === null) { continue; }
+                     $ref = 'corr_rank' . $rk . '_' . $f;
+-                    $put($add, $ref, $v, 'corr_' . $f, $unit, $list, $at3);
++                    $put($add, $ref, self::r122NumValue(trim((string) $r->{$f})), 'corr_' . $f, $unit, $list, $at3);
+                     $refs['estimated_odds'][] = $ref;
+                 }
+                 $n = self::r122IntOrNull($r->sample_count ?? null);
+                 if ($n !== null) {
+                     $ref = 'corr_rank' . $rk . '_sample_count';
+-                    $put($add, $ref, $n, 'corr_sample_count', 'races', $list, $at3);
++                    $put($add, $ref, self::r122NumValue(trim((string) $r->sample_count)), 'corr_sample_count', 'races', $list, $at3);
+                     $refs['estimated_odds'][] = $ref;
+                 }
+             }
+@@ -19216,7 +19292,7 @@
+                     round($pa / $win6, 2), 'ratio',
+                     ['popavg_rank' . $rk . '_win_odds', 'h' . $no . '_win_odds_6'],
+                     'OPI_AVG_WIN_DIV_WIN6',
+-                    $later($popAvg['computed_at'], $odds6At), $nowAt);
++                    $later(($popAvg['row_times'][$rk] ?? null), $odds6At), $nowAt);
+             }
+             // 複勝OPI = 過去平均複勝最小 ÷ 6分前複勝最小
+             if ($fa !== null && $fuku6 !== null && $fuku6 > 0) {
+@@ -19224,7 +19300,7 @@
+                     round($fa / $fuku6, 2), 'ratio',
+                     ['fukuavg_rank' . $rk . '_place_min', 'h' . $no . '_place_min_6'],
+                     'FUKU_OPI_AVG_PLACE_DIV_PLACE6',
+-                    $later($fukuAvg['computed_at'], $odds6At), $nowAt);
++                    $later(($fukuAvg['row_times'][$rk] ?? null), $odds6At), $nowAt);
+             }
+             // 推定確定オッズ = 6分前単勝 × 補正係数
+             $est = null;
+@@ -19234,7 +19310,7 @@
+                     $est, 'odds',
+                     ['corr_rank' . $rk . '_avg_correction_ratio', 'h' . $no . '_win_odds_6'],
+                     'EST_FINAL_ODDS_WIN6_X_RATIO',
+-                    $later($corr['computed_at'], $odds6At), $nowAt);
++                    $later(($corr['row_times'][$rk] ?? null), $odds6At), $nowAt);
+             }
+             // 推定確定複勝最小（複勝専用の係数は未実装なので単勝の係数を流用）
+             if ($cr !== null && $fuku6 !== null && $fuku6 > 0) {
+@@ -19242,7 +19318,7 @@
+                     round($fuku6 * $cr, 2), 'odds',
+                     ['corr_rank' . $rk . '_avg_correction_ratio', 'h' . $no . '_place_min_6'],
+                     'EST_FINAL_PLACE_MIN_PLACE6_X_WIN_RATIO',
+-                    $later($corr['computed_at'], $odds6At), $nowAt);
++                    $later(($corr['row_times'][$rk] ?? null), $odds6At), $nowAt);
+             }
+             // 予測補正OPI = 過去平均単勝 ÷ 推定確定オッズ
+             if ($pa !== null && $est !== null && $est > 0) {
+@@ -19250,7 +19326,7 @@
+                     round($pa / $est, 2), 'ratio',
+                     ['popavg_rank' . $rk . '_win_odds', 'h' . $no . '_estimated_final_odds'],
+                     'EST_OPI_AVG_WIN_DIV_EST_FINAL',
+-                    $later($later($popAvg['computed_at'], $corr['computed_at']), $odds6At),
++                    $later($later(($popAvg['row_times'][$rk] ?? null), ($corr['row_times'][$rk] ?? null)), $odds6At),
+                     $nowAt);
+             }
+         }
+@@ -21345,7 +21421,7 @@
+     public static function us(?string $t): ?int
+     {
+         if ($t === null) { return null; }
+-        $re = '/^(\d{4}-\d{2}-\d{2})[Tt](\d{2}:\d{2}:\d{2})(\.\d{1,6})?([Zz]|[+\-]\d{2}:\d{2})$/';
++        $re = '/^(\d{4}-\d{2}-\d{2})[Tt](\d{2}:\d{2}:\d{2})(\.\d{1,6})?([Zz]|[+\-](?:[01]\d|2[0-3]):[0-5]\d)\z/';
+         if (!preg_match($re, $t, $m)) { return null; }
+         $frac = isset($m[3]) ? str_pad(substr($m[3], 1), 6, '0') : '000000';
+         $tz   = (strtoupper($m[4]) === 'Z') ? '+00:00' : $m[4];
+@@ -21428,14 +21504,21 @@
+         $need = ['request_started_at', 'response_received_at', 'available_at', 'input_freeze_at'];
+         $v = [];
+         foreach ($need as $k) {
+-            $v[$k] = self::us($b[$k] ?? null);
++            $v[$k] = is_string($b[$k] ?? null) ? self::us($b[$k]) : null;
+             if ($v[$k] === null) {
+                 return ['ok' => false, 'code' => 'TIME_UNREADABLE',
+                         'reason' => $k . ' が無いか日時として読めない'];
+             }
+         }
+         // 予定時刻は、与えられていれば使い、無ければ発走時刻から作ります
+-        $sch = self::us($b['slot_scheduled_at'] ?? null);
++        $scheduled = $b['slot_scheduled_at'] ?? null;
++        $sch = is_string($scheduled) ? self::us($scheduled) : null;
++        // Only an absent/null schedule may use the documented anchor fallback.
++        // An explicit malformed timestamp invalidates this batch, not its peers.
++        if ($scheduled !== null && $sch === null) {
++            return ['ok' => false, 'code' => 'TIME_UNREADABLE',
++                    'reason' => 'slot_scheduled_at が日時として読めない'];
++        }
+         if ($sch === null) {
+             if ($anchorUs === null) {
+                 return ['ok' => false, 'code' => 'TIME_UNREADABLE',
+@@ -21479,7 +21562,7 @@
+             return ['ok' => false, 'code' => 'ACQUISITION_DEADLINE_EXCEEDED', 'reason' => '情報上限 input_freeze_at を超えた'];
+ 
+         if (($b['source_updated_at'] ?? null) !== null) {
+-            $su = self::us($b['source_updated_at']);
++            $su = is_string($b['source_updated_at']) ? self::us($b['source_updated_at']) : null;
+             if ($su === null)
+                 return ['ok' => false, 'code' => 'TIME_UNREADABLE', 'reason' => 'source_updated_at が日時として読めない'];
+             if ($su > $v['response_received_at'])
+@@ -21583,7 +21666,8 @@
+     /** 使える十進数の文字列か（0・負・空・「取消」は不可） */
+     public static function usableDecimal($v): bool
+     {
+-        if ($v === null || is_bool($v)) { return false; }
++        if (!is_string($v) && !is_int($v) && !is_float($v)
++            && !$v instanceof \App\Support\Baganriki\Decimal) { return false; }
+         $s = trim((string) $v);
+         if ($s === '' || $s === '取消' || $s === '除外') { return false; }
+         // ══════════════════════════════════════════════════════════════
+@@ -26348,9 +26432,13 @@
+             return ['ok' => false, 'json' => null, 'bytes' => 0, 'depth' => $depth,
+                     'reason' => 'INPUT_JSON を作れませんでした'];
+         }
+-        if (strpos($json, 'NaN') !== false || strpos($json, 'Infinity') !== false) {
+-            return ['ok' => false, 'json' => null, 'bytes' => 0, 'depth' => $depth,
+-                    'reason' => 'NaN / Infinity が混ざっています'];
++        // Actual nonfinite numbers already fail canonical JSON serialization.
++        // Text containing their names is valid; validate the generated JSON
++        // with the same byte/numeric/depth contract as received JSON instead.
++        $checked = BaganrikiJson::strict($json);
++        if (!$checked['ok']) {
++            return ['ok' => false, 'json' => null, 'bytes' => strlen($json),
++                    'depth' => $depth, 'reason' => $checked['reason']];
+         }
+         return ['ok' => true, 'json' => $json, 'bytes' => strlen($json),
+                 'depth' => $depth, 'reason' => null];
+@@ -27161,7 +27249,16 @@
+                     'reason' => '凍結した投票締切が無いので期限を出せません',
+                     'reply' => null, 'publish' => null, 'sales' => null];
+         }
+-        $liveClose = ($live === null) ? null : self::dbUs($live->live_close ?? null);
++        $liveValue = $live->live_close ?? null;
++        $liveClose = self::dbUs($liveValue);
++        // A recorded but unreadable change is not evidence that no change exists.
++        // Do not authorize work against the potentially later frozen deadline.
++        if ($liveValue !== null && $liveClose === null) {
++            return ['ok' => false, 'code' => 'TIME_UNCOMPUTABLE',
++                    'reason' => '変更された投票締切を読めないので実効期限を出せません',
++                    'reply' => null, 'publish' => null, 'sales' => $sales,
++                    'live_close' => null];
++        }
+         $d = BaganrikiTime::effectiveDeadlines($sales, $liveClose);
+         return ['ok' => true, 'code' => null, 'reason' => null,
+                 'reply' => $d['reply'], 'publish' => $d['publish'], 'sales' => $sales,
+@@ -27377,10 +27474,15 @@
+ 
+     public static function isDup(\Throwable $e): bool
+     {
+-        $m = $e->getMessage();
+-        return (strpos($m, '1062') !== false)
+-            || (stripos($m, 'Duplicate entry') !== false)
+-            || (stripos($m, 'Integrity constraint violation') !== false);
++        // SQLSTATE 23000 includes NOT NULL and foreign-key violations.
++        // Only MySQL's duplicate-entry vendor code is an occupied slot.
++        for ($cause = $e; $cause !== null; $cause = $cause->getPrevious()) {
++            if ($cause instanceof \PDOException && isset($cause->errorInfo[1])) {
++                return (string) $cause->errorInfo[1] === '1062';
++            }
++        }
++        // Compatibility for wrappers that did not retain PDO errorInfo.
++        return preg_match('/(?:^|:\s)(?:1062\s+)?Duplicate entry\b/i', $e->getMessage()) === 1;
+     }
+ 
+     // ── 送信許可（callbackは1回だけ）─────────────────────────────────────
+@@ -27980,7 +28082,7 @@
+                             $hn3 = array_map('intval', (array) ($e2['horse_nos'] ?? []));
+                             $ap3 = array_map('intval', (array) ($e2['applicable_horse_nos'] ?? []));
+                             if (!(($sc3 === 'RACE')
+-                                  || ($sc3 === 'HORSE'  && in_array($no, $hn3, true))
++                                  || (in_array($sc3, ['HORSE','PAIR'], true) && in_array($no, $hn3, true))
+                                   || ($sc3 === 'COHORT' && in_array($no, $ap3, true)))) {
+                                 $nw[] = $rf;
+                             }
+@@ -28067,9 +28169,9 @@
+             //   見るのは3つです。
+             //     ① 実在   … source_registry にそのIDがあるか
+             //     ② 所有馬 … その登録がこの馬に当てはまるか
+-            //                 HORSE は horse_nos、COHORT は applicable_horse_nos、
++            //                 HORSE/PAIR は horse_nos、COHORT は applicable_horse_nos、
+             //                 RACE は全馬に当てはまります
+-            //     ③ 自分のSIGNAL … 自分のHORSE×SIGNALが1系統でもあるか
++            //     ③ 自分のSIGNAL … 適用されるHORSE/PAIR/COHORT×SIGNALが1系統でもあるか
+             //
+             //   契約7章「RACE情報のみ、CONTEXTのみでは資格を作らない」が③です。
+             //   逆に「確認済み個別SIGNALが1系統あれば候補資格を保持する」ので、
+@@ -28087,10 +28189,10 @@
+                 $hn  = array_map('intval', (array) ($e['horse_nos'] ?? []));
+                 $ap  = array_map('intval', (array) ($e['applicable_horse_nos'] ?? []));
+                 $fit = ($sc2 === 'RACE')
+-                    || ($sc2 === 'HORSE'  && in_array($no, $hn, true))
++                    || (in_array($sc2, ['HORSE','PAIR'], true) && in_array($no, $hn, true))
+                     || ($sc2 === 'COHORT' && in_array($no, $ap, true));
+                 if (!$fit) { $notOwned[] = $rf; continue; }
+-                if ($sc2 === 'HORSE' && in_array($no, $hn, true)
++                if (in_array($sc2, ['HORSE','PAIR','COHORT'], true)
+                     && (string) ($e['dependency_role'] ?? '') === 'SIGNAL') {
+                     $ownSignal++;
+                 }

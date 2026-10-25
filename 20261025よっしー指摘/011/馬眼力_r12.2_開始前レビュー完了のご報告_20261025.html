@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力 r12.2 開始前レビュー完了のご報告</title>
+<style>
+:root{
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1f2328; --sub:#5b6370; --line:#e3e1dc;
+  --ok:#1f7a4d; --okbg:#e7f4ec; --warn:#9a5b00; --warnbg:#fbf1df;
+  --info:#2457a6; --infobg:#e8eefa;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#16181b; --card:#1f2226; --ink:#e8e6e1; --sub:#a3a9b2; --line:#33373d;
+    --ok:#6fcf9b; --okbg:#1d3328; --warn:#f0b65a; --warnbg:#3a2e1a;
+    --info:#8fb4f2; --infobg:#1e2a40;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:16px;line-height:1.75}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.35rem;margin:0 0 4px}
+.meta{color:var(--sub);font-size:.85rem;margin-bottom:20px}
+h2{font-size:1.08rem;margin:28px 0 10px;padding-left:10px;border-left:4px solid var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0}
+.lead{font-size:1.02rem}
+ul{padding-left:1.2em;margin:6px 0}
+li{margin:4px 0}
+.tag{display:inline-block;font-size:.78rem;font-weight:700;border-radius:6px;padding:1px 8px;margin-right:6px}
+.ok{color:var(--ok);background:var(--okbg)}
+.warn{color:var(--warn);background:var(--warnbg)}
+.info{color:var(--info);background:var(--infobg)}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{border-bottom:1px solid var(--line);padding:7px 4px;text-align:left;vertical-align:top}
+th{color:var(--sub);font-weight:600}
+.note{color:var(--sub);font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+<h1>馬眼力 r12.2 開始前レビュー完了のご報告</h1>
+<div class="meta">2026年10月25日（日）／ふなっしー（豊田）より</div>
+
+<div class="card lead">
+<span class="tag ok">完了</span><b>なるさんの確認が、すべて終わりました。</b><br>
+「非公開2レースの試験に進む前のレビューは、残りゼロ」との判定をいただきました。<br>
+次は、<b>10月31日（土）東京9R・10R</b>で、新しい予想の非公開試験を行います。
+</div>
+
+<h2>1. 10/31（土）の非公開試験</h2>
+<div class="card">
+<ul>
+<li>対象は東京9R・10Rの2レースだけです。<b>お客さんには見せません。</b></li>
+<li>新しい予想のAI代の上限は<b>1日2.5ドル（約375円）</b>です。足りなくなったら、そこで止めて記録します。</li>
+<li>いまの予想は、全レースで今までどおり動かします。</li>
+<li>終わったら、馬ごとの評価・人気薄の扱い・実際にかかった費用をまとめてご報告します。</li>
+</ul>
+<p class="note">当日の朝に設定を入れ、最終レースのあとに元へ戻します。</p>
+</div>
+
+<h2>2. 今日やったこと</h2>
+<div class="card">
+<span class="tag ok">済</span><b>なるさんのご指摘への対応（5往復）</b>
+<ul>
+<li>費用の数え方・発走時刻の変更・保存がぶつかったときの動きなどを直し、本番のサーバで試験しました。どれもAIは呼んでいないので、費用はかかっていません。</li>
+</ul>
+</div>
+<div class="card">
+<span class="tag ok">済</span><b>画面の「r12.2」ボタンを外しました</b>
+<ul><li>私が確認用に付けたものでした。新しい予想を公開するときは、いまのAI予想の表示に載せます。</li></ul>
+</div>
+<div class="card">
+<span class="tag ok">済</span><b>新潟1Rで「候補馬がいませんでした」と出た件を直しました</b>
+<ul>
+<li>朝早く、オッズがそろう前に画面が開かれると、空の予想が保存されてしまう不具合でした。新しい予想を作る前からあったものです。</li>
+<li>オッズがそろうまでは何も保存せず、そろったらAIに1回だけ送るようにしました。</li>
+<li>AIの答えを受け取れなかったときは、「AIの回答を受け取れなかったため、このレースの予想は出せませんでした」と出ます。</li>
+<li>今日の新潟1Rは、レース後に作り直して5頭を出しています。レース後なので、成績の集計には入れません。</li>
+</ul>
+</div>
+<div class="card">
+<span class="tag ok">済</span><b>開催日の、毎分届いていた開発用の通知を止めました</b>
+<ul><li>正常に終わった回は通知しません。異常があったときと、夜の定時の回だけ通知します。</li></ul>
+</div>
+
+<h2>3. 予想に使うオッズは6分前のままです</h2>
+<div class="card">
+<span class="tag info">確認</span>資料に出てくる「締切」は、JRAのネット投票の締切のことです。予想をいつまでに出せばいいかを決めるためだけに使っています。<b>予想に使うオッズは、これまでどおり6分前のもの</b>です。
+</div>
+
+<h2>4. このあと（10/31の結果を見てから）</h2>
+<div class="card">
+<ul>
+<li>AIに渡す資料を小さくして、費用を下げる</li>
+<li>新しい予想を出したレースで、いまのAIを止める</li>
+<li>全レースに広げたときの処理の重さを測る</li>
+<li>問題がなければ、公開の段取りへ</li>
+</ul>
+</div>
+
+</main>
+</body>
+</html>

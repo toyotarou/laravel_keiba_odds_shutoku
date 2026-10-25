@@ -1,0 +1,30 @@
+PASS retry a transient pre-reservation failure
+PASS do not enqueue duplicate pending role jobs after throttle expiry
+PASS all-cancelled race cannot consume a reserved send right
+PASS send gate checks fresh time after lock acquisition
+PASS missing finish reason is incomplete: 1st
+PASS missing finish reason is incomplete: 2nd
+PASS malformed nested evidence is isolated: decimal_entry
+PASS malformed nested evidence is isolated: empty_object_entry
+PASS malformed nested evidence is isolated: bad_source_refs
+PASS malformed nested evidence is isolated: bad_family_refs
+PASS unsafe MySQL JSON storage is blocked before saving Decimal values
+PASS missing validation table must not be treated as successful inspection
+PASS invalid calendar close timestamp is rejected
+PASS live update cannot modify a replay generation
+PASS frozen input keeps exact values in correction payload
+PASS out-of-scope missing versus null field is not silently equal
+PASS metadata database writes wait until after raw response handling
+PASS conflicting confirmed cancellation is reapplied to fresh revision
+PASS complete score summary requires an integer total
+PASS job marker and queue insert roll back together
+PASS active worker suppresses duplicate; released worker lock permits recovery
+PASS SENT journal is never sent again by recovery
+PASS one reserved slot grants the send right only once
+PASS processing exception leaves role unsettled and clears role context
+PASS received is not settled; both processed roles are required before deadline
+PASS repeat live update is idempotent despite an old caller revision
+PASS no send when the remaining first-response window is too short
+PASS replay generation cannot publish even after reply deadline
+PASS disabled owned race does not fall back to legacy send permission
+AUDIT RESULT: 29 passed, 0 failed. DB/queue/lock doubles; no external HTTP.

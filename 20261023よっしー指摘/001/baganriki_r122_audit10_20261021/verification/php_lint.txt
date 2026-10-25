@@ -1,0 +1,71 @@
+Runtime: PHP 8.3.33 (PHP WASM CLI), 64-bit integers.
+PASS app/Console/Commands/R122Tick.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/app/Console/Commands/R122Tick.php
+PASS app/Http/Controllers/Api/AiController.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/app/Http/Controllers/Api/AiController.php
+PASS app/Jobs/Baganriki/AggregateRaceJob.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/app/Jobs/Baganriki/AggregateRaceJob.php
+PASS app/Jobs/Baganriki/FreezeRaceJob.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/app/Jobs/Baganriki/FreezeRaceJob.php
+PASS app/Jobs/Baganriki/R122Job.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/app/Jobs/Baganriki/R122Job.php
+PASS app/Jobs/Baganriki/RunRoleJob.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/app/Jobs/Baganriki/RunRoleJob.php
+PASS app/Jobs/Baganriki/UpdateRaceLiveJob.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/app/Jobs/Baganriki/UpdateRaceLiveJob.php
+PASS app/Support/Baganriki/Decimal.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/app/Support/Baganriki/Decimal.php
+PASS app/Support/Baganriki/ExactJson.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/app/Support/Baganriki/ExactJson.php
+PASS app/Support/Baganriki/ExactStorage.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/app/Support/Baganriki/ExactStorage.php
+PASS app/Support/Baganriki/JobPolicy.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/app/Support/Baganriki/JobPolicy.php
+PASS app/Support/Baganriki/R122Jobs.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/app/Support/Baganriki/R122Jobs.php
+PASS config/baganriki_jobs.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/config/baganriki_jobs.php
+PASS database/migrations/2026_10_21_000010_create_baganriki_job_support.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/database/migrations/2026_10_21_000010_create_baganriki_job_support.php
+PASS database/migrations/2026_10_21_000011_add_r122_pending_job_reference.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/database/migrations/2026_10_21_000011_add_r122_pending_job_reference.php
+PASS integration/live_update.example.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/integration/live_update.example.php
+PASS integration/queue_connection.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/integration/queue_connection.php
+PASS integration/schedule.example.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/integration/schedule.example.php
+PASS tests/audit.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/audit.php
+PASS tests/audit10.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/audit10.php
+PASS tests/audit2.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/audit2.php
+PASS tests/audit3.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/audit3.php
+PASS tests/audit4.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/audit4.php
+PASS tests/audit4_fixture.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/audit4_fixture.php
+PASS tests/audit5.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/audit5.php
+PASS tests/audit6.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/audit6.php
+PASS tests/audit7.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/audit7.php
+PASS tests/audit8.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/audit8.php
+PASS tests/audit9.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/audit9.php
+PASS tests/audit_fixture.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/audit_fixture.php
+PASS tests/bootstrap.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/bootstrap.php
+PASS tests/fixture.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/fixture.php
+PASS tests/legacy.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/legacy.php
+PASS tests/mutations.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/mutations.php
+PASS tests/run.php
+No syntax errors detected in /workspace/scratch/6c7f39c29d0b/baganriki_r122_audit10_20261021/tests/run.php

@@ -1,0 +1,101 @@
+PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00+09:60"
+PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00-03:60"
+PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00+24:00"
+PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00-24:00"
+PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00+99:99"
+PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00-99:99"
+PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00Z\n"
+PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00+09:00\n"
+PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00.1234567Z"
+PASS invalid RFC timestamp rejected: "2026-10-24T12:00:00"
+PASS valid offset keeps the same instant: 2026-10-24T03:04:05.123456Z
+PASS valid offset keeps the same instant: 2026-10-24t03:04:05.123456z
+PASS valid offset keeps the same instant: 2026-10-24T03:04:05.123456+00:00
+PASS valid offset keeps the same instant: 2026-10-24T03:04:05.123456-00:00
+PASS valid offset keeps the same instant: 2026-10-24T12:04:05.123456+09:00
+PASS valid offset keeps the same instant: 2026-10-24T08:49:05.123456+05:45
+PASS valid offset keeps the same instant: 2026-10-23T23:34:05.123456-03:30
+PASS valid offset keeps the same instant: 2026-10-25T03:03:05.123456+23:59
+PASS valid offset keeps the same instant: 2026-10-23T03:05:05.123456-23:59
+PASS acquisition cutoff is inclusive to one microsecond: slot 21
+PASS malformed explicit schedule is not reconstructed: slot 21
+PASS absent or null schedule retains documented anchor fallback: slot 21
+PASS complete audit timestamps do not require a second anchor: slot 21
+PASS acquisition cutoff is inclusive to one microsecond: slot 18
+PASS malformed explicit schedule is not reconstructed: slot 18
+PASS absent or null schedule retains documented anchor fallback: slot 18
+PASS complete audit timestamps do not require a second anchor: slot 18
+PASS acquisition cutoff is inclusive to one microsecond: slot 15
+PASS malformed explicit schedule is not reconstructed: slot 15
+PASS absent or null schedule retains documented anchor fallback: slot 15
+PASS complete audit timestamps do not require a second anchor: slot 15
+PASS acquisition cutoff is inclusive to one microsecond: slot 12
+PASS malformed explicit schedule is not reconstructed: slot 12
+PASS absent or null schedule retains documented anchor fallback: slot 12
+PASS complete audit timestamps do not require a second anchor: slot 12
+PASS acquisition cutoff is inclusive to one microsecond: slot 9
+PASS malformed explicit schedule is not reconstructed: slot 9
+PASS absent or null schedule retains documented anchor fallback: slot 9
+PASS complete audit timestamps do not require a second anchor: slot 9
+PASS acquisition cutoff is inclusive to one microsecond: slot 6
+PASS malformed explicit schedule is not reconstructed: slot 6
+PASS absent or null schedule retains documented anchor fallback: slot 6
+PASS complete audit timestamps do not require a second anchor: slot 6
+PASS bad timestamp only rejects its own acquisition batch: request_started_at text
+PASS bad timestamp only rejects its own acquisition batch: request_started_at array
+PASS bad timestamp only rejects its own acquisition batch: request_started_at object
+PASS bad timestamp only rejects its own acquisition batch: response_received_at text
+PASS bad timestamp only rejects its own acquisition batch: response_received_at array
+PASS bad timestamp only rejects its own acquisition batch: response_received_at object
+PASS bad timestamp only rejects its own acquisition batch: available_at text
+PASS bad timestamp only rejects its own acquisition batch: available_at array
+PASS bad timestamp only rejects its own acquisition batch: available_at object
+PASS bad timestamp only rejects its own acquisition batch: input_freeze_at text
+PASS bad timestamp only rejects its own acquisition batch: input_freeze_at array
+PASS bad timestamp only rejects its own acquisition batch: input_freeze_at object
+PASS bad timestamp only rejects its own acquisition batch: slot_scheduled_at text
+PASS bad timestamp only rejects its own acquisition batch: slot_scheduled_at array
+PASS bad timestamp only rejects its own acquisition batch: slot_scheduled_at object
+PASS bad timestamp only rejects its own acquisition batch: source_updated_at text
+PASS bad timestamp only rejects its own acquisition batch: source_updated_at array
+PASS bad timestamp only rejects its own acquisition batch: source_updated_at object
+PASS invalid offsets cannot normalize into matching acquisition schedule
+PASS all malformed schedules leave acquisition unavailable even with cancellation
+PASS equivalent UTC and JST audit timestamps preserve selected batch
+PASS database adapter cannot erase invalid timestamp: slot_scheduled_at broken
+PASS database adapter cannot erase invalid timestamp: slot_scheduled_at 2026-02-30 11:54:00
+PASS database adapter cannot erase invalid timestamp: slot_scheduled_at 2026-10-24 11:54:00.1234567
+PASS database adapter cannot erase invalid timestamp: source_updated_at broken
+PASS database adapter cannot erase invalid timestamp: source_updated_at 2026-02-30 11:54:00
+PASS database adapter cannot erase invalid timestamp: source_updated_at 2026-10-24 11:54:00.1234567
+PASS database schedule comparison uses instant, not fractional spelling: seconds
+PASS database schedule comparison uses instant, not fractional spelling: .0
+PASS database schedule comparison uses instant, not fractional spelling: .00
+PASS database schedule comparison uses instant, not fractional spelling: .000
+PASS database schedule comparison uses instant, not fractional spelling: .0000
+PASS database schedule comparison uses instant, not fractional spelling: .00000
+PASS database schedule comparison uses instant, not fractional spelling: .000000
+PASS database adapter preserves nullable optional timestamps
+PASS database schedule mismatch of one microsecond is rejected: 2026-10-24 11:53:59.999999
+PASS database schedule mismatch of one microsecond is rejected: 2026-10-24 11:54:00.000001
+PASS database adapter cannot manufacture a usable batch from invalid optional dates
+PASS unreadable non-null live close cannot become no change: broken
+PASS unreadable non-null live close cannot become no change: 0000-00-00 00:00:00
+PASS unreadable non-null live close cannot become no change: 2026-02-30 12:00:00
+PASS unreadable non-null live close cannot become no change: 2026-10-24 12:00:00.1234567
+PASS valid live close keeps existing deadline policy: null-row
+PASS valid live close keeps existing deadline policy: missing-field
+PASS valid live close keeps existing deadline policy: null-field
+PASS valid live close keeps existing deadline policy: earlier
+PASS valid live close keeps existing deadline policy: later
+PASS valid live close keeps existing deadline policy: datetime
+PASS unreadable live deadline blocks reservation without consuming a slot
+PASS unreadable live deadline blocks send right and preserves reservation
+PASS normal null live deadline still permits one reservation and one send right
+PASS unreadable live close preserves received evidence only for audit
+PASS unreadable live close blocks publication without changing its pointer
+PASS valid null live close still publishes at the frozen deadline
+PASS earlier close with cancellation and corrected score: receipt offset -1
+PASS earlier close with cancellation and corrected score: receipt offset 0
+PASS earlier close with cancellation and corrected score: receipt offset 1
+AUDIT8 RESULT: 100 passed, 0 failed. PHP with DB/HTTP doubles; no production runtime or external AI.

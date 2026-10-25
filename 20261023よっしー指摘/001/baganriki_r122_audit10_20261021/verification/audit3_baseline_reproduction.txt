@@ -1,0 +1,29 @@
+PASS proof covers effective band order: unchanged valid correction
+FAIL proof covers effective band order: changed outside correction scope: RuntimeException proof does not match the response actually used
+FAIL incomplete score data cannot claim complete: all-null: RuntimeException unscored response passed validation
+FAIL incomplete score data cannot claim complete: one-null: RuntimeException unscored response passed validation
+FAIL incomplete score data cannot claim complete: missing-key: RuntimeException score-based order remains accepted after partial salvage
+FAIL partial score data cannot carry a numeric total: RuntimeException partial numeric total passed validation
+FAIL all valid scores cannot falsely claim partial: RuntimeException inconsistent partial status passed validation
+FAIL invalid score-evidence container cannot retain unverified scores: 0: RuntimeException scores without their evidence retained
+FAIL invalid score-evidence container cannot retain unverified scores: 1: RuntimeException scores without their evidence retained
+FAIL invalid score-evidence container cannot retain unverified scores: 2: RuntimeException scores without their evidence retained
+FAIL invalid score-evidence container cannot retain unverified scores: 3: RuntimeException scores without their evidence retained
+FAIL rank-band repair permits necessary per-horse rank-mode corrections: RuntimeException rank-mode correction rejected: 訂正を採用しません（repair_scope の対象外を変えようとしている（馬番 1・2）。初回と同じ中身の再掲は通します）。初回の正常部分を残します
+PASS rank-band permission remains limited: other-field
+PASS rank-band permission remains limited: other-band
+PASS rank-band permission remains limited: change-band
+FAIL complete score with an invalid component uses verified evidence order: RuntimeException unusable score order retained
+PASS valid status and rank mode remain accepted: partial
+PASS valid status and rank mode remain accepted: complete
+FAIL score salvage followed by whole-band rank-mode correction is accepted: RuntimeException valid band correction rejected: 初回に直すところがないので訂正しません
+PASS publication rechecks state under commit lock: state_revision
+PASS publication rechecks state under commit lock: response_revision
+PASS publication rechecks state under commit lock: publication_revision
+PASS publication rechecks state under commit lock: deadline
+PASS publication write failure rolls back and retry is idempotent: baganriki_publication_intents
+PASS publication write failure rolls back and retry is idempotent: baganriki_publications
+PASS publication write failure rolls back and retry is idempotent: baganriki_live_states
+PASS interrupted first-response processing never repeats HTTP: received-write
+PASS interrupted first-response processing never repeats HTTP: validation-write
+AUDIT3 RESULT: 15 passed, 13 failed. Standalone PHP with database doubles; no real database or external AI.

@@ -1,0 +1,27 @@
+PASS invalid horse identity is isolated locally: duplicate-same
+PASS invalid horse identity is isolated locally: duplicate-conflicting
+PASS invalid horse identity is isolated locally: string-number
+PASS invalid horse identity is isolated locally: legacy-num-only
+PASS duplicate isolation rejects every duplicate occurrence
+PASS corrected invalid horse identity can be rescued: duplicate
+PASS corrected invalid horse identity can be rescued: string-number
+PASS rank mode ignores noneligible partial horse per design section 8: NO_EVIDENCE
+PASS rank mode ignores noneligible partial horse per design section 8: UNVERIFIED
+PASS horses must be a JSON list, not an object: named-object
+PASS horses must be a JSON list, not an object: numeric-object
+PASS malformed identity must not suppress a separate valid integer row
+PASS isolated invalid eligibility cannot switch a valid band to evidence mode
+PASS eligible claim needs a verifiable own signal even without a registry: empty
+PASS eligible claim needs a verifiable own signal even without a registry: absent
+PASS valid incomplete scoring stays EVIDENCE with both eligible horses
+PASS valid integer identities stay usable
+PASS earlier live close revalidates received timestamp at publication: offset -1
+PASS earlier live close revalidates received timestamp at publication: offset 0
+PASS earlier live close revalidates received timestamp at publication: offset 1
+PASS late correction cannot replace an on-time initial response or its ranks
+PASS missing or invalid receive time cannot prove eligibility: null
+PASS missing or invalid receive time cannot prove eligibility: not-a-timestamp
+PASS unknown frozen close fails closed while preserving audit material
+PASS duplicate isolation and correction reach actual publication: isolated
+PASS duplicate isolation and correction reach actual publication: rescued
+AUDIT4 RESULT: 26 passed, 0 failed. PHP with DB/HTTP doubles; no production runtime or external AI.

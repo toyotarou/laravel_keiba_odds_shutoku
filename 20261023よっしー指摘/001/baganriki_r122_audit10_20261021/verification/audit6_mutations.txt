@@ -1,0 +1,1 @@
+MUTATION RESULT: 1053 passed, 0 failed. Invalid JSON field types must not crash inspection; DB/HTTP doubles.
