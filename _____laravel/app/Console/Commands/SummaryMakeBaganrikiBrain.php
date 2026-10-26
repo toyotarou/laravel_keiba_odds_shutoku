@@ -107,7 +107,9 @@ class SummaryMakeBaganrikiBrain extends Command
                 ->get(['date', 'kaisuu', 'basho_code', 'day', 'race', 'finishing_position', 'num'])
                 ->each(function ($r) use (&$allResults) {
                     $key = "{$r->date}_{$r->kaisuu}_{$r->basho_code}_{$r->day}_{$r->race}";
-                    $allResults[$key][$r->finishing_position] = (string) $r->num;
+                    // $allResults[$key][$r->finishing_position] = (string) $r->num;
+                    // 20261026: 同着対応。同じ着順の馬が複数いる場合があるので配列で持つ（以前は後の1頭で上書きしていた）
+                    $allResults[$key][$r->finishing_position][] = (string) $r->num;
                 });
 
             // ── 全レースの6分前オッズを先読み ────────────────────────────────
@@ -165,7 +167,7 @@ class SummaryMakeBaganrikiBrain extends Command
                 // ── 選出馬・入賞馬のオッズ文脈を組み立て ──────────────────────
                 $raceKey    = "{$dbRow->date}_{$dbRow->kaisuu}_{$dbRow->basho_code}_{$dbRow->day}_{$dbRow->race}";
                 $oddsMap    = $allOdds6[$raceKey]   ?? []; // num(string) => odds(float)
-                $resultsMap = $allResults[$raceKey] ?? []; // position => num(string)
+                $resultsMap = $allResults[$raceKey] ?? []; // position => [num(string), ...]（20261026: 同着対応で配列）
 
                 $oddsContext = '';
 
@@ -183,8 +185,10 @@ class SummaryMakeBaganrikiBrain extends Command
                     $highOddsHit    = [];
                     $highOddsMissed = [];
                     for ($pos = 1; $pos <= 3; $pos++) {
-                        $num = $resultsMap[$pos] ?? null;
-                        if ($num === null) continue;
+                        // $num = $resultsMap[$pos] ?? null;
+                        // if ($num === null) continue;
+                        // 20261026: 同着対応。その着順の馬を全頭処理する
+                        foreach ($resultsMap[$pos] ?? [] as $num) {
                         $odds    = isset($oddsMap[$num]) ? number_format($oddsMap[$num], 1) . '倍' : '?倍';
                         $parts[] = "{$pos}着={$num}番({$odds})";
                         if (isset($oddsMap[$num]) && $oddsMap[$num] >= 10.0) {
@@ -194,6 +198,7 @@ class SummaryMakeBaganrikiBrain extends Command
                                 $highOddsMissed[] = "{$num}番({$odds})";
                             }
                         }
+                        } // 20261026: foreach の閉じ
                     }
                     $oddsContext .= '入賞馬(6分前オッズ): ' . implode(', ', $parts) . "\n";
                     if (!empty($highOddsHit)) {

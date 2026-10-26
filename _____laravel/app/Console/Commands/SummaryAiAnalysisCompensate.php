@@ -1355,7 +1355,9 @@ class SummaryAiAnalysisCompensate extends Command
                 if ($fp >= 1 && $fp <= 3) $top3[] = (int) $r->num;
                 if ($fp >= 1 && $fp <= 5) $top5[] = (int) $r->num;
             }
-            $hasResult = (count($top3) === 3);
+            // $hasResult = (count($top3) === 3);
+            // 20261026: 同着対応。3着同着では3着以内が4頭になるため「ちょうど3頭」ではなく「3頭以上」で判定する
+            $hasResult = (count($top3) >= 3);
 
             // 6分前単勝オッズから人気順を作る（候補に入らなかった馬の人気も必要なため）
             $oddsRows = DB::table('t_horse_odds_finder_odds')
@@ -1533,7 +1535,9 @@ class SummaryAiAnalysisCompensate extends Command
         $nums = array_map('intval', $nums);
         $out  = ['hit3' => 0, 'in5' => 0, 'long' => 0, 'miss' => 0];
 
-        if (count($top3) === 3 && count(array_diff($top3, $nums)) === 0) {
+        // if (count($top3) === 3 && count(array_diff($top3, $nums)) === 0) {
+        // 20261026: 同着対応。3着同着では3着以内が4頭になるため「ちょうど3頭」ではなく「3頭以上」で判定する
+        if (count($top3) >= 3 && count(array_diff($top3, $nums)) === 0) {
             $out['hit3'] = 1;
         }
         $out['in5'] = count(array_intersect($nums, $top5));
@@ -1907,7 +1911,9 @@ class SummaryAiAnalysisCompensate extends Command
         $popByNum = [];
         foreach ($pairs as $i => $p) { $popByNum[$p['num']] = $i + 1; }
 
-        return [$top3, $top5, $popByNum, count($top3) === 3];
+        // return [$top3, $top5, $popByNum, count($top3) === 3];
+        // 20261026: 同着対応。3着同着では3着以内が4頭になるため「ちょうど3頭」ではなく「3頭以上」で判定する
+        return [$top3, $top5, $popByNum, count($top3) >= 3];
     }
 
     // ═════════════════════════════════════════════════════════════════════
@@ -2464,7 +2470,9 @@ class SummaryAiAnalysisCompensate extends Command
             foreach ($popAtPrompt as $n => $p) {
                 if (!isset($popByNum[$n])) $popByNum[$n] = $p;
             }
-            $hasResult = (count($top3) === 3);
+            // $hasResult = (count($top3) === 3);
+            // 20261026: 同着対応。3着同着では3着以内が4頭になるため「ちょうど3頭」ではなく「3頭以上」で判定する
+            $hasResult = (count($top3) >= 3);
 
             // 出走頭数（着順履歴の行数）から当時の目標数Cを割り出す
             $cTarget = ($runners <= 8) ? min($runners, 4)

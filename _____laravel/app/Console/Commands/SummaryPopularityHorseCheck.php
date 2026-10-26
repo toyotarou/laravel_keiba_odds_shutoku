@@ -101,7 +101,9 @@ class SummaryPopularityHorseCheck extends Command
             $key = "{$v->kaisuu}_{$v->basho_code}_{$v->day}";
             $horses[$v->date][$key][$v->race][$v->num] = $v->name;
             if (in_array($v->finishing_position, [1, 2, 3])) {
-                $finishing[$v->date][$key][$v->race][$v->finishing_position] = $v->name;
+                // $finishing[$v->date][$key][$v->race][$v->finishing_position] = $v->name;
+                // 20261026: 同着対応。同じ着順の馬を上書きしないよう、着順と馬名の組で全頭持つ
+                $finishing[$v->date][$key][$v->race][] = ['pos' => (int) $v->finishing_position, 'name' => $v->name];
             }
         }
 
@@ -170,8 +172,14 @@ class SummaryPopularityHorseCheck extends Command
 
             // popularity_horse を組み立て
             $popularitySlice = array_slice($popularity, 0, $pickCount);
-            $raceFinishing   = $finishing[$medianRow->date][$key][$medianRow->race] ?? [];
-            ksort($raceFinishing);
+            // $raceFinishing   = $finishing[$medianRow->date][$key][$medianRow->race] ?? [];
+            // ksort($raceFinishing);
+            // 20261026: 同着対応。着順の順に並べ、馬名の配列にする（1着同着なら [A, B, C]、3着同着なら [A, B, C, D]）
+            //   以前は着順をキーにしていたため、1着・2着同着では3頭揃わずにスキップされ、
+            //   3着同着では片方の馬が消えて hit_count を少なく数えていた。
+            $finishingRows = $finishing[$medianRow->date][$key][$medianRow->race] ?? [];
+            usort($finishingRows, fn($a, $b) => $a['pos'] <=> $b['pos']);
+            $raceFinishing = array_column($finishingRows, 'name');
 
             // INSERT 条件チェック：popularity_horse と finishing_horse がすべて揃っているか
             if (count($popularitySlice) < $pickCount || count($raceFinishing) < 3) {
@@ -192,8 +200,13 @@ class SummaryPopularityHorseCheck extends Command
             foreach ($popularitySlice as $k => $v) {
                 $insert['popularity_horse' . ($k + 1)] = $horses[$medianRow->date][$key][$medianRow->race][$v['num']];
             }
-            foreach ($raceFinishing as $pos => $name) {
-                $insert["finishing_horse{$pos}"] = $name;
+            // foreach ($raceFinishing as $pos => $name) {
+            //     $insert["finishing_horse{$pos}"] = $name;
+            // }
+            // 20261026: 列は finishing_horse1〜3 の3つだけなので、着順の順に先頭3頭を入れる
+            //   （3着同着の4頭目は列には入らないが、下の hit_count には含める）
+            foreach (array_slice($raceFinishing, 0, 3) as $i => $name) {
+                $insert['finishing_horse' . ($i + 1)] = $name;
             }
 
             $popularityNames = array_map(
