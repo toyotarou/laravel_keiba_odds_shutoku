@@ -31,10 +31,16 @@ use Illuminate\Support\Facades\DB;
  * 【使い方】
  *   php artisan keiba:importRaceResultHistory --yearmonth=2021-01
  *   php artisan keiba:importRaceResultHistory  # 当月
+ *   php artisan keiba:importRaceResultHistory --yearmonth=2026-06 --fill-missing-races
+ *     # 20261026: 抜けているレースだけを取り込む。続けて次の2つを実行して人気順・着順を埋めること
+ *     #   php artisan keiba:summaryHistoryPopularityRank --yearmonth=2026-06
+ *     #   php artisan keiba:summaryHistoryFinishingPosition --yearmonth=2026-06
  */
 class ImportKeibaRaceResultHistory extends Command
 {
-    protected $signature   = 'keiba:importRaceResultHistory {--yearmonth= : 対象年月 (例: 2021-01)}';
+    // protected $signature   = 'keiba:importRaceResultHistory {--yearmonth= : 対象年月 (例: 2021-01)}';
+    // 20261026: --fill-missing-races を追加（取り込み済みの開催の中で、抜けているレースだけを取り込む）
+    protected $signature   = 'keiba:importRaceResultHistory {--yearmonth= : 対象年月 (例: 2021-01)} {--fill-missing-races : summary にあって history に無いレースだけを取り込む（既存の行には触らない）}';
     protected $description = '指定年月の全開催・全レースの最終オッズを取得してDBに保存する';
 
     public function handle(): void
@@ -164,6 +170,45 @@ class ImportKeibaRaceResultHistory extends Command
             $this->info('  インポート済み開催: ' . count($existingKaisaiKeys) . ' 件');
             $this->info('');
 
+            // ─────────────────────────────────────────────────────────────
+            // 20261026: --fill-missing-races
+            //   開催単位で「取り込み済み」と判定していたため、開催の中で一部のレースだけ
+            //   取り込めなかった場合に、二度と取り込まれなかった（例: 2026-06-14 函館4R・阪神9R）。
+            //   summary にあって history に無いレースを探し、そのレースだけを取り込む。
+            //   $missingRaceSet: kaisuu_basho_code_day_race / $missingKaisaiSet: kaisuu_basho_code_day
+            // ─────────────────────────────────────────────────────────────
+            $fillMissing      = (bool) $this->option('fill-missing-races');
+            $missingRaceSet   = [];
+            $missingKaisaiSet = [];
+            if ($fillMissing) {
+                $historyRaceSet = DB::table('t_horse_odds_finder_race_result_history')
+                    ->whereBetween('date', [$from, $to])
+                    ->select('kaisuu', 'basho_code', 'day', 'race')
+                    ->distinct()
+                    ->get()
+                    ->mapWithKeys(fn($r) => ["{$r->kaisuu}_{$r->basho_code}_{$r->day}_{$r->race}" => true])
+                    ->toArray();
+                $summaryRaces = DB::table('t_horse_odds_finder_summary')
+                    ->whereBetween('date', [$from, $to])
+                    ->select('date', 'kaisuu', 'basho', 'basho_name', 'day', 'race')
+                    ->distinct()
+                    ->get();
+                foreach ($summaryRaces as $r) {
+                    $raceKey = ((int) $r->kaisuu) . "_{$r->basho}_" . ((int) $r->day) . "_{$r->race}";
+                    if (!isset($historyRaceSet[$raceKey])) {
+                        $missingRaceSet[$raceKey] = true;
+                        $missingKaisaiSet[((int) $r->kaisuu) . "_{$r->basho}_" . ((int) $r->day)] = true;
+                        $this->info("  [抜け] {$r->date} {$r->basho_name} {$r->race}R");
+                    }
+                }
+                $this->info('  抜けているレース: ' . count($missingRaceSet) . ' 件');
+                $this->info('');
+                if (empty($missingRaceSet)) {
+                    $status = '抜けているレースなし';
+                    return;
+                }
+            }
+
             // kaisaiテキスト ("3回東京1日") から basho_code を導出するマップ
             $bashoMap = [
                 '札幌' => '01', '函館' => '02', '福島' => '03', '新潟' => '04',
@@ -184,7 +229,13 @@ class ImportKeibaRaceResultHistory extends Command
 
                 if (preg_match('/^(\d+)回(.+?)(\d+)日$/u', $kaisai, $m)) {
                     $preKey = "{$m[1]}_" . ($bashoMap[$m[2]] ?? '??') . "_{$m[3]}";
-                    if (isset($preSkipSet[$preKey])) {
+                    // 20261026: --fill-missing-races のときは、抜けているレースがある開催だけを処理する
+                    if ($fillMissing) {
+                        if (!isset($missingKaisaiSet[$preKey])) {
+                            $this->info("[{$kaisaiIndex}/{$totalKaisai}] {$kaisai} → [PRE-SKIP] 抜けているレースなし（Node.js省略）");
+                            continue;
+                        }
+                    } elseif (isset($preSkipSet[$preKey])) {
                         $this->info("[{$kaisaiIndex}/{$totalKaisai}] {$kaisai} → [PRE-SKIP] インポート済み（Node.js省略）");
                         continue;
                     }
@@ -241,7 +292,9 @@ class ImportKeibaRaceResultHistory extends Command
                 }
 
                 $kaisaiKey = "{$result['date']}_{$result['kaisuu']}_{$result['basho_code']}_{$result['day']}";
-                if (isset($existingKaisaiKeys[$kaisaiKey])) {
+                // if (isset($existingKaisaiKeys[$kaisaiKey])) {
+                // 20261026: --fill-missing-races のときは取り込み済みの開催でも続ける（レース単位で判定する）
+                if (!$fillMissing && isset($existingKaisaiKeys[$kaisaiKey])) {
                     $this->info("  [SKIP] インポート済み: {$kaisaiKey} ({$elapsed}秒)");
                     $this->info('');
                     continue;
@@ -260,6 +313,13 @@ class ImportKeibaRaceResultHistory extends Command
                 // ─────────────────────────────────────────────────────────
                 $saved = 0;
                 foreach ($result['races'] as $raceData) {
+                    // 20261026: --fill-missing-races のときは、抜けているレース以外は保存しない（既存の着順・人気順を0に戻さないため）
+                    if ($fillMissing) {
+                        $missingKey = ((int) $result['kaisuu']) . "_{$result['basho_code']}_" . ((int) $result['day']) . "_{$raceData['race']}";
+                        if (!isset($missingRaceSet[$missingKey])) {
+                            continue;
+                        }
+                    }
                     $horseCount = count($raceData['horses']);
                     $this->info("    {$raceData['race']}R 「{$raceData['race_name']}」 → {$horseCount}頭 保存中...");
 

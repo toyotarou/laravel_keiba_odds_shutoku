@@ -286,6 +286,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         //     フォールバック: 行インデックス+1
         // ─────────────────────────────────────────────────────
         const raceInfoList = await page.evaluate(() => {
+            // 20261026: 行の数（全12レースが並んでいるときだけ、行の位置をレース番号の代わりに使う）
+            const rowCount = document.querySelectorAll('tbody tr').length;
             return [...document.querySelectorAll('tbody tr')].map((row, i) => {
                 // 発走時刻（例: "15時40分" or "15:40"）を "HH:MM:SS" 形式に変換
                 const timeText  = row.querySelector('td.time')?.textContent.trim() ?? '';
@@ -303,6 +305,15 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                     ?? tanpukuLink?.getAttribute('href')
                     ?? '';
                 const raceNum = (() => {
+                    // 20261026: パターン0（追加）: JRA の内部コードからレース番号を取る。
+                    //   実際の属性値: return doAction('/JRADB/accessO.html', 'pw151ou1008202604091120261025Z/16');
+                    //   'pw151ou10' + 場所(2) + 年(4) + 回(2) + 日目(2) + レース番号(2) + 日付(8)
+                    //   下のパターン1・2はこの形に合わず、これまでは常に「行の位置+1」で決まっていた。
+                    //   そのため前日発売の G1 だけが並ぶページでは、G1 が「1R」になっていた。
+                    const codeMatch = tanpukuAttr.match(/pw\d{3}ou\d{2}\d{2}\d{4}\d{2}\d{2}(\d{2})\d{8}/);
+                    if (codeMatch) {
+                        return Number(codeMatch[1]);
+                    }
                     // パターン1: "/N/" 形式（先頭の0は無視）
                     const slashMatches = [...tanpukuAttr.matchAll(/\/0*(\d{1,2})\//g)];
                     if (slashMatches.length > 0) {
@@ -315,7 +326,10 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                         return Number(quoteMatches[quoteMatches.length - 1][1]);
                     }
                     // フォールバック: 行インデックス+1（レース番号と行位置が一致する前提）
-                    return i + 1;
+                    // return i + 1;
+                    // 20261026: 行の位置とレース番号が一致するのは、12レース全部が並んでいるときだけ。
+                    //   それ以外（前日発売で一部のレースしか無いページなど）は番号を決めず null にし、登録しない。
+                    return rowCount === 12 ? i + 1 : null;
                 })();
 
                 // グレードアイコン（span.grade_icon img）からグレードを抽出
@@ -349,6 +363,12 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         // ─────────────────────────────────────────────────────
         for (const ri of raceInfoList) {
             const raceLabel = `${kaisai.label} ${ri.raceNum}R`;
+
+            // 20261026: レース番号が決められなかった行は、間違った番号で登録しないようスキップする
+            if (ri.raceNum === null) {
+                log(`  [${kaisai.label} 行${ri.rowIndex}] レース番号を決められないためスキップ (${ri.raceName}) attr="${ri.tanpukuAttr.slice(0, 80)}"`);
+                continue;
+            }
 
             // 単複リンクがない場合（出走取消・レース中止等）はスキップ
             if (!ri.hasTanpuku) {

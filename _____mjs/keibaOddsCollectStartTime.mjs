@@ -211,6 +211,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
         // D-2: レース一覧を読み取り（発走時刻・レース名・レース番号）
         const raceInfoList = await page.evaluate(() => {
+            // 20261026: 行の数（全12レースが並んでいるときだけ、行の位置をレース番号の代わりに使う）
+            const rowCount = document.querySelectorAll('tbody tr').length;
             return [...document.querySelectorAll('tbody tr')].map((row, i) => {
                 const timeText  = row.querySelector('td.time')?.textContent.trim() ?? '';
                 const tm        = timeText.match(/(\d+)[時:](\d+)/);
@@ -225,6 +227,12 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                     ?? '';
 
                 const raceNum = (() => {
+                    // 20261026: JRA の内部コードからレース番号を取る（keibaOddsGetSchedule.mjs と同じ修正）
+                    //   'pw151ou10' + 場所(2) + 年(4) + 回(2) + 日目(2) + レース番号(2) + 日付(8)
+                    const codeMatch = tanpukuAttr.match(/pw\d{3}ou\d{2}\d{2}\d{4}\d{2}\d{2}(\d{2})\d{8}/);
+                    if (codeMatch) {
+                        return Number(codeMatch[1]);
+                    }
                     const slashMatches = [...tanpukuAttr.matchAll(/\/0*(\d{1,2})\//g)];
                     if (slashMatches.length > 0) {
                         return Number(slashMatches[slashMatches.length - 1][1]);
@@ -233,7 +241,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                     if (quoteMatches.length > 0) {
                         return Number(quoteMatches[quoteMatches.length - 1][1]);
                     }
-                    return i + 1;
+                    // return i + 1;
+                    // 20261026: 12レース全部が並んでいないときは番号を決めず null にし、登録しない
+                    return rowCount === 12 ? i + 1 : null;
                 })();
 
                 return { raceNum, raceName, startTime };
@@ -246,6 +256,10 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         );
 
         raceInfoList.forEach(ri => {
+            // 20261026: レース番号が決められなかった行は登録しない
+            if (ri.raceNum === null) {
+                return;
+            }
             result.races.push({
                 date:       kaisai.date,
                 kaisuu:     kaisai.kaisuu,

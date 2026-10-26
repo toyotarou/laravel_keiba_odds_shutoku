@@ -103,7 +103,13 @@ class SummaryRacesIntrospection extends Command
                 ->get();
 
             foreach ($finishingRows as $finishingRow) {
-                $raceResult["{$finishingRow->date}_{$finishingRow->kaisuu}_{$finishingRow->basho_code}_{$finishingRow->day}_{$finishingRow->race}_{$finishingRow->finishing_position}"] = $finishingRow->num;
+                // $raceResult["{$finishingRow->date}_{$finishingRow->kaisuu}_{$finishingRow->basho_code}_{$finishingRow->day}_{$finishingRow->race}_{$finishingRow->finishing_position}"] = $finishingRow->num;
+                // 20261026: 同着対応。同じ着順に複数頭いる場合があるので配列で持つ。
+                //   以前は1頭で上書きしていたため、
+                //   ・1着同着（1,1,3）は2着が、2着同着（1,2,2）は3着が見つからず「着順データ不足」で毎回スキップ
+                //     （06-07 安田記念、07-18 函館12R、08-16 中京11R、10-17 京都12R の振り返りが作られていなかった）
+                //   ・3着同着（1,2,3,3）は片方の馬だけで合致数を判定していた
+                $raceResult["{$finishingRow->date}_{$finishingRow->kaisuu}_{$finishingRow->basho_code}_{$finishingRow->day}_{$finishingRow->race}_{$finishingRow->finishing_position}"][] = (string) $finishingRow->num;
             }
 
             $this->info('  → 着順先読み: ' . count($raceResult) . ' 件');
@@ -265,12 +271,25 @@ ORDER BY date, kaisuu, basho, day, race;
                 ]);
 
                 // 実際の着順（独立変数として管理）
-                $actualResult1 = $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_1"] ?? '?';
-                $actualResult2 = $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_2"] ?? '?';
-                $actualResult3 = $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_3"] ?? '?';
+                // $actualResult1 = $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_1"] ?? '?';
+                // $actualResult2 = $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_2"] ?? '?';
+                // $actualResult3 = $raceResult["{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}_3"] ?? '?';
+                // 20261026: 同着対応。各着順の馬番をカンマ区切りで持つ（例: 3着同着なら "10,14"）。
+                //   1着同着で2着がいない場合などは '-'（欠けではない）にする。
+                $resultKeyPrefix = "{$race->date}_{$race->kaisuu}_{$race->basho}_{$race->day}_{$race->race}";
+                $nums1 = $raceResult["{$resultKeyPrefix}_1"] ?? [];
+                $nums2 = $raceResult["{$resultKeyPrefix}_2"] ?? [];
+                $nums3 = $raceResult["{$resultKeyPrefix}_3"] ?? [];
+                $topNums = array_merge($nums1, $nums2, $nums3);
+                $hasDeadHeat = count($nums1) > 1 || count($nums2) > 1 || count($nums3) > 1;
+
+                $actualResult1 = !empty($nums1) ? implode(',', $nums1) : '?';
+                $actualResult2 = !empty($nums2) ? implode(',', $nums2) : (count($nums1) > 1 ? '-' : '?');
+                $actualResult3 = !empty($nums3) ? implode(',', $nums3) : ((count($nums1) + count($nums2)) >= 3 ? '-' : '?');
 
                 // 着順データが1つでも欠けている場合はスキップ
                 // （バリデーション・自動補正の根拠がなく、不正データが入るリスクがある）
+                // 20261026: 同着で着順が飛ぶ場合（1,1,3 や 1,2,2）は '-' になり、欠けとは扱わない
                 if ($actualResult1 === '?' || $actualResult2 === '?' || $actualResult3 === '?') {
 //                     Log::warning('SummaryRacesIntrospection: 着順データ不足のためスキップ', [
 //                         'label' => "{$race->basho_name} {$race->race}R",
@@ -353,7 +372,9 @@ ORDER BY date, kaisuu, basho, day, race;
                 $msgs[] = $gapTable;
                 $msgs[] = "";
                 $msgs[] = "【実際の入賞馬】";
-                $msgs[] = "{$actualResult1}番、{$actualResult2}番、{$actualResult3}番";
+                // $msgs[] = "{$actualResult1}番、{$actualResult2}番、{$actualResult3}番";
+                // 20261026: 同着対応。入賞した馬を全頭並べ、同着があれば明記する
+                $msgs[] = implode('番、', $topNums) . '番' . ($hasDeadHeat ? '（同着あり。3着以内に入った馬は上記の全頭）' : '');
 
                 if ($brain !== '') {
                     $msgs[] = '';
@@ -764,7 +785,9 @@ ORDER BY date, kaisuu, basho, day, race;
         $pickupCount = count($pickupNums);
 
         // 実際の入賞馬と照合して正しい合致数を算出
-        $actualNums = array_filter([$r1, $r2, $r3], fn($n) => $n !== '?');
+        // $actualNums = array_filter([$r1, $r2, $r3], fn($n) => $n !== '?');
+        // 20261026: 同着対応。r1〜r3 はカンマ区切りの複数馬番や '-' の場合がある
+        $actualNums = $this->splitResultNums($r1, $r2, $r3);
         $matchCount = count(array_intersect($pickupNums, array_values($actualNums)));
 
         // ## 結果 セクション抽出
@@ -817,7 +840,9 @@ ORDER BY date, kaisuu, basho, day, race;
         if (empty($pickupNums)) return null;
 
         $pickupCount = count($pickupNums);
-        $actualNums  = array_filter([$r1, $r2, $r3], fn($n) => $n !== '?');
+        // $actualNums  = array_filter([$r1, $r2, $r3], fn($n) => $n !== '?');
+        // 20261026: 同着対応（validateIntrospection と同じ）
+        $actualNums  = $this->splitResultNums($r1, $r2, $r3);
         $matchCount  = count(array_intersect($pickupNums, array_values($actualNums)));
 
         // ## 結果 を正しい内容で構築
@@ -829,5 +854,23 @@ ORDER BY date, kaisuu, basho, day, race;
         $after       = '## 分析' . (explode('## 分析', $afterResult, 2)[1] ?? '');
 
         return $before . "## 結果\n" . $correctedResultSection . "\n\n" . $after;
+    }
+
+    /**
+     * 20261026: 同着対応。
+     * r1〜r3（"9" / "10,14" / "-" / "?"）から、3着以内に入った馬番の配列を作る。
+     */
+    private function splitResultNums(string $r1, string $r2, string $r3): array
+    {
+        $nums = [];
+        foreach ([$r1, $r2, $r3] as $r) {
+            foreach (explode(',', $r) as $n) {
+                $n = trim($n);
+                if ($n !== '' && $n !== '?' && $n !== '-') {
+                    $nums[] = $n;
+                }
+            }
+        }
+        return $nums;
     }
 }

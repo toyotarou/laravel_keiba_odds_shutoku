@@ -302,6 +302,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms)); // 待機ユーティ
                 let raceIdx   = 0;                 // 現在処理中のレースインデックス
                 let currentRace = raceNums[0];     // 現在のレース番号
                 let firstOfRace = true;            // そのレースで最初の行かどうか
+                let prevRank    = 0;               // 20261026: 直前の行の着順（レースの区切り判定に使う）
 
                 const rows = [...document.querySelectorAll('tbody tr')];
 
@@ -315,12 +316,18 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms)); // 待機ユーティ
                     if (isNaN(rank) || rank < 1 || rank > 28) continue;
 
                     // 着順=1 が2回目に出現 → 次のレースへ切り替わった判断
-                    if (rank === 1 && !firstOfRace) {
+                    // if (rank === 1 && !firstOfRace) {
+                    // 20261026: 1着同着だと同じレースに「1着」が2行続き、2頭目で次のレースに切り替わっていた
+                    //   （08-16 中京11R の着順が12Rに書き込まれた原因）。
+                    //   着順は上から昇順に並ぶので、「直前の行より着順が小さくなったら次のレース」と判断する。
+                    //   同着（1,1,3 や 3,3）は着順が小さくならないので、同じレースのまま扱える。
+                    if (!firstOfRace && rank < prevRank) {
                         raceIdx++;
                         if (raceIdx >= raceNums.length) break; // 全レース処理済み
                         currentRace = raceNums[raceIdx];
                     }
                     if (rank === 1) firstOfRace = false; // 1着が出たらフラグを下げる
+                    prevRank = rank; // 20261026
 
                     const horseNum  = parseInt(cells[2]?.textContent.trim(), 10) || null;
                     const horseName = cells[3]?.textContent.replace(/\s+/g, '').trim() ?? '';
