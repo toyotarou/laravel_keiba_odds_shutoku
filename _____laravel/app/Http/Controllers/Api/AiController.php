@@ -878,6 +878,47 @@ class AiController extends Controller
      */
     private static function acquireRaceLock(string $lockKey): ?object
     {
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261026-DB-LOCK  まず MySQL のロック（GET_LOCK）で排他する
+        // ══════════════════════════════════════════════════════════════════
+        //   【起きていたこと】10/25 の laravel.log に [LOCK_FALLBACK] が出ていた。
+        //     storage/framework/cache/data の権限が cron（centos）とウェブ（apache）で食い違い、
+        //     片方は Laravel のキャッシュロック、片方は /tmp のファイルロックを握っていた。
+        //     別々の鍵なので排他にならず、補完（6分前の続き）と「AI予想」ボタンが重なると
+        //     AIを二重に呼ぶおそれがあった（apache の /tmp は専用になっていることも多い）。
+        //   【いま】どのユーザーから動いても同じ MySQL サーバを見るので、GET_LOCK を最初に使う。
+        //     ・取れたら、それを返す（release() で RELEASE_LOCK）
+        //     ・60秒待っても取れない＝先行処理が走っている → 従来どおり LockTimeoutException
+        //     ・GET_LOCK 自体が使えないときだけ、下の従来の仕組みへ進む
+        //   プロセスが落ちても、DB接続が切れた時点で MySQL がロックを外すので、取り残しは起きない。
+        try {
+            $dbLockName = 'keiba_' . md5($lockKey);   // GET_LOCK の名前は64文字まで
+            $dbGot = DB::selectOne('SELECT GET_LOCK(?, ?) AS got', [$dbLockName, 60]);
+            $dbGotVal = ($dbGot === null) ? null : $dbGot->got;
+            if ($dbGotVal !== null && (int) $dbGotVal === 1) {
+                return new class ($dbLockName) {
+                    public function __construct(private string $name) {}
+                    public function release(): void
+                    {
+                        try { \Illuminate\Support\Facades\DB::selectOne('SELECT RELEASE_LOCK(?) AS r', [$this->name]); }
+                        catch (\Throwable $e) { /* 解放失敗は無視（接続終了で外れる） */ }
+                    }
+                };
+            }
+            if ($dbGotVal !== null && (int) $dbGotVal === 0) {
+                throw new \Illuminate\Contracts\Cache\LockTimeoutException(
+                    'MySQLロックを60秒取得できませんでした: ' . $lockKey
+                );
+            }
+            // NULL（GET_LOCK のエラー）のときは下の従来の仕組みへ
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+            throw $e;           // 先行処理あり。従来どおり呼び出し元で扱う
+        } catch (\Throwable $e) {
+            \Log::error('[LOCK_DB_UNAVAILABLE] MySQLロックが使えないため従来のロックへ切り替え', [
+                'key' => $lockKey, 'message' => $e->getMessage(),
+            ]);
+        }
+
         try {
             // @ANCHOR-20261013-V04-HV-TIMEOUT  H/V依頼ONのときはAIの待ち時間が
             //   240秒まで伸びるので、120秒のままだと処理中にロックが失効する。
@@ -1233,6 +1274,22 @@ public function getHorseOddsFinderAiAnalysis(Request $request)
 
 'analysis_text' => trim(self::publicPart((string) $cached->analysis_text)),   // 【20261004】内部監査用JSONは返さない
 
+        ]]);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261026-CACHE-ONLY  レースを開いたときは、保存済みの結果だけを返す（AIは呼ばない）
+    // ══════════════════════════════════════════════════════════════════
+    //   アプリはレースを開いた時点（race_content_page.dart の initState）で cacheOnly=1 を付けて呼びます。
+    //   AI予想は6分前オッズが入ったあとに補完（--quiet-skip の先回り実行）が作っておくので、
+    //   画面を開いただけでAIを呼ぶ必要はありません。未保存なら not_ready で返します。
+    //   AIは「AI予想」ボタンを押したとき（cacheOnly なし）に、これまでどおり呼びます。
+    //   cacheOnly が無い呼び出し（補完・ボタン・古いアプリ）は今までと同じ動きです。
+    if (((string) $request->query('cacheOnly', '')) === '1') {
+        return response()->json(['data' => [
+            'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
+            'day'  => $day,  'race'   => $race, 'analysis_text' => '',
+            'not_ready' => true,
         ]]);
     }
 
@@ -8977,6 +9034,20 @@ public function getHorseOddsFinderSecondAiOpinion(Request $request)
             'race'          => $race,
             'analysis_text' => trim(self::publicPart((string) $cached->analysis_text)),   // 【20261004】内部監査用JSONは返さない
         ], $this->_loadSavedMergeResult($date, $kaisuu, $basho, $day, $race))]);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261026-CACHE-ONLY  レースを開いたときは、保存済みの結果だけを返す（AIは呼ばない）
+    // ══════════════════════════════════════════════════════════════════
+    //   1st AI 側と同じです。統合結果まで保存済みなら上で返しています。
+    //   ここに来た（未保存・統合のやり直しが必要）ときは、DeepSeek もロックも使わずに not_ready で返し、
+    //   「AI予想」ボタンを押したとき（cacheOnly なし）に、これまでどおり処理します。
+    if (((string) $request->query('cacheOnly', '')) === '1') {
+        return response()->json(['data' => [
+            'date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho,
+            'day'  => $day,  'race'   => $race, 'analysis_text' => '',
+            'not_ready' => true,
+        ]]);
     }
 
     // ─── 排他ロック（同一レースへの並行リクエスト防止） ──────────────

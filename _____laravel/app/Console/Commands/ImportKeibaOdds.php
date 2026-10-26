@@ -369,6 +369,33 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
             $totalInserted += $saved;
 
             // ─────────────────────────────────────────────────────────────
+            // 【ブロック 10.8】20261026: 6分前オッズを保存した直後に、AI予想（補完）を裏で起動する
+            // @ANCHOR-20261026-PREWARM-AFTER-6MIN
+            //   これまでは 1分おきの cron（keiba:ai-analysis-compensate --quiet-skip）が拾うまで、
+            //   最大1分ほどAI予想の開始が遅れていた。保存の続きとしてすぐ起動し、
+            //   アプリでレースを開いた／「AI予想」を押した時点で、保存済みの結果を返せるようにする。
+            //   ・裏で起動するだけなので、このオッズ取得は待たない（AIの応答を待たない）
+            //   ・補完コマンドは日付ごとのロックで二重起動しない。cron と重なっても片方は何もせず終わる
+            //   ・6 は 6分前オッズ（アプリの kOddsJudgeTiming、DB の minutes_before_start=6）
+            //   ・DEBUGモード（全レース処理）では起動しない（課金のかかるAIを一度に呼ばないため）
+            //   ・失敗してもオッズ取得は止めない。そのときは今までどおり cron が拾う
+            // ─────────────────────────────────────────────────────────────
+            if (!$isDebug && $diff === 6 && $saved > 0) {
+                try {
+                    $prewarmCmd = sprintf(
+                        'cd %s && nohup %s artisan keiba:ai-analysis-compensate --quiet-skip >> %s 2>&1 &',
+                        escapeshellarg(base_path()),
+                        escapeshellarg(PHP_BINARY),
+                        escapeshellarg(storage_path('logs/aiPrewarm.log'))
+                    );
+                    exec($prewarmCmd);
+                    $this->info('  [AI予想] 6分前オッズ保存のあとに補完を起動しました');
+                } catch (\Throwable $e) {
+                    $this->warn('  [AI予想] 補完を起動できませんでした（cron に任せます）: ' . $e->getMessage());
+                }
+            }
+
+            // ─────────────────────────────────────────────────────────────
             // 【ブロック 11】r12.2 取得監査の記録
             // @ANCHOR-20261020-R122-AUDIT
             //   available_at は「保存が終わって読めると確かめた実時刻」です。
