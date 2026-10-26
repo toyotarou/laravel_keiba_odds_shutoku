@@ -22,8 +22,72 @@ if (!function_exists(__NAMESPACE__ . '\\array_is_list')) {
     }
 }
 
+// ##############################################################################
+// ##  AiController.php の目次　@TOC-20261026
+// ##############################################################################
+// ##
+// ##  このファイルは馬眼力（よっしーのブログ名）の予想を作る中心です。
+// ##  1ファイルのまま、役割ごとに「部」に分けています。各部の先頭に
+// ##  「@SECTION-20261026-記号」の見出しがあるので、その文字列で検索してください。
+// ##  （行番号は変わるので書きません。関数名と ANCHOR で探してください）
+// ##
+// ##  ── AiController の中 ─────────────────────────────────────────
+// ##  @SECTION-20261026-A   共通の土台
+// ##       定数・試算モード（DRY-RUN）・監査記録・レース単位のロック（acquireRaceLock）
+// ##       ・公開部分の切り出し（publicPart）・候補の絞り込み（_trimAiCandidates）
+// ##  @SECTION-20261026-B   1st AI（Claude）の予想
+// ##       入口 getHorseOddsFinderAiAnalysis → プロンプト _getAiAnalysisPrompt
+// ##       → 回答の判定 _judgeFirstAiResponse / _firstAiPublishError
+// ##  @SECTION-20261026-C   v0.3／v0.4 構造判定・補充方式・受入試験（v04SelfTest）
+// ##  @SECTION-20261026-D   2nd AI（DeepSeek）と統合・フィルター・保存
+// ##       入口 getHorseOddsFinderSecondAiOpinion → 統合 _mergeAiResults
+// ##  @SECTION-20261026-E   機械学習の窓口（中身は下の BaganrikiMl）
+// ##  @SECTION-20261026-F   馬眼力指数・公開予想の読み出しAPI
+// ##  @SECTION-20261026-G1  r12.2 新しい予想の流れ：入力を集めて固定する（凍結）
+// ##  @SECTION-20261026-G2  r12.2：AI枠の予約・応答の検査・公開
+// ##  @SECTION-20261026-G3  r12.2：過去走・市場の事前分布・役割の完了判定
+// ##  @SECTION-20261026-G4  r12.2：処理経路・対象レース・Job投入・実状態
+// ##  @SECTION-20261026-G5  r12.2：JSON・送信時刻・AI使用量・読取権限
+// ##  @SECTION-20261026-G6  r12.2：訂正の準備・テスト用の偽AI・料金と予算
+// ##  @SECTION-20261026-G7  r12.2：AIへの送信・訂正・公開・キャッシュ後の再開・巡回
+// ##
+// ##  ── AiController の後ろ（同じファイル内のクラス）────────────────────
+// ##  BaganrikiSignals      信号判定（v0.4-X / r12.2）
+// ##  BaganrikiAllocation   配分（目標頭数C など）
+// ##  BaganrikiTime         時刻の決まり
+// ##  BaganrikiAcquisition  取得バッチの採用
+// ##  BaganrikiSnapshot     凍結集合・頭数・共通JSON・hash
+// ##  BaganrikiRanking      順位・統合・公開候補
+// ##  BaganrikiResponse     原応答の検証と局所回復
+// ##  BaganrikiPublicView   読取API用の表示
+// ##  BaganrikiMl           機械学習（断層学習）の計算
+// ##  BaganrikiPrompt       r12.2 の両AI本文（1st・2nd）と INPUT_JSON
+// ##  BaganrikiWorker       永続ワーカー（キューと予約枠）
+// ##  BaganrikiDiagnose     応答の診断（inspect / resolve 共通）
+// ##  BaganrikiDecimal / BaganrikiEmptyObject / BaganrikiJson   JSONの厳密な読み書き
+// ##
+// ##  ── よっしーの要望が来たときに開く場所 ─────────────────────────────
+// ##  1st AI のプロンプト本文（旧方式）  _getAiAnalysisPrompt の「─── プロンプト本文の構築」
+// ##  おすすめ度の計算方法              同上「仕様書【おすすめ度の計算方法】の本文そのまま」
+// ##  1st AI の system プロンプト        @ANCHOR-20261004-SYSTEM-PROMPT（getHorseOddsFinderAiAnalysis）
+// ##  2nd AI へ送る文                    getHorseOddsFinderSecondAiOpinion の「DeepSeek 用にプロンプトを整形」
+// ##  r12.2 の両AI本文                   BaganrikiPrompt（@ANCHOR-20261020-R122-PROMPT）
+// ##  厳選穴レースの条件                 _getAiAnalysisPrompt の「条件B」「条件C」「条件D」
+// ##  断層・配分モード                   @ANCHOR-20261004-ALLOC-MODE / BaganrikiAllocation
+// ##  目標選出数C                        targetSelectionCount（@ANCHOR-20260927-TARGET-COUNT）
+// ##  統合・フィルター                   _mergeAiResults / _applyRecoveryHardFilter
+// ##  低配当の例外・妙味の上限           _judgeLowPayoutException / _verifyLowPayoutMeritCap
+// ##  応答の検査・訂正                   inspectAiResponse / BaganrikiDiagnose / sendCorrectionRequest
+// ##  料金と予算                         @SECTION-20261026-G6（budgetReserve など）
+// ##
+// ##############################################################################
+
 class AiController extends Controller
-{
+{    // ##########################################################################
+    // ## 第1部　共通の土台　@SECTION-20261026-A
+    // ##   定数・試算モード・監査記録・レースロック・公開部分の切り出し
+    // ##########################################################################
+
     /**
      * シャドー検証中だけの内部値。Flutter へ返す候補からは必ず除去する。
      *
@@ -1179,6 +1243,10 @@ class AiController extends Controller
             return $r;
         })->values();
     }
+    // ##########################################################################
+    // ## 第2部　1st AI（Claude）の予想　@SECTION-20261026-B
+    // ##   入口 getHorseOddsFinderAiAnalysis → プロンプト _getAiAnalysisPrompt → 回答の判定
+    // ##########################################################################
 
 
 
@@ -1881,6 +1949,2870 @@ $analysisText = trim($rawText);
         self::releaseRaceLock($lock);   // @ANCHOR-20261005-LOCK-FALLBACK
     }
 }
+
+
+    /**
+     * @ANCHOR-20261013-V04-PROMPT-CHECK  送信文を組み立てて返すだけの入口
+     *   AIへは送らない。--v04-prompt-check から呼ぶ検査専用。
+     *   既存の予想経路は一切通らない（DBにも書かない）。
+     */
+    public function v04BuildPromptForCheck($date, $kaisuu, $basho, $day, $race): ?string
+    {
+        return $this->_getAiAnalysisPrompt($date, $kaisuu, $basho, $day, $race, '', '');
+    }
+
+private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, $targetDay, $targetRace, $gapHorseNums, $upsetPickupHorseNums)
+{
+    // @ANCHOR-20261014-RACE-GUARD  レースが変わったら前レースの控えを捨てる
+    //   1st AIの予想時と統合時の両方が必ずここを通る。同じレースなら何も捨てない。
+    self::v04BeginRace(
+        "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+        "{$targetDate}_{$targetKaisuu}_{$targetBasho}_{$targetDay}_{$targetRace}"   // @ANCHOR-20261014-AUDIT-RACEID
+    );
+
+    // 【20260924 追加】仕様「注目馬番（3種類）」の①②をアプリから受け取れない場合（夜間の補完バッチ・
+    //   2nd AI 用プロンプトの自力生成）は、アプリと同じ計算をPHPで行って埋める。
+    //   以前は空のまま送っていたため、アプリで開かれなかったレースだけ①②の無いプロンプトで予想していた。
+    if (empty($gapHorseNums) && empty($upsetPickupHorseNums)) {
+        [$gapHorseNums, $upsetPickupHorseNums] = $this->_calcHintHorseNums(
+            $targetDate, $targetKaisuu, $targetBasho, $targetDay, $targetRace
+        );
+    }
+    // ─── レース存在確認 ───────────────────────────────────────────────
+    $race = DB::table('t_horse_odds_finder_races')
+        ->where('date',   $targetDate)
+        ->where('kaisuu', $targetKaisuu)
+        ->where('basho',  $targetBasho)
+        ->where('day',    $targetDay)
+        ->where('race',   intval($targetRace))
+        ->first();
+
+    if (!$race) {
+        return null;
+    }
+
+    // ─── 出走馬情報の取得（馬番をキーにした連想配列） ────────────────
+    $horses = DB::table('t_horse_odds_finder_horses')
+        ->where('date',   $targetDate)
+        ->where('kaisuu', $race->kaisuu)
+        ->where('basho',  $race->basho)
+        ->where('day',    $race->day)
+        ->where('race',   $race->race)
+        ->orderBy('num')
+        ->get()
+        ->keyBy('num');
+
+    // ─── オッズ取得（計測開始前〜6分前の全時点） ───────────────────────
+    // 999 = 計測開始前ベース（ODDS_DB_FIRST）
+    // ODDS_GET_TIMING から 6分前〜21分前の中間時点を抽出して追加
+    $midTimings   = array_values(array_filter(Constants::ODDS_GET_TIMING, fn($t) => $t >= 6 && $t < 30));
+    $fetchTimings = array_merge([Constants::ODDS_DB_FIRST], $midTimings);
+    // = [999, 21, 18, 15, 12, 9, 6]
+
+    $oddsRows = DB::table('t_horse_odds_finder_odds')
+        ->where('date',   $targetDate)
+        ->where('kaisuu', $race->kaisuu)
+        ->where('basho',  $race->basho)
+        ->where('day',    $race->day)
+        ->where('race',   $race->race)
+        ->whereIn('minutes_before_start', $fetchTimings)
+        ->get();
+
+    // ─── 馬番ごとに全時点のオッズをまとめる ──────────────────────────
+    // tan[timing]      = 単勝オッズ
+    // fuku_min[timing] = 複勝最小オッズ
+    // fuku_max[timing] = 複勝最大オッズ
+    $oddsByNum = [];
+    foreach ($oddsRows as $row) {
+        // 【20260924】「取消」等の非数値オッズは floatval で 0 になり、6分前オッズ 0 の馬が
+        //   1番人気として並び、全馬の人気順が1つずつずれていた。非数値の行は使わない
+        //   （6分前が取消なら、その馬は6分前オッズなしとしてプロンプトから外れる）。
+        if (!is_numeric($row->odds)) continue;
+        $num    = $row->num;
+        $timing = $row->minutes_before_start;
+        if (!isset($oddsByNum[$num])) {
+            $oddsByNum[$num] = ['tan' => [], 'fuku_min' => [], 'fuku_max' => []];
+        }
+        $oddsByNum[$num]['tan'][$timing]      = floatval($row->odds);
+        $oddsByNum[$num]['fuku_min'][$timing] = floatval($row->fuku_min);
+        $oddsByNum[$num]['fuku_max'][$timing] = floatval($row->fuku_max);
+    }
+
+    // ─── プロンプト用データの組み立て ────────────────────────────────
+    $promptHorses = [];
+    foreach ($oddsByNum as $num => $o) {
+        $tanBase = $o['tan'][Constants::ODDS_DB_FIRST] ?? null;
+        $tan6    = $o['tan'][6] ?? null;
+
+        // 計測開始前と6分前が両方なければスキップ
+        if ($tanBase === null || $tan6 === null || $tanBase == 0) continue;
+
+        // 単勝の変化率（計測開始前 → 6分前）
+        $changeRate = round(($tan6 - $tanBase) / $tanBase * 100, 1);
+        if ($changeRate < 0) {
+            $changeLabel = '下落 ' . abs($changeRate) . '%';
+        } elseif ($changeRate > 0) {
+            $changeLabel = '上昇 +' . $changeRate . '%';
+        } else {
+            $changeLabel = '変化なし';
+        }
+
+        // 複勝の変化率（計測開始前 → 6分前）
+        $fukuMinBase = $o['fuku_min'][Constants::ODDS_DB_FIRST] ?? null;
+        $fukuMin6    = $o['fuku_min'][6] ?? null;
+        $fukuMax6    = $o['fuku_max'][6] ?? null;
+
+        $fukuChangeLabel = '－';
+        if ($fukuMinBase && $fukuMin6 && $fukuMinBase > 0) {
+            $fukuChange = round(($fukuMin6 - $fukuMinBase) / $fukuMinBase * 100, 1);
+            if ($fukuChange < 0) {
+                $fukuChangeLabel = '下落 ' . abs($fukuChange) . '%';
+            } elseif ($fukuChange > 0) {
+                $fukuChangeLabel = '上昇 +' . $fukuChange . '%';
+            } else {
+                $fukuChangeLabel = '変化なし';
+            }
+        }
+
+        // 単複比（6分前）
+        $tanpukuRatio = '－';
+        if ($fukuMin6 && $fukuMin6 > 0) {
+            $tanpukuRatio = round($tan6 / $fukuMin6, 1) . '倍';
+        }
+
+        $name = isset($horses[$num]) ? $horses[$num]->name : '馬' . $num;
+
+        // 単勝短縮率: (計測前 - 6分前) / 計測前 × 100 → 正値 = 資金流入（オッズ短縮）
+        $tanShrinkRate  = ($tanBase > 0 && $tan6 !== null)
+            ? round(($tanBase - $tan6) / $tanBase * 100, 1)
+            : null;
+        // 複勝短縮率: 同計算式で複勝最小オッズ版
+        $fukuShrinkRate = ($fukuMinBase && $fukuMin6 && $fukuMinBase > 0)
+            ? round(($fukuMinBase - $fukuMin6) / $fukuMinBase * 100, 1)
+            : null;
+
+        $promptHorses[] = [
+            'num'              => $num,
+            'name'             => $name,
+            'tan_series'       => $o['tan'],      // 全時点の単勝オッズ
+            'fuku_min_series'  => $o['fuku_min'], // 全時点の複勝最小オッズ
+            'fuku_max_series'  => $o['fuku_max'], // 全時点の複勝最大オッズ
+            'odds_base'        => $tanBase,       // 人気順ソート用
+            'odds_6'           => $tan6,          // 人気順ソート用
+            'change_label'     => $changeLabel,
+            'change_rate_raw'  => $changeRate,    // 乖離帯判定用（計測開始→6分前の生の変化率）
+            'fuku_min_6'       => $fukuMin6,
+            'fuku_max_6'       => $fukuMax6,
+            'fuku_change'      => $fukuChangeLabel,
+            'tanpuku_ratio'    => $tanpukuRatio,
+            'tan_shrink_rate'  => $tanShrinkRate,  // 単勝短縮率（相対資金流入ランク算出用）
+            'fuku_shrink_rate' => $fukuShrinkRate, // 複勝短縮率（相対資金流入ランク算出用）
+        ];
+    }
+
+    if (empty($promptHorses)) {
+        return null;
+    }
+
+    // ─── 人気順の決定（6分前の単勝オッズ昇順） ───────────────────────
+    usort($promptHorses, function ($a, $b) {
+        if ($a['odds_6'] !== $b['odds_6']) {
+            return $a['odds_6'] <=> $b['odds_6'];
+        }
+        return $a['num'] <=> $b['num'];
+    });
+
+    foreach ($promptHorses as $i => &$h) {
+        $h['popularity'] = $i + 1;
+    }
+    unset($h);
+
+    // ─── 相対資金流入ランクの算出（E-1）────────────────────────────────
+    // 人気帯グループ: 1〜3番人気 / 4〜6番人気 / 7番人気以下
+    // 各グループ内で単勝・複勝の短縮率（正値ほど資金が流入）を比較してランク付け
+    // 短縮率が null の馬はランク計算から除外し「データなし」として扱う
+    $getInflowGroupLabel = function (int $pop): string {
+        if ($pop <= 3) return '1〜3人気';
+        if ($pop <= 6) return '4〜6人気';
+        return '7人気以下';
+    };
+
+    // グループ別に $promptHorses のインデックスを振り分け
+    $inflowGroups = ['1〜3人気' => [], '4〜6人気' => [], '7人気以下' => []];
+    foreach ($promptHorses as $idx => $h) {
+        $inflowGroups[$getInflowGroupLabel($h['popularity'])][] = $idx;
+    }
+
+    foreach ($inflowGroups as $groupLabel => $idxList) {
+        // 単勝流入ランク（短縮率 null を除外してランク付け）
+        $tanValidIdxs = array_values(array_filter($idxList, fn($i) => $promptHorses[$i]['tan_shrink_rate'] !== null));
+        usort($tanValidIdxs, fn($a, $b) => $promptHorses[$b]['tan_shrink_rate'] <=> $promptHorses[$a]['tan_shrink_rate']);
+        $tanGroupSize = count($tanValidIdxs);
+        foreach ($tanValidIdxs as $rank => $idx) {
+            $promptHorses[$idx]['tan_inflow_rank']       = $rank + 1;
+            $promptHorses[$idx]['tan_inflow_group_size'] = $tanGroupSize;
+        }
+        foreach (array_diff($idxList, $tanValidIdxs) as $idx) {
+            $promptHorses[$idx]['tan_inflow_rank']       = null;
+            $promptHorses[$idx]['tan_inflow_group_size'] = $tanGroupSize;
+        }
+
+        // 複勝流入ランク（短縮率 null を除外してランク付け）
+        $fukuValidIdxs = array_values(array_filter($idxList, fn($i) => $promptHorses[$i]['fuku_shrink_rate'] !== null));
+        usort($fukuValidIdxs, fn($a, $b) => $promptHorses[$b]['fuku_shrink_rate'] <=> $promptHorses[$a]['fuku_shrink_rate']);
+        $fukuGroupSize = count($fukuValidIdxs);
+        foreach ($fukuValidIdxs as $rank => $idx) {
+            $promptHorses[$idx]['fuku_inflow_rank']       = $rank + 1;
+            $promptHorses[$idx]['fuku_inflow_group_size'] = $fukuGroupSize;
+        }
+        foreach (array_diff($idxList, $fukuValidIdxs) as $idx) {
+            $promptHorses[$idx]['fuku_inflow_rank']       = null;
+            $promptHorses[$idx]['fuku_inflow_group_size'] = $fukuGroupSize;
+        }
+
+        // グループ名を各馬に付与
+        foreach ($idxList as $idx) {
+            $promptHorses[$idx]['inflow_group'] = $groupLabel;
+        }
+    }
+
+    // ─── OPI（Over Popularity Index）計算 ──────────────────────────────
+    // OPI = 人気順位別の過去平均単勝オッズ ÷ 今回の6分前単勝オッズ
+    //   OPI > 1.0 → 過去同人気より今回は低オッズ（過剰人気・妙味少）
+    //   OPI < 1.0 → 過去同人気より今回は高オッズ（妙味あり）
+    //   OPI ≒ 1.0 → 歴史的平均並み
+    $popularityAvgRows = DB::table('t_horse_odds_finder_popularity_rank_average')->get();
+    $popularityAvgMap  = [];
+    foreach ($popularityAvgRows as $row) {
+        $popularityAvgMap[(int)$row->popularity_rank] = floatval($row->odds_average);
+    }
+
+    // ─── 複勝OPI用：人気順位別の過去平均複勝最小オッズ ────────────────────
+    $fukuPopularityAvgRows = DB::table('t_horse_odds_finder_fuku_popularity_rank_average')->get();
+    $fukuPopularityAvgMap  = [];
+    foreach ($fukuPopularityAvgRows as $row) {
+        $fukuPopularityAvgMap[(int)$row->popularity_rank] = floatval($row->odds_average);
+    }
+
+    // ─── 補正係数の読み込み（t_horse_odds_finder_compute_odds_correction）──
+    // 推定確定オッズ = 6分前オッズ × avg_correction_ratio
+    // std_correction_ratio = 補正誤差（標準偏差）
+    $correctionRows = DB::table('t_horse_odds_finder_compute_odds_correction')->get();
+    $correctionMap  = [];
+    foreach ($correctionRows as $row) {
+        $correctionMap[(int)$row->popularity_rank] = $row;
+    }
+
+    // ─── 乖離別回収率の読み込み（t_horse_odds_finder_odds_gap_recovery）──
+    // キー: "{gap_band}|{popularity_band}" → 回収率・勝率・サンプル数
+    $gapRecoveryRows = DB::table('t_horse_odds_finder_odds_gap_recovery')->get();
+    $gapRecoveryMap  = [];
+    foreach ($gapRecoveryRows as $row) {
+        $gapRecoveryMap[$row->gap_band . '|' . $row->popularity_band] = $row;
+    }
+
+    // ─── OPI帯別回収率の読み込み（t_horse_odds_finder_opi_recovery）────
+    // キー: "{opi_band}|{popularity_band}" → 回収率・勝率・サンプル数
+    $opiRecoveryRows = DB::table('t_horse_odds_finder_opi_recovery')->get();
+    $opiRecoveryMap  = [];
+    foreach ($opiRecoveryRows as $row) {
+        $opiRecoveryMap[$row->opi_band . '|' . $row->popularity_band] = $row;
+    }
+
+    // ─── 前半・後半フェーズパターン別回収率の読み込み ────────────────────
+    // キー: "{phase_pattern}|{popularity_band}" → 回収率・勝率・サンプル数
+    $phasePatternRows = DB::table('t_horse_odds_finder_phase_pattern_recovery')->get();
+    $phasePatternMap  = [];
+    foreach ($phasePatternRows as $row) {
+        $phasePatternMap[$row->phase_pattern . '|' . $row->popularity_band] = $row;
+    }
+
+    // ─── AI 回収率実績の読み込み（t_horse_odds_finder_ai_recovery）────────
+    // ※ t_horse_odds_finder_ai_recovery は現在未使用のためコメントアウト中
+    // ※ ai-analysis-check / SummaryAiRecoveryRate を再有効化する際にコメントを外すこと
+    //
+    // $aiRecoveryRows = DB::table('t_horse_odds_finder_ai_recovery')
+    //     ->orderBy('date',       'desc')
+    //     ->orderBy('kaisuu',     'desc')
+    //     ->orderBy('basho_code', 'desc')
+    //     ->orderBy('day',        'desc')
+    //     ->orderBy('race',       'desc')
+    //     ->limit(600)
+    //     ->get(['ai_pick_count', 'tan_bet', 'fuku_bet']);
+    //
+    // $calcAiRecovery = function (int $limit) use ($aiRecoveryRows): array {
+    //     $slice      = $aiRecoveryRows->take($limit);
+    //     $totalPicks = $slice->sum('ai_pick_count');
+    //     $totalBet   = $totalPicks * 100;
+    //     if ($totalBet <= 0) {
+    //         return ['race_count' => $slice->count(), 'tan_rate' => null, 'fuku_rate' => null];
+    //     }
+    //     return [
+    //         'race_count' => $slice->count(),
+    //         'tan_rate'   => round($slice->sum('tan_bet') / $totalBet * 100, 1),
+    //         'fuku_rate'  => round($slice->sum('fuku_bet') / $totalBet * 100, 1),
+    //     ];
+    // };
+    //
+    // $aiRec100 = $calcAiRecovery(100);
+    // $aiRec300 = $calcAiRecovery(300);
+    // $aiRec600 = $calcAiRecovery(600);
+
+    $emptyAiRec = ['race_count' => 0, 'tan_rate' => null, 'fuku_rate' => null];
+    $aiRec100 = $emptyAiRec;
+    $aiRec300 = $emptyAiRec;
+    $aiRec600 = $emptyAiRec;
+
+    foreach ($promptHorses as &$h) {
+        $avgOdds = $popularityAvgMap[$h['popularity']] ?? null;
+        if ($avgOdds && $h['odds_6'] > 0) {
+            $h['opi'] = round($avgOdds / $h['odds_6'], 2);
+        } else {
+            $h['opi'] = null;
+        }
+
+        // 複勝OPI = 人気順位別の過去平均複勝最小オッズ ÷ 今回の6分前複勝最小オッズ
+        $avgFukuOdds = $fukuPopularityAvgMap[$h['popularity']] ?? null;
+        if ($avgFukuOdds && isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0) {
+            $h['fuku_opi'] = round($avgFukuOdds / $h['fuku_min_6'], 2);
+        } else {
+            $h['fuku_opi'] = null;
+        }
+
+        // 推定確定オッズ
+        $corr = $correctionMap[$h['popularity']] ?? null;
+        if ($corr && $h['odds_6'] > 0) {
+            $h['estimated_final_odds']     = round($h['odds_6'] * floatval($corr->avg_correction_ratio), 2);
+            $h['correction_ratio']         = floatval($corr->avg_correction_ratio);
+            $h['correction_std']           = floatval($corr->std_correction_ratio);
+            // 推定確定複勝最小オッズ: 複勝専用補正テーブル未実装のため単勝補正係数を流用
+            $h['estimated_final_fuku_min'] = ($h['fuku_min_6'] !== null && $h['fuku_min_6'] > 0)
+                ? round($h['fuku_min_6'] * floatval($corr->avg_correction_ratio), 2)
+                : null;
+            // ── よっしー20260922指摘②: 推定確定複勝を「最小－最大・誤差」で渡す ──
+            // ※最大側も単勝補正係数の流用。複勝専用補正テーブルの実装は別課題として残る。
+            $h['estimated_final_fuku_max'] = ($h['fuku_max_6'] !== null && $h['fuku_max_6'] > 0)
+                ? round($h['fuku_max_6'] * floatval($corr->avg_correction_ratio), 2)
+                : null;
+        } else {
+            $h['estimated_final_odds']     = null;
+            $h['correction_ratio']         = null;
+            $h['correction_std']           = null;
+            $h['estimated_final_fuku_min'] = null;
+            $h['estimated_final_fuku_max'] = null;
+        }
+
+        // 予測補正OPI = 人気順位別の過去平均単勝オッズ ÷ 推定確定オッズ
+        // 通常OPIの「6分前オッズ」を「推定確定オッズ」に置き換えることで、
+        // 締切時点の市場評価に近い割安感を測る。
+        if ($avgOdds && isset($h['estimated_final_odds']) && $h['estimated_final_odds'] > 0) {
+            $h['estimated_opi'] = round($avgOdds / $h['estimated_final_odds'], 2);
+        } else {
+            $h['estimated_opi'] = null;
+        }
+
+        // 乖離別回収率（変化率帯 × 人気帯 でルックアップ）
+        $gapBand = $this->_getGapBand($h['change_rate_raw']);
+        $popBand = $this->_getPopularityBand($h['popularity']);
+        $gapKey  = $gapBand . '|' . $popBand;
+        $gr      = $gapRecoveryMap[$gapKey] ?? null;
+        $h['gap_band']          = $gapBand;
+        $h['pop_band']          = $popBand;
+        $h['gap_recovery_rate'] = $gr ? floatval($gr->recovery_rate) : null;
+        $h['gap_win_rate']      = $gr ? floatval($gr->win_rate)      : null;
+        $h['gap_sample_count']  = $gr ? intval($gr->sample_count)    : null;
+
+        // OPI帯別回収率（OPI帯 × 人気帯 でルックアップ）
+        $opiBand = $h['opi'] !== null ? $this->_getOpiBand($h['opi']) : '－';
+        $opiKey  = $opiBand . '|' . $popBand;
+        $or      = $opiRecoveryMap[$opiKey] ?? null;
+        $h['opi_band']          = $opiBand;
+        $h['opi_recovery_rate'] = $or ? floatval($or->recovery_rate) : null;
+        $h['opi_win_rate']      = $or ? floatval($or->win_rate)      : null;
+        $h['opi_sample_count']  = $or ? intval($or->sample_count)    : null;
+
+        // フェーズパターン別回収率（前半・後半フェーズ方向 × 人気帯 でルックアップ）
+        // 前半: 計測開始前（999=ODDS_DB_FIRST）→ 12分前
+        // 後半: 12分前 → 6分前
+        $oddsStart = isset($h['tan_series'][Constants::ODDS_DB_FIRST]) && $h['tan_series'][Constants::ODDS_DB_FIRST] > 0
+            ? $h['tan_series'][Constants::ODDS_DB_FIRST]
+            : ($h['odds_base'] > 0 ? $h['odds_base'] : null);
+        $odds12    = isset($h['tan_series'][12]) && $h['tan_series'][12] > 0
+            ? $h['tan_series'][12]
+            : null;
+        if ($oddsStart && $odds12 && $h['odds_6'] > 0) {
+            $half1Rate = ($odds12 - $oddsStart) / $oddsStart * 100;
+            $half2Rate = ($h['odds_6'] - $odds12)  / $odds12   * 100;
+            $phasePat  = '前半' . $this->_getPhaseDirection($half1Rate)
+                       . '・後半' . $this->_getPhaseDirection($half2Rate);
+        } else {
+            $half1Rate = null;
+            $half2Rate = null;
+            $phasePat  = null;
+        }
+        $phaseKey = $phasePat ? ($phasePat . '|' . $popBand) : null;
+        $pp       = $phaseKey ? ($phasePatternMap[$phaseKey] ?? null) : null;
+        $h['phase_pattern']       = $phasePat;
+        $h['phase_recovery_rate'] = $pp ? floatval($pp->recovery_rate) : null;
+        $h['phase_win_rate']      = $pp ? floatval($pp->win_rate)      : null;
+        $h['phase_sample_count']  = $pp ? intval($pp->sample_count)    : null;
+
+        // ─── E-3: 直前3分間流入（9分前→6分前）の加速・減速算出 ──────────────
+        // 変化率の符号は既存コードの慣習に合わせる: 負 = オッズ下落 = 買われた
+        $odds9 = isset($h['tan_series'][9]) && $h['tan_series'][9] > 0
+            ? $h['tan_series'][9]
+            : null;
+        if ($odds9 !== null && $h['odds_6'] > 0) {
+            $last3minTanRate = round(($h['odds_6'] - $odds9) / $odds9 * 100, 1);
+        } else {
+            $last3minTanRate = null;
+        }
+
+        $fukuMin9 = isset($h['fuku_min_series'][9]) && $h['fuku_min_series'][9] > 0
+            ? $h['fuku_min_series'][9]
+            : null;
+        if ($fukuMin9 !== null && isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0) {
+            $last3minFukuRate = round(($h['fuku_min_6'] - $fukuMin9) / $fukuMin9 * 100, 1);
+        } else {
+            $last3minFukuRate = null;
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261017-ACCEL  直前3分の加速・減速判定（10/17 東京9R §8）
+        // ══════════════════════════════════════════════════════════════════
+        // 【旧実装の問題（よっしーさんのご指摘どおりでした）】
+        //   直前変化率 =（W6−W9）÷W9 … 3分幅
+        //   後半変化率 =（W6−W12）÷W12 … 6分幅
+        //   この2つを引き算していました。幅が違い、しかも区間が重なっています
+        //   （9→6分は12→6分の中に入っています）。
+        //   さらに直前変化率が負（＝オッズ下落＝買われた）であることを
+        //   求めていないので、【オッズが上がっている馬でも「直前加速」】に
+        //   なります。10月17日 東京9R の実送信文がその実例です。
+        //     2番 … 複勝 -4.8% / 単勝 +3.2% / 判定: 直前加速
+        //     8番 … 複勝 +6.0% / 単勝 +8.9% / 判定: 直前加速（両方上昇）
+        //
+        // 【直し方】同じ3分幅どうしで比べ、方向を別に書きます。
+        //   12→9分の変化率 と 9→6分の変化率 を比べて「勢い」を見る
+        //   9→6分が下落か上昇かを「方向」として別に書く
+        //   これで「上昇しているのに加速」という表示が出なくなります。
+        //
+        // BAGANRIKI_LABEL_FIX が無効（既定）のときは、従来の判定のままです。
+        $mid3minTanRate = ($odds12 !== null && $odds9 !== null && $odds12 > 0)
+            ? round(($odds9 - $odds12) / $odds12 * 100, 1)
+            : null;
+        $h['mid3min_tan_rate'] = $mid3minTanRate;
+
+        if (self::labelFix()) {
+            if ($last3minTanRate === null) {
+                $accelLabel = null;
+            } else {
+                $dirWord = ($last3minTanRate < 0.0) ? '下落（買われた）'
+                         : (($last3minTanRate > 0.0) ? '上昇（売られた）' : '変化なし');
+                if ($mid3minTanRate === null) {
+                    $accelLabel = $dirWord . '・勢いは判定不可（12分前オッズなし）';
+                } else {
+                    $accelDiff = $last3minTanRate - $mid3minTanRate;
+                    if ($accelDiff < -2.0) {
+                        $accelLabel = $dirWord . '・直前3分は下落方向へ強まった';
+                    } elseif ($accelDiff > 2.0) {
+                        $accelLabel = $dirWord . '・直前3分は上昇方向へ強まった';
+                    } else {
+                        $accelLabel = $dirWord . '・勢いは横ばい';
+                    }
+                }
+            }
+        } elseif ($last3minTanRate !== null && $half2Rate !== null) {
+            $accelDiff = $last3minTanRate - $half2Rate; // 負なら last3min の方が大きく下落
+            if ($accelDiff < -2.0) {
+                $accelLabel = '直前加速';
+            } elseif ($accelDiff > 2.0) {
+                $accelLabel = '直前減速';
+            } else {
+                $accelLabel = '横ばい';
+            }
+        } elseif ($last3minTanRate !== null) {
+            // 12分前データなし → 後半フェーズとの比較不可だが値は表示する
+            $accelLabel = '判定不可（12分前データなし）';
+        } else {
+            $accelLabel = null;
+        }
+
+        $h['last3min_tan_rate']  = $last3minTanRate;
+        $h['last3min_fuku_rate'] = $last3minFukuRate;
+        $h['accel_label']        = $accelLabel;
+        // ────────────────────────────────────────────────────────────────────
+    }
+    unset($h);
+
+
+    // ─── 馬番順テーブルの組み立て ────────────────────────────────────
+    $displayHorses = $promptHorses;
+    usort($displayHorses, fn($a, $b) => $a['num'] <=> $b['num']);
+
+    // 頭立て数からピックアップ頭数を決定
+    // 【仕様】出走頭数別の上限は 8頭以下:4 / 9〜13頭:5 / 14〜15頭:6 / 16頭以上:7
+    //   （旧実装は「14頭以上:6」で、16頭以上の7頭が欠けていた）
+    // ── よっしー20260927指摘【頭数別の最大選出数を必ず満たす修正】───────────
+    //   N（実出走頭数）… 取消・除外を反映した頭数。
+    //     このDBの t_horse_odds_finder_horses には取消・除外のフラグ列が無いため、
+    //     「計測前と6分前のオッズが揃っている馬」を実出走馬とみなす。
+    //     $displayHorses は両時点のオッズが揃う馬だけで構成されている。
+    //   C（目標選出数）… @ANCHOR-20260927-TARGET-COUNT の式で算出。上限ではなく必達。
+    $activeRunnerCount    = count($displayHorses);                       // N
+    $targetSelectionCount = self::targetSelectionCount($activeRunnerCount); // C
+
+    // N<1 なら予測を中止する（仕様: Nが1未満なら予測を中止）
+    if ($activeRunnerCount < 1) {
+        // 【20260928】オッズのある馬が1頭も無い＝必須データが取れていない状態。
+        //   DATA_CORE_ERROR として内部警告に記録するだけで、呼び出し元は
+        //   HTTP 500 を返さず候補行0件のレースとして扱う。
+        //   @ANCHOR-20260928-NO-RACE-STOP
+        \Log::error('[DATA_CORE_ERROR] 実出走頭数が0（必須データ欠損。候補0件として続行）', [
+            'race' => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+        ]);
+        return null;
+    }
+
+    // ── 出走馬一覧（horsesテーブル）と馬データ（オッズのある馬）の頭数照合 ──────
+    // 【20260928 データ欠損時処理追補（よっしー20260928指摘）】
+    //   「公式一覧が取得できずDBにも取消・除外列がない場合は、取消と取込漏れを
+    //     区別できないものとして RUNNER_COUNT_MISMATCH_WARN を記録し、
+    //     重複を除いたDB上の馬番一覧を暫定基準として続行する。
+    //     単純な頭数差や必須データ欠損でHTTP 500、予想非表示、バッチ停止にしてはならない。」
+    //   このDBには公式出走馬一覧も取消・除外列も無いため、常に暫定基準で続行する。
+    //   @ANCHOR-20260928-RUNNER-COUNT-MISMATCH
+    if (count($horses) !== $activeRunnerCount) {
+        $rcmOddsNums  = array_values(array_unique(array_map(
+            fn($h) => (int) ($h['num'] ?? 0), $displayHorses
+        )));
+        $rcmHorseNums = array_values(array_unique(array_map(
+            fn($h) => (int) (is_array($h) ? ($h['num'] ?? 0) : ($h->num ?? 0)),
+            // 20261004: $horses は Collection のため配列化する（頭数不一致のレースで array_map が例外になっていた）
+            ($horses instanceof \Illuminate\Support\Collection ? $horses->all() : $horses)
+        )));
+        sort($rcmOddsNums);
+        sort($rcmHorseNums);
+        \Log::warning('[RUNNER_COUNT_MISMATCH_WARN] 出走馬一覧と馬データの頭数が不一致（暫定基準で続行）', [
+            'race'             => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+            '出走馬一覧'       => count($horses),
+            'オッズのある馬'   => $activeRunnerCount,
+            '採用したN（暫定）' => $activeRunnerCount,
+            '一覧のみの馬番'   => array_values(array_diff($rcmHorseNums, $rcmOddsNums)),
+            'オッズのみの馬番' => array_values(array_diff($rcmOddsNums, $rcmHorseNums)),
+            '注記'             => '公式出走馬一覧も取消・除外列も無いため、取消と取込漏れを区別できない',
+        ]);
+    }
+
+    $horseCount  = $activeRunnerCount;      // 既存コードとの互換用
+    $pickupCount = $targetSelectionCount;   // 既存コードとの互換用（意味は「目標数C」）
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20260927-PROTECTED-LONGSHOT  人気薄の根拠付き保護枠
+    // ══════════════════════════════════════════════════════════════════════════
+    // よっしー20260927指摘【人気薄の根拠付き保護枠（最優先追補）】
+    //   目的: 回収率40%基準のリスクを記録しつつ、客観的な市場・能力根拠を持つ
+    //         人気薄がすべて選出圏外になるのを防ぐ。無条件に穴馬を足す規則ではない。
+    //   対象: 6分前の単勝人気が7番人気以下、かつ C≧4 のときだけ。
+    //   成立: 6シグナルを3群に分け、【異なる2群以上】でそれぞれ1つ以上 true。
+    //         同じ群内で複数trueでも1群として数える。欠損は「不明」で数えない。
+    //   ※回収率系（過去/OPI帯別/フェーズ別/40%閾値/F8）はL1〜L6に含めない。
+    $protectedLongshotNums = [];
+    $protectedLongshotLog  = [];
+    if ($targetSelectionCount >= 4) {
+        // 複勝人気順位（6分前の複勝最小オッズ昇順）を先に作る
+        $plFukuRank = [];
+        {
+            $plSorted = array_values(array_filter(
+                $displayHorses,
+                fn($h) => isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0
+            ));
+            usort($plSorted, fn($a, $b) => $a['fuku_min_6'] <=> $b['fuku_min_6']);
+            foreach ($plSorted as $plIdx => $plH) {
+                $plFukuRank[(int)$plH['num']] = $plIdx + 1;
+            }
+        }
+
+        foreach ($displayHorses as $plHorse) {
+            $plNum = (int)$plHorse['num'];
+            $plPop = (int)($plHorse['popularity'] ?? 999);
+            if ($plPop < 7) continue;   // 対象は7番人気以下のみ
+
+            // ── 時系列流入群 ───────────────────────────────────────────
+            // L1: 複勝最小オッズが連続する3区間以上で低下し、そのうち9分前→6分前も低下
+            $l1 = false;
+            {
+                $plSeries = [];
+                foreach ($fetchTimings as $plT) {
+                    if (isset($plHorse['fuku_min_series'][$plT]) && $plHorse['fuku_min_series'][$plT] > 0) {
+                        $plSeries[] = ['t' => $plT, 'v' => (float)$plHorse['fuku_min_series'][$plT]];
+                    }
+                }
+                $plRun = 0; $plMaxRun = 0; $plLastDown = false;
+                for ($plI = 1; $plI < count($plSeries); $plI++) {
+                    $plDown = ($plSeries[$plI]['v'] < $plSeries[$plI - 1]['v']);
+                    $plRun  = $plDown ? $plRun + 1 : 0;
+                    if ($plRun > $plMaxRun) $plMaxRun = $plRun;
+                    // 最終区間（9分前→6分前）が低下しているか
+                    if ($plSeries[$plI]['t'] === 6 && $plSeries[$plI - 1]['t'] === 9) {
+                        $plLastDown = $plDown;
+                    }
+                }
+                $l1 = ($plMaxRun >= 3 && $plLastDown);
+            }
+            // L4: 9分前→6分前に単勝と複勝最小オッズがともに2%超低下
+            $l4 = false;
+            if ($plHorse['last3min_tan_rate'] !== null && $plHorse['last3min_fuku_rate'] !== null) {
+                $l4 = ((float)$plHorse['last3min_tan_rate']  < -2.0
+                    && (float)$plHorse['last3min_fuku_rate'] < -2.0);
+            }
+
+            // ── 相対支持群 ─────────────────────────────────────────────
+            // L2: 6分前の複勝人気順位が単勝人気順位より2順位以上上位
+            $l2 = false;
+            if (isset($plFukuRank[$plNum])) {
+                $l2 = (($plPop - $plFukuRank[$plNum]) >= 2);
+            }
+            // L3: 同一人気帯内の複勝流入ランクが1位または2位
+            $l3 = false;
+            if (($plHorse['fuku_inflow_rank'] ?? null) !== null) {
+                $l3 = in_array((int)$plHorse['fuku_inflow_rank'], [1, 2], true);
+            }
+
+            // ── 過小評価・実績群 ───────────────────────────────────────
+            // L5: 予測補正OPIが0.95以下
+            $l5 = false;
+            if (($plHorse['estimated_opi'] ?? null) !== null) {
+                $l5 = ((float)$plHorse['estimated_opi'] <= 0.95);
+            }
+            // L6: 類似レース統計のサンプル30件以上、かつ5着以内率70.0%以上
+            $l6 = false;
+            {
+                $plSs = $similarStatsMap[$plPop] ?? null;
+                if ($plSs && (int)$plSs->sample_count >= 30) {
+                    $l6 = (((float)$plSs->top5_rate * 100) >= 70.0);
+                }
+            }
+
+            // 3群のうち、trueを含む群が2群以上なら保護対象
+            $plGroups = [
+                '時系列流入'     => ($l1 || $l4),
+                '相対支持'       => ($l2 || $l3),
+                '過小評価・実績' => ($l5 || $l6),
+            ];
+            $plHitGroups = count(array_filter($plGroups));
+            if ($plHitGroups >= 2) {
+                $protectedLongshotNums[] = $plNum;
+                $protectedLongshotLog[]  = [
+                    'num' => $plNum, 'name' => $plHorse['name'] ?? '', 'popularity' => $plPop,
+                    'L1' => $l1, 'L2' => $l2, 'L3' => $l3, 'L4' => $l4, 'L5' => $l5, 'L6' => $l6,
+                    '成立群数' => $plHitGroups,
+                ];
+            }
+        }
+    }
+    sort($protectedLongshotNums);
+    \Log::info('[保護枠] 人気薄の根拠付き保護対象', [
+        'race'   => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+        'N'      => $activeRunnerCount,
+        'C'      => $targetSelectionCount,
+        '対象数' => count($protectedLongshotNums),
+        '馬番'   => $protectedLongshotNums,
+        '内訳'   => $protectedLongshotLog,
+    ]);
+
+    // ─── 類似レース統計の読み込み ─────────────────────────────────────
+    // horse_count_band: small=8以下 / medium=9〜13 / large=14以上
+    $horseBand = $horseCount <= 8 ? 'small' : ($horseCount <= 13 ? 'medium' : 'large');
+    $bandLabel = ['small' => '8頭以下', 'medium' => '9〜13頭', 'large' => '14頭以上'][$horseBand];
+
+    $similarStatsMap = DB::table('t_horse_odds_finder_similar_race_stats')
+        ->where('horse_count_band', $horseBand)
+        ->get()
+        ->keyBy('popularity_rank');
+
+    // 時点ラベル（999 = 計測開始前ベース）
+    $timingLabels = [
+        Constants::ODDS_DB_FIRST => '計測前',
+        21 => '21分',
+        18 => '18分',
+        15 => '15分',
+        12 => '12分',
+        9  => ' 9分',
+        6  => ' 6分',
+    ];
+
+    $lines = [];
+    foreach ($displayHorses as $h) {
+        // 単勝時系列（計測開始前→21分→18分→…→6分前）
+        $tanParts = [];
+        foreach ($timingLabels as $timing => $label) {
+            if (isset($h['tan_series'][$timing])) {
+                $tanParts[] = "[{$label}]" . number_format($h['tan_series'][$timing], 1);
+            }
+        }
+        $tanLine = implode('→', $tanParts) . '倍（' . $h['change_label'] . '）';
+
+        // ── よっしー20260922指摘①: 複勝最小オッズの全時点時系列 ──────────────
+        // 計測前・21・18・15・12・9・6分前の複勝最小オッズを全時点渡す。
+        // 2時点（計測前・6分前）だけでは継続流入・単発急落・反発・直前加速を
+        // 正確に判定できないため。データは fuku_min_series に全時点保持済み。
+        $fukuSeriesParts = [];
+        foreach ($timingLabels as $timing => $label) {
+            if (isset($h['fuku_min_series'][$timing]) && $h['fuku_min_series'][$timing] > 0) {
+                $fukuSeriesParts[] = "[{$label}]" . number_format($h['fuku_min_series'][$timing], 1);
+            }
+        }
+        $fukuSeriesLine = !empty($fukuSeriesParts)
+            ? implode('→', $fukuSeriesParts) . '倍（' . $h['fuku_change'] . '）'
+            : '－（複勝オッズデータなし）';
+
+        // 複勝（計測前と6分前のみ表示）
+        $fukuMinBase = $h['fuku_min_series'][Constants::ODDS_DB_FIRST] ?? null;
+        $fukuMaxBase = $h['fuku_max_series'][Constants::ODDS_DB_FIRST] ?? null;
+        $fukuBase    = ($fukuMinBase && $fukuMaxBase)
+            ? number_format($fukuMinBase, 1) . '-' . number_format($fukuMaxBase, 1) . '倍'
+            : ($fukuMinBase ? number_format($fukuMinBase, 1) . '倍' : '－');
+        $fuku6       = ($h['fuku_min_6'] && $h['fuku_max_6'])
+            ? number_format($h['fuku_min_6'], 1) . '-' . number_format($h['fuku_max_6'], 1) . '倍'
+            : '－';
+
+        // OPI表示
+        if ($h['opi'] !== null) {
+            $opiVal  = number_format($h['opi'], 2);
+            $opiNote = $h['opi'] >= 1.2 ? '過剰人気' : ($h['opi'] <= 0.8 ? '妙味あり' : '平均並み');
+            $opiLine = "  OPI: {$opiVal}（{$opiNote}）  ※人気順{$h['popularity']}番の過去平均オッズ" . number_format($popularityAvgMap[$h['popularity']] ?? 0, 1) . "倍÷現在" . number_format($h['odds_6'], 1) . "倍";
+        } else {
+            $opiLine = "  OPI: －";
+        }
+
+        // 予測補正OPI表示
+        if ($h['estimated_opi'] !== null) {
+            $estOpiVal  = number_format($h['estimated_opi'], 2);
+            $estOpiNote = $h['estimated_opi'] >= 1.2 ? '過剰人気' : ($h['estimated_opi'] <= 0.8 ? '妙味あり' : '平均並み');
+            $estOpiLine = "  予測補正OPI: {$estOpiVal}（{$estOpiNote}）  ※過去平均" . number_format($popularityAvgMap[$h['popularity']] ?? 0, 1) . "倍÷推定確定" . number_format($h['estimated_final_odds'], 1) . "倍";
+        } else {
+            $estOpiLine = "  予測補正OPI: －";
+        }
+
+        // 複勝OPI表示
+        if ($h['fuku_opi'] !== null) {
+            $fukuOpiVal  = number_format($h['fuku_opi'], 2);
+            $fukuOpiNote = $h['fuku_opi'] >= 1.2 ? '過剰人気' : ($h['fuku_opi'] <= 0.8 ? '妙味あり' : '平均並み');
+            $fukuOpiLine = "  複勝OPI: {$fukuOpiVal}（{$fukuOpiNote}）  ※人気順{$h['popularity']}番の過去平均複勝オッズ" . number_format($fukuPopularityAvgMap[$h['popularity']] ?? 0, 1) . "倍÷現在" . number_format($h['fuku_min_6'], 1) . "倍";
+        } else {
+            $fukuOpiLine = "  複勝OPI: －";
+        }
+
+        // 推定確定オッズ表示
+        if ($h['estimated_final_odds'] !== null) {
+            $estLine = sprintf(
+                '  推定確定オッズ: %.1f倍（±%.2f）  ※6分前%.1f倍×補正係数%.4f',
+                $h['estimated_final_odds'],
+                $h['correction_std'],
+                $h['odds_6'],
+                $h['correction_ratio']
+            );
+        } else {
+            $estLine = '  推定確定オッズ: －（補正データなし）';
+        }
+
+        // 推定確定複勝最小オッズ表示
+        // 【なぜ必要か】プロンプトの【おすすめ度の計算方法】は妙味①を
+        //   「推定確定複勝最小オッズを中心に評価する」と定めており、
+        //   さらに 1.5倍未満なら妙味小計を5点以下に抑えるルールもこの値が前提。
+        //   ところがこの値は算出（$h['estimated_final_fuku_min']）されるだけで
+        //   プロンプトに出力されておらず、AIは採点基準の数値を見られなかった。
+        //   同時に、_judgeLowPayoutException() が読む「推定確定複勝最小: 」行が
+        //   存在しないため低配当除外（Block 13a）が一度も発火していなかった。
+        //   ※この行のラベル「推定確定複勝最小: 」は
+        //     _judgeLowPayoutException() / _saveHighPayoutShadow() / _saveMlSnapshot()
+        //     が正規表現で読み取っている。変更してはいけない。
+        //   ※小数2桁で出すのは、1.5倍という判定境界を丸めでまたがせないため。
+        if ($h['estimated_final_fuku_min'] !== null) {
+            // ※ラベル「推定確定複勝最小: 」と直後の数値の並びは
+            //   _judgeLowPayoutException() / _saveHighPayoutShadow() / _saveMlSnapshot()
+            //   が正規表現で読むため変更禁止。最大・誤差はその後ろへ追記する。
+            $estFukuLine = sprintf(
+                '  推定確定複勝最小: %.2f倍  推定確定複勝最大: %s  補正誤差: ±%.4f  ※6分前%.1f倍×補正係数%.4f',
+                $h['estimated_final_fuku_min'],
+                $h['estimated_final_fuku_max'] !== null
+                    ? number_format($h['estimated_final_fuku_max'], 2) . '倍'
+                    : '－',
+                $h['correction_std'],
+                $h['fuku_min_6'],
+                $h['correction_ratio']
+            );
+        } else {
+            $estFukuLine = '  推定確定複勝最小: －（補正データなし）';
+            // 【20260924】仕様 受入チェック5「推定確定複勝オッズが未生成の場合、AIに推測させず入力欠損としてログへ記録する」
+            \Log::info('[入力欠損] 推定確定複勝オッズ未生成', [
+                'date' => $targetDate, 'kaisuu' => $targetKaisuu, 'basho' => $targetBasho,
+                'day'  => $targetDay,  'race'   => $targetRace,   'num'   => $h['num'] ?? null,
+            ]);
+        }
+
+        // 乖離別回収率の表示
+        if ($h['gap_recovery_rate'] !== null) {
+            $gapRecoveryLine = sprintf(
+                '  過去回収率（%s × %s）: 回収率%.1f%%  勝率%.1f%%  サンプル%d件',
+                $h['gap_band'],
+                $h['pop_band'],
+                $h['gap_recovery_rate'],
+                $h['gap_win_rate'],
+                $h['gap_sample_count']
+            );
+        } else {
+            $gapRecoveryLine = sprintf(
+                '  過去回収率（%s × %s）: －（データなし）',
+                $h['gap_band'],
+                $h['pop_band']
+            );
+        }
+
+        // OPI帯別回収率の表示
+        if ($h['opi_recovery_rate'] !== null) {
+            $opiRecoveryLine = sprintf(
+                '  OPI帯別回収率（OPI%s × %s）: 回収率%.1f%%  勝率%.1f%%  サンプル%d件',
+                $h['opi_band'],
+                $h['pop_band'],
+                $h['opi_recovery_rate'],
+                $h['opi_win_rate'],
+                $h['opi_sample_count']
+            );
+        } else {
+            $opiRecoveryLine = sprintf(
+                '  OPI帯別回収率（OPI%s × %s）: －（データなし）',
+                $h['opi_band'],
+                $h['pop_band']
+            );
+        }
+
+        // 単勝・複勝流入ランク表示（相対資金流入 E-1）
+        if ($h['tan_inflow_rank'] !== null) {
+            // @ANCHOR-20261017-LABEL-FIX  短縮率の符号の意味を言葉で書く
+            $tanInflowLine = sprintf(
+                '  単勝流入ランク: %d位/%d頭中（%s）  ※短縮率: %+.1f%%%s',
+                $h['tan_inflow_rank'],
+                $h['tan_inflow_group_size'],
+                $h['inflow_group'],
+                $h['tan_shrink_rate'],
+                self::labelFix() ? self::wordShrink((float) $h['tan_shrink_rate']) : ''
+            );
+        } else {
+            $tanInflowLine = sprintf('  単勝流入ランク: データなし（%s）', $h['inflow_group']);
+        }
+        if ($h['fuku_inflow_rank'] !== null) {
+            // @ANCHOR-20261017-LABEL-FIX  短縮率の符号の意味を言葉で書く
+            $fukuInflowLine = sprintf(
+                '  複勝流入ランク: %d位/%d頭中（%s）  ※短縮率: %+.1f%%%s',
+                $h['fuku_inflow_rank'],
+                $h['fuku_inflow_group_size'],
+                $h['inflow_group'],
+                $h['fuku_shrink_rate'],
+                self::labelFix() ? self::wordShrink((float) $h['fuku_shrink_rate']) : ''
+            );
+        } else {
+            $fukuInflowLine = sprintf('  複勝流入ランク: データなし（%s）', $h['inflow_group']);
+        }
+
+        $lines[] = sprintf('%2d番(%2d人気) %s', $h['num'], $h['popularity'], $h['name']);
+        $lines[] = '  単勝: ' . $tanLine;
+        $lines[] = '  複勝: 計測前' . $fukuBase . '→6分前' . $fuku6 . '（' . $h['fuku_change'] . '）  単複比: ' . $h['tanpuku_ratio'];
+        $lines[] = '  複勝時系列（最小）: ' . $fukuSeriesLine;   // よっしー20260922指摘①
+        $lines[] = $tanInflowLine;
+        $lines[] = $fukuInflowLine;
+        $lines[] = $opiLine;
+        $lines[] = $estOpiLine;
+        $lines[] = $fukuOpiLine;
+        $lines[] = $estLine;
+        $lines[] = $estFukuLine;
+        // フェーズパターン別回収率の表示
+        if ($h['phase_pattern'] !== null && $h['phase_recovery_rate'] !== null) {
+            $phasePatternLine = sprintf(
+                '  フェーズパターン別回収率（%s × %s）: 回収率%.1f%%  勝率%.1f%%  サンプル%d件',
+                $h['phase_pattern'],
+                $h['pop_band'],
+                $h['phase_recovery_rate'],
+                $h['phase_win_rate'],
+                $h['phase_sample_count']
+            );
+        } elseif ($h['phase_pattern'] !== null) {
+            $phasePatternLine = sprintf(
+                '  フェーズパターン別回収率（%s × %s）: －（データなし）',
+                $h['phase_pattern'],
+                $h['pop_band']
+            );
+        } else {
+            $phasePatternLine = '  フェーズパターン別回収率: －（オッズデータ不足）';
+        }
+
+        $lines[] = $gapRecoveryLine;
+        $lines[] = $opiRecoveryLine;
+        $lines[] = $phasePatternLine;
+
+        // E-3: 直前流入（9→6分前）
+        // 複勝を単勝より先に表示（既存AI指示の重み付けと整合）
+        if ($h['accel_label'] !== null) {
+            $tanRateStr  = $h['last3min_tan_rate']  !== null
+                ? sprintf('%+.1f%%', $h['last3min_tan_rate'])
+                : 'データなし';
+            $fukuRateStr = $h['last3min_fuku_rate'] !== null
+                ? sprintf('%+.1f%%', $h['last3min_fuku_rate'])
+                : 'データなし';
+            // ══════════════════════════════════════════════════════════
+            // @ANCHOR-20261017-LABEL-FIX  変化率の符号の意味を言葉で書く
+            // ══════════════════════════════════════════════════════════
+            // 「流入ランクの短縮率」は正が買われた、「直前流入の変化率」は
+            // 正が売られた、で意味が逆でした。同じ馬のブロックの中で
+            // 符号の意味が入れ替わるので、AIが読み違えて当然の形でした。
+            // ONのときは、名前を「直前のオッズ変化」に変え、数値のうしろに
+            // 方向を言葉で書き、比較に使った12→9分の値も並べます。
+            if (self::labelFix()) {
+                $midRateStr = ($h['mid3min_tan_rate'] ?? null) !== null
+                    ? sprintf('%+.1f%%%s', $h['mid3min_tan_rate'],
+                              self::wordChange((float) $h['mid3min_tan_rate']))
+                    : 'データなし';
+                $last3minLine = sprintf(
+                    '  直前のオッズ変化（9→6分前）: 複勝 %s%s / 単勝 %s%s'
+                    . '  ／ ひとつ前の3分（12→9分前）の単勝 %s  ／ 判定: %s',
+                    $fukuRateStr,
+                    ($h['last3min_fuku_rate'] !== null)
+                        ? self::wordChange((float) $h['last3min_fuku_rate']) : '',
+                    $tanRateStr,
+                    ($h['last3min_tan_rate'] !== null)
+                        ? self::wordChange((float) $h['last3min_tan_rate']) : '',
+                    $midRateStr,
+                    $h['accel_label']
+                );
+            } else {
+                $last3minLine = sprintf(
+                    '  直前流入（9→6分前）: 複勝 %s / 単勝 %s / 判定: %s',
+                    $fukuRateStr,
+                    $tanRateStr,
+                    $h['accel_label']
+                );
+            }
+        } else {
+            $last3minLine = '  直前流入（9→6分前）: データなし（9分前オッズ未取得）';
+        }
+        $lines[] = $last3minLine;
+
+        // 類似レース統計（過去の同人気順・同頭数帯における3着以内率等）
+        $ss = $similarStatsMap[$h['popularity']] ?? null;
+        if ($ss && $ss->reliability !== 'insufficient') {
+            $relLabel    = ['normal' => '通常', 'low' => '低下', 'reference' => '参考'][$ss->reliability] ?? '不明';
+            $similarLine = sprintf(
+                '  類似レース統計（%d番人気 × %s・N=%d・信頼度:%s）: 3着以内率%.1f%% / 5着以内率%.1f%% / 平均着順%.1f位 / 着外率%.1f%%',
+                $h['popularity'],
+                $bandLabel,
+                $ss->sample_count,
+                $relLabel,
+                $ss->top3_rate    * 100,
+                $ss->top5_rate    * 100,
+                $ss->avg_finishing_position,
+                $ss->outside_rate * 100
+            );
+        } else {
+            $similarLine = sprintf(
+                '  類似レース統計（%d番人気 × %s）: 統計不足のため参考不可',
+                $h['popularity'],
+                $bandLabel
+            );
+        }
+        $lines[] = $similarLine;
+
+        $lines[] = '';
+    }
+    $table = implode("\n", $lines);
+
+    // ─── 単勝断層テーブルの計算 ──────────────────────────────────────────────
+    // 断層値 = 直下人気馬のオッズ ÷ 直上人気馬のオッズ
+    // $promptHorses は人気順ソート済みなのでそのまま使う
+    $gapTableLines = [];
+    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
+        $upper = $promptHorses[$i];     // 人気上位
+        $lower = $promptHorses[$i + 1]; // 人気下位
+        if ($upper['odds_6'] > 0) {
+            $gapRatio       = round($lower['odds_6'] / $upper['odds_6'], 2);
+            if ($gapRatio >= 3.0)      { $gapFlag = '  ★★★非常に強い断層'; }
+            elseif ($gapRatio >= 2.5)  { $gapFlag = '  ★★強い断層'; }
+            elseif ($gapRatio >= 2.0)  { $gapFlag = '  ★断層'; }
+            else                       { $gapFlag = ''; }
+            $gapTableLines[] = sprintf(
+                ' %d人気(%d番)%5.1f倍 → %d人気(%d番)%5.1f倍  比率: %.2f%s',
+                $upper['popularity'], $upper['num'], $upper['odds_6'],
+                $lower['popularity'], $lower['num'], $lower['odds_6'],
+                $gapRatio,
+                $gapFlag
+            );
+        }
+    }
+    $gapTable = implode("\n", $gapTableLines);
+
+    // ─── 複勝断層テーブルの計算 ──────────────────────────────────────────────
+    // 複勝オッズ（6分前 fuku_min）で人気順ソートし、隣接間の断層を算出する
+    $fukuSortedHorses = array_values(
+        array_filter($promptHorses, fn($h) => isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0)
+    );
+    usort($fukuSortedHorses, fn($a, $b) => $a['fuku_min_6'] <=> $b['fuku_min_6']);
+
+    $fukuGapDetails    = []; // 複勝断層生データ（ratio≥2.0）：タイプ判定に使用
+    $fukuGapTableLines = [];
+    for ($i = 0; $i < count($fukuSortedHorses) - 1; $i++) {
+        $upper = $fukuSortedHorses[$i];
+        $lower = $fukuSortedHorses[$i + 1];
+        if ($upper['fuku_min_6'] > 0) {
+            $gapRatio = round($lower['fuku_min_6'] / $upper['fuku_min_6'], 2);
+            if ($gapRatio >= 3.0)      { $gapFlag = '  ★★★非常に強い断層'; }
+            elseif ($gapRatio >= 2.5)  { $gapFlag = '  ★★強い断層'; }
+            elseif ($gapRatio >= 2.0)  { $gapFlag = '  ★断層'; }
+            else                       { $gapFlag = ''; }
+            if ($gapRatio >= 2.0) {
+                $fukuGapDetails[] = ['upper_pos' => $i + 1, 'lower_pos' => $i + 2, 'ratio' => $gapRatio];
+            }
+            $fukuGapTableLines[] = sprintf(
+                ' 複%d位(%d番)%5.1f倍 → 複%d位(%d番)%5.1f倍  比率: %.2f%s',
+                $i + 1, $upper['num'], $upper['fuku_min_6'],
+                $i + 2, $lower['num'], $lower['fuku_min_6'],
+                $gapRatio,
+                $gapFlag
+            );
+        }
+    }
+    $fukuGapTable = implode("\n", $fukuGapTableLines);
+
+    // ─── 厳選穴レース：条件2の計算 ────────────────────────────────
+    // 「6番人気以内の隣接間に断層（比率2.00以上）が2つ以上あるか」
+    // 成立 → false(0) 確定。条件1より優先。
+    // $promptHorses は人気順ソート済みなのでそのまま使う。
+    // ═══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20260928-UPSET-TRISTATE  厳選穴レース条件B・C・Dの三値判定
+    // ═══════════════════════════════════════════════════════════════════════
+    // よっしー20260928指摘 受入チェック#84：
+    //   条件B: 確認済み断層2個以上なら成立、全対象確認済みで0〜1個なら不成立、
+    //          それ以外は不明。
+    //   条件C: 確認済み馬に複勝最小オッズ3.5倍以上があれば不成立、
+    //          全実出走馬確認済みで最大値3.5倍未満なら成立、それ以外は不明。
+    //   条件D: 1番人気と単勝オッズが確認できる場合に判定し、欠損・矛盾なら不明。
+    // 旧実装は true / false の2値しか持たず、データが取れていないだけの馬や
+    // 断層ペアを「不成立」と同じ扱いにしていた（＝欠損を条件未達と扱っており、
+    // 仕様の【追加禁止事項】に反していた）。ここを3値（true/false/null）へ変える。
+    //
+    // 判定に使う値は true=成立 / false=不成立 / null=不明。
+    // プロンプトへは「成立」「不成立」「不明」の3語のいずれかで埋め込み、
+    // Block 15 の再判定はその3語を読み戻す（同じ文言で往復させる）。
+
+    // ─── 条件B: 6番人気以内の隣接間に断層（比率2.00以上）が2つ以上あるか ───
+    //   対象ペア  = 上位側が6番人気以内の隣接ペア
+    //   確認済み  = 上位・下位の両方の6分前単勝オッズが取れているペア
+    $gapCountInTop6 = 0;   // 確認済みペアのうち断層だったもの
+    $gapPairsTotal  = 0;   // 対象ペアの総数
+    $gapPairsKnown  = 0;   // うち確認できたペア
+    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
+        $upper = $promptHorses[$i];
+        $lower = $promptHorses[$i + 1];
+        if ((int) ($upper['popularity'] ?? 0) > 6) continue;   // 対象外
+        $gapPairsTotal++;
+
+        $uOdds = $upper['odds_6'] ?? null;
+        $lOdds = $lower['odds_6'] ?? null;
+        if (!is_numeric($uOdds) || !is_numeric($lOdds) || $uOdds <= 0 || $lOdds <= 0) {
+            continue;   // 未確認ペア（不明の材料）
+        }
+        $gapPairsKnown++;
+        if (($lOdds / $uOdds) >= 2.0) {
+            $gapCountInTop6++;
+        }
+    }
+    $gapPairsUnknown = $gapPairsTotal - $gapPairsKnown;
+
+    if ($gapCountInTop6 >= 2) {
+        $condition2Met  = true;                         // 確認済みだけで2個以上 → 成立確定
+        $condition2Desc = "成立（6番人気以内に確認済みの断層が{$gapCountInTop6}個あるため 0 確定）";
+    } elseif ($gapPairsUnknown === 0) {
+        $condition2Met  = false;                        // 全対象を確認済みで0〜1個 → 不成立確定
+        $condition2Desc = "不成立（6番人気以内の断層は{$gapCountInTop6}個・対象{$gapPairsTotal}ペアすべて確認済み）";
+    } else {
+        $condition2Met  = null;                         // 未確認ペアが残る → 不明
+        $condition2Desc = "不明（確認済みの断層{$gapCountInTop6}個・未確認ペア{$gapPairsUnknown}／対象{$gapPairsTotal}ペア。欠損を不成立として扱わない）";
+    }
+
+    // ─── 条件C: 全馬の複勝最小オッズの最大値が3.5倍未満（ガチガチレース）───
+    //   どの馬が来ても複勝が安い = 馬券コストを回収できない → 0 確定
+    //   確認済みに3.5倍以上が1頭でもあれば、未確認馬があっても不成立は確定する。
+    $fukuKnown   = [];
+    $fukuUnknown = 0;
+    foreach ($promptHorses as $h) {
+        $fv = $h['fuku_min_6'] ?? null;
+        if (is_numeric($fv) && $fv > 0) { $fukuKnown[] = (float) $fv; }
+        else                            { $fukuUnknown++; }
+    }
+    $maxFukuMin6 = !empty($fukuKnown) ? max($fukuKnown) : 0;
+
+    if (!empty($fukuKnown) && $maxFukuMin6 >= 3.5) {
+        $condition3Met  = false;                        // 3.5倍以上が確認できた → 不成立確定
+        $condition3Desc = "不成立（確認済みの6分前複勝最小オッズに{$maxFukuMin6}倍 ≧ 3.5倍がある）";
+    } elseif ($fukuUnknown === 0 && !empty($fukuKnown)) {
+        $condition3Met  = true;                         // 全実出走馬確認済みで最大<3.5 → 成立確定
+        $condition3Desc = "成立（全実出走馬の6分前複勝最小オッズ最大値が{$maxFukuMin6}倍 < 3.5倍 → 0 確定）";
+    } else {
+        $condition3Met  = null;                         // 未確認馬が残る → 不明
+        $condition3Desc = "不明（確認済み最大値{$maxFukuMin6}倍・複勝最小オッズ未取得{$fukuUnknown}頭。欠損を不成立として扱わない）";
+    }
+
+    // ─── 条件D: 1番人気の6分前単勝オッズが2.0倍未満（1強レース）───────────
+    //   1番人気が特定でき、その単勝オッズが確認できる場合だけ判定する。
+    //   1番人気が居ない／複数居る／オッズが無い場合は「不明」（矛盾・欠損）。
+    $firstPopHorses = array_values(array_filter(
+        $promptHorses,
+        fn($h) => (int) ($h['popularity'] ?? 0) === 1
+    ));
+    $firstPopOdds = 0;
+    if (count($firstPopHorses) === 1
+        && is_numeric($firstPopHorses[0]['odds_6'] ?? null)
+        && $firstPopHorses[0]['odds_6'] > 0) {
+        $firstPopOdds = (float) $firstPopHorses[0]['odds_6'];
+    }
+
+    if ($firstPopOdds > 0) {
+        $condition4Met  = ($firstPopOdds < 2.0);
+        $condition4Desc = $condition4Met
+            ? "成立（1番人気の6分前単勝オッズが{$firstPopOdds}倍 < 2.0倍 → 0 確定）"
+            : "不成立（1番人気の6分前単勝オッズ: {$firstPopOdds}倍）";
+    } else {
+        $condition4Met  = null;                         // 欠損・矛盾 → 不明
+        $condition4Desc = '不明（1番人気を1頭に特定できない、または6分前単勝オッズが未取得。欠損を不成立として扱わない）';
+    }
+
+    \Log::info('[厳選穴レース] 条件B・C・Dの三値判定（@ANCHOR-20260928-UPSET-TRISTATE）', [
+        'race' => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+        '条件B' => ['状態' => $condition2Met === null ? '不明' : ($condition2Met ? '成立' : '不成立'),
+                    '断層' => $gapCountInTop6, '対象ペア' => $gapPairsTotal, '未確認ペア' => $gapPairsUnknown],
+        '条件C' => ['状態' => $condition3Met === null ? '不明' : ($condition3Met ? '成立' : '不成立'),
+                    '確認済み最大' => $maxFukuMin6, '未取得頭数' => $fukuUnknown],
+        '条件D' => ['状態' => $condition4Met === null ? '不明' : ($condition4Met ? '成立' : '不成立'),
+                    '1番人気単勝' => $firstPopOdds > 0 ? $firstPopOdds : null,
+                    '1番人気の該当頭数' => count($firstPopHorses)],
+    ]);
+
+    // @ANCHOR-20261014-EVIDENCE-AUDIT2  依頼書⑦：断層の位置・本数・変化を監査ログに残す
+    //   これまで laravel.log にだけ出していましたが、.env が LOG_LEVEL=error のため
+    //   記録されていませんでした。統合の監査ログ（DB）へ入れます。
+    self::recordGapDetail([
+        '6番人気以内の断層の本数' => $gapCountInTop6,
+        '確認した隣接ペア数'       => $gapPairsTotal,
+        '未確認の隣接ペア数'       => $gapPairsUnknown,
+        '条件Bの判定'              => $condition2Desc,
+        '条件Cの判定'              => $condition3Desc,
+        '条件Dの判定'              => $condition4Desc,
+    ]);
+
+    // ─── 断層構造タイプ判定（PHP算出・AI入力として渡す） ──────────────────
+    // 単勝断層の生データを収集（タイプ判定用）
+    $tanGapAll    = []; // 全断層(ratio≥2.0)
+    $tanGapTop6   = []; // 6番人気以内の断層
+    $tanGapStrong = []; // 6番人気以内かつratio≥2.5の強断層
+    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
+        $u = $promptHorses[$i];
+        $l = $promptHorses[$i + 1];
+        if ($u['odds_6'] > 0 && $l['odds_6'] > 0) {
+            $r = round($l['odds_6'] / $u['odds_6'], 2);
+            if ($r >= 2.0) {
+                $entry = ['upper_pop' => $u['popularity'], 'lower_pop' => $l['popularity'], 'ratio' => $r];
+                $tanGapAll[] = $entry;
+                if ($u['popularity'] <= 6) {
+                    $tanGapTop6[] = $entry;
+                    if ($r >= 2.5) $tanGapStrong[] = $entry;
+                }
+            }
+        }
+    }
+
+    $tanHasGap  = count($tanGapAll) > 0;
+    $fukuHasGap = count($fukuGapDetails) > 0;
+
+    // A: 二重断層・上位完結型
+    // 【20260924 修正】仕様「6番人気以内に二重断層（2か所以上）」どおりに判定する。
+    //   旧実装は「うち1か所が比率2.5以上」も条件にしており、2.0〜2.49の断層が2か所の場合に
+    //   タイプA（独自発見枠0頭）ではなくタイプCになっていた（厳選穴の条件Bとも食い違っていた）。
+    if (count($tanGapTop6) >= 2) {
+        $gapType      = 'A';
+        // タイプA: 複数断層の中で最も上位（upper_popが最小）の断層を主断層とする
+        $typeAMinPos = !empty($tanGapTop6)
+            ? min(array_column($tanGapTop6, 'upper_pop'))
+            : 1;
+        $typeAMinPosNext = $typeAMinPos + 1;
+        $gapTypeDesc  = '二重断層・上位完結型（6番人気以内に断層' . count($tanGapTop6) . 'か所、主断層' . $typeAMinPos . '〜' . $typeAMinPosNext . '番人気間、うち比率2.5以上' . count($tanGapStrong) . 'か所）';
+        // 仕様書のタイプ別選出方針（原文どおり）
+        $gapTypeGuide = '断層上側を中心に。断層下側は自動除外せず、複勝流入が強ければ補欠候補に。';
+
+    // E: 単勝・複勝断層の矛盾（どちらか一方にだけ断層）
+    } elseif ($tanHasGap !== $fukuHasGap) {
+        $gapType      = 'E';
+        $gapTypeDesc  = '判定困難型（単勝断層' . ($tanHasGap ? 'あり' : 'なし') . '・複勝断層' . ($fukuHasGap ? 'あり' : 'なし') . 'で矛盾）';
+        // 仕様書のタイプ別選出方針（原文どおり）
+        $gapTypeGuide = '断層は参考程度。複勝の継続的な動きを最優先で評価。';
+
+    // B: 上位断層型（top6に断層1か所）
+    } elseif (count($tanGapTop6) === 1) {
+        $e            = $tanGapTop6[0];
+        $gapType      = 'B';
+        $gapTypeDesc  = '上位断層型（' . $e['upper_pop'] . '〜' . $e['lower_pop'] . '番人気間に断層、比率' . $e['ratio'] . '）';
+        // 仕様書のタイプ別選出方針（原文どおり）
+        $gapTypeGuide = '断層上側グループが中心。断層拡大中は上側重視、縮小中は下側の浮上を警戒。';
+
+    // C: 中間断層型（断層はあるがtop6外）
+    } elseif ($tanHasGap) {
+        $e            = $tanGapAll[0];
+        $gapType      = 'C';
+        $gapTypeDesc  = '中間断層型（' . $e['upper_pop'] . '〜' . $e['lower_pop'] . '番人気間に断層、比率' . $e['ratio'] . '）';
+        // 仕様書のタイプ別選出方針（原文どおり）
+        $gapTypeGuide = '断層上側=中心グループ、断層下側=穴グループ。複勝流入の方向で判断を補正。';
+
+    // D: 断層なし・混戦型
+    } else {
+        $gapType      = 'D';
+        $gapTypeDesc  = '断層なし・混戦型（2.0以上の断層なし）';
+        // 仕様書のタイプ別選出方針（原文どおり）
+        $gapTypeGuide = '複勝支持・変化率・単複人気差を重視。7〜10番人気も均等に比較。';
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261004-ALLOCATION  資格(F/R/O)・下位開放(S1〜S3)・選出前ゲート
+    // ═══════════════════════════════════════════════════════════════════════════
+    // よっしー20261004仕様書 4.2 / 5.1 / 5.2
+    //   資格あり = 7人気以下 かつ F成立 かつ（R または O 成立）
+    //     F1 複勝最小が21→6分で10%以上短縮、5区間中2区間以上で短縮、9→6分で上昇していない
+    //     F2 複勝最小が9→6分で5%以上短縮、12→9分でも短縮、12→6分で合計短縮
+    //     F  F1またはF2（同じ複勝時系列の根拠なので2種類には数えない）
+    //     R  6分前の単勝人気順位 − 複勝人気順位 が2以上
+    //     O  予測補正OPIが0.85以下
+    //   資格は「穴枠を優先確保する条件」であり、資格外の馬を全頭順位から消す条件ではない。
+    //   条件は成立／不成立／不明の3値で保持する（欠損を不成立として扱わない）。
+    $allocTimings = [21, 18, 15, 12, 9, 6];
+
+    // 短縮率 = 100×(旧−新)÷旧。正=短縮 / 負=上昇 / null=判定不能
+    $allocShrink = static function (array $series, int $from, int $to): ?float {
+        $a = $series[$from] ?? null;
+        $b = $series[$to]   ?? null;
+        if (!is_numeric($a) || !is_numeric($b) || (float)$a <= 0 || (float)$b <= 0) return null;
+        return 100.0 * ((float)$a - (float)$b) / (float)$a;
+    };
+    // 3値のAND / OR（false優先 / true優先、残りに不明があれば不明）
+    $allocAnd3 = static function (array $vals): ?bool {
+        $unknown = false;
+        foreach ($vals as $v) { if ($v === false) return false; if ($v === null) $unknown = true; }
+        return $unknown ? null : true;
+    };
+    $allocOr3 = static function (array $vals): ?bool {
+        $unknown = false;
+        foreach ($vals as $v) { if ($v === true) return true; if ($v === null) $unknown = true; }
+        return $unknown ? null : false;
+    };
+    // 比較結果を3値にする（値がnullなら不明）
+    $allocCmp = static function (?float $v, string $op, float $th): ?bool {
+        if ($v === null) return null;
+        return match ($op) { '>=' => $v >= $th, '>' => $v > $th, '<=' => $v <= $th, default => $v < $th };
+    };
+
+    // ── 複勝人気順位（6分前）───────────────────────────────────────────────
+    //   仕様: 既存PHP順位があれば使用。ない場合のみ複勝最小の昇順・同値時馬番昇順で派生。
+    //   この関数には既存の複勝人気順位が無いため派生を作り、保存とログ化を行う。
+    $allocFukuRank = [];
+    {
+        $afSorted = array_values(array_filter(
+            $promptHorses,
+            fn($h) => isset($h['fuku_min_6']) && is_numeric($h['fuku_min_6']) && $h['fuku_min_6'] > 0
+        ));
+        usort($afSorted, function ($a, $b) {
+            if ((float)$a['fuku_min_6'] !== (float)$b['fuku_min_6']) {
+                return (float)$a['fuku_min_6'] <=> (float)$b['fuku_min_6'];
+            }
+            return ((int)$a['num']) <=> ((int)$b['num']);   // 同値は馬番昇順
+        });
+        foreach ($afSorted as $afI => $afH) {
+            $allocFukuRank[(int)$afH['num']] = $afI + 1;
+        }
+    }
+
+    // ── 資格 F / R / O の判定 ───────────────────────────────────────────────
+    $allocQualified = [];   // 資格ありの馬番（6分前単勝人気の昇順で後段に詰める）
+    $allocEvidence  = [];   // 馬番 => 判定の内訳（監査ログ用）
+    foreach ($promptHorses as $aqH) {
+        $aqNum  = (int) $aqH['num'];
+        $aqPop  = (int) ($aqH['popularity'] ?? 0);
+        $aqFs   = is_array($aqH['fuku_min_series'] ?? null) ? $aqH['fuku_min_series'] : [];
+
+        // F1
+        $aqS216 = $allocShrink($aqFs, 21, 6);
+        $aqS96  = $allocShrink($aqFs, 9, 6);
+        $aqSegDown = 0; $aqSegKnown = 0;
+        foreach ([[21, 18], [18, 15], [15, 12], [12, 9], [9, 6]] as $aqSeg) {
+            $aqV = $allocShrink($aqFs, $aqSeg[0], $aqSeg[1]);
+            if ($aqV !== null) { $aqSegKnown++; if ($aqV > 0) $aqSegDown++; }
+        }
+        // 「5区間中2区間以上で短縮」: 2区間確認できた時点で成立。
+        //   2未満でも未確認区間が残るなら不明（欠損を不成立にしない）。
+        $aqSeg2 = ($aqSegDown >= 2) ? true : (($aqSegKnown === 5) ? false : null);
+        $aqF1 = $allocAnd3([
+            $allocCmp($aqS216, '>=', 10.0),   // 21→6分で10%以上短縮
+            $aqSeg2,                          // 5区間中2区間以上で短縮
+            $allocCmp($aqS96,  '>=', 0.0),    // 9→6分で上昇していない
+        ]);
+
+        // F2
+        $aqF2 = $allocAnd3([
+            $allocCmp($allocShrink($aqFs, 9, 6),  '>=', 5.0),   // 9→6分で5%以上短縮
+            $allocCmp($allocShrink($aqFs, 12, 9), '>',  0.0),   // 12→9分でも短縮
+            $allocCmp($allocShrink($aqFs, 12, 6), '>',  0.0),   // 12→6分で合計短縮
+        ]);
+
+        $aqF = $allocOr3([$aqF1, $aqF2]);
+
+        // R: 単勝人気順位 − 複勝人気順位 >= 2
+        $aqFukuRank = $allocFukuRank[$aqNum] ?? null;
+        $aqR = ($aqPop > 0 && $aqFukuRank !== null) ? (($aqPop - $aqFukuRank) >= 2) : null;
+
+        // O: 予測補正OPI <= 0.85
+        $aqOpi = $aqH['estimated_opi'] ?? null;
+        $aqO = is_numeric($aqOpi) ? ((float) $aqOpi <= 0.85) : null;
+
+        $aqOk = ($aqPop >= 7) && ($aqF === true) && ($aqR === true || $aqO === true);
+        if ($aqOk) $allocQualified[] = $aqNum;
+
+        $allocEvidence[$aqNum] = [
+            '人気'       => $aqPop,
+            '複勝人気'   => $aqFukuRank,
+            'F1'         => $aqF1, 'F2' => $aqF2, 'F' => $aqF,
+            'R'          => $aqR,  'O'  => $aqO,
+            '資格'       => $aqOk,
+            '原値'       => [
+                '21→6短縮率' => $aqS216 === null ? null : round($aqS216, 2),
+                '9→6短縮率'  => $aqS96  === null ? null : round($aqS96, 2),
+                '短縮区間数' => $aqSegDown, '確認区間数' => $aqSegKnown,
+                '予測補正OPI' => $aqOpi,
+            ],
+        ];
+    }
+    sort($allocQualified);
+
+    // ── 配分用主境界（6分前比率2.0以上の最大比率ペア。同値なら小さい人気順位k）──
+    //   既存の主断層（$primaryGapUpperPop）とは別フィールドとして保持する。
+    //   全時点を「6分前単勝人気順の同一馬番ペア」で比較する（時点ごとに別馬へ入れ替えない）。
+    $allocPairs = [];   // k => ペア情報
+    for ($aiI = 0; $aiI < count($promptHorses) - 1; $aiI++) {
+        $aiU = $promptHorses[$aiI];       // 人気 k 位
+        $aiL = $promptHorses[$aiI + 1];   // 人気 k+1 位
+        $aiK = (int) ($aiU['popularity'] ?? ($aiI + 1));
+
+        $aiRatio = static function (array $u, array $l, int $t): ?float {
+            $uv = $u['tan_series'][$t] ?? null;
+            $lv = $l['tan_series'][$t] ?? null;
+            if (!is_numeric($uv) || !is_numeric($lv) || (float)$uv <= 0 || (float)$lv <= 0) return null;
+            return (float)$lv / (float)$uv;
+        };
+        $allocPairs[$aiK] = [
+            'k'         => $aiK,
+            'upper_num' => (int) $aiU['num'],
+            'lower_num' => (int) $aiL['num'],
+            'ratio6'    => $aiRatio($aiU, $aiL, 6),
+            'ratio21'   => $aiRatio($aiU, $aiL, 21),
+        ];
+    }
+
+    $allocBoundary = null;
+    foreach ($allocPairs as $abP) {
+        if ($abP['ratio6'] === null || $abP['ratio6'] < 2.0) continue;
+        if ($allocBoundary === null
+            || $abP['ratio6'] > $allocBoundary['ratio6']
+            || ($abP['ratio6'] === $allocBoundary['ratio6'] && $abP['k'] < $allocBoundary['k'])) {
+            $allocBoundary = $abP;
+        }
+    }
+
+    // 下側（6分前単勝人気 k+1位以降）にいる資格あり穴馬の数
+    $allocLowerQualified = function (int $k) use ($allocQualified, $promptHorses): int {
+        $lqPopByNum = [];
+        foreach ($promptHorses as $lqH) { $lqPopByNum[(int) $lqH['num']] = (int) ($lqH['popularity'] ?? 0); }
+        $lqN = 0;
+        foreach ($allocQualified as $lqNum) {
+            if (($lqPopByNum[$lqNum] ?? 0) >= $k + 1) $lqN++;
+        }
+        return $lqN;
+    };
+
+    // ── S1 / S2 / S3 ───────────────────────────────────────────────────────
+    //   S1: 既存断層タイプD
+    //   S2: 21分に比率2以上のペアが6分で2未満 かつ その下側に資格あり穴馬2頭以上
+    //   S3: 配分用主境界の21分比率2以上、21→6分の縮小率20%以上、下側に資格あり穴馬2頭以上
+    //   タイプE・位置移動・単複断層不一致だけでは成立にしない。
+    $allocS1 = ($gapType === 'D');
+
+    $allocS2 = false; $allocS2Unknown = false; $allocS2Hit = null;
+    foreach ($allocPairs as $asP) {
+        if ($asP['ratio21'] === null || $asP['ratio6'] === null) { $allocS2Unknown = true; continue; }
+        if ($asP['ratio21'] >= 2.0 && $asP['ratio6'] < 2.0 && $allocLowerQualified($asP['k']) >= 2) {
+            $allocS2 = true; $allocS2Hit = $asP; break;
+        }
+    }
+    $allocS2Three = $allocS2 ? true : ($allocS2Unknown ? null : false);
+
+    $allocS3 = false; $allocS3Unknown = false; $allocS3Shrink = null;
+    if ($allocBoundary === null) {
+        $allocS3Unknown = false;   // 6分前に比率2以上のペアが無い＝主境界なし＝不成立
+    } elseif ($allocBoundary['ratio21'] === null) {
+        $allocS3Unknown = true;    // 21分の比率が取れない＝判定不能
+    } else {
+        $allocS3Shrink = 100.0 * ($allocBoundary['ratio21'] - $allocBoundary['ratio6']) / $allocBoundary['ratio21'];
+        $allocS3 = ($allocBoundary['ratio21'] >= 2.0)
+                && ($allocS3Shrink >= 20.0)
+                && ($allocLowerQualified($allocBoundary['k']) >= 2);
+    }
+    $allocS3Three = $allocS3 ? true : ($allocS3Unknown ? null : false);
+
+    $allocLowerOpen = $allocOr3([$allocS1, $allocS2Three, $allocS3Three]);
+
+    // ── 選出前ゲート（仕様書5.1）───────────────────────────────────────────
+    //   既存PHPのB・C・Dが全て不成立で、資格ありの7〜10人気が1頭以上いる場合のみ
+    //   中・強モードを検討する。いずれか成立または不明なら通常。
+    //   ※条件A（最終候補に7〜10人気がいるか）は選出前ゲートに使用しない。
+    $allocPopByNum = [];
+    foreach ($promptHorses as $apH) { $allocPopByNum[(int) $apH['num']] = (int) ($apH['popularity'] ?? 0); }
+    $allocQual7to10 = 0;
+    foreach ($allocQualified as $aqN) {
+        $aqP = $allocPopByNum[$aqN] ?? 0;
+        if ($aqP >= 7 && $aqP <= 10) $allocQual7to10++;
+    }
+    $allocBcdAllFalse = ($condition2Met === false && $condition3Met === false && $condition4Met === false);
+    $allocGate        = ($allocBcdAllFalse && $allocQual7to10 >= 1);
+
+    // ── 配分モード（通常／中／強）＝ @ANCHOR-20261004-ALLOC-MODE ────────────
+    //   仕様書5.3 表6（人気側＋穴側）
+    //     C=4  通常 既存目安 / 中 3＋1 / 強 2＋2
+    //     C=5  通常 既存目安 / 中 3＋2 / 強 2＋3
+    //     C=6  通常 既存目安 / 中 3＋3 / 強 3＋3   ※中と強が同数（よっしーへ確認②として照会中）
+    //     C=7  通常 5＋2     / 中 4＋3 / 強 3＋4
+    //   判定順:
+    //     1) ゲート成立 かつ 下位開放成立 かつ 強の頭数を満たす → 強
+    //     2) 満たせず中の頭数を満たす → 中
+    //        （下位開放が不成立・不明でも、ゲート成立かつ中の頭数を満たせば中）
+    //     3) それ以外 → 通常
+    //   「頭数を満たす」= 人気側と資格あり穴側の双方に必要頭数が存在すること。
+    //   Cが4〜7以外は表6の対象外。既存の全頭順位で処理する（モード判定しない）。
+    //   【20261004 よっしー回答④A】旧人気帯別上限は廃止し、新配分に一本化する。
+    //     仕様書の「通常C=4〜6は既存目安」は曖昧なので、下表の具体値へ置き換えた。
+    //     通常の穴側は仕様書の通常C7（5＋2＝穴側2／7頭）に合わせ、
+    //     同じ比率（約29%）を四捨五入して決めている。
+    //       C=4 → 4×0.29=1.14 → 穴側1 → 3＋1
+    //       C=5 → 5×0.29=1.43 → 穴側1 → 4＋1
+    //       C=6 → 6×0.29=1.71 → 穴側2 → 4＋2
+    //       C=7 → 仕様書どおり 5＋2
+    //     ※C=4は通常と中がどちらも3＋1になる。配分は同じだが判定条件とログは
+    //       区別する（C=6で中と強が3＋3で同じになるのと同じ扱い・回答②A）。
+    //     ※旧上限（$pickupUpperMax / $pickupMidMax / $pickupLowerMax）は
+    //       この表と二重に適用しない。監査ログ用に受け取るだけ。
+    $allocModeTable = [
+        4 => ['通常' => [3, 1], '中' => [3, 1], '強' => [2, 2]],
+        5 => ['通常' => [4, 1], '中' => [3, 2], '強' => [2, 3]],
+        6 => ['通常' => [4, 2], '中' => [3, 3], '強' => [3, 3]],
+        7 => ['通常' => [5, 2], '中' => [4, 3], '強' => [3, 4]],
+    ];
+    // 人気側プール = 6人気以内の実出走馬 / 穴側プール = 資格あり馬（資格の定義上すべて7人気以下）
+    $allocFavPool = 0;
+    foreach ($promptHorses as $afH) {
+        $afP = (int) ($afH['popularity'] ?? 0);
+        if ($afP >= 1 && $afP <= 6) $allocFavPool++;
+    }
+    $allocLongPool = count($allocQualified);
+    $allocC        = (int) $targetSelectionCount;
+
+    $allocMode       = '通常';
+    $allocModeTarget = $allocModeTable[$allocC]['通常'] ?? null;  // null = 既存目安（C=4〜6の通常）
+    $allocModeReason = '';
+    if (!isset($allocModeTable[$allocC])) {
+        $allocModeReason = "C={$allocC} は表6の対象外（4〜7以外）。既存の全頭順位で処理する";
+    } elseif ($allocGate !== true) {
+        $allocModeReason = '選出前ゲート不成立のため通常';
+    } else {
+        $amS   = $allocModeTable[$allocC]['強'];
+        $amM   = $allocModeTable[$allocC]['中'];
+        $amFitS = ($allocFavPool >= $amS[0] && $allocLongPool >= $amS[1]);
+        $amFitM = ($allocFavPool >= $amM[0] && $allocLongPool >= $amM[1]);
+        if ($allocLowerOpen === true && $amFitS) {
+            $allocMode       = '強';
+            $allocModeTarget = $amS;
+            $allocModeReason = "ゲート成立・下位開放成立・強の頭数（{$amS[0]}＋{$amS[1]}）を満たす";
+        } elseif ($amFitM) {
+            $allocMode       = '中';
+            $allocModeTarget = $amM;
+            $allocModeReason = ($allocLowerOpen === true)
+                ? "下位開放は成立だが強の頭数（{$amS[0]}＋{$amS[1]}）に不足（人気側{$allocFavPool}・資格穴側{$allocLongPool}）→ 中へ降格"
+                : '下位開放が' . ($allocLowerOpen === null ? '不明' : '不成立')
+                  . "だが、ゲート成立で中の頭数（{$amM[0]}＋{$amM[1]}）を満たすため中";
+        } else {
+            $allocModeReason = "ゲート成立だが中の頭数（{$amM[0]}＋{$amM[1]}）に不足（人気側{$allocFavPool}・資格穴側{$allocLongPool}）→ 通常へ降格";
+        }
+    }
+    $allocTargetFav  = $allocModeTarget[0] ?? null;
+    $allocTargetLong = $allocModeTarget[1] ?? null;
+
+    // 【20261004 よっしー回答②A】「配分が同じでも中・強の判定条件とログは区別してください」
+    //   同じ頭数になる組み合わせ（C=6の中と強、C=4の通常と中）が分かるよう注記を出す。
+    $allocSameAs = [];
+    if (isset($allocModeTable[$allocC])) {
+        foreach (['通常', '中', '強'] as $asM1) {
+            foreach (['通常', '中', '強'] as $asM2) {
+                if ($asM1 >= $asM2) continue;
+                if (($allocModeTable[$allocC][$asM1] ?? null) === ($allocModeTable[$allocC][$asM2] ?? null)) {
+                    $allocSameAs[] = "{$asM1}と{$asM2}が同じ頭数";
+                }
+            }
+        }
+    }
+    $allocSameNote = empty($allocSameAs)
+        ? 'なし'
+        : implode('・', $allocSameAs) . '（配分は同じだが判定条件とログは区別する）';
+
+    $allocThreeLabel = static fn(?bool $v): string => $v === null ? '不明' : ($v ? '成立' : '不成立');
+    // ═════════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261012-V03-SHADOW  v0.3 構造判定をシャドー実行して記録する
+    // ═════════════════════════════════════════════════════════════════════════
+    //   選出には一切使わない。計算して監査ログに残すだけ。
+    //   ここで例外が出ても予想を止めない（記録のための処理が予想を殺さない）。
+    //   @ANCHOR-20261005-AUX-NEVER-BREAKS と同じ方針。
+    try {
+        $v03QualThree = [];
+        foreach ($promptHorses as $v3h) {
+            $v3n = (int) $v3h['num'];
+            $v3p = (int) ($v3h['popularity'] ?? 0);
+            if ($v3p < 7) continue;                       // 資格の対象は7番人気以下だけ
+            $v3e = $allocEvidence[$v3n] ?? null;
+            if ($v3e === null)              { $v03QualThree[$v3n] = null; continue; }
+            if (!empty($v3e['資格']))       { $v03QualThree[$v3n] = true; continue; }
+            $v3unknown = ($v3e['F'] === null) || (($v3e['R'] === null) && ($v3e['O'] === null));
+            $v03QualThree[$v3n] = $v3unknown ? null : false;
+        }
+
+        $v03 = self::_v03StructureShadow(
+            $promptHorses,
+            (int) $activeRunnerCount,
+            (int) $targetSelectionCount,
+            is_array($similarStatsMap) ? $similarStatsMap : $similarStatsMap->all(),
+            $v03QualThree,
+            (string) $gapType
+        );
+        $v03['race']  = "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R";
+        $v03['スイッチ'] = [
+            'BAGANRIKI_V03_ENABLED'          => self::v03Enabled() ? '有効' : '無効（既定）',
+            'BAGANRIKI_V03_RESEARCH_EXTREME' => self::V03_RESEARCH_EXTREME_DEFAULT ? '有効' : '無効（既定）',
+            'BAGANRIKI_V03_ML_STAGE'         => self::V03_ML_STAGE_DEFAULT,
+        ];
+        // 現行の判定と並べて、差がどこに出るかを後から見られるようにする
+        $v03['現行との対比'] = [
+            '現行の断層タイプ' => $gapType,
+            '現行の配分モード' => $allocMode,
+            '現行の目標配分'   => ($allocTargetFav === null)
+                ? '既存目安' : "{$allocTargetFav}＋{$allocTargetLong}",
+            '現行の資格あり馬番' => $allocQualified,
+        ];
+
+        \Log::info('[V03_SHADOW] v0.3 構造判定（記録のみ・@ANCHOR-20261012-V03-SHADOW）', $v03);
+        self::auditFile('AUDIT_V03_SHADOW', $v03);
+    } catch (\Throwable $v03E) {
+        \Log::error('[V03_SHADOW] v0.3 構造判定の計算に失敗（予想は通常どおり継続）', [
+            'race'    => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+            'message' => $v03E->getMessage(),
+            'file'    => $v03E->getFile() . ':' . $v03E->getLine(),
+        ]);
+    }
+
+    \Log::info('[配分] 資格・下位開放・選出前ゲート（@ANCHOR-20261004-ALLOCATION）', [
+        'race'           => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+        'N'              => $activeRunnerCount,
+        'C'              => $targetSelectionCount,
+        '断層タイプ'     => $gapType,
+        '資格あり馬番'   => $allocQualified,
+        '資格7〜10人気'  => $allocQual7to10,
+        '配分用主境界'   => $allocBoundary === null ? null : [
+            'k' => $allocBoundary['k'],
+            '上側馬番' => $allocBoundary['upper_num'], '下側馬番' => $allocBoundary['lower_num'],
+            '6分前比率' => round($allocBoundary['ratio6'], 3),
+            '21分比率'  => $allocBoundary['ratio21'] === null ? null : round($allocBoundary['ratio21'], 3),
+            '縮小率'    => $allocS3Shrink === null ? null : round($allocS3Shrink, 2),
+        ],
+        'S1(タイプD)'    => $allocThreeLabel($allocS1),
+        'S2(断層消滅)'   => $allocThreeLabel($allocS2Three),
+        'S3(断層縮小)'   => $allocThreeLabel($allocS3Three),
+        '下位開放'       => $allocThreeLabel($allocLowerOpen),
+        'B/C/D'          => [
+            'B' => $allocThreeLabel($condition2Met),
+            'C' => $allocThreeLabel($condition3Met),
+            'D' => $allocThreeLabel($condition4Met),
+        ],
+        '選出前ゲート'   => $allocGate ? '成立（中・強を検討）' : '不成立（通常）',
+        '人気側プール'   => $allocFavPool,
+        '資格穴側プール' => $allocLongPool,
+        '配分モード'     => $allocMode,
+        '目標配分'       => ($allocTargetFav === null)
+            ? '既存目安（表6に数値なし）'
+            : "{$allocTargetFav}＋{$allocTargetLong}",
+        '降格理由'       => $allocModeReason,
+        '同配分の注記'   => $allocSameNote,
+    ]);
+    // ═══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261004-AUDIT-HORSE  監査ログ【馬単位】（仕様書9.1 表10）
+    // ═══════════════════════════════════════════════════════════════════════
+    //   保存内容: DB人気・オッズ、F/R/Oと原値、Sと断層ペア・時点、資格、保護対象か
+    //   ※ここは診断専用。失敗しても予測を止めない。
+    try {
+        $auHorseRows = [];
+        foreach ($promptHorses as $auH) {
+            $auNum = (int) $auH['num'];
+            $auEv  = $allocEvidence[$auNum] ?? [];
+            $auPair = $allocPairs[(int) ($auH['popularity'] ?? 0)] ?? null;   // この馬が上側になるペア
+            $auHorseRows[$auNum] = [
+                '馬名'         => $auH['name'] ?? '',
+                'DB人気'       => (int) ($auH['popularity'] ?? 0),
+                'DB6分前単勝'  => $auH['tan_series'][6] ?? null,
+                'DB6分前複勝最小' => $auH['fuku_min_series'][6] ?? null,
+                '複勝人気'     => $auEv['複勝人気'] ?? null,
+                'F1' => $allocThreeLabel($auEv['F1'] ?? null),
+                'F2' => $allocThreeLabel($auEv['F2'] ?? null),
+                'F'  => $allocThreeLabel($auEv['F']  ?? null),
+                'R'  => $allocThreeLabel($auEv['R']  ?? null),
+                'O'  => $allocThreeLabel($auEv['O']  ?? null),
+                '原値'     => $auEv['原値'] ?? null,
+                '資格'     => !empty($auEv['資格']),
+                '保護対象' => in_array($auNum, array_map('intval', $protectedLongshotNums), true),
+                '下側ペア' => $auPair === null ? null : [
+                    'k'         => $auPair['k'],
+                    '上側馬番'  => $auPair['upper_num'],
+                    '下側馬番'  => $auPair['lower_num'],
+                    '6分前比率' => $auPair['ratio6']  === null ? null : round($auPair['ratio6'], 3),
+                    '21分比率'  => $auPair['ratio21'] === null ? null : round($auPair['ratio21'], 3),
+                ],
+            ];
+        }
+        // 1レース十数頭のため、1行に全頭を入れる（grepしやすさ優先）
+        \Log::info('[AUDIT_HORSE] 馬単位の監査ログ（@ANCHOR-20261004-AUDIT-HORSE）', [
+            'race'   => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+            '版'     => self::ALLOC_SPEC_VERSION,
+            '頭数'   => count($auHorseRows),
+            '時点'   => $allocTimings,
+            'S1'     => $allocThreeLabel($allocS1),
+            'S2'     => $allocThreeLabel($allocS2Three),
+            'S3'     => $allocThreeLabel($allocS3Three),
+            '配分用主境界' => $allocBoundary === null ? null : [
+                'k' => $allocBoundary['k'],
+                '上側馬番' => $allocBoundary['upper_num'],
+                '下側馬番' => $allocBoundary['lower_num'],
+            ],
+            '全頭'   => $auHorseRows,
+        ]);
+        self::auditFile('AUDIT_HORSE', [
+            'race'   => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+            '版'     => self::ALLOC_SPEC_VERSION,
+            '頭数'   => count($auHorseRows),
+            '時点'   => $allocTimings,
+            'S1'     => $allocThreeLabel($allocS1),
+            'S2'     => $allocThreeLabel($allocS2Three),
+            'S3'     => $allocThreeLabel($allocS3Three),
+            '配分用主境界' => $allocBoundary === null ? null : [
+                'k' => $allocBoundary['k'],
+                '上側馬番' => $allocBoundary['upper_num'],
+                '下側馬番' => $allocBoundary['lower_num'],
+            ],
+            '全頭'   => $auHorseRows,
+        ]);
+    } catch (\Throwable $auE) {
+        \Log::warning('[AUDIT_HORSE] 馬単位の監査ログの作成に失敗（処理は継続）', [
+            'message' => $auE->getMessage(),
+        ]);
+    }
+
+    // ── @ANCHOR-20261004-AUDIT-SNAPSHOT  6分前入力のスナップショットID ──────
+    //   仕様書は「6分前snapshot_id」を求めているが、DBにスナップショットを識別する
+    //   列が無い（申告事項）。そこで6分前の入力そのものから決定論的に算出する。
+    //   取消・オッズ更新があれば値が変わるので、同一入力かどうかの判定には使える。
+    //   統合側でも同じ値を再計算して突き合わせられるよう、算出元は
+    //   「DBの6分前の行そのもの」に固定する（整形後の配列に依存させない）。
+    //   算出式を変えると過去のログと比較できなくなるので、変更しないこと。
+    $auSnapshotId = self::oddsSnapshotId($oddsRows);
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261013-V04-SHADOW  v0.4-X 構造判定をシャドー実行して記録する
+    // ═════════════════════════════════════════════════════════════════════════
+    //   選出・表示・DBには一切使わない。計算して監査ログに残すだけ。
+    //   ここで例外が出ても予想を止めない（@ANCHOR-20261005-AUX-NEVER-BREAKS）。
+    //   AI呼び出しは1回も増えない（既存の入力を計算し直すだけ）。
+    //
+    //   10/12の @ANCHOR-20261012-V03-SHADOW と並べて記録するので、
+    //   AUDIT_V03_SHADOW と AUDIT_V04_RACE を見比べれば差分が追える。
+    if (self::v04Shadow()) {
+        try {
+            $v04 = self::_v04StructureShadow(
+                $promptHorses,
+                (int) $activeRunnerCount,
+                [
+                    'similarStats'  => is_array($similarStatsMap) ? $similarStatsMap : $similarStatsMap->all(),
+                    'qualThree'     => $v03QualThree ?? [],
+                    'legacyGapType' => (string) $gapType,
+                    'snapshotId'    => (string) $auSnapshotId,
+                    'raceKey'       => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+                    // H/V研究採点はAIから受け取る。BAGANRIKI_V04_HV_PROMPT が
+                    // 既定OFFなので、通常は null（全項目null・partial）になる。
+                    'hv'            => null,
+                ]
+            );
+            $v04['スイッチ'] = self::v04Switches();
+
+            \Log::info('[V04_SHADOW] v0.4-X 構造判定（記録のみ・@ANCHOR-20261013-V04-SHADOW）', [
+                'race'            => $v04['race'] ?? null,
+                'run_id'          => $v04['run_id'] ?? null,
+                'N'               => $v04['N'] ?? null,
+                'target_count'    => $v04['target_count'] ?? null,
+                'signals'         => $v04['structure']['signals'] ?? null,
+                'mode'            => $v04['structure']['mode'] ?? null,
+                'allocation_mode' => $v04['structure']['allocation_mode'] ?? null,
+                'S'               => $v04['structure']['S'] ?? null,
+                'score_min'       => $v04['structure']['score_min'] ?? null,
+                'score_max'       => $v04['structure']['score_max'] ?? null,
+                'quota'           => $v04['structure']['quota'] ?? null,
+                'actual'          => $v04['selection']['actual'] ?? null,
+                'selected'        => $v04['selection']['selected'] ?? null,
+                'Tier別頭数'      => $v04['Tier別頭数'] ?? null,
+            ]);
+
+            // 05-7 の必須監査ログ6種（RACE / GAP / HORSE / MERGE / COMPARE）
+            self::v04WriteAudit($v04, [
+                '現行との対比' => [
+                    '現行の断層タイプ'   => $gapType,
+                    '現行の配分モード'   => $allocMode,
+                    '現行の目標配分'     => ($allocTargetFav === null)
+                        ? '既存目安' : "{$allocTargetFav}＋{$allocTargetLong}",
+                    '現行の資格あり馬番' => $allocQualified,
+                    '現行のC'            => $targetSelectionCount,
+                    '版'                 => 'v20261006系（本番）',
+                ],
+                '一致加点' => '未適用（シャドーでは両AIの公開候補一致を数えていない。'
+                              . '一致+5の正本は現行PHPの統合式）',
+            ]);
+        } catch (\Throwable $v04E) {
+            \Log::error('[V04_SHADOW] v0.4-X 構造判定の計算に失敗（予想は通常どおり継続）', [
+                'race'    => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+                'message' => $v04E->getMessage(),
+                'file'    => $v04E->getFile() . ':' . $v04E->getLine(),
+            ]);
+        }
+    }
+    $auInputSrc   = [];
+    foreach ($promptHorses as $auSH) {
+        $auInputSrc[(int) $auSH['num']] = [
+            $auSH['tan_series']      ?? [],
+            $auSH['fuku_min_series'] ?? [],
+            $auSH['fuku_max_series'] ?? [],
+        ];
+    }
+    ksort($auInputSrc);
+    $auInputHash = hash('sha256', json_encode($auInputSrc));
+
+    if (!empty($allocQualified)) {
+        \Log::info('[配分] 資格ありの内訳', [
+            'race' => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+            '内訳' => array_intersect_key($allocEvidence, array_flip($allocQualified)),
+        ]);
+    }
+
+    // ─── Block 8: 断層位置別・人気帯別の選出上限 ─────────────────────────────
+    // 主断層位置（upper_pop）を決定し、仕様書テーブルに従い上限を設定する
+    // 仕様書テーブル:
+    //   1〜2番人気間: Upper3 / Mid2 / Lower1
+    //   2〜3番人気間: Upper4 / Mid2 / Lower1
+    //   3〜4番人気間: Upper4 / Mid2 / Lower1
+    //   4〜5番人気間: Upper4 / Mid2 / Lower1 (大穴進入度1〜2なら Lower0 だがPHP未計算のため1適用)
+    //   5〜6番人気間: Upper3 / Mid3 / Lower2
+    //   6番人気以降:  Upper2 / Mid3 / Lower2
+    //   断層なし・D・E: Upper3 / Mid3 / Lower2
+    $primaryGapUpperPop = null; // null = 断層なし・判定困難
+    if ($gapType === 'A' && !empty($tanGapTop6)) {
+        $primaryGapUpperPop = min(array_column($tanGapTop6, 'upper_pop'));
+    } elseif ($gapType === 'B' && !empty($tanGapTop6)) {
+        $primaryGapUpperPop = $tanGapTop6[0]['upper_pop'];
+    } elseif ($gapType === 'C' && !empty($tanGapAll)) {
+        $primaryGapUpperPop = $tanGapAll[0]['upper_pop']; // top6外 → ≥7 → 「6番人気以降」扱い
+    }
+    // タイプD / E: $primaryGapUpperPop = null（断層なし・判定困難として扱う）
+
+    if ($primaryGapUpperPop === null || in_array($gapType, ['D', 'E'])) {
+        [$pickupUpperMax, $pickupMidMax, $pickupLowerMax] = [3, 3, 2];
+    } elseif ($primaryGapUpperPop === 1) {
+        [$pickupUpperMax, $pickupMidMax, $pickupLowerMax] = [3, 2, 1];
+    } elseif ($primaryGapUpperPop <= 4) {
+        // 2〜3 / 3〜4 / 4〜5番人気間: 同じ上限
+        [$pickupUpperMax, $pickupMidMax, $pickupLowerMax] = [4, 2, 1];
+    } elseif ($primaryGapUpperPop === 5) {
+        [$pickupUpperMax, $pickupMidMax, $pickupLowerMax] = [3, 3, 2];
+    } else {
+        // 6番人気以降（upper_pop >= 6）
+        [$pickupUpperMax, $pickupMidMax, $pickupLowerMax] = [2, 3, 2];
+    }
+    // 【仕様】「1st AIの候補上限は7頭」。
+    //   人気帯別上限の単純合計は、断層なし／判定困難・5〜6番人気間断層のとき 3+3+2=8 になり、
+    //   仕様の7頭を超えてしまう。その状態でAIが8頭返すと B-15 が制御済みエラーで
+    //   レースごと無効化してしまうため、ここで必ず7頭に頭打ちする。
+    $pickupTotalMax = min(7, $pickupUpperMax + $pickupMidMax + $pickupLowerMax);
+
+    // ─── 断層時系列（単勝・6分前人気順基準） ─────────────────────────────
+    // $fetchTimings = [999, 21, 18, 15, 12, 9, 6] から 999 を除いた時点を使用
+    $gapSeriesTimings = array_values(array_filter($fetchTimings, fn($t) => $t !== Constants::ODDS_DB_FIRST));
+    // = [21, 18, 15, 12, 9, 6]（早い→遅い順）
+
+    $gapTimeSeriesLines = [];
+    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
+        $upper = $promptHorses[$i];
+        $lower = $promptHorses[$i + 1];
+
+        $ratios   = [];
+        $maxRatio = 0;
+        foreach ($gapSeriesTimings as $t) {
+            $uOdds = $upper['tan_series'][$t] ?? null;
+            $lOdds = $lower['tan_series'][$t] ?? null;
+            if ($uOdds && $lOdds && $uOdds > 0) {
+                $r = round($lOdds / $uOdds, 2);
+                $ratios[$t] = $r;
+                if ($r > $maxRatio) $maxRatio = $r;
+            } else {
+                $ratios[$t] = null;
+            }
+        }
+
+        if ($maxRatio < 2.0) continue; // 一度も断層にならなかったペアはスキップ
+
+        // トレンド判定（最初と最後で比較）
+        $validRatios = array_values(array_filter($ratios, fn($r) => $r !== null));
+        $firstR      = $validRatios[0] ?? null;
+        $lastR       = end($validRatios) ?: null;
+        $trend       = '';
+        if ($firstR !== null && $lastR !== null) {
+            $diff = round($lastR - $firstR, 2);
+            if ($diff >= 0.3)      $trend = '【拡大中 +' . $diff . '】';
+            elseif ($diff <= -0.3) $trend = '【縮小中 ' . $diff . '】';
+            else                   $trend = '【安定】';
+        }
+
+        $pairLabel = $upper['popularity'] . '〜' . $lower['popularity'] . '番人気間';
+        $parts     = [];
+        foreach ($ratios as $t => $r) {
+            $marker  = ($r !== null && $r >= 2.0) ? '★' : '';
+            $parts[] = $t . '分=' . ($r !== null ? $marker . number_format($r, 2) : '－');
+        }
+
+        $gapTimeSeriesLines[] = $pairLabel . ': ' . implode(' → ', $parts) . ' ' . $trend;
+    }
+
+    // ─── 過去のレース情報から絞り込んだ馬番（forecast_nums）の取得 ──
+    $forecastNums = DB::table('t_horse_odds_finder_forecast_from_last_race')
+        ->where('date',       $targetDate)
+        ->where('kaisuu',     $race->kaisuu)
+        ->where('basho',      $race->basho)
+        ->where('basho_name', $race->basho_name)
+        ->where('day',        $race->day)
+        ->where('race',       $race->race)
+        ->value('forecast_nums');
+
+    // ─── プロンプト本文の構築 ─────────────────────────────────────────
+    $raceLabel = $race->kaisuu . '回' . $race->basho_name . $race->day . '日';
+    $raceNum   = $race->race . 'R';
+    $raceName  = $race->race_name ?? '';
+
+    $lines = [
+        'あなたは競馬オッズ分析の専門家です。',
+        '有料公開するものなので、正しい日本語で返してください。',
+        '',
+        'レース情報',
+        '日付: ' . $targetDate,
+        '開催: ' . $raceLabel,
+        'レース: ' . $raceNum . ' ' . $raceName,
+        '',
+        '単勝・複勝オッズデータ（計測開始前〜発走6分前・全時点）',
+        $table,
+        '',
+        '単勝断層テーブル（6分前単勝オッズ・隣接人気順間の比率）',
+        '※比率2.00以上=断層（★）、2.50以上=強い断層、3.00以上=非常に強い断層',
+        $gapTable,
+        '',
+        '複勝断層テーブル（6分前複勝最小オッズ・隣接複勝人気順間の比率）',
+        '※単勝断層と複勝断層が同じ位置に出ている場合は断層の信頼度が上がります',
+        '※矛盾する場合（単勝にあるが複勝にない、またはその逆）は複勝断層を優先してください',
+        $fukuGapTable,
+        '',
+    ];
+
+    $lines[] = '【断層構造タイプ（PHP算出済み）】';
+    $lines[] = "タイプ{$gapType}：{$gapTypeDesc}";
+    $lines[] = "選出方針：{$gapTypeGuide}";
+    $lines[] = '';
+    $lines[] = '※ タイプ別の詳細ルール（波乱度の目安を含む）';
+    $lines[] = 'A（二重断層・上位完結型）: 断層上側を中心に。断層下側は自動除外せず、複勝流入が強ければ補欠候補に。波乱度目安：1〜2（堅い〜やや堅い）';
+    $lines[] = 'B（上位断層型）: 断層上側グループが中心。断層拡大中は上側重視、縮小中は下側の浮上を警戒。波乱度目安：2〜3（やや堅い〜中波乱）';
+    $lines[] = 'C（中間断層型）: 断層上側=中心グループ、断層下側=穴グループ。複勝流入の方向で判断を補正。波乱度目安：3（中波乱）';
+    $lines[] = 'D（断層なし・混戦型）: 複勝支持・変化率・単複人気差を重視。7〜10番人気も均等に比較。波乱度目安：4〜5（波乱〜大波乱）';
+    $lines[] = 'E（判定困難型）: 断層は参考程度。複勝の継続的な動きを最優先で評価。波乱度目安：4〜5（波乱〜大波乱）';
+    $lines[] = '';
+    $lines[] = '【波乱度の修正ルール（1〜5：1=堅い、2=やや堅い、3=中波乱、4=波乱、5=大波乱）】';
+    $lines[] = 'タイプ別の波乱度目安を基準に、以下の条件で1段階上下してください。';
+    $lines[] = '■ 波乱度を1段階「上げる」条件（複数該当で2段階まで）';
+    $lines[] = '・断層時系列が6分前に向けて急縮小している';
+    $lines[] = '・断層より下の複数馬に複勝流入が確認できる';
+    $lines[] = '・7〜10番人気の複勝流入ランクが継続上昇している';
+    $lines[] = '・単勝と複勝の断層位置が不一致（タイプEの判定根拠）';
+    $lines[] = '・1番人気の複勝支持が継続低下している';
+    $lines[] = '■ 波乱度を1段階「下げる」条件（複数該当で2段階まで）';
+    $lines[] = '・断層が複数時点にわたって継続維持されている';
+    $lines[] = '・単勝と複勝の断層位置が一致している';
+    $lines[] = '・断層時系列が6分前に向けて拡大している';
+    $lines[] = '・6番人気以内に二重断層（2か所以上）が成立している';
+    $lines[] = '・断層より下の馬に明確な複勝流入がない';
+    $lines[] = '';
+    if (!empty($gapTimeSeriesLines)) {
+        $lines[] = '【断層時系列（単勝・6分前人気順基準）】';
+        $lines[] = '※ 断層（比率2.0以上）が一度でも発生した隣接ペアのみ表示。★=断層あり。21分前〜6分前の推移です';
+        foreach ($gapTimeSeriesLines as $gapLine) {
+            $lines[] = $gapLine;
+        }
+    } else {
+        $lines[] = '【断層時系列（単勝・6分前人気順基準）】';
+        $lines[] = '計測期間中、断層（比率2.0以上）は一度も発生しませんでした';
+    }
+    $lines[] = '';
+
+    if (!empty($gapHorseNums) || !empty($upsetPickupHorseNums) || !empty($forecastNums)) {
+        $lines[] = 'なお、オッズ分析にあたり、下記の注目馬番も参考にしてください。';
+        if (!empty($upsetPickupHorseNums)) {
+            $lines[] = '特に、②の期待数値の馬番はかなり結果を出せているので、重点的に注視してください。';
+        }
+        $lines[] = '';
+        $lines[] = '①　オッズ間断層の調査から絞り込んだ馬番「' . $gapHorseNums . '」（1|2|...のようにパイプで区切られている）';
+        $lines[] = 'オッズ間断層とは、隣り合う人気順間のオッズの比率（次の人気順のオッズ ÷ この人気順のオッズ）です。';
+        $lines[] = '比率が2以上の場合、「断層が発生している」と判断し、断層上の馬に注目しています。';
+        $lines[] = '';
+        if (!empty($upsetPickupHorseNums)) {
+            $lines[] = '②　期待数値の調査から絞り込んだ馬番「' . $upsetPickupHorseNums . '」（1|2|...のようにパイプで区切られている）';
+            $lines[] = '期待数値とは、過去の類似レースにおける人気順別の中央値オッズを、今回のレースの同人気順のオッズで割った値です。';
+            $lines[] = '';
+        }
+        if (!empty($forecastNums)) {
+            $lines[] = '③　過去のレース情報から絞り込んだ馬番「' . $forecastNums . '」（1|2|...のようにパイプで区切られている）';
+            $lines[] = '過去の出走情報をAIに渡して、レースの頭数に応じて馬番を絞り込んだ値です（8頭以下は4頭、13頭以下は5頭、14頭以上は6頭に絞り込み）。';
+            $lines[] = '';
+        }
+    }
+
+    $lines = array_merge($lines, [
+        '分析依頼',
+        '',
+        '【⚠️ 絶対ルール：DB・PHP算出値は変更・再計算禁止】',
+        '以下の値はDBまたはPHPが事前に算出した確定値です。AIは自分で再計算・上書き・補正・推測をしてはなりません。',
+        'データ欄に表示されている値を必ずそのまま使用してください。',
+        '・断層構造タイプ（A〜E）: PHP算出済み。AIが独自に「Cタイプだと思う」のように上書き判断することは禁止',
+        '・OPI（単勝OPI・複勝OPI・推定補正OPI）: DB算出済み。自分でオッズ比率から独自計算しないこと',
+        '・相対資金流入ランク（単勝流入ランク・複勝流入ランク）: DB算出済み。自分でオッズ変化率からランクを推測しないこと',
+        '・推定確定オッズ・補正係数: DB算出済み。自分でオッズパターンから独自予測しないこと',
+        '・厳選穴レース判定（条件B・C・D）: PHP算出済み。自分でオッズを見て再判定しないこと',
+        '・人気順: テーブルの「X人気」欄の値をそのまま使用。自分でオッズ順に並べ替えて人気順を変えないこと',
+        '',
+        '【このシステムの目的（最重要）】',
+        'このシステムの目的は「当てること」ではなく「回収率を上げること」です。',
+        '1〜3番人気ばかりを正確に当てても、オッズが低いため回収率は上がりません。',
+        '「来そうかどうか（信頼度）」と「そのオッズで買う価値があるか（妙味）」を必ず両方考えてください。',
+        '信頼度が同等の馬が複数いる場合は、オッズが高い馬（妙味がある馬）を優先して選出してください。',
+        '',
+        // ── AI回収率実績ブロック: 有効データがある場合のみ送信（仕様: 0件・－%は送信しない）
+        ...($aiRec100['race_count'] > 0 || $aiRec300['race_count'] > 0 || $aiRec600['race_count'] > 0 ? [
+            '【このAIの過去回収率実績】',
+            '※選択馬全頭に100円ずつ単勝・複勝を投資した場合の実績（毎日自動集計）',
+            sprintf(
+                '直近%dレース: 単勝回収率%s%%  複勝回収率%s%%',
+                $aiRec100['race_count'],
+                $aiRec100['tan_rate'] !== null ? number_format($aiRec100['tan_rate'], 1) : '－',
+                $aiRec100['fuku_rate'] !== null ? number_format($aiRec100['fuku_rate'], 1) : '－'
+            ),
+            sprintf(
+                '直近%dレース: 単勝回収率%s%%  複勝回収率%s%%',
+                $aiRec300['race_count'],
+                $aiRec300['tan_rate'] !== null ? number_format($aiRec300['tan_rate'], 1) : '－',
+                $aiRec300['fuku_rate'] !== null ? number_format($aiRec300['fuku_rate'], 1) : '－'
+            ),
+            sprintf(
+                '直近%dレース: 単勝回収率%s%%  複勝回収率%s%%',
+                $aiRec600['race_count'],
+                $aiRec600['tan_rate'] !== null ? number_format($aiRec600['tan_rate'], 1) : '－',
+                $aiRec600['fuku_rate'] !== null ? number_format($aiRec600['fuku_rate'], 1) : '－'
+            ),
+            '単勝・複勝どちらかの回収率が100%未満の場合、その馬券種については妙味の採点を厳しくしてください。候補から外す理由にはしません。',
+            '',
+        ] : []),
+        // ── よっしー20260927指摘: 上限ではなく「目標数C頭を必ず満たす」 ──────
+        "このレースの実出走頭数は {$activeRunnerCount} 頭です（取消・除外反映後）。",
+        "選出する頭数は {$targetSelectionCount} 頭です。これは目標かつ上限です。",
+        "全実出走馬を同一の固定100点配点で評価し、全頭を順位付けしたうえで、原則として上位 {$targetSelectionCount} 頭を出力してください。",
+        "利用可能な情報だけでは {$targetSelectionCount} 頭に届かない場合は、確認できる候補だけを返してください。未出力馬を作ってはいけません。",
+        "{$targetSelectionCount} 頭を超えて出力してはいけません。実出走馬が {$targetSelectionCount} 頭未満の場合は実出走馬全頭が上限です。",
+        "頭数は人間が別途算出した確定値です。あなたが独自に計算し直してはいけません。",
+        '',
+        // 【20261004 よっしー回答④A】旧人気帯別上限は廃止し、新配分に一本化する。
+        //   目標配分が決まっているとき（C=4〜7）は、この旧目安を送らない。
+        //   二重に適用しないため。断層タイプA〜Eの分類自体は維持する。
+        //   @ANCHOR-20261004-NO-OLD-POPBAND
+        ...(($allocTargetFav === null) ? [
+            "【このレースの人気帯別の優先目安（タイプ{$gapType}）】",
+            '以下は順位づけの優先目安です。最終候補を減らすハード上限ではありません。',
+            "・1〜6番人気 … 目安{$pickupUpperMax}頭",
+            "・7〜10番人気 … 目安{$pickupMidMax}頭",
+            "・11番人気以下 … 目安{$pickupLowerMax}頭",
+            "目標数 {$targetSelectionCount} 頭に近づけるために必要なら、全頭順位に従って枠を補ってください。",
+            '人気帯の目安は最終候補数を減らすハード上限として適用しません。',
+            '',
+        ] : [
+            "【このレースの断層タイプ】タイプ{$gapType}",
+            '断層タイプは順位づけの材料です。人気帯別の頭数上限は使いません。',
+            '最終候補の内訳は、後述の【配分（PHP算出済み・変更禁止）】に従ってください。',
+            '',
+        ]),
+        '【能力・適性評価（100点満点・6項目）】',
+        'プロンプト末尾の【各馬の直近成績（過去最大10走）と今走データ】を根拠に、選出した各馬を以下の6項目で採点してください。',
+        '1. 基礎能力・クラス実績：25点',
+        '2. 近走内容・着差・相手関係：20点',
+        '3. コース・距離・芝ダート・馬場適性：20点',
+        '4. 脚質・想定展開・枠順との適合：15点',
+        '5. 上がり性能・位置取り・レース内容：10点',
+        '6. 斤量・騎手・馬体重・休養間隔などの補正：10点',
+        '評価区分：A（80〜100点）B（70〜79点）C（60〜69点）D（59点以下）',
+        // 【20260924 修正】仕様【欠損値の扱い】「DBにない項目は不明として中立扱い」「欠損を0点として扱わない」に合わせる
+        '出走履歴がない馬は能力・適性を推測せず「不明」とし、選出理由の冒頭は「能力適性:不明。」と記載する。不明は0点・D評価・減点・除外の理由にしない（中立として扱う）。',
+        '採点結果は、選出理由の冒頭に必ず「能力適性:X（XX点）。」の形式で記載してください。この記載がないとPHP側で能力適性点を抽出できません。',
+        'ただし能力・適性だけで候補を決めてはいけません。時系列オッズの補強材料として扱い、能力適性Dでも強い市場根拠がある馬を自動除外しないでください。',
+        '',
+        // ── @ANCHOR-20261004-ALLOC-PROMPT  配分モードの通知（仕様書 表7 の N / C / MODE）──
+        //   PHPが確定した配分モードと目標配分をAIへ凍結値として渡す。
+        //   仕様書8.2「AIはPHP確定の配分モードを変更しない」。
+        //   フラグを false にすると、この配分ブロックは埋め込まれない（仕様書11.2）。
+        ...(self::allocFeatureEnabled() ? [
+            '【配分（PHP算出済み・変更禁止）】',
+            "実出走頭数N: {$activeRunnerCount}頭 / 目標数C: {$targetSelectionCount}頭 / 配分モード: {$allocMode}",
+            ($allocTargetFav === null
+                ? '目標配分: 既存目安（人気帯の目安に従う）'
+                : "目標配分: 人気側（1〜6番人気）{$allocTargetFav}頭 ＋ 穴側（PHPが資格を確認した7番人気以下）{$allocTargetLong}頭"),
+            '資格あり馬番: ' . (!empty($allocQualified) ? implode('|', $allocQualified) : 'なし'),
+            // @ANCHOR-20261004-QUAL-EVIDENCE  資格馬の根拠を凍結値として渡す
+            //   よっしー20261004回答①A-2「理由文には確認できた入力値と時点だけを使い、
+            //   点数・能力評価・根拠を推測で補わない」に使う。
+            //   統合時にこの行を読み戻し、PHPが定型の選出理由を組む。
+            //   書式: 馬番=pop:人気,s216:21→6短縮率,s96:9→6短縮率,fuku:複勝人気,opi:予測補正OPI
+            //         取得できない値は - を入れる（0 で補わない）。
+            '資格根拠: ' . (function () use ($allocQualified, $allocEvidence): string {
+                if (empty($allocQualified)) return 'なし';
+                $qe = [];
+                foreach ($allocQualified as $qn) {
+                    $ev = $allocEvidence[$qn] ?? [];
+                    $gv = static function ($v, int $dec = 2): string {
+                        return is_numeric($v) ? number_format((float) $v, $dec, '.', '') : '-';
+                    };
+                    $qe[] = $qn . '='
+                          . 'pop:'  . $gv($ev['人気'] ?? null, 0)
+                          . ',s216:' . $gv($ev['原値']['21→6短縮率'] ?? null)
+                          . ',s96:'  . $gv($ev['原値']['9→6短縮率']  ?? null)
+                          . ',fuku:' . $gv($ev['複勝人気'] ?? null, 0)
+                          . ',opi:'  . $gv($ev['原値']['予測補正OPI'] ?? null);
+                }
+                return implode(' ', $qe);
+            })(),
+            // ══════════════════════════════════════════════════════════════════
+            // @ANCHOR-20261006-QUAL-STATE  7番人気以下の資格判定を三値で凍結する
+            // ══════════════════════════════════════════════════════════════════
+            // 【20261006 ご指摘④】
+            //   「0頭回避の例外を適用するなら、補充上限、対象となる有効候補、
+            //     資格不成立と資格不明の扱い、選出理由を定義する」
+            //   資格の判定は成立／不成立／不明の三値だが、これまで統合側へは
+            //   「資格ありの馬番」しか渡しておらず、不成立と不明を区別できなかった。
+            //   この行を統合時に読み戻して区別する。
+            //   書式: 馬番:状態（1=成立 / 0=不成立 / ?=不明）
+            '資格判定: ' . (function () use ($promptHorses, $allocEvidence): string {
+                $qs = [];
+                foreach ($promptHorses as $qh) {
+                    $qn  = (int) $qh['num'];
+                    $qp  = (int) ($qh['popularity'] ?? 0);
+                    if ($qp < 7) continue;                   // 7番人気以下だけが資格の対象
+                    $ev  = $allocEvidence[$qn] ?? null;
+                    if ($ev === null)            { $qs[] = $qn . ':?'; continue; }
+                    if (!empty($ev['資格']))     { $qs[] = $qn . ':1'; continue; }
+                    // F・R・O のいずれかが不明なら「不明」、すべて確認できて満たさないなら「不成立」
+                    $unknown = ($ev['F'] === null)
+                            || (($ev['R'] === null) && ($ev['O'] === null));
+                    $qs[] = $qn . ($unknown ? ':?' : ':0');
+                }
+                return empty($qs) ? 'なし' : implode(' ', $qs);
+            })(),
+            '配分モードと目標配分はPHPが確定した値です。あなたが再判定・変更してはいけません。',
+            '目標配分は最終候補の内訳の目標です。根拠のない馬を数合わせで入れてはいけません。',
+            '',
+        ] : []),
+
+        // @ANCHOR-20261004-AUDIT-SNAPSHOT  入力の同一性を後から確認するための記録行
+        //   仕様書9.2「途中の取消更新 → 両AIを同じ最新版で再実行。旧snapshot_idと混ぜない」。
+        //   統合時にこの行を読み戻し、その時点の入力から算出した値と突き合わせる。
+        "【入力スナップショット（記録用・予想の判断には使いません）】snapshot_id: {$auSnapshotId}",
+        '',
+
+        // ── よっしー20260927指摘【人気薄の根拠付き保護枠】保護対象の通知 ──────
+        //   【20261004 仕様変更】仕様書6.2「旧保護対象は参考入力とする。無条件の1頭入替、
+        //   別枠追加、11人気以下だけの最大1〜2頭制限は廃止する。資格馬は全て同じ穴側の
+        //   配分内で比較する。」に従い、入替を指示する文面を参考扱いへ差し替えた。
+        //   旧文面は削除せずコメントアウトで残す。
+        //   @ANCHOR-20261004-PROTECTED-REFERENCE-ONLY
+        //   フラグ ON = 参考扱い（20261004仕様） / OFF = 旧文面（20260927の入替指示）
+        ...(empty($protectedLongshotNums) ? [] : (self::allocFeatureEnabled() ? [
+            '【7番人気以下で根拠を確認した馬（PHP算出済み・参考）】',
+            '次の馬番は、PHPが客観的な市場・能力根拠を確認した7番人気以下の馬です。',
+            '対象馬番: ' . implode('|', $protectedLongshotNums),
+            'これは参考情報です。該当馬を別枠で追加したり、他の候補と無条件に入れ替えたりはしません。',
+            '穴側の候補として、他の馬と同じ基準で比較してください。',   // ※2nd AIでは配分ブロックを除去するため「上に示した目標配分」とは書かない
+            'この判定はPHPが算出済みです。あなたが再判定・追加・除外してはいけません。',
+            '',
+        ] : [
+            // 【旧文面】可変配分を無効にしたときだけ使う（2026-09-28時点の安定動作）
+            '【人気薄の根拠付き保護対象（PHP算出済み）】',
+            '次の馬番は、PHPが客観的な市場・能力根拠を確認した7番人気以下の馬です。',
+            '対象馬番: ' . implode('|', $protectedLongshotNums),
+            "この中でおすすめ度が最も高い1頭を、最大 {$targetSelectionCount} 頭の候補の中に可能な範囲で含めてください。",
+            '同点の場合は馬番の小さい馬を選びます。',
+            '通常の上位候補の最下位1頭と入れ替える形になります。入れ替えは最大1頭です。',
+            'この判定はPHPが算出済みです。あなたが再判定・追加・除外してはいけません。',
+            '',
+        ])),
+        '【出力フォーマット（厳守）】',
+        'このフォーマットは画面表示アプリがそのままパースします。',
+        '前置き・後書き・補足コメントは不要です。フォーマット通りに出力してください。',
+        '',
+        '─────────────────────────────',
+        '厳選穴レース|1または0',
+        'レース指標|波乱度: X|下位進入度: X|大穴進入度: X',
+        '馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：能力適性:A（82点）。XXXXXXXXXXXXXXXXXXXXXXXXXXXX（候補1頭につき改行なしの1行。冒頭の「能力適性:X（XX点）。」は必須。続けて客観的根拠を4〜5要素入れ、箇条書きにしない）',
+        '─────────────────────────────',
+        '',
+
+        // ── @ANCHOR-20261004-AUDIT-ALLSCORE  全頭採点（内部用）の出力指示 ────────
+        //   よっしー20261004回答③A。公開部分とマーカーで分離する。
+        '【全頭採点（内部用）】',
+        '上の候補行を出力し終えたあと、全実出走馬の採点内訳を下のマーカーで囲んで1行のJSONとして出力してください。',
+        'この領域は画面に表示しません。公開候補行の中にJSONを混ぜてはいけません。',
+        '候補に選ばれなかった馬も含め、必ず全実出走馬を入れてください。候補が0頭の場合もこの領域は出力します。',
+        'キーは次の意味です。数値だけを入れ、説明文は書かないでください。',
+        '  n  … 馬番（整数）',
+        '  c  … 信頼度7項目の得点を順番に並べた配列 [0〜15, 0〜12, 0〜8, 0〜10, 0〜8, 0〜4, 0〜3]',
+        '  cs … 信頼度小計（cの合計・0〜60）',
+        '  m  … 妙味4項目の得点を順番に並べた配列 [0〜15, 0〜12, 0〜8, 0〜5]',
+        '  ms … 妙味小計（mの合計・0〜40）',
+        '  t  … 総合点（cs + ms・0〜100。候補行のおすすめ度と必ず一致させる）',
+        '  a  … 能力適性の点数（0〜100）。採点不能なら null とし、推測値を入れない',
+        '小計・合計は必ず内訳の合計と一致させてください。一致しない場合はPHP側で無効として扱います。',
+        '馬番の重複・欠落があってはいけません。',
+        '出力例（この例の数値はあくまで書式の見本です）:',
+        self::AUDIT_JSON_BEGIN,
+        '{"v":1,"horses":[{"n":1,"c":[12,9,5,7,6,3,2],"cs":44,"m":[6,8,4,2],"ms":20,"t":64,"a":78}]}',
+        self::AUDIT_JSON_END,
+        '',
+        '【厳選穴レースの判定ルール】',
+        '選出が終わったあと、以下のルールで「厳選穴レース|1」または「厳選穴レース|0」を出力の先頭1行目に必ず入れてください。',
+        '',
+        '■ 0に強制する条件（以下のいずれか1つでも成立すれば「0」確定・条件Aより優先）',
+        '・条件B: 6番人気以内の隣接間に断層（比率2.00以上）が2つ以上ある（上位完結型）',
+        '・条件C: 全馬の6分前複勝最小オッズの最大値が3.5倍未満（ガチガチレース・どの馬が来ても安い）',
+        '・条件D: 1番人気の6分前単勝オッズが2.0倍未満（1強レース・荒れる余地なし）',
+        '',
+        '■ 1になる条件（B・C・D が全て不成立の場合のみ判定）',
+        '・条件A: 選出した馬の中に7〜10番人気の馬が1頭以上含まれている',
+        '',
+        '■ 判定の優先順位（条件B・C・Dは「成立／不成立／不明」の3つで判定済みです）',
+        '条件B・C・D のいずれか1つでも【成立】 → 0（条件Aの結果を無視）',
+        '条件B・C・D が全て【不成立】 かつ 条件A成立 → 1',
+        '条件B・C・D が全て【不成立】 かつ 条件A不成立 → 0',
+        '【成立】が1つもなく【不明】が残る かつ 条件A成立 → 不明',
+        '【成立】が1つもなく【不明】が残る かつ 条件A不成立 → 0',
+        '',
+        '※【不明】は「判定に必要な入力が欠けている」という意味です。不明を不成立として扱ってはいけません。',
+        '※最終的な厳選穴レースの値はPHPが最終候補の確定後に再判定します。あなたはこの結果をそのまま1行目に書いてください。',
+        '',
+        '■ PHP算出済みの結果（必ずこの結果に従うこと・自分で再計算しないこと）',
+        "条件B（PHP算出済み）: {$condition2Desc}",
+        "条件C（PHP算出済み）: {$condition3Desc}",
+        "条件D（PHP算出済み）: {$condition4Desc}",
+        '',
+        '【おすすめ度の計算方法】',
+        // ── 以下は仕様書【おすすめ度の計算方法】の本文そのまま（要約・省略禁止）──
+        'おすすめ度は100点満点とし、「信頼度60点＋妙味40点」の固定内訳で全頭を採点してください。項目の追加、削除、配点変更、信頼度と妙味の間での点数移動は禁止です。同じ事実を複数項目で評価する場合は、各項目の目的に限定し、同一根拠を重複して満点評価しないでください。',
+        '',
+        '■ 信頼度（60点）：この馬が5着以内に来そうか',
+        '1．複勝支持・安定性：0〜15点',
+        '　複勝最小オッズの水準、複勝レンジの幅、複数時点での支持の安定性を評価する。複勝オッズが継続上昇、またはレンジが大きく拡大して不安定な馬は減点する。',
+        '2．単勝・複勝の継続資金流入：0〜12点',
+        '　計測開始から6分前までの継続性を評価し、特に複勝流入を重視する。単発急落、急落後の反発、1時点だけの変化は高得点にしない。',
+        '3．単複人気差・支持差：0〜8点',
+        '　複勝人気が単勝人気より高いこと、複勝流入ランクが単勝流入ランクより良いこと、単複比の整合性を補助材料として評価する。単複比だけで断定しない。',
+        '4．断層位置・時間変化・単複一致：0〜10点',
+        '　主断層の上側・下側、断層の継続・拡大・縮小・消滅、単勝断層と複勝断層の一致、断層下からの接近を評価する。断層下側という理由だけで自動的に0点または除外にしない。',
+        '5．類似レース統計：0〜8点',
+        '　サンプル数とともに3着以内率、5着以内率、平均着順、着外率を評価する。サンプル30件未満は参考値とし、単独で高得点にしない。',
+        '6．予測補正の維持・直前傾向：0〜4点',
+        '　推定確定単勝・複勝オッズ、補正係数、誤差、9分前→6分前の流入維持または加速を評価する。誤差が大きい場合は参考程度にする。',
+        '7．能力・今回条件への適性：0〜3点',
+        '　別途算出する能力適性A〜Dを補強材料として反映する。A=3点、B=2点、C=1点、D=0点を原則とする。ただし能力適性だけで候補を採用せず、能力適性Dでも強い市場根拠がある馬を自動除外しない。',
+        '',
+        '■ 妙味（40点）：推定確定オッズで買う価値があるか',
+        '1．推定確定配当水準：0〜15点',
+        '　推定確定複勝最小オッズを中心に評価する。1.5倍未満は本項目を原則2点以下、1.5〜2.5倍は3〜7点、2.5〜4.0倍は8〜11点、4.0〜7.0倍は12〜14点、7.0倍以上は継続的な複勝流入がある場合だけ15点まで可能とする。高オッズだけで高得点にしない。',
+        '2．3種類の回収率の裏付け：0〜12点',
+        '　過去回収率、OPI帯別回収率、フェーズパターン別回収率をサンプル数とセットで評価する。2種類以上が110%以上なら高評価、2種類以上が100%未満なら減点、2種類以上が90%未満なら0点とする。これは本項目の採点だけに効く減点であり、候補から外す条件ではない。欠損・0レース・「－」は不明として中立扱いし、0点や不振と解釈しない。',
+        '3．OPI・予測補正OPIによる市場評価：0〜8点',
+        '　予測補正OPIを中心に、単勝OPI・複勝OPIとの整合性を評価する。過小評価ゾーンは加点、過剰人気ゾーンは減点する。ただしOPIだけで採用・除外を決めない。',
+        '4．配当と市場流入・断層構造の整合性：0〜5点',
+        '　中穴・人気薄でありながら複勝への継続流入、断層縮小・接近、単複断層の矛盾など、今回の配当に対する客観的な穴進入根拠が重なる場合に加点する。人気薄という理由だけ、または単発急落だけでは加点しない。',
+        '',
+        '推定確定複勝最小オッズが1.5倍未満の場合は、上記4項目の合計である妙味小計を原則5点以下とする。後掲の低配当例外3条件をすべて満たす場合だけこの妙味上限を解除できるが、解除した事実と根拠を選出理由へ明記する。',
+        '',
+        '信頼度60点と妙味40点は、後掲の市場妙味基礎点80点・能力適性補正20点・高配当総合点とは別の「既存おすすめ度」です。両者を加算・平均・置換してはいけません。シャドー検証中は高配当強化指標をこの100点採点へ逆流させないでください。',
+        '',
+        '低配当例外を除き、信頼度が低い馬を妙味だけで70点以上にしないでください。原則として本候補は信頼度36点以上、補欠は信頼度30点以上を目安とします。これは採点の目安であり、候補から外す条件ではありません。',
+        '',
+        // 【20261004 よっしー回答③A】「JSONを出力しない」→「公開部分に混ぜず、内部用領域に出力する」へ統一
+        //   @ANCHOR-20261004-AUDIT-ALLSCORE
+        '全頭について信頼度小計、妙味小計、7項目＋4項目の内訳を確定してから合計してください。最終おすすめ度だけを既存候補行へ出力し、必ずこの固定配点から算出してください。',
+        '内訳・小計・合計は公開候補行には混ぜず、別に示す【全頭採点（内部用）】の領域にだけ出力してください。既存Flutter形式は変えません。',
+        // 【旧文面】'…既存Flutter形式を変えないため、内訳、小計、新しいJSON項目は出力へ追加しません。…'
+        '',
+        'おすすめ度（信頼度＋妙味）の降順でソートしてください。',
+        '人気順は上記テーブルの「X人気」欄の値をそのまま出力してください。自分で計算しないでください。',
+        '',
+        // 【20261004】仕様書 表8：候補削除と69点固定上限は廃止。妙味小計5点以下の制限だけ維持。
+        //   @ANCHOR-20261004-NO-PROMPT-EXCLUDE
+        '【低配当の採点制限（候補からは外しません）】',
+        '対象: 推定確定複勝最小が1.5倍未満 かつ 推定確定オッズ（単勝）が3.0倍未満 の両方を満たす馬。',
+        '該当馬は妙味小計を原則5点以下としてください。下記の例外3条件をすべて満たす場合だけ解除できます。',
+        'これは採点の制限であり、候補から外す条件ではありません。おすすめ度に上限は設けません。該当馬も通常どおり候補に選べます。',
+        '・例外①: 主断層の上側グループ（断層最上位グループ）に属している',
+        '・例外②: 単勝・複勝の両方で複数時点にわたる継続流入が確認できる',
+        '・例外③: サンプル30件以上かつ回収率110%以上の回収率が2種類以上ある',
+        '3条件すべてが成立した場合のみ上限を解除し、解除した事実と根拠を選出理由へ明記してください。1つでも欠ければ解除できません。',
+        'この判定はPHP側（Block 13a）でも行いますが、候補からは外しません。馬券を買うか見送るかの判断にだけ使います。',
+        '',
+        // 【20261004】仕様書 表8：90%ハード除外と64点固定上限は廃止。採点での減点のみ維持。
+        //   @ANCHOR-20261004-NO-PROMPT-EXCLUDE
+        '【回収率の扱い（候補からは外しません）】',
+        '各馬の3種類の回収率（過去回収率・OPI帯別回収率・フェーズパターン別回収率）は、サンプル30件以上のものだけを有効値として扱ってください。',
+        '・欠損・0件・「－」は不明として中立扱いとし、0点や不振と解釈してはいけません',
+        '・有効値が2種類以上あり、そのうち2種類以上が ' . self::B12_RECOVERY_LOW_THRESH . '%未満の馬は、PHP側（Block 12）で「馬券は見送り」の印が付きます。候補からは外しません。おすすめ度に上限も設けません。妙味の採点でのみ減点してください',
+        '・有効値のうち2種類以上が110%以上の馬は、妙味を高く評価してください',
+        '・サンプル30件未満の回収率を単独の根拠にして高得点・低得点にしてはいけません',
+        '',
+        '【選出ルール】',
+        '・選出した馬が全員4番人気以内の場合、選出理由の最後に必ず「※妙味補足：〜（なぜ高人気馬だけになったか1行で）」を追記してください',
+        '・7〜10番人気でオッズが継続下落している馬は、信頼度・妙味ともに積極的に加点してください',
+        '・複勝オッズが1.3倍以下の馬は、断層の最上位または複勝継続下落でない限りおすすめ度を下げてください',
+        '・一時的なオッズ急落（すぐ戻った）は過大評価しないでください',
+        '',
+        "【目標数 {$targetSelectionCount} 頭（目標かつ上限）】",
+        '全実出走馬を100点満点で採点し、固定おすすめ度順に並べたうえで上位から候補を確定してください。',
+        "おすすめ度70点・60点などの区分、低配当条件、回収率、人気帯別条件、大穴条件、断層条件は、候補から除外する理由にしてはいけません。",
+        'これらは選出理由と馬券購入判断に使ってください。候補選出と馬券購入判断は分離します。',
+        "点数が低いという理由だけで候補を削らないでください。確認できる候補が {$targetSelectionCount} 頭に届かない場合は、その頭数で構いません。",
+        '以下の区分は候補の除外条件ではなく、選出理由に書く際の目安です。',
+        '・おすすめ度70点以上: 本候補',
+        '・おすすめ度60〜69点: 補欠相当',
+        '・おすすめ度55点以上の11番人気以下: 人気薄注目馬相当',
+        '※点数の基準は暫定値です。データ蓄積後に調整します。',
+        '',
+        '【混戦・波乱含み（タイプD・E）における人気帯別の選出条件】',
+        '',
+        '■ 7〜10番人気の選出条件',
+        'タイプD・Eのレースで7〜10番人気を選出する場合、以下のうち3項目以上を満たした馬を優先してください。',
+        '・複勝オッズが複数時点で継続低下している',
+        '・複勝人気順位が単勝人気順位より2順位以上高い',
+        '・同人気帯で複勝流入ランクが1〜2位、または複勝流入ランクが単勝流入ランクより明確に良い',
+        '・6分前に向けて複勝流入ランクが上昇している（直前に資金が加速している）',
+        '・断層より下に位置するが、断層への接近が見られる',
+        '・断層が縮小または消滅し、人気帯の境界が曖昧になっている',
+        '・類似レース統計の5着以内率が高い',
+        '・予測補正OPIが0.85以下（市場の過小評価ゾーン）',
+        '・一時的な急落ではなく、複数時点にわたって資金流入が継続している',
+        '3項目以上を満たさない7〜10番人気の馬は選出を慎重に判断してください。',
+        '',
+        '■ 11番人気以下（大穴）の選出条件',
+        // 【20261004】仕様書 6.2：11人気以下だけの別枠・最大1〜2頭制限・選出禁止はすべて廃止。
+        //   下記の条件は「穴側の候補として評価を高める材料」であり、選べる／選べないの門ではない。
+        //   @ANCHOR-20261004-NO-PROMPT-EXCLUDE
+        '【11番人気以下を評価するときの材料】',
+        '11番人気以下に専用の別枠や頭数制限は設けません。他の馬と同じ基準で順位を付けてください。',
+        '次の条件が揃っている馬は、下位進入の根拠が強いものとして評価を高めてください。',
+        '・おすすめ度55点以上であること',
+        '・複勝オッズが複数時点で継続低下していること（単発急落は不可）',
+        '・複勝流入ランクが7人気以下グループ内で1〜2位であること',
+        '・単勝と複勝の両方で資金流入が確認できること',
+        '・断層なし・断層縮小・単複断層の矛盾、または5〜6番人気間／6番人気以降の断層など、下位進入を裏付ける構造があること。タイプB・Cでも強い継続流入と客観的根拠が揃えば人気帯上限内で最大1頭まで比較可能',
+        '上記が揃わない11番人気以下の馬を、選出禁止にはしません。ただし「来そうな気がする」だけで高く評価してはいけません。根拠の数と強さで順位を付けてください。',
+        '大穴進入度による頭数の割り当て（1〜2なら0頭、3なら1頭など）は廃止しました。頭数はPHPが別途決めます。',
+        '',
+        '【⚠️ 選出理由の記述ルール（厳守）】',
+        '・選出理由にAIが独自に算出・推測した確率値（「〜%の確率で」「〜%の可能性」等）を記載することは禁止です',
+        '・確率として引用してよいのは、各馬のデータ欄に表示されている「類似レース統計」の3着以内率・5着以内率・着外率のみです',
+        '・オッズの動きや断層位置から「〜%」という数値をAIが独自計算してはいけません。「資金が継続流入している」「断層上側に位置する」など事実ベースの表現を使ってください',
+        '',
+        '【下位進入度・大穴進入度の判定（選出前に必ず行うこと）】',
+        '馬を選ぶ前に、以下の3指標をそれぞれ1〜5で判定してください。これが人気帯別の選出頭数の根拠になります。',
+        '・波乱度（1〜5）: レース全体の予測困難度。断層タイプと修正ルールで決定。',
+        '・下位進入度（1〜5）: 7〜10番人気が5着以内へ入る可能性。断層下への複勝流入・断層縮小・複勝流入ランク上昇で判定。',
+        '・大穴進入度（1〜5）: 11番人気以下が5着以内へ入る可能性。継続的な複勝流入が確認できない限り1〜2にとどめること。',
+        '【重要】波乱度が高くても下位進入度・大穴進入度が低い場合は、1〜6番人気の中での順番入れ替えが主因です。7番人気以下を無理に選ばないでください。',
+        '例：波乱度4・下位進入度2・大穴進入度1 → 混戦だが決着は上位人気中心。7番人気以下の選出は慎重に。',
+        '例：波乱度4・下位進入度4・大穴進入度2 → 7〜10番人気に根拠のある馬がいれば積極的に選出。',
+        '',
+        '分析の観点：',
+        '・複勝オッズの動きを単勝より重視してください。複勝は「来るかどうか」を市場が評価している数値です',
+        '・単勝より複勝で継続的に資金が入っている馬を高く評価してください',
+        '・流入ランクの見方: 「単勝流入ランク」「複勝流入ランク」は同じ人気帯グループ（1〜3人気・4〜6人気・7人気以下）の中で、短縮率（計測前→6分前のオッズ下落率）が大きい順に付けた順位です。1位＝そのグループ内で最も資金が流入している馬。複勝流入ランクを単勝流入ランクより重視してください。同じ人気帯の中でグループ1位の馬は、数字上は人気が近くても相対的に最も買われており、流入シグナルとして重要です',
+        '・単勝断層と複勝断層が同じ位置に出ている場合は、その断層を強いシグナルとして扱ってください',
+        '・単勝オッズ下落10%以上は人気急上昇として注目（ただし単発の急落は過大評価しない）',
+        '・単複比が高い馬＝単勝支持に比べて複勝支持が相対的に強い可能性を示す補助材料。ただし、単複比だけで「勝ちにくい」「3着以内に絡みやすい」と断定せず、複勝時系列、流入ランク、断層、回収率、類似レース統計と合わせて評価する',
+        '・複勝の最小・最大の幅が広い馬＝市場の評価が割れている不安定な馬',
+        '・複勝の最小・最大の幅が狭い馬＝安定して3着以内が期待されている馬',
+        '・複勝オッズが下落している馬は3着以内の信頼度が高い',
+        '・OPI（Over Popularity Index）の見方: OPI>1.2は過去同人気より低オッズ＝市場が過大評価している可能性（妙味低）、OPI<0.8は過去同人気より高オッズ＝市場が過小評価している可能性（妙味高）。妙味スコアの補正材料として活用してください',
+        '・推定確定オッズの見方: 過去の6分前→確定オッズの変動パターンから算出した「発走時点での最終オッズ予測値」です。6分前オッズより推定確定オッズが大きく下がる馬（補正係数<1）は直前にさらに人気が集中する傾向があり、信頼度の補強材料になります。逆に推定確定オッズが上がる馬（補正係数>1）は直前に売られる傾向があります。±の補正誤差が大きい馬は予測の振れ幅が大きいため参考程度に留めてください。妙味スコアを算出する際は、6分前オッズではなく推定確定オッズを基準にしてください',
+        '・過去回収率・OPI帯別回収率・フェーズパターン別回収率の使い方: 各馬に表示されている「過去回収率」「OPI帯別回収率」「フェーズパターン別回収率」は、勝率ではなく回収率（%）を妙味スコア判断の最重要指標として使ってください。回収率が100%を下回るパターン（例: 1〜3人気×変化なし = 83%）は、たとえ勝率が高くても長期的には損をするパターンです。妙味スコアを下げる材料として扱ってください。逆に回収率が110%以上のパターンは積極的に妙味を高く評価してください。フェーズパターン別回収率は特に「前半下落・後半上昇（売り戻し）」や「前半上昇・後半下落（直前急落）」のような市場の急変パターンを捉えた重要シグナルです。1〜3番人気ばかりを選出して回収率の低い予想になることを厳に避けてください',
+        '',
+        "選出馬は必ず下記フォーマットを厳守して出力してください（「馬番：」から始まる候補行を最大 {$targetSelectionCount} 頭）。",
+        '1行目: 「厳選穴レース|X」（X=1: 成立, X=0: 不成立, X=不明: 判定に必要なPHP入力が欠損。PHP算出済み条件を再計算・推測しない）',
+        '2行目: 「レース指標|波乱度: X|下位進入度: X|大穴進入度: X」（各Xは1〜5の整数。判定に必要な入力が不足して算出できない項目は「不明」とし、推測値・0・固定値を入れない。このまま1行で出力すること）',
+        '3行目以降: 「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：能力適性:X（XX点）。〜」を選出頭数分',
+        // 【20260924 追加】仕様【最終指示】の本文（1st AIの候補0頭時の出力）。抜けていたため追加
+        // 【20260927 変更】旧「候補0頭は正常」は仕様追補により無効。C頭必達。
+        "候補0件または {$targetSelectionCount} 頭未満でもエラーや公開停止にはなりません。確認できる候補だけを返し、頭数を埋めるための推測はしないでください。",
+        '厳選穴レース行・レース指標行は候補数に数えません。',
+        '※画面表示に影響するので、この形を必ず守ってください。',
+    ]);
+
+    // ── Block A: 直近走データ取得・プロンプト付加（① ⑩ 両AI対応）──────────────
+    // 仕様:「各馬の直近5走以上（取得可能なら10走）」→ 取得上限を10走にする
+    // _getAiAnalysisPrompt 内で 1st AI (Claude) にも全頭の過去成績・能力適性データを渡す。
+    // $race->dist/$race->course/$race->grade = 今走レース条件
+    // $horses（冒頭で全カラム取得済み）から今走騎手を参照
+    {
+        $todayDist   = isset($race->dist)   ? (int)$race->dist   : null;
+        $todayCourse = isset($race->course) ? $race->course       : null;
+        $todayGrade  = isset($race->grade)  ? $race->grade        : null;
+
+        $aHistoryText  = "
+
+【各馬の直近成績（過去最大10走）と今走データ】
+";
+        $aHistoryText .= "能力・適性評価（100点満点・6項目）の根拠として利用してください。
+";
+        $aHistoryText .= "評価区分：A（80〜100点）B（70〜79点）C（60〜69点）D（59点以下）
+";
+        if ($todayCourse || $todayDist) {
+            $aHistoryText .= '【今走条件】'
+                . ($todayCourse ?? '')
+                . ($todayDist   ? $todayDist . 'm' : '')
+                . ($todayGrade  ? ' ' . $todayGrade : '')
+                . "
+";
+        }
+        $aHistoryText .= "
+";
+
+        foreach ($horses as $_aNum => $_aHorse) {
+            $_aName   = $_aHorse->name;
+            $_aJockey = $_aHorse->jockey ?? null; // 今走騎手
+
+            $_aRows = DB::table('t_horse_odds_finder_shutsuba_history')
+                ->where('name', $_aName)
+                ->where('date', '<', $targetDate)   // 【20260924】仕様「対象レースより前の最大10走」・未来情報混入の防止
+                ->orderBy('date', 'desc')
+                ->limit(10)   // 仕様: 取得可能なら10走
+                ->get(['date', 'basho', 'race_name', 'dist', 'condition', 'grade',
+                       'finishing_position', 'num_horses', 'popularity', 'jockey',
+                       'burden_weight', 'horse_weight', 'last_3f', 'fin_time_diff',
+                       'corner_1', 'corner_2', 'corner_3', 'corner_4']);
+
+            $aHistoryText .= "{$_aNum}番 {$_aName}";
+            if ($_aJockey) {
+                $aHistoryText .= "（今走騎手: {$_aJockey}）";
+            }
+            $aHistoryText .= "
+";
+
+            // @ANCHOR-20261013-V04-ABILITY-VERIFY  AIへ渡した過去走の件数を控える
+            self::$v04PastRunCount[(int) $_aNum] = $_aRows->count();
+
+            if ($_aRows->isEmpty()) {
+                $aHistoryText .= "  （出走履歴なし）
+";
+            } else {
+                $_aRowsArr = $_aRows->values()->all(); // 0-indexed array
+                foreach ($_aRowsArr as $_ai => $_ar) {
+                    // 通過順位
+                    $_corners = array_filter([
+                        $_ar->corner_1 ?? null,
+                        $_ar->corner_2 ?? null,
+                        $_ar->corner_3 ?? null,
+                        $_ar->corner_4 ?? null,
+                    ], fn($v) => $v !== null && $v !== '');
+                    $_cornerStr = !empty($_corners) ? implode('-', $_corners) : '-';
+
+                    // 距離変化（今走 vs 最新前走）
+                    $_distDiff = '';
+                    if ($_ai === 0 && $todayDist && $_ar->dist) {
+                        $_dd = $todayDist - (int)$_ar->dist;
+                        if ($_dd > 0) $_distDiff = "（今走+{$_dd}m延長）";
+                        elseif ($_dd < 0) $_distDiff = "（今走{$_dd}m短縮）";
+                    }
+
+                    // 騎手継続・乗り替わり（今走 vs 最新前走）
+                    $_jockeyChg = '';
+                    if ($_ai === 0 && $_aJockey && ($_ar->jockey ?? null)) {
+                        $_jockeyChg = ($_ar->jockey === $_aJockey)
+                            ? '（騎手継続）'
+                            : "（乗替:前走{$_ar->jockey}）";
+                    }
+
+                    // 休養日数（この走と直前走との日数差）
+                    $_restStr = '';
+                    if ($_ai === 0 && $targetDate && $_ar->date) {
+                        $_d1 = new \DateTime($targetDate);
+                        $_d2 = new \DateTime($_ar->date);
+                        $_restStr = '休' . $_d1->diff($_d2)->days . '日';
+                    } elseif ($_ai > 0 && isset($_aRowsArr[$_ai - 1]->date) && $_ar->date) {
+                        $_d1 = new \DateTime($_aRowsArr[$_ai - 1]->date);
+                        $_d2 = new \DateTime($_ar->date);
+                        $_restStr = '休' . $_d1->diff($_d2)->days . '日';
+                    }
+
+                    $aHistoryText .= sprintf(
+                        "  %s %s %s %s%s %s着/%s頭中 %s人気 通過:%s 上がり%s 着差%s 斤%s 馬体%s %s%s%s%s
+",
+                        $_ar->date               ?? '-',
+                        $_ar->basho              ?? '-',
+                        $_ar->race_name          ?? '-',
+                        $_ar->dist               ?? '-',
+                        $_ar->condition          ?? '',
+                        $_ar->finishing_position ?? '-',
+                        $_ar->num_horses         ?? '-',
+                        $_ar->popularity         ?? '-',
+                        $_cornerStr,
+                        $_ar->last_3f            ?? '-',
+                        $_ar->fin_time_diff      ?? '-',
+                        $_ar->burden_weight      ?? '-',
+                        $_ar->horse_weight       ?? '-',
+                        $_restStr,
+                        $_distDiff,
+                        $_jockeyChg,
+                        ($_ar->grade ?? null) ? '[' . $_ar->grade . ']' : ''
+                    );
+                }
+            }
+            $aHistoryText .= "
+";
+        }
+        $lines[] = $aHistoryText;
+    }
+    // ── Block A End ──────────────────────────────────────────────────────────────
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261005-ALLSCORE-TAIL  全頭採点の指示を末尾でもう一度出す
+    // ══════════════════════════════════════════════════════════════════════════
+    // 【見つかった問題（2026-10-05）】
+    //   10/3の24レースを呼び直したところ、1st・2ndとも全頭採点JSONが
+    //   1レースも返らなかった（AUDIT_AI:「全頭採点のJSONが無い」×24）。
+    //   公開候補数は5〜7で正常なので、候補行は指示どおり出せている。
+    //   原因はプロンプトの並び順。【全頭採点（内部用）】の指示は前半にあり、
+    //   そのあとに「このフォーマットを厳守」という出力指示と、
+    //   各馬の過去成績が延々と続く。LLMは最後に読んだ指示を優先するため、
+    //   末尾の「候補行だけ」という形に引っ張られてJSONが落ちていた。
+    //   前半のブロックは動かさず（他の指示との参照関係を壊さないため）、
+    //   末尾に同じことをもう一度、短く書く。
+    // ══════════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261013-V04-HV  研究用H/V10項目の依頼（既定OFF・送信文は変わらない）
+    // ══════════════════════════════════════════════════════════════════════════
+    // 付録A/Bの「共通全頭100点（hv10-v04）」をここで追記できるようにしておく。
+    //   ・BAGANRIKI_V04_HV_PROMPT が既定falseなので、通常は空文字が返り、
+    //     送信文は1バイトも変わらない（受入A4の最終項目を満たす）。
+    //   ・ONにできるのは、07章Dの未決（現行BEGIN/ENDマーカー・Flutterパーサー・
+    //     行区切りとの適合）がよっしーから回答され、ユーザーが明示承認したあと。
+    //   ・付録A/Bの本文をそのまま送らないのは、資料自身が「実送信されていない
+    //     設計テンプレート」「そのまま実運用APIへ送信しない」と明記しており、
+    //     未置換の <<...>> を含むため（05-3）。
+    if (self::v04HvPrompt()) {
+        try {
+            $hvNums = array_map(static fn($h) => (int) $h['num'], $promptHorses);
+            $hvBlock = self::v04HvPromptBlock(
+                (int) $targetSelectionCount,
+                $v04['structure'] ?? [],
+                $hvNums,
+                // @ANCHOR-20261014-ID-ECHO  照合用の実値（統合時に突き合わせる）
+                ['race_id'       => "{$targetDate}_{$targetKaisuu}_{$targetBasho}_{$targetDay}_{$targetRace}",
+                 'snapshot_hash' => (string) $auSnapshotId]
+            );
+            if ($hvBlock !== '') {
+                $lines[] = '';
+                $lines[] = '────────────────────────────────────────';
+                $lines[] = $hvBlock;
+            }
+        } catch (\Throwable $hvE) {
+            \Log::error('[V04_HV] 研究用H/V採点の依頼文の生成に失敗（現行の送信文はそのまま）', [
+                'message' => $hvE->getMessage(),
+            ]);
+        }
+    }
+
+    $lines[] = '';
+    $lines[] = '────────────────────────────────────────';
+    $lines[] = '【最後に・出力の締めくくり】';
+    $lines[] = '上の候補行をすべて出し終えたあと、改行して、前述の【全頭採点（内部用）】を必ず出力してください。';
+    // ══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261013-V04-HV-TAIL  締めくくりで出力ブロックを全部数え上げる
+    // ══════════════════════════════════════════════════════════════════════
+    // 【10/13の実AI送信テストで分かったこと】
+    //   研究用H/Vの依頼文を末尾（この締めくくりより後ろ）に足して1レース送ったら、
+    //   1st・2ndとも <<<BAGANRIKI_ALLSCORE_END>>> で回答が終わっており、
+    //   H/VのJSONが1度も返ってこなかった。原因はこの締めくくりの文面で、
+    //   「この2行のマーカーと、その間の1行のJSONだけを置いてください」の
+    //   「だけ」をAIが出力契約として読み、そこで打ち切っていた。
+    //   10/5に全頭採点JSONが1レースも返らなかったときと同じ構図（最後の指示が勝つ）。
+    //   → 依頼文をこのブロックの手前へ移し、ここで「出すブロックは何組か」を
+    //     明示的に数え上げる。H/V依頼がOFFのときは従来どおりの文面に戻るので、
+    //     本番の送信文は1バイトも変わらない。
+    if (self::v04HvPrompt()) {
+        $lines[] = '書き方は次のとおりです。出力するマーカー付きブロックは【2組】あります。';
+        $lines[] = '必ず両方とも、この順番で出力してください。1組だけで終えてはいけません。';
+        $lines[] = '';
+        $lines[] = '〈1組目〉現行の全頭採点（内部用）';
+        $lines[] = self::AUDIT_JSON_BEGIN;
+        $lines[] = '{"v":1,"horses":[ ... 全実出走馬ぶん ... ]}';
+        $lines[] = self::AUDIT_JSON_END;
+        $lines[] = '';
+        $lines[] = '〈2組目〉研究用の全頭採点（' . self::V04_SCORING_VERSION . '）※前述のH1〜H5・V1〜V5';
+        $lines[] = self::V04_HV_JSON_BEGIN;
+        $lines[] = '{"schema_version":"' . self::V04_SCHEMA_VERSION . '", ... 全実出走馬ぶん ... }';
+        $lines[] = self::V04_HV_JSON_END;
+        $lines[] = '';
+        $lines[] = 'この2組は別物です。1組目を2組目のマーカーで囲んだり、逆にしたりしないでください。';
+        $lines[] = 'どちらの領域も画面に表示しないため、Flutter形式を崩すことにはなりません。';
+        $lines[] = '候補行が0頭の場合も、この2組は両方とも出力してください。';
+        $lines[] = '候補行の中にJSONを混ぜてはいけません。';
+        $lines[] = '順番は「候補行 → 1組目のJSON → 2組目のJSON」です。';
+    } else {
+        $lines[] = '書き方は次のとおりです。この2行のマーカーと、その間の1行のJSONだけを置いてください。';
+        $lines[] = self::AUDIT_JSON_BEGIN;
+        $lines[] = '{"v":1,"horses":[ ... 全実出走馬ぶん ... ]}';
+        $lines[] = self::AUDIT_JSON_END;
+        $lines[] = 'この領域は画面に表示しないため、Flutter形式を崩すことにはなりません。';
+        $lines[] = '候補行が0頭の場合も、この領域だけは出力してください。';
+        $lines[] = '候補行の中にJSONを混ぜてはいけません。順番は「候補行 → マーカー付きJSON」です。';
+    }
+
+    // @ANCHOR-20261013-V04-HV  （2026-10-13 移動）研究用H/Vの依頼文はここにあったが、
+    //   末尾の【最後に・出力の締めくくり】より後ろだと、AIがその直前の
+    //   「この2行のマーカーと、その間の1行のJSONだけを置いてください」に従って
+    //   出力を打ち切り、H/VのJSONを1度も返さなかった（10/13の実AI送信テストで確認）。
+    //   そのため締めくくりブロックの手前へ移し、締めくくり側で
+    //   「マーカーは2組」と明記するように変えた。@ANCHOR-20261013-V04-HV-TAIL
+    $promptText = implode("\n", $lines);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20260928-PROMPT-SELFCHECK  送信前の機械検査（受入チェック#85）
+    // ═══════════════════════════════════════════════════════════════════════
+    // よっしー20260928指摘【本番差し込みの必須規則】：
+    //   「1st AI・2nd AIそれぞれの最終送信文に未置換プレースホルダー、例示値、
+    //     別レース値が残っていないことを機械検査してから送信する」
+    //   「生成後に全馬番が対象レースの実出走馬一覧に含まれることを検査する」
+    // ※ここは診断専用。検査そのもので予測を止めないよう \Throwable で保護する。
+    try {
+        $pcNg = [];
+
+        // ① 未置換プレースホルダー（{{...}} / {ピンク} / <...> 形式）
+        if (preg_match_all('/\{\{[^}]{1,60}\}\}/u', $promptText, $pcM1)) {
+            $pcNg['未置換プレースホルダー'] = array_values(array_unique($pcM1[0]));
+        }
+        if (mb_strpos($promptText, '{ピンク}') !== false) {
+            $pcNg['差し込み位置の記号'] = '{ピンク}';
+        }
+
+        // ② レース識別が対象レースと一致しているか（別レース値の混入検知）
+        if (preg_match('/^日付: (\S+)$/mu', $promptText, $pcM2) && $pcM2[1] !== (string) $targetDate) {
+            $pcNg['日付の不一致'] = ['プロンプト' => $pcM2[1], '対象' => (string) $targetDate];
+        }
+        if (preg_match('/^レース: (\d+)R/mu', $promptText, $pcM3) && (int) $pcM3[1] !== (int) $targetRace) {
+            $pcNg['レース番号の不一致'] = ['プロンプト' => (int) $pcM3[1], '対象' => (int) $targetRace];
+        }
+
+        // ③ 馬番ブロックの馬番がすべて対象レースの実出走馬に含まれるか
+        //    （「 1番( 4人気) 馬名」の行を拾う）
+        $pcValidNums = array_map(fn($h) => (int) $h['num'], $displayHorses);
+        if (preg_match_all('/^\s*(\d+)番\(\s*\d+人気\)/mu', $promptText, $pcM4)) {
+            $pcBlockNums = array_values(array_unique(array_map('intval', $pcM4[1])));
+            $pcAlien     = array_values(array_diff($pcBlockNums, $pcValidNums));
+            if (!empty($pcAlien)) {
+                $pcNg['実出走馬にない馬番'] = $pcAlien;
+            }
+            if (count($pcBlockNums) !== count($pcValidNums)) {
+                $pcNg['馬番ブロック数の不一致'] = [
+                    'ブロック' => count($pcBlockNums), '実出走馬' => count($pcValidNums),
+                ];
+            }
+        }
+
+        if (!empty($pcNg)) {
+            \Log::warning('[プロンプト検査] 送信前チェックでNG（受入チェック#85）', [
+                'race' => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+                'NG'   => $pcNg,
+            ]);
+        } else {
+            \Log::info('[プロンプト検査] 送信前チェックOK（未置換・別レース値・不明馬番なし）', [
+                'race'   => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+                '馬番数' => count($pcValidNums),
+                '文字数' => mb_strlen($promptText),
+            ]);
+        }
+    } catch (\Throwable $pcE) {
+        \Log::warning('[プロンプト検査] 検査中に例外（プロンプトはそのまま使用）', [
+            'message' => $pcE->getMessage(),
+        ]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261004-AUDIT-RACE  監査ログ【レース単位】（仕様書9.1 表10）
+    // ═══════════════════════════════════════════════════════════════════════
+    //   保存内容: 版、snapshot_id、N/C、入力とプロンプトのSHA-256、B/C/D、
+    //             配分モード、目標と実配分、降格理由、最終表示
+    //   ※実配分・最終表示は統合後に決まるため、統合側の [AUDIT_MERGE] に出す。
+    //   ※ここは診断専用。失敗しても予測を止めない。
+    try {
+        \Log::info('[AUDIT_RACE] レース単位の監査ログ（@ANCHOR-20261004-AUDIT-RACE）', [
+            'race'            => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+            '版'              => self::ALLOC_SPEC_VERSION,
+            '可変配分'        => self::allocFeatureEnabled() ? '有効' : '無効（巻き戻し中）',
+            'snapshot_id'     => $auSnapshotId,
+            'N'               => $activeRunnerCount,
+            'C'               => $targetSelectionCount,
+            '入力SHA256'      => $auInputHash,
+            'プロンプトSHA256' => hash('sha256', $promptText),
+            'プロンプト文字数' => mb_strlen($promptText),
+            'B'               => $allocThreeLabel($condition2Met),
+            'C条件'           => $allocThreeLabel($condition3Met),
+            'D'               => $allocThreeLabel($condition4Met),
+            '断層タイプ'      => $gapType,
+            '下位開放'        => $allocThreeLabel($allocLowerOpen),
+            '選出前ゲート'    => $allocGate ? '成立' : '不成立',
+            '配分モード'      => $allocMode,
+            '目標配分'        => ($allocTargetFav === null)
+                ? '既存目安（表6に数値なし）'
+                : "{$allocTargetFav}＋{$allocTargetLong}",
+            '降格理由'        => $allocModeReason,
+            '同配分の注記'    => $allocSameNote,
+            '資格あり馬番'    => $allocQualified,
+            '保護対象馬番'    => $protectedLongshotNums,
+        ]);
+        // @ANCHOR-20261015-PROMPT-FACTS  監査ログと同じ値を控える（検証で突き合わせる）
+        //   監査ログへ書くかどうかとは別に、いつでも控えます。
+        self::recordPromptFacts([
+            'race'             => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+            'snapshot_id'      => $auSnapshotId,
+            'N'                => $activeRunnerCount,
+            'C'                => $targetSelectionCount,
+            '入力SHA256'       => $auInputHash,
+            'プロンプトSHA256' => hash('sha256', $promptText),
+            'プロンプト文字数' => mb_strlen($promptText),
+            '断層タイプ'       => $gapType,
+            '配分モード'       => $allocMode,
+            '資格あり馬番'     => $allocQualified,
+        ]);
+
+        // ══════════════════════════════════════════════════════════════════
+        // @ANCHOR-20261015-AUDIT-NODIRTY  検証で組み直すときは監査ログへ書かない
+        // ══════════════════════════════════════════════════════════════════
+        // 10/15（1回目）02.txt ⑤「比較CSVの1st・2nd送信文MD5が空欄です。
+        //   取得状況と、実際に送信されたプロンプトの一致を確認してください」
+        // への対応で、保存済みの記録と突き合わせるためにプロンプトを
+        // 組み直す検証コマンド（--prompt-verify）を足しました。
+        // 組み直しは実レースの予想ではないので、監査ログには新しい行を足しません。
+        // $dryRunNoPersist = true のときだけ書かないので、本番の動きは変わりません。
+        if (!self::$dryRunNoPersist) {
+            self::auditFile('AUDIT_RACE', [
+                'race'            => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
+                '版'              => self::ALLOC_SPEC_VERSION,
+                '可変配分'        => self::allocFeatureEnabled() ? '有効' : '無効（巻き戻し中）',
+                'snapshot_id'     => $auSnapshotId,
+                'N'               => $activeRunnerCount,
+                'C'               => $targetSelectionCount,
+                '入力SHA256'      => $auInputHash,
+                'プロンプトSHA256' => hash('sha256', $promptText),
+                'プロンプト文字数' => mb_strlen($promptText),
+                'B'               => $allocThreeLabel($condition2Met),
+                'C条件'           => $allocThreeLabel($condition3Met),
+                'D'               => $allocThreeLabel($condition4Met),
+                '断層タイプ'      => $gapType,
+                '下位開放'        => $allocThreeLabel($allocLowerOpen),
+                '選出前ゲート'    => $allocGate ? '成立' : '不成立',
+                '配分モード'      => $allocMode,
+                '目標配分'        => ($allocTargetFav === null)
+                    ? '既存目安（表6に数値なし）'
+                    : "{$allocTargetFav}＋{$allocTargetLong}",
+                '降格理由'        => $allocModeReason,
+                '同配分の注記'    => $allocSameNote,
+                '資格あり馬番'    => $allocQualified,
+                '保護対象馬番'    => $protectedLongshotNums,
+            ]);
+        }
+    } catch (\Throwable $arE) {
+        \Log::warning('[AUDIT_RACE] レース単位の監査ログの作成に失敗（処理は継続）', [
+            'message' => $arE->getMessage(),
+        ]);
+    }
+
+    // @ANCHOR-20261014-EVIDENCE-AUDIT2  依頼書②：送信文のハッシュを残す
+    //   1st AIへ送る本文そのもの。2nd AIはここから一部を外して使うので、
+    //   2nd側は送信直前に別途控える。
+    self::recordPromptHash('1st', (string) $promptText);
+
+    return $promptText;
+}
+
+    /**
+     * 【20260928】1st AI が通信失敗・APIエラーのときに空回答を保存する。
+     *   2nd AI（DeepSeek）側が「1st AIの分析が完了していません（409）」で止まらず、
+     *   DeepSeek の有効候補だけでレースを成立させられるようにするため。
+     *   自動再試行は禁止なので、やり直すときは ai_analysis の該当行を削除して再実行する。
+     *   @ANCHOR-20260928-NO-RACE-STOP
+     */
+    private function _saveEmptyFirstAiAnalysis(
+        string $date, $kaisuu, string $basho, $day, $race, $raceRow, string $reason
+    ): void {
+        // @ANCHOR-20261004-DRY-RUN  試算モードでは保存しない
+        if (self::$dryRunNoPersist) return;
+        try {
+            DB::table('t_horse_odds_finder_ai_analysis')->updateOrInsert(
+                ['date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho, 'day' => $day, 'race' => $race],
+                [
+                    'basho'         => $raceRow->basho_name ?? '',
+                    'race_name'     => $raceRow->race_name  ?? '',
+                    'analysis_text' => '',
+                ]
+            );
+            \Log::warning('[PREDICTION_PARTIAL] 1st AI を空回答として保存（2nd AIで続行）', [
+                'reason' => $reason,
+                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
+            ]);
+        } catch (\Throwable $seE) {
+            \Log::error('[RACE_PROCESSING_ERROR] 1st AI 空回答の保存に失敗（処理は継続）', [
+                'message' => $seE->getMessage(),
+                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
+            ]);
+        }
+    }
+
+    /**
+     * 【20260924 追加】1st AI の回答を公開してよいかを判定する。
+     *   失敗（空・形式不正・必要な2行が無い）または候補8頭以上（上限7頭超過）なら理由を返す。
+     *   公開してよい場合は null を返す。
+     *   getHorseOddsFinderAiAnalysis（1st AI 表示）と getHorseOddsFinderSecondAiOpinion（統合）で
+     *   同じ基準を使うためのメソッド。
+     */
+    private function _firstAiPublishError(string $firstAiText): ?string
+    {
+        // 【20261004】内部監査用JSON（@ANCHOR-20261004-AUDIT-ALLSCORE）を必ず落としてから扱う。
+        //   公開パーサー・回答判定に内部データを混ぜない（よっしー回答③Aの条件）。
+        $firstAiText = self::publicPart($firstAiText);
+        // 【20260928 レース停止回避追補】戻り値は「公開を止める理由」ではなく
+        //   「警告として記録する理由」になった。呼び出し元は 500 を返してはならない。
+        //   候補数の超過は _trimAiCandidates() が決定論的に絞るため、ここでは理由にしない。
+        //   @ANCHOR-20260928-NO-RACE-STOP
+        $judge = $this->_judgeFirstAiResponse($firstAiText);
+        if ($judge['status'] === 'failed') {
+            return $judge['reason'];
+        }
+        return null;
+    }
+
+    /**
+     * 1st AI（Claude）の回答を「正常 / 正常な0件 / 失敗」に判定する（受入チェック #65・#66）
+     *
+     * 仕様:
+     *   ・1st AI は「厳選穴レース行」「レース指標行」「候補行」を既存形式で返す。
+     *   ・正常な0件 = 厳選穴レース行がある／レース指標行がある／候補行だけが無い。
+     *   ・完全な空回答、形式不正、必要な2行が無い回答は【失敗】として扱い、
+     *     通常予測を公開してはならない（2nd AI だけの候補を公開するのは禁止）。
+     *
+     * 【なぜ必要か】
+     *   これまでは 1st AI の回答が空でも形式不正でも「候補0頭」として素通りし、
+     *   2nd AI だけの候補が通常予測として公開されうる状態だった。
+     *   1st AI が落ちたレースは、予測そのものを出さないのが仕様である。
+     *
+     * @return array{status:'ok'|'zero'|'failed', reason:string,
+     *               has_upset_line:bool, has_index_line:bool, horse_count:int}
+     */
+    private function _judgeFirstAiResponse(string $firstAiText): array
+    {
+        // 【20261004】内部監査用JSON（@ANCHOR-20261004-AUDIT-ALLSCORE）を必ず落としてから扱う。
+        //   公開パーサー・回答判定に内部データを混ぜない（よっしー回答③Aの条件）。
+        $firstAiText = self::publicPart($firstAiText);
+        $faText = trim($firstAiText);
+
+        // 完全な空回答 → 失敗
+        if ($faText === '') {
+            return ['status' => 'failed', 'reason' => '回答が空',
+                    'has_upset_line' => false, 'has_index_line' => false, 'horse_count' => 0];
+        }
+
+        // 厳選穴レース行（「厳選穴レース|1」「|0」、または判定に必要な入力欠損時の「|不明」）
+        // 【20260928】仕様で「不明」が有効な欠損表記として追加された。
+        $faUpset = (preg_match('/^厳選穴レース\|(?:[01]|不明)\s*$/mu', $faText) === 1);
+        // レース指標行（波乱度・下位進入度・大穴進入度。算出不能な項目は「不明」を許容）
+        $faIndex = (preg_match(
+            '/^レース指標\|波乱度[:：\s]*(?:\d+|不明)\|下位進入度[:：\s]*(?:\d+|不明)\|大穴進入度[:：\s]*(?:\d+|不明)/mu',
+            $faText
+        ) === 1);
+        $faHorses = count($this->_parseAiHorses($faText));
+
+        // 【20260928 仕様変更（よっしー20260928指摘）】
+        //   「候補以外の余分な文章や1st AIのレース指標行の欠損・形式不正は警告ログに残すが、
+        //     個別に形式検証を通過した候補行を無効化しない」
+        //   そのため、候補行が1行でも読み取れれば「失敗」にはしない。
+        //   厳選穴レースはPHPが Block 15 で再判定し、レース指標は欠損なら「不明」とする。
+        //   @ANCHOR-20260928-NO-RACE-STOP
+        if (!$faUpset || !$faIndex) {
+            $faReason = '必要な行が無い（厳選穴レース行: ' . ($faUpset ? 'あり' : 'なし')
+                      . ' / レース指標行: ' . ($faIndex ? 'あり' : 'なし') . '）';
+            if ($faHorses > 0) {
+                return ['status' => 'ok', 'reason' => $faReason . '／候補行は有効なので続行',
+                        'has_upset_line' => $faUpset, 'has_index_line' => $faIndex,
+                        'horse_count' => $faHorses];
+            }
+            return ['status' => 'failed', 'reason' => $faReason,
+                    'has_upset_line' => $faUpset, 'has_index_line' => $faIndex,
+                    'horse_count' => $faHorses];
+        }
+
+        // 2行が揃っていて候補行だけが無い → 正常な0件
+        if ($faHorses === 0) {
+            return ['status' => 'zero', 'reason' => '候補0頭（正常）',
+                    'has_upset_line' => true, 'has_index_line' => true, 'horse_count' => 0];
+        }
+
+        return ['status' => 'ok', 'reason' => '',
+                'has_upset_line' => true, 'has_index_line' => true, 'horse_count' => $faHorses];
+    }
+    // ##########################################################################
+    // ## 第3部　v0.3／v0.4 構造判定・補充方式・受入試験　@SECTION-20261026-C
+    // ##########################################################################
 
 
 
@@ -6206,2742 +9138,10 @@ $analysisText = trim($rawText);
                 '別手段で確認' => $manual,
                 'config_version' => self::V04_CONFIG_VERSION];
     }
-
-
-    /**
-     * @ANCHOR-20261013-V04-PROMPT-CHECK  送信文を組み立てて返すだけの入口
-     *   AIへは送らない。--v04-prompt-check から呼ぶ検査専用。
-     *   既存の予想経路は一切通らない（DBにも書かない）。
-     */
-    public function v04BuildPromptForCheck($date, $kaisuu, $basho, $day, $race): ?string
-    {
-        return $this->_getAiAnalysisPrompt($date, $kaisuu, $basho, $day, $race, '', '');
-    }
-
-private function _getAiAnalysisPrompt($targetDate, $targetKaisuu, $targetBasho, $targetDay, $targetRace, $gapHorseNums, $upsetPickupHorseNums)
-{
-    // @ANCHOR-20261014-RACE-GUARD  レースが変わったら前レースの控えを捨てる
-    //   1st AIの予想時と統合時の両方が必ずここを通る。同じレースなら何も捨てない。
-    self::v04BeginRace(
-        "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-        "{$targetDate}_{$targetKaisuu}_{$targetBasho}_{$targetDay}_{$targetRace}"   // @ANCHOR-20261014-AUDIT-RACEID
-    );
-
-    // 【20260924 追加】仕様「注目馬番（3種類）」の①②をアプリから受け取れない場合（夜間の補完バッチ・
-    //   2nd AI 用プロンプトの自力生成）は、アプリと同じ計算をPHPで行って埋める。
-    //   以前は空のまま送っていたため、アプリで開かれなかったレースだけ①②の無いプロンプトで予想していた。
-    if (empty($gapHorseNums) && empty($upsetPickupHorseNums)) {
-        [$gapHorseNums, $upsetPickupHorseNums] = $this->_calcHintHorseNums(
-            $targetDate, $targetKaisuu, $targetBasho, $targetDay, $targetRace
-        );
-    }
-    // ─── レース存在確認 ───────────────────────────────────────────────
-    $race = DB::table('t_horse_odds_finder_races')
-        ->where('date',   $targetDate)
-        ->where('kaisuu', $targetKaisuu)
-        ->where('basho',  $targetBasho)
-        ->where('day',    $targetDay)
-        ->where('race',   intval($targetRace))
-        ->first();
-
-    if (!$race) {
-        return null;
-    }
-
-    // ─── 出走馬情報の取得（馬番をキーにした連想配列） ────────────────
-    $horses = DB::table('t_horse_odds_finder_horses')
-        ->where('date',   $targetDate)
-        ->where('kaisuu', $race->kaisuu)
-        ->where('basho',  $race->basho)
-        ->where('day',    $race->day)
-        ->where('race',   $race->race)
-        ->orderBy('num')
-        ->get()
-        ->keyBy('num');
-
-    // ─── オッズ取得（計測開始前〜6分前の全時点） ───────────────────────
-    // 999 = 計測開始前ベース（ODDS_DB_FIRST）
-    // ODDS_GET_TIMING から 6分前〜21分前の中間時点を抽出して追加
-    $midTimings   = array_values(array_filter(Constants::ODDS_GET_TIMING, fn($t) => $t >= 6 && $t < 30));
-    $fetchTimings = array_merge([Constants::ODDS_DB_FIRST], $midTimings);
-    // = [999, 21, 18, 15, 12, 9, 6]
-
-    $oddsRows = DB::table('t_horse_odds_finder_odds')
-        ->where('date',   $targetDate)
-        ->where('kaisuu', $race->kaisuu)
-        ->where('basho',  $race->basho)
-        ->where('day',    $race->day)
-        ->where('race',   $race->race)
-        ->whereIn('minutes_before_start', $fetchTimings)
-        ->get();
-
-    // ─── 馬番ごとに全時点のオッズをまとめる ──────────────────────────
-    // tan[timing]      = 単勝オッズ
-    // fuku_min[timing] = 複勝最小オッズ
-    // fuku_max[timing] = 複勝最大オッズ
-    $oddsByNum = [];
-    foreach ($oddsRows as $row) {
-        // 【20260924】「取消」等の非数値オッズは floatval で 0 になり、6分前オッズ 0 の馬が
-        //   1番人気として並び、全馬の人気順が1つずつずれていた。非数値の行は使わない
-        //   （6分前が取消なら、その馬は6分前オッズなしとしてプロンプトから外れる）。
-        if (!is_numeric($row->odds)) continue;
-        $num    = $row->num;
-        $timing = $row->minutes_before_start;
-        if (!isset($oddsByNum[$num])) {
-            $oddsByNum[$num] = ['tan' => [], 'fuku_min' => [], 'fuku_max' => []];
-        }
-        $oddsByNum[$num]['tan'][$timing]      = floatval($row->odds);
-        $oddsByNum[$num]['fuku_min'][$timing] = floatval($row->fuku_min);
-        $oddsByNum[$num]['fuku_max'][$timing] = floatval($row->fuku_max);
-    }
-
-    // ─── プロンプト用データの組み立て ────────────────────────────────
-    $promptHorses = [];
-    foreach ($oddsByNum as $num => $o) {
-        $tanBase = $o['tan'][Constants::ODDS_DB_FIRST] ?? null;
-        $tan6    = $o['tan'][6] ?? null;
-
-        // 計測開始前と6分前が両方なければスキップ
-        if ($tanBase === null || $tan6 === null || $tanBase == 0) continue;
-
-        // 単勝の変化率（計測開始前 → 6分前）
-        $changeRate = round(($tan6 - $tanBase) / $tanBase * 100, 1);
-        if ($changeRate < 0) {
-            $changeLabel = '下落 ' . abs($changeRate) . '%';
-        } elseif ($changeRate > 0) {
-            $changeLabel = '上昇 +' . $changeRate . '%';
-        } else {
-            $changeLabel = '変化なし';
-        }
-
-        // 複勝の変化率（計測開始前 → 6分前）
-        $fukuMinBase = $o['fuku_min'][Constants::ODDS_DB_FIRST] ?? null;
-        $fukuMin6    = $o['fuku_min'][6] ?? null;
-        $fukuMax6    = $o['fuku_max'][6] ?? null;
-
-        $fukuChangeLabel = '－';
-        if ($fukuMinBase && $fukuMin6 && $fukuMinBase > 0) {
-            $fukuChange = round(($fukuMin6 - $fukuMinBase) / $fukuMinBase * 100, 1);
-            if ($fukuChange < 0) {
-                $fukuChangeLabel = '下落 ' . abs($fukuChange) . '%';
-            } elseif ($fukuChange > 0) {
-                $fukuChangeLabel = '上昇 +' . $fukuChange . '%';
-            } else {
-                $fukuChangeLabel = '変化なし';
-            }
-        }
-
-        // 単複比（6分前）
-        $tanpukuRatio = '－';
-        if ($fukuMin6 && $fukuMin6 > 0) {
-            $tanpukuRatio = round($tan6 / $fukuMin6, 1) . '倍';
-        }
-
-        $name = isset($horses[$num]) ? $horses[$num]->name : '馬' . $num;
-
-        // 単勝短縮率: (計測前 - 6分前) / 計測前 × 100 → 正値 = 資金流入（オッズ短縮）
-        $tanShrinkRate  = ($tanBase > 0 && $tan6 !== null)
-            ? round(($tanBase - $tan6) / $tanBase * 100, 1)
-            : null;
-        // 複勝短縮率: 同計算式で複勝最小オッズ版
-        $fukuShrinkRate = ($fukuMinBase && $fukuMin6 && $fukuMinBase > 0)
-            ? round(($fukuMinBase - $fukuMin6) / $fukuMinBase * 100, 1)
-            : null;
-
-        $promptHorses[] = [
-            'num'              => $num,
-            'name'             => $name,
-            'tan_series'       => $o['tan'],      // 全時点の単勝オッズ
-            'fuku_min_series'  => $o['fuku_min'], // 全時点の複勝最小オッズ
-            'fuku_max_series'  => $o['fuku_max'], // 全時点の複勝最大オッズ
-            'odds_base'        => $tanBase,       // 人気順ソート用
-            'odds_6'           => $tan6,          // 人気順ソート用
-            'change_label'     => $changeLabel,
-            'change_rate_raw'  => $changeRate,    // 乖離帯判定用（計測開始→6分前の生の変化率）
-            'fuku_min_6'       => $fukuMin6,
-            'fuku_max_6'       => $fukuMax6,
-            'fuku_change'      => $fukuChangeLabel,
-            'tanpuku_ratio'    => $tanpukuRatio,
-            'tan_shrink_rate'  => $tanShrinkRate,  // 単勝短縮率（相対資金流入ランク算出用）
-            'fuku_shrink_rate' => $fukuShrinkRate, // 複勝短縮率（相対資金流入ランク算出用）
-        ];
-    }
-
-    if (empty($promptHorses)) {
-        return null;
-    }
-
-    // ─── 人気順の決定（6分前の単勝オッズ昇順） ───────────────────────
-    usort($promptHorses, function ($a, $b) {
-        if ($a['odds_6'] !== $b['odds_6']) {
-            return $a['odds_6'] <=> $b['odds_6'];
-        }
-        return $a['num'] <=> $b['num'];
-    });
-
-    foreach ($promptHorses as $i => &$h) {
-        $h['popularity'] = $i + 1;
-    }
-    unset($h);
-
-    // ─── 相対資金流入ランクの算出（E-1）────────────────────────────────
-    // 人気帯グループ: 1〜3番人気 / 4〜6番人気 / 7番人気以下
-    // 各グループ内で単勝・複勝の短縮率（正値ほど資金が流入）を比較してランク付け
-    // 短縮率が null の馬はランク計算から除外し「データなし」として扱う
-    $getInflowGroupLabel = function (int $pop): string {
-        if ($pop <= 3) return '1〜3人気';
-        if ($pop <= 6) return '4〜6人気';
-        return '7人気以下';
-    };
-
-    // グループ別に $promptHorses のインデックスを振り分け
-    $inflowGroups = ['1〜3人気' => [], '4〜6人気' => [], '7人気以下' => []];
-    foreach ($promptHorses as $idx => $h) {
-        $inflowGroups[$getInflowGroupLabel($h['popularity'])][] = $idx;
-    }
-
-    foreach ($inflowGroups as $groupLabel => $idxList) {
-        // 単勝流入ランク（短縮率 null を除外してランク付け）
-        $tanValidIdxs = array_values(array_filter($idxList, fn($i) => $promptHorses[$i]['tan_shrink_rate'] !== null));
-        usort($tanValidIdxs, fn($a, $b) => $promptHorses[$b]['tan_shrink_rate'] <=> $promptHorses[$a]['tan_shrink_rate']);
-        $tanGroupSize = count($tanValidIdxs);
-        foreach ($tanValidIdxs as $rank => $idx) {
-            $promptHorses[$idx]['tan_inflow_rank']       = $rank + 1;
-            $promptHorses[$idx]['tan_inflow_group_size'] = $tanGroupSize;
-        }
-        foreach (array_diff($idxList, $tanValidIdxs) as $idx) {
-            $promptHorses[$idx]['tan_inflow_rank']       = null;
-            $promptHorses[$idx]['tan_inflow_group_size'] = $tanGroupSize;
-        }
-
-        // 複勝流入ランク（短縮率 null を除外してランク付け）
-        $fukuValidIdxs = array_values(array_filter($idxList, fn($i) => $promptHorses[$i]['fuku_shrink_rate'] !== null));
-        usort($fukuValidIdxs, fn($a, $b) => $promptHorses[$b]['fuku_shrink_rate'] <=> $promptHorses[$a]['fuku_shrink_rate']);
-        $fukuGroupSize = count($fukuValidIdxs);
-        foreach ($fukuValidIdxs as $rank => $idx) {
-            $promptHorses[$idx]['fuku_inflow_rank']       = $rank + 1;
-            $promptHorses[$idx]['fuku_inflow_group_size'] = $fukuGroupSize;
-        }
-        foreach (array_diff($idxList, $fukuValidIdxs) as $idx) {
-            $promptHorses[$idx]['fuku_inflow_rank']       = null;
-            $promptHorses[$idx]['fuku_inflow_group_size'] = $fukuGroupSize;
-        }
-
-        // グループ名を各馬に付与
-        foreach ($idxList as $idx) {
-            $promptHorses[$idx]['inflow_group'] = $groupLabel;
-        }
-    }
-
-    // ─── OPI（Over Popularity Index）計算 ──────────────────────────────
-    // OPI = 人気順位別の過去平均単勝オッズ ÷ 今回の6分前単勝オッズ
-    //   OPI > 1.0 → 過去同人気より今回は低オッズ（過剰人気・妙味少）
-    //   OPI < 1.0 → 過去同人気より今回は高オッズ（妙味あり）
-    //   OPI ≒ 1.0 → 歴史的平均並み
-    $popularityAvgRows = DB::table('t_horse_odds_finder_popularity_rank_average')->get();
-    $popularityAvgMap  = [];
-    foreach ($popularityAvgRows as $row) {
-        $popularityAvgMap[(int)$row->popularity_rank] = floatval($row->odds_average);
-    }
-
-    // ─── 複勝OPI用：人気順位別の過去平均複勝最小オッズ ────────────────────
-    $fukuPopularityAvgRows = DB::table('t_horse_odds_finder_fuku_popularity_rank_average')->get();
-    $fukuPopularityAvgMap  = [];
-    foreach ($fukuPopularityAvgRows as $row) {
-        $fukuPopularityAvgMap[(int)$row->popularity_rank] = floatval($row->odds_average);
-    }
-
-    // ─── 補正係数の読み込み（t_horse_odds_finder_compute_odds_correction）──
-    // 推定確定オッズ = 6分前オッズ × avg_correction_ratio
-    // std_correction_ratio = 補正誤差（標準偏差）
-    $correctionRows = DB::table('t_horse_odds_finder_compute_odds_correction')->get();
-    $correctionMap  = [];
-    foreach ($correctionRows as $row) {
-        $correctionMap[(int)$row->popularity_rank] = $row;
-    }
-
-    // ─── 乖離別回収率の読み込み（t_horse_odds_finder_odds_gap_recovery）──
-    // キー: "{gap_band}|{popularity_band}" → 回収率・勝率・サンプル数
-    $gapRecoveryRows = DB::table('t_horse_odds_finder_odds_gap_recovery')->get();
-    $gapRecoveryMap  = [];
-    foreach ($gapRecoveryRows as $row) {
-        $gapRecoveryMap[$row->gap_band . '|' . $row->popularity_band] = $row;
-    }
-
-    // ─── OPI帯別回収率の読み込み（t_horse_odds_finder_opi_recovery）────
-    // キー: "{opi_band}|{popularity_band}" → 回収率・勝率・サンプル数
-    $opiRecoveryRows = DB::table('t_horse_odds_finder_opi_recovery')->get();
-    $opiRecoveryMap  = [];
-    foreach ($opiRecoveryRows as $row) {
-        $opiRecoveryMap[$row->opi_band . '|' . $row->popularity_band] = $row;
-    }
-
-    // ─── 前半・後半フェーズパターン別回収率の読み込み ────────────────────
-    // キー: "{phase_pattern}|{popularity_band}" → 回収率・勝率・サンプル数
-    $phasePatternRows = DB::table('t_horse_odds_finder_phase_pattern_recovery')->get();
-    $phasePatternMap  = [];
-    foreach ($phasePatternRows as $row) {
-        $phasePatternMap[$row->phase_pattern . '|' . $row->popularity_band] = $row;
-    }
-
-    // ─── AI 回収率実績の読み込み（t_horse_odds_finder_ai_recovery）────────
-    // ※ t_horse_odds_finder_ai_recovery は現在未使用のためコメントアウト中
-    // ※ ai-analysis-check / SummaryAiRecoveryRate を再有効化する際にコメントを外すこと
-    //
-    // $aiRecoveryRows = DB::table('t_horse_odds_finder_ai_recovery')
-    //     ->orderBy('date',       'desc')
-    //     ->orderBy('kaisuu',     'desc')
-    //     ->orderBy('basho_code', 'desc')
-    //     ->orderBy('day',        'desc')
-    //     ->orderBy('race',       'desc')
-    //     ->limit(600)
-    //     ->get(['ai_pick_count', 'tan_bet', 'fuku_bet']);
-    //
-    // $calcAiRecovery = function (int $limit) use ($aiRecoveryRows): array {
-    //     $slice      = $aiRecoveryRows->take($limit);
-    //     $totalPicks = $slice->sum('ai_pick_count');
-    //     $totalBet   = $totalPicks * 100;
-    //     if ($totalBet <= 0) {
-    //         return ['race_count' => $slice->count(), 'tan_rate' => null, 'fuku_rate' => null];
-    //     }
-    //     return [
-    //         'race_count' => $slice->count(),
-    //         'tan_rate'   => round($slice->sum('tan_bet') / $totalBet * 100, 1),
-    //         'fuku_rate'  => round($slice->sum('fuku_bet') / $totalBet * 100, 1),
-    //     ];
-    // };
-    //
-    // $aiRec100 = $calcAiRecovery(100);
-    // $aiRec300 = $calcAiRecovery(300);
-    // $aiRec600 = $calcAiRecovery(600);
-
-    $emptyAiRec = ['race_count' => 0, 'tan_rate' => null, 'fuku_rate' => null];
-    $aiRec100 = $emptyAiRec;
-    $aiRec300 = $emptyAiRec;
-    $aiRec600 = $emptyAiRec;
-
-    foreach ($promptHorses as &$h) {
-        $avgOdds = $popularityAvgMap[$h['popularity']] ?? null;
-        if ($avgOdds && $h['odds_6'] > 0) {
-            $h['opi'] = round($avgOdds / $h['odds_6'], 2);
-        } else {
-            $h['opi'] = null;
-        }
-
-        // 複勝OPI = 人気順位別の過去平均複勝最小オッズ ÷ 今回の6分前複勝最小オッズ
-        $avgFukuOdds = $fukuPopularityAvgMap[$h['popularity']] ?? null;
-        if ($avgFukuOdds && isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0) {
-            $h['fuku_opi'] = round($avgFukuOdds / $h['fuku_min_6'], 2);
-        } else {
-            $h['fuku_opi'] = null;
-        }
-
-        // 推定確定オッズ
-        $corr = $correctionMap[$h['popularity']] ?? null;
-        if ($corr && $h['odds_6'] > 0) {
-            $h['estimated_final_odds']     = round($h['odds_6'] * floatval($corr->avg_correction_ratio), 2);
-            $h['correction_ratio']         = floatval($corr->avg_correction_ratio);
-            $h['correction_std']           = floatval($corr->std_correction_ratio);
-            // 推定確定複勝最小オッズ: 複勝専用補正テーブル未実装のため単勝補正係数を流用
-            $h['estimated_final_fuku_min'] = ($h['fuku_min_6'] !== null && $h['fuku_min_6'] > 0)
-                ? round($h['fuku_min_6'] * floatval($corr->avg_correction_ratio), 2)
-                : null;
-            // ── よっしー20260922指摘②: 推定確定複勝を「最小－最大・誤差」で渡す ──
-            // ※最大側も単勝補正係数の流用。複勝専用補正テーブルの実装は別課題として残る。
-            $h['estimated_final_fuku_max'] = ($h['fuku_max_6'] !== null && $h['fuku_max_6'] > 0)
-                ? round($h['fuku_max_6'] * floatval($corr->avg_correction_ratio), 2)
-                : null;
-        } else {
-            $h['estimated_final_odds']     = null;
-            $h['correction_ratio']         = null;
-            $h['correction_std']           = null;
-            $h['estimated_final_fuku_min'] = null;
-            $h['estimated_final_fuku_max'] = null;
-        }
-
-        // 予測補正OPI = 人気順位別の過去平均単勝オッズ ÷ 推定確定オッズ
-        // 通常OPIの「6分前オッズ」を「推定確定オッズ」に置き換えることで、
-        // 締切時点の市場評価に近い割安感を測る。
-        if ($avgOdds && isset($h['estimated_final_odds']) && $h['estimated_final_odds'] > 0) {
-            $h['estimated_opi'] = round($avgOdds / $h['estimated_final_odds'], 2);
-        } else {
-            $h['estimated_opi'] = null;
-        }
-
-        // 乖離別回収率（変化率帯 × 人気帯 でルックアップ）
-        $gapBand = $this->_getGapBand($h['change_rate_raw']);
-        $popBand = $this->_getPopularityBand($h['popularity']);
-        $gapKey  = $gapBand . '|' . $popBand;
-        $gr      = $gapRecoveryMap[$gapKey] ?? null;
-        $h['gap_band']          = $gapBand;
-        $h['pop_band']          = $popBand;
-        $h['gap_recovery_rate'] = $gr ? floatval($gr->recovery_rate) : null;
-        $h['gap_win_rate']      = $gr ? floatval($gr->win_rate)      : null;
-        $h['gap_sample_count']  = $gr ? intval($gr->sample_count)    : null;
-
-        // OPI帯別回収率（OPI帯 × 人気帯 でルックアップ）
-        $opiBand = $h['opi'] !== null ? $this->_getOpiBand($h['opi']) : '－';
-        $opiKey  = $opiBand . '|' . $popBand;
-        $or      = $opiRecoveryMap[$opiKey] ?? null;
-        $h['opi_band']          = $opiBand;
-        $h['opi_recovery_rate'] = $or ? floatval($or->recovery_rate) : null;
-        $h['opi_win_rate']      = $or ? floatval($or->win_rate)      : null;
-        $h['opi_sample_count']  = $or ? intval($or->sample_count)    : null;
-
-        // フェーズパターン別回収率（前半・後半フェーズ方向 × 人気帯 でルックアップ）
-        // 前半: 計測開始前（999=ODDS_DB_FIRST）→ 12分前
-        // 後半: 12分前 → 6分前
-        $oddsStart = isset($h['tan_series'][Constants::ODDS_DB_FIRST]) && $h['tan_series'][Constants::ODDS_DB_FIRST] > 0
-            ? $h['tan_series'][Constants::ODDS_DB_FIRST]
-            : ($h['odds_base'] > 0 ? $h['odds_base'] : null);
-        $odds12    = isset($h['tan_series'][12]) && $h['tan_series'][12] > 0
-            ? $h['tan_series'][12]
-            : null;
-        if ($oddsStart && $odds12 && $h['odds_6'] > 0) {
-            $half1Rate = ($odds12 - $oddsStart) / $oddsStart * 100;
-            $half2Rate = ($h['odds_6'] - $odds12)  / $odds12   * 100;
-            $phasePat  = '前半' . $this->_getPhaseDirection($half1Rate)
-                       . '・後半' . $this->_getPhaseDirection($half2Rate);
-        } else {
-            $half1Rate = null;
-            $half2Rate = null;
-            $phasePat  = null;
-        }
-        $phaseKey = $phasePat ? ($phasePat . '|' . $popBand) : null;
-        $pp       = $phaseKey ? ($phasePatternMap[$phaseKey] ?? null) : null;
-        $h['phase_pattern']       = $phasePat;
-        $h['phase_recovery_rate'] = $pp ? floatval($pp->recovery_rate) : null;
-        $h['phase_win_rate']      = $pp ? floatval($pp->win_rate)      : null;
-        $h['phase_sample_count']  = $pp ? intval($pp->sample_count)    : null;
-
-        // ─── E-3: 直前3分間流入（9分前→6分前）の加速・減速算出 ──────────────
-        // 変化率の符号は既存コードの慣習に合わせる: 負 = オッズ下落 = 買われた
-        $odds9 = isset($h['tan_series'][9]) && $h['tan_series'][9] > 0
-            ? $h['tan_series'][9]
-            : null;
-        if ($odds9 !== null && $h['odds_6'] > 0) {
-            $last3minTanRate = round(($h['odds_6'] - $odds9) / $odds9 * 100, 1);
-        } else {
-            $last3minTanRate = null;
-        }
-
-        $fukuMin9 = isset($h['fuku_min_series'][9]) && $h['fuku_min_series'][9] > 0
-            ? $h['fuku_min_series'][9]
-            : null;
-        if ($fukuMin9 !== null && isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0) {
-            $last3minFukuRate = round(($h['fuku_min_6'] - $fukuMin9) / $fukuMin9 * 100, 1);
-        } else {
-            $last3minFukuRate = null;
-        }
-
-        // ══════════════════════════════════════════════════════════════════
-        // @ANCHOR-20261017-ACCEL  直前3分の加速・減速判定（10/17 東京9R §8）
-        // ══════════════════════════════════════════════════════════════════
-        // 【旧実装の問題（よっしーさんのご指摘どおりでした）】
-        //   直前変化率 =（W6−W9）÷W9 … 3分幅
-        //   後半変化率 =（W6−W12）÷W12 … 6分幅
-        //   この2つを引き算していました。幅が違い、しかも区間が重なっています
-        //   （9→6分は12→6分の中に入っています）。
-        //   さらに直前変化率が負（＝オッズ下落＝買われた）であることを
-        //   求めていないので、【オッズが上がっている馬でも「直前加速」】に
-        //   なります。10月17日 東京9R の実送信文がその実例です。
-        //     2番 … 複勝 -4.8% / 単勝 +3.2% / 判定: 直前加速
-        //     8番 … 複勝 +6.0% / 単勝 +8.9% / 判定: 直前加速（両方上昇）
-        //
-        // 【直し方】同じ3分幅どうしで比べ、方向を別に書きます。
-        //   12→9分の変化率 と 9→6分の変化率 を比べて「勢い」を見る
-        //   9→6分が下落か上昇かを「方向」として別に書く
-        //   これで「上昇しているのに加速」という表示が出なくなります。
-        //
-        // BAGANRIKI_LABEL_FIX が無効（既定）のときは、従来の判定のままです。
-        $mid3minTanRate = ($odds12 !== null && $odds9 !== null && $odds12 > 0)
-            ? round(($odds9 - $odds12) / $odds12 * 100, 1)
-            : null;
-        $h['mid3min_tan_rate'] = $mid3minTanRate;
-
-        if (self::labelFix()) {
-            if ($last3minTanRate === null) {
-                $accelLabel = null;
-            } else {
-                $dirWord = ($last3minTanRate < 0.0) ? '下落（買われた）'
-                         : (($last3minTanRate > 0.0) ? '上昇（売られた）' : '変化なし');
-                if ($mid3minTanRate === null) {
-                    $accelLabel = $dirWord . '・勢いは判定不可（12分前オッズなし）';
-                } else {
-                    $accelDiff = $last3minTanRate - $mid3minTanRate;
-                    if ($accelDiff < -2.0) {
-                        $accelLabel = $dirWord . '・直前3分は下落方向へ強まった';
-                    } elseif ($accelDiff > 2.0) {
-                        $accelLabel = $dirWord . '・直前3分は上昇方向へ強まった';
-                    } else {
-                        $accelLabel = $dirWord . '・勢いは横ばい';
-                    }
-                }
-            }
-        } elseif ($last3minTanRate !== null && $half2Rate !== null) {
-            $accelDiff = $last3minTanRate - $half2Rate; // 負なら last3min の方が大きく下落
-            if ($accelDiff < -2.0) {
-                $accelLabel = '直前加速';
-            } elseif ($accelDiff > 2.0) {
-                $accelLabel = '直前減速';
-            } else {
-                $accelLabel = '横ばい';
-            }
-        } elseif ($last3minTanRate !== null) {
-            // 12分前データなし → 後半フェーズとの比較不可だが値は表示する
-            $accelLabel = '判定不可（12分前データなし）';
-        } else {
-            $accelLabel = null;
-        }
-
-        $h['last3min_tan_rate']  = $last3minTanRate;
-        $h['last3min_fuku_rate'] = $last3minFukuRate;
-        $h['accel_label']        = $accelLabel;
-        // ────────────────────────────────────────────────────────────────────
-    }
-    unset($h);
-
-
-    // ─── 馬番順テーブルの組み立て ────────────────────────────────────
-    $displayHorses = $promptHorses;
-    usort($displayHorses, fn($a, $b) => $a['num'] <=> $b['num']);
-
-    // 頭立て数からピックアップ頭数を決定
-    // 【仕様】出走頭数別の上限は 8頭以下:4 / 9〜13頭:5 / 14〜15頭:6 / 16頭以上:7
-    //   （旧実装は「14頭以上:6」で、16頭以上の7頭が欠けていた）
-    // ── よっしー20260927指摘【頭数別の最大選出数を必ず満たす修正】───────────
-    //   N（実出走頭数）… 取消・除外を反映した頭数。
-    //     このDBの t_horse_odds_finder_horses には取消・除外のフラグ列が無いため、
-    //     「計測前と6分前のオッズが揃っている馬」を実出走馬とみなす。
-    //     $displayHorses は両時点のオッズが揃う馬だけで構成されている。
-    //   C（目標選出数）… @ANCHOR-20260927-TARGET-COUNT の式で算出。上限ではなく必達。
-    $activeRunnerCount    = count($displayHorses);                       // N
-    $targetSelectionCount = self::targetSelectionCount($activeRunnerCount); // C
-
-    // N<1 なら予測を中止する（仕様: Nが1未満なら予測を中止）
-    if ($activeRunnerCount < 1) {
-        // 【20260928】オッズのある馬が1頭も無い＝必須データが取れていない状態。
-        //   DATA_CORE_ERROR として内部警告に記録するだけで、呼び出し元は
-        //   HTTP 500 を返さず候補行0件のレースとして扱う。
-        //   @ANCHOR-20260928-NO-RACE-STOP
-        \Log::error('[DATA_CORE_ERROR] 実出走頭数が0（必須データ欠損。候補0件として続行）', [
-            'race' => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-        ]);
-        return null;
-    }
-
-    // ── 出走馬一覧（horsesテーブル）と馬データ（オッズのある馬）の頭数照合 ──────
-    // 【20260928 データ欠損時処理追補（よっしー20260928指摘）】
-    //   「公式一覧が取得できずDBにも取消・除外列がない場合は、取消と取込漏れを
-    //     区別できないものとして RUNNER_COUNT_MISMATCH_WARN を記録し、
-    //     重複を除いたDB上の馬番一覧を暫定基準として続行する。
-    //     単純な頭数差や必須データ欠損でHTTP 500、予想非表示、バッチ停止にしてはならない。」
-    //   このDBには公式出走馬一覧も取消・除外列も無いため、常に暫定基準で続行する。
-    //   @ANCHOR-20260928-RUNNER-COUNT-MISMATCH
-    if (count($horses) !== $activeRunnerCount) {
-        $rcmOddsNums  = array_values(array_unique(array_map(
-            fn($h) => (int) ($h['num'] ?? 0), $displayHorses
-        )));
-        $rcmHorseNums = array_values(array_unique(array_map(
-            fn($h) => (int) (is_array($h) ? ($h['num'] ?? 0) : ($h->num ?? 0)),
-            // 20261004: $horses は Collection のため配列化する（頭数不一致のレースで array_map が例外になっていた）
-            ($horses instanceof \Illuminate\Support\Collection ? $horses->all() : $horses)
-        )));
-        sort($rcmOddsNums);
-        sort($rcmHorseNums);
-        \Log::warning('[RUNNER_COUNT_MISMATCH_WARN] 出走馬一覧と馬データの頭数が不一致（暫定基準で続行）', [
-            'race'             => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-            '出走馬一覧'       => count($horses),
-            'オッズのある馬'   => $activeRunnerCount,
-            '採用したN（暫定）' => $activeRunnerCount,
-            '一覧のみの馬番'   => array_values(array_diff($rcmHorseNums, $rcmOddsNums)),
-            'オッズのみの馬番' => array_values(array_diff($rcmOddsNums, $rcmHorseNums)),
-            '注記'             => '公式出走馬一覧も取消・除外列も無いため、取消と取込漏れを区別できない',
-        ]);
-    }
-
-    $horseCount  = $activeRunnerCount;      // 既存コードとの互換用
-    $pickupCount = $targetSelectionCount;   // 既存コードとの互換用（意味は「目標数C」）
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // @ANCHOR-20260927-PROTECTED-LONGSHOT  人気薄の根拠付き保護枠
-    // ══════════════════════════════════════════════════════════════════════════
-    // よっしー20260927指摘【人気薄の根拠付き保護枠（最優先追補）】
-    //   目的: 回収率40%基準のリスクを記録しつつ、客観的な市場・能力根拠を持つ
-    //         人気薄がすべて選出圏外になるのを防ぐ。無条件に穴馬を足す規則ではない。
-    //   対象: 6分前の単勝人気が7番人気以下、かつ C≧4 のときだけ。
-    //   成立: 6シグナルを3群に分け、【異なる2群以上】でそれぞれ1つ以上 true。
-    //         同じ群内で複数trueでも1群として数える。欠損は「不明」で数えない。
-    //   ※回収率系（過去/OPI帯別/フェーズ別/40%閾値/F8）はL1〜L6に含めない。
-    $protectedLongshotNums = [];
-    $protectedLongshotLog  = [];
-    if ($targetSelectionCount >= 4) {
-        // 複勝人気順位（6分前の複勝最小オッズ昇順）を先に作る
-        $plFukuRank = [];
-        {
-            $plSorted = array_values(array_filter(
-                $displayHorses,
-                fn($h) => isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0
-            ));
-            usort($plSorted, fn($a, $b) => $a['fuku_min_6'] <=> $b['fuku_min_6']);
-            foreach ($plSorted as $plIdx => $plH) {
-                $plFukuRank[(int)$plH['num']] = $plIdx + 1;
-            }
-        }
-
-        foreach ($displayHorses as $plHorse) {
-            $plNum = (int)$plHorse['num'];
-            $plPop = (int)($plHorse['popularity'] ?? 999);
-            if ($plPop < 7) continue;   // 対象は7番人気以下のみ
-
-            // ── 時系列流入群 ───────────────────────────────────────────
-            // L1: 複勝最小オッズが連続する3区間以上で低下し、そのうち9分前→6分前も低下
-            $l1 = false;
-            {
-                $plSeries = [];
-                foreach ($fetchTimings as $plT) {
-                    if (isset($plHorse['fuku_min_series'][$plT]) && $plHorse['fuku_min_series'][$plT] > 0) {
-                        $plSeries[] = ['t' => $plT, 'v' => (float)$plHorse['fuku_min_series'][$plT]];
-                    }
-                }
-                $plRun = 0; $plMaxRun = 0; $plLastDown = false;
-                for ($plI = 1; $plI < count($plSeries); $plI++) {
-                    $plDown = ($plSeries[$plI]['v'] < $plSeries[$plI - 1]['v']);
-                    $plRun  = $plDown ? $plRun + 1 : 0;
-                    if ($plRun > $plMaxRun) $plMaxRun = $plRun;
-                    // 最終区間（9分前→6分前）が低下しているか
-                    if ($plSeries[$plI]['t'] === 6 && $plSeries[$plI - 1]['t'] === 9) {
-                        $plLastDown = $plDown;
-                    }
-                }
-                $l1 = ($plMaxRun >= 3 && $plLastDown);
-            }
-            // L4: 9分前→6分前に単勝と複勝最小オッズがともに2%超低下
-            $l4 = false;
-            if ($plHorse['last3min_tan_rate'] !== null && $plHorse['last3min_fuku_rate'] !== null) {
-                $l4 = ((float)$plHorse['last3min_tan_rate']  < -2.0
-                    && (float)$plHorse['last3min_fuku_rate'] < -2.0);
-            }
-
-            // ── 相対支持群 ─────────────────────────────────────────────
-            // L2: 6分前の複勝人気順位が単勝人気順位より2順位以上上位
-            $l2 = false;
-            if (isset($plFukuRank[$plNum])) {
-                $l2 = (($plPop - $plFukuRank[$plNum]) >= 2);
-            }
-            // L3: 同一人気帯内の複勝流入ランクが1位または2位
-            $l3 = false;
-            if (($plHorse['fuku_inflow_rank'] ?? null) !== null) {
-                $l3 = in_array((int)$plHorse['fuku_inflow_rank'], [1, 2], true);
-            }
-
-            // ── 過小評価・実績群 ───────────────────────────────────────
-            // L5: 予測補正OPIが0.95以下
-            $l5 = false;
-            if (($plHorse['estimated_opi'] ?? null) !== null) {
-                $l5 = ((float)$plHorse['estimated_opi'] <= 0.95);
-            }
-            // L6: 類似レース統計のサンプル30件以上、かつ5着以内率70.0%以上
-            $l6 = false;
-            {
-                $plSs = $similarStatsMap[$plPop] ?? null;
-                if ($plSs && (int)$plSs->sample_count >= 30) {
-                    $l6 = (((float)$plSs->top5_rate * 100) >= 70.0);
-                }
-            }
-
-            // 3群のうち、trueを含む群が2群以上なら保護対象
-            $plGroups = [
-                '時系列流入'     => ($l1 || $l4),
-                '相対支持'       => ($l2 || $l3),
-                '過小評価・実績' => ($l5 || $l6),
-            ];
-            $plHitGroups = count(array_filter($plGroups));
-            if ($plHitGroups >= 2) {
-                $protectedLongshotNums[] = $plNum;
-                $protectedLongshotLog[]  = [
-                    'num' => $plNum, 'name' => $plHorse['name'] ?? '', 'popularity' => $plPop,
-                    'L1' => $l1, 'L2' => $l2, 'L3' => $l3, 'L4' => $l4, 'L5' => $l5, 'L6' => $l6,
-                    '成立群数' => $plHitGroups,
-                ];
-            }
-        }
-    }
-    sort($protectedLongshotNums);
-    \Log::info('[保護枠] 人気薄の根拠付き保護対象', [
-        'race'   => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-        'N'      => $activeRunnerCount,
-        'C'      => $targetSelectionCount,
-        '対象数' => count($protectedLongshotNums),
-        '馬番'   => $protectedLongshotNums,
-        '内訳'   => $protectedLongshotLog,
-    ]);
-
-    // ─── 類似レース統計の読み込み ─────────────────────────────────────
-    // horse_count_band: small=8以下 / medium=9〜13 / large=14以上
-    $horseBand = $horseCount <= 8 ? 'small' : ($horseCount <= 13 ? 'medium' : 'large');
-    $bandLabel = ['small' => '8頭以下', 'medium' => '9〜13頭', 'large' => '14頭以上'][$horseBand];
-
-    $similarStatsMap = DB::table('t_horse_odds_finder_similar_race_stats')
-        ->where('horse_count_band', $horseBand)
-        ->get()
-        ->keyBy('popularity_rank');
-
-    // 時点ラベル（999 = 計測開始前ベース）
-    $timingLabels = [
-        Constants::ODDS_DB_FIRST => '計測前',
-        21 => '21分',
-        18 => '18分',
-        15 => '15分',
-        12 => '12分',
-        9  => ' 9分',
-        6  => ' 6分',
-    ];
-
-    $lines = [];
-    foreach ($displayHorses as $h) {
-        // 単勝時系列（計測開始前→21分→18分→…→6分前）
-        $tanParts = [];
-        foreach ($timingLabels as $timing => $label) {
-            if (isset($h['tan_series'][$timing])) {
-                $tanParts[] = "[{$label}]" . number_format($h['tan_series'][$timing], 1);
-            }
-        }
-        $tanLine = implode('→', $tanParts) . '倍（' . $h['change_label'] . '）';
-
-        // ── よっしー20260922指摘①: 複勝最小オッズの全時点時系列 ──────────────
-        // 計測前・21・18・15・12・9・6分前の複勝最小オッズを全時点渡す。
-        // 2時点（計測前・6分前）だけでは継続流入・単発急落・反発・直前加速を
-        // 正確に判定できないため。データは fuku_min_series に全時点保持済み。
-        $fukuSeriesParts = [];
-        foreach ($timingLabels as $timing => $label) {
-            if (isset($h['fuku_min_series'][$timing]) && $h['fuku_min_series'][$timing] > 0) {
-                $fukuSeriesParts[] = "[{$label}]" . number_format($h['fuku_min_series'][$timing], 1);
-            }
-        }
-        $fukuSeriesLine = !empty($fukuSeriesParts)
-            ? implode('→', $fukuSeriesParts) . '倍（' . $h['fuku_change'] . '）'
-            : '－（複勝オッズデータなし）';
-
-        // 複勝（計測前と6分前のみ表示）
-        $fukuMinBase = $h['fuku_min_series'][Constants::ODDS_DB_FIRST] ?? null;
-        $fukuMaxBase = $h['fuku_max_series'][Constants::ODDS_DB_FIRST] ?? null;
-        $fukuBase    = ($fukuMinBase && $fukuMaxBase)
-            ? number_format($fukuMinBase, 1) . '-' . number_format($fukuMaxBase, 1) . '倍'
-            : ($fukuMinBase ? number_format($fukuMinBase, 1) . '倍' : '－');
-        $fuku6       = ($h['fuku_min_6'] && $h['fuku_max_6'])
-            ? number_format($h['fuku_min_6'], 1) . '-' . number_format($h['fuku_max_6'], 1) . '倍'
-            : '－';
-
-        // OPI表示
-        if ($h['opi'] !== null) {
-            $opiVal  = number_format($h['opi'], 2);
-            $opiNote = $h['opi'] >= 1.2 ? '過剰人気' : ($h['opi'] <= 0.8 ? '妙味あり' : '平均並み');
-            $opiLine = "  OPI: {$opiVal}（{$opiNote}）  ※人気順{$h['popularity']}番の過去平均オッズ" . number_format($popularityAvgMap[$h['popularity']] ?? 0, 1) . "倍÷現在" . number_format($h['odds_6'], 1) . "倍";
-        } else {
-            $opiLine = "  OPI: －";
-        }
-
-        // 予測補正OPI表示
-        if ($h['estimated_opi'] !== null) {
-            $estOpiVal  = number_format($h['estimated_opi'], 2);
-            $estOpiNote = $h['estimated_opi'] >= 1.2 ? '過剰人気' : ($h['estimated_opi'] <= 0.8 ? '妙味あり' : '平均並み');
-            $estOpiLine = "  予測補正OPI: {$estOpiVal}（{$estOpiNote}）  ※過去平均" . number_format($popularityAvgMap[$h['popularity']] ?? 0, 1) . "倍÷推定確定" . number_format($h['estimated_final_odds'], 1) . "倍";
-        } else {
-            $estOpiLine = "  予測補正OPI: －";
-        }
-
-        // 複勝OPI表示
-        if ($h['fuku_opi'] !== null) {
-            $fukuOpiVal  = number_format($h['fuku_opi'], 2);
-            $fukuOpiNote = $h['fuku_opi'] >= 1.2 ? '過剰人気' : ($h['fuku_opi'] <= 0.8 ? '妙味あり' : '平均並み');
-            $fukuOpiLine = "  複勝OPI: {$fukuOpiVal}（{$fukuOpiNote}）  ※人気順{$h['popularity']}番の過去平均複勝オッズ" . number_format($fukuPopularityAvgMap[$h['popularity']] ?? 0, 1) . "倍÷現在" . number_format($h['fuku_min_6'], 1) . "倍";
-        } else {
-            $fukuOpiLine = "  複勝OPI: －";
-        }
-
-        // 推定確定オッズ表示
-        if ($h['estimated_final_odds'] !== null) {
-            $estLine = sprintf(
-                '  推定確定オッズ: %.1f倍（±%.2f）  ※6分前%.1f倍×補正係数%.4f',
-                $h['estimated_final_odds'],
-                $h['correction_std'],
-                $h['odds_6'],
-                $h['correction_ratio']
-            );
-        } else {
-            $estLine = '  推定確定オッズ: －（補正データなし）';
-        }
-
-        // 推定確定複勝最小オッズ表示
-        // 【なぜ必要か】プロンプトの【おすすめ度の計算方法】は妙味①を
-        //   「推定確定複勝最小オッズを中心に評価する」と定めており、
-        //   さらに 1.5倍未満なら妙味小計を5点以下に抑えるルールもこの値が前提。
-        //   ところがこの値は算出（$h['estimated_final_fuku_min']）されるだけで
-        //   プロンプトに出力されておらず、AIは採点基準の数値を見られなかった。
-        //   同時に、_judgeLowPayoutException() が読む「推定確定複勝最小: 」行が
-        //   存在しないため低配当除外（Block 13a）が一度も発火していなかった。
-        //   ※この行のラベル「推定確定複勝最小: 」は
-        //     _judgeLowPayoutException() / _saveHighPayoutShadow() / _saveMlSnapshot()
-        //     が正規表現で読み取っている。変更してはいけない。
-        //   ※小数2桁で出すのは、1.5倍という判定境界を丸めでまたがせないため。
-        if ($h['estimated_final_fuku_min'] !== null) {
-            // ※ラベル「推定確定複勝最小: 」と直後の数値の並びは
-            //   _judgeLowPayoutException() / _saveHighPayoutShadow() / _saveMlSnapshot()
-            //   が正規表現で読むため変更禁止。最大・誤差はその後ろへ追記する。
-            $estFukuLine = sprintf(
-                '  推定確定複勝最小: %.2f倍  推定確定複勝最大: %s  補正誤差: ±%.4f  ※6分前%.1f倍×補正係数%.4f',
-                $h['estimated_final_fuku_min'],
-                $h['estimated_final_fuku_max'] !== null
-                    ? number_format($h['estimated_final_fuku_max'], 2) . '倍'
-                    : '－',
-                $h['correction_std'],
-                $h['fuku_min_6'],
-                $h['correction_ratio']
-            );
-        } else {
-            $estFukuLine = '  推定確定複勝最小: －（補正データなし）';
-            // 【20260924】仕様 受入チェック5「推定確定複勝オッズが未生成の場合、AIに推測させず入力欠損としてログへ記録する」
-            \Log::info('[入力欠損] 推定確定複勝オッズ未生成', [
-                'date' => $targetDate, 'kaisuu' => $targetKaisuu, 'basho' => $targetBasho,
-                'day'  => $targetDay,  'race'   => $targetRace,   'num'   => $h['num'] ?? null,
-            ]);
-        }
-
-        // 乖離別回収率の表示
-        if ($h['gap_recovery_rate'] !== null) {
-            $gapRecoveryLine = sprintf(
-                '  過去回収率（%s × %s）: 回収率%.1f%%  勝率%.1f%%  サンプル%d件',
-                $h['gap_band'],
-                $h['pop_band'],
-                $h['gap_recovery_rate'],
-                $h['gap_win_rate'],
-                $h['gap_sample_count']
-            );
-        } else {
-            $gapRecoveryLine = sprintf(
-                '  過去回収率（%s × %s）: －（データなし）',
-                $h['gap_band'],
-                $h['pop_band']
-            );
-        }
-
-        // OPI帯別回収率の表示
-        if ($h['opi_recovery_rate'] !== null) {
-            $opiRecoveryLine = sprintf(
-                '  OPI帯別回収率（OPI%s × %s）: 回収率%.1f%%  勝率%.1f%%  サンプル%d件',
-                $h['opi_band'],
-                $h['pop_band'],
-                $h['opi_recovery_rate'],
-                $h['opi_win_rate'],
-                $h['opi_sample_count']
-            );
-        } else {
-            $opiRecoveryLine = sprintf(
-                '  OPI帯別回収率（OPI%s × %s）: －（データなし）',
-                $h['opi_band'],
-                $h['pop_band']
-            );
-        }
-
-        // 単勝・複勝流入ランク表示（相対資金流入 E-1）
-        if ($h['tan_inflow_rank'] !== null) {
-            // @ANCHOR-20261017-LABEL-FIX  短縮率の符号の意味を言葉で書く
-            $tanInflowLine = sprintf(
-                '  単勝流入ランク: %d位/%d頭中（%s）  ※短縮率: %+.1f%%%s',
-                $h['tan_inflow_rank'],
-                $h['tan_inflow_group_size'],
-                $h['inflow_group'],
-                $h['tan_shrink_rate'],
-                self::labelFix() ? self::wordShrink((float) $h['tan_shrink_rate']) : ''
-            );
-        } else {
-            $tanInflowLine = sprintf('  単勝流入ランク: データなし（%s）', $h['inflow_group']);
-        }
-        if ($h['fuku_inflow_rank'] !== null) {
-            // @ANCHOR-20261017-LABEL-FIX  短縮率の符号の意味を言葉で書く
-            $fukuInflowLine = sprintf(
-                '  複勝流入ランク: %d位/%d頭中（%s）  ※短縮率: %+.1f%%%s',
-                $h['fuku_inflow_rank'],
-                $h['fuku_inflow_group_size'],
-                $h['inflow_group'],
-                $h['fuku_shrink_rate'],
-                self::labelFix() ? self::wordShrink((float) $h['fuku_shrink_rate']) : ''
-            );
-        } else {
-            $fukuInflowLine = sprintf('  複勝流入ランク: データなし（%s）', $h['inflow_group']);
-        }
-
-        $lines[] = sprintf('%2d番(%2d人気) %s', $h['num'], $h['popularity'], $h['name']);
-        $lines[] = '  単勝: ' . $tanLine;
-        $lines[] = '  複勝: 計測前' . $fukuBase . '→6分前' . $fuku6 . '（' . $h['fuku_change'] . '）  単複比: ' . $h['tanpuku_ratio'];
-        $lines[] = '  複勝時系列（最小）: ' . $fukuSeriesLine;   // よっしー20260922指摘①
-        $lines[] = $tanInflowLine;
-        $lines[] = $fukuInflowLine;
-        $lines[] = $opiLine;
-        $lines[] = $estOpiLine;
-        $lines[] = $fukuOpiLine;
-        $lines[] = $estLine;
-        $lines[] = $estFukuLine;
-        // フェーズパターン別回収率の表示
-        if ($h['phase_pattern'] !== null && $h['phase_recovery_rate'] !== null) {
-            $phasePatternLine = sprintf(
-                '  フェーズパターン別回収率（%s × %s）: 回収率%.1f%%  勝率%.1f%%  サンプル%d件',
-                $h['phase_pattern'],
-                $h['pop_band'],
-                $h['phase_recovery_rate'],
-                $h['phase_win_rate'],
-                $h['phase_sample_count']
-            );
-        } elseif ($h['phase_pattern'] !== null) {
-            $phasePatternLine = sprintf(
-                '  フェーズパターン別回収率（%s × %s）: －（データなし）',
-                $h['phase_pattern'],
-                $h['pop_band']
-            );
-        } else {
-            $phasePatternLine = '  フェーズパターン別回収率: －（オッズデータ不足）';
-        }
-
-        $lines[] = $gapRecoveryLine;
-        $lines[] = $opiRecoveryLine;
-        $lines[] = $phasePatternLine;
-
-        // E-3: 直前流入（9→6分前）
-        // 複勝を単勝より先に表示（既存AI指示の重み付けと整合）
-        if ($h['accel_label'] !== null) {
-            $tanRateStr  = $h['last3min_tan_rate']  !== null
-                ? sprintf('%+.1f%%', $h['last3min_tan_rate'])
-                : 'データなし';
-            $fukuRateStr = $h['last3min_fuku_rate'] !== null
-                ? sprintf('%+.1f%%', $h['last3min_fuku_rate'])
-                : 'データなし';
-            // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261017-LABEL-FIX  変化率の符号の意味を言葉で書く
-            // ══════════════════════════════════════════════════════════
-            // 「流入ランクの短縮率」は正が買われた、「直前流入の変化率」は
-            // 正が売られた、で意味が逆でした。同じ馬のブロックの中で
-            // 符号の意味が入れ替わるので、AIが読み違えて当然の形でした。
-            // ONのときは、名前を「直前のオッズ変化」に変え、数値のうしろに
-            // 方向を言葉で書き、比較に使った12→9分の値も並べます。
-            if (self::labelFix()) {
-                $midRateStr = ($h['mid3min_tan_rate'] ?? null) !== null
-                    ? sprintf('%+.1f%%%s', $h['mid3min_tan_rate'],
-                              self::wordChange((float) $h['mid3min_tan_rate']))
-                    : 'データなし';
-                $last3minLine = sprintf(
-                    '  直前のオッズ変化（9→6分前）: 複勝 %s%s / 単勝 %s%s'
-                    . '  ／ ひとつ前の3分（12→9分前）の単勝 %s  ／ 判定: %s',
-                    $fukuRateStr,
-                    ($h['last3min_fuku_rate'] !== null)
-                        ? self::wordChange((float) $h['last3min_fuku_rate']) : '',
-                    $tanRateStr,
-                    ($h['last3min_tan_rate'] !== null)
-                        ? self::wordChange((float) $h['last3min_tan_rate']) : '',
-                    $midRateStr,
-                    $h['accel_label']
-                );
-            } else {
-                $last3minLine = sprintf(
-                    '  直前流入（9→6分前）: 複勝 %s / 単勝 %s / 判定: %s',
-                    $fukuRateStr,
-                    $tanRateStr,
-                    $h['accel_label']
-                );
-            }
-        } else {
-            $last3minLine = '  直前流入（9→6分前）: データなし（9分前オッズ未取得）';
-        }
-        $lines[] = $last3minLine;
-
-        // 類似レース統計（過去の同人気順・同頭数帯における3着以内率等）
-        $ss = $similarStatsMap[$h['popularity']] ?? null;
-        if ($ss && $ss->reliability !== 'insufficient') {
-            $relLabel    = ['normal' => '通常', 'low' => '低下', 'reference' => '参考'][$ss->reliability] ?? '不明';
-            $similarLine = sprintf(
-                '  類似レース統計（%d番人気 × %s・N=%d・信頼度:%s）: 3着以内率%.1f%% / 5着以内率%.1f%% / 平均着順%.1f位 / 着外率%.1f%%',
-                $h['popularity'],
-                $bandLabel,
-                $ss->sample_count,
-                $relLabel,
-                $ss->top3_rate    * 100,
-                $ss->top5_rate    * 100,
-                $ss->avg_finishing_position,
-                $ss->outside_rate * 100
-            );
-        } else {
-            $similarLine = sprintf(
-                '  類似レース統計（%d番人気 × %s）: 統計不足のため参考不可',
-                $h['popularity'],
-                $bandLabel
-            );
-        }
-        $lines[] = $similarLine;
-
-        $lines[] = '';
-    }
-    $table = implode("\n", $lines);
-
-    // ─── 単勝断層テーブルの計算 ──────────────────────────────────────────────
-    // 断層値 = 直下人気馬のオッズ ÷ 直上人気馬のオッズ
-    // $promptHorses は人気順ソート済みなのでそのまま使う
-    $gapTableLines = [];
-    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
-        $upper = $promptHorses[$i];     // 人気上位
-        $lower = $promptHorses[$i + 1]; // 人気下位
-        if ($upper['odds_6'] > 0) {
-            $gapRatio       = round($lower['odds_6'] / $upper['odds_6'], 2);
-            if ($gapRatio >= 3.0)      { $gapFlag = '  ★★★非常に強い断層'; }
-            elseif ($gapRatio >= 2.5)  { $gapFlag = '  ★★強い断層'; }
-            elseif ($gapRatio >= 2.0)  { $gapFlag = '  ★断層'; }
-            else                       { $gapFlag = ''; }
-            $gapTableLines[] = sprintf(
-                ' %d人気(%d番)%5.1f倍 → %d人気(%d番)%5.1f倍  比率: %.2f%s',
-                $upper['popularity'], $upper['num'], $upper['odds_6'],
-                $lower['popularity'], $lower['num'], $lower['odds_6'],
-                $gapRatio,
-                $gapFlag
-            );
-        }
-    }
-    $gapTable = implode("\n", $gapTableLines);
-
-    // ─── 複勝断層テーブルの計算 ──────────────────────────────────────────────
-    // 複勝オッズ（6分前 fuku_min）で人気順ソートし、隣接間の断層を算出する
-    $fukuSortedHorses = array_values(
-        array_filter($promptHorses, fn($h) => isset($h['fuku_min_6']) && $h['fuku_min_6'] > 0)
-    );
-    usort($fukuSortedHorses, fn($a, $b) => $a['fuku_min_6'] <=> $b['fuku_min_6']);
-
-    $fukuGapDetails    = []; // 複勝断層生データ（ratio≥2.0）：タイプ判定に使用
-    $fukuGapTableLines = [];
-    for ($i = 0; $i < count($fukuSortedHorses) - 1; $i++) {
-        $upper = $fukuSortedHorses[$i];
-        $lower = $fukuSortedHorses[$i + 1];
-        if ($upper['fuku_min_6'] > 0) {
-            $gapRatio = round($lower['fuku_min_6'] / $upper['fuku_min_6'], 2);
-            if ($gapRatio >= 3.0)      { $gapFlag = '  ★★★非常に強い断層'; }
-            elseif ($gapRatio >= 2.5)  { $gapFlag = '  ★★強い断層'; }
-            elseif ($gapRatio >= 2.0)  { $gapFlag = '  ★断層'; }
-            else                       { $gapFlag = ''; }
-            if ($gapRatio >= 2.0) {
-                $fukuGapDetails[] = ['upper_pos' => $i + 1, 'lower_pos' => $i + 2, 'ratio' => $gapRatio];
-            }
-            $fukuGapTableLines[] = sprintf(
-                ' 複%d位(%d番)%5.1f倍 → 複%d位(%d番)%5.1f倍  比率: %.2f%s',
-                $i + 1, $upper['num'], $upper['fuku_min_6'],
-                $i + 2, $lower['num'], $lower['fuku_min_6'],
-                $gapRatio,
-                $gapFlag
-            );
-        }
-    }
-    $fukuGapTable = implode("\n", $fukuGapTableLines);
-
-    // ─── 厳選穴レース：条件2の計算 ────────────────────────────────
-    // 「6番人気以内の隣接間に断層（比率2.00以上）が2つ以上あるか」
-    // 成立 → false(0) 確定。条件1より優先。
-    // $promptHorses は人気順ソート済みなのでそのまま使う。
-    // ═══════════════════════════════════════════════════════════════════════
-    // @ANCHOR-20260928-UPSET-TRISTATE  厳選穴レース条件B・C・Dの三値判定
-    // ═══════════════════════════════════════════════════════════════════════
-    // よっしー20260928指摘 受入チェック#84：
-    //   条件B: 確認済み断層2個以上なら成立、全対象確認済みで0〜1個なら不成立、
-    //          それ以外は不明。
-    //   条件C: 確認済み馬に複勝最小オッズ3.5倍以上があれば不成立、
-    //          全実出走馬確認済みで最大値3.5倍未満なら成立、それ以外は不明。
-    //   条件D: 1番人気と単勝オッズが確認できる場合に判定し、欠損・矛盾なら不明。
-    // 旧実装は true / false の2値しか持たず、データが取れていないだけの馬や
-    // 断層ペアを「不成立」と同じ扱いにしていた（＝欠損を条件未達と扱っており、
-    // 仕様の【追加禁止事項】に反していた）。ここを3値（true/false/null）へ変える。
-    //
-    // 判定に使う値は true=成立 / false=不成立 / null=不明。
-    // プロンプトへは「成立」「不成立」「不明」の3語のいずれかで埋め込み、
-    // Block 15 の再判定はその3語を読み戻す（同じ文言で往復させる）。
-
-    // ─── 条件B: 6番人気以内の隣接間に断層（比率2.00以上）が2つ以上あるか ───
-    //   対象ペア  = 上位側が6番人気以内の隣接ペア
-    //   確認済み  = 上位・下位の両方の6分前単勝オッズが取れているペア
-    $gapCountInTop6 = 0;   // 確認済みペアのうち断層だったもの
-    $gapPairsTotal  = 0;   // 対象ペアの総数
-    $gapPairsKnown  = 0;   // うち確認できたペア
-    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
-        $upper = $promptHorses[$i];
-        $lower = $promptHorses[$i + 1];
-        if ((int) ($upper['popularity'] ?? 0) > 6) continue;   // 対象外
-        $gapPairsTotal++;
-
-        $uOdds = $upper['odds_6'] ?? null;
-        $lOdds = $lower['odds_6'] ?? null;
-        if (!is_numeric($uOdds) || !is_numeric($lOdds) || $uOdds <= 0 || $lOdds <= 0) {
-            continue;   // 未確認ペア（不明の材料）
-        }
-        $gapPairsKnown++;
-        if (($lOdds / $uOdds) >= 2.0) {
-            $gapCountInTop6++;
-        }
-    }
-    $gapPairsUnknown = $gapPairsTotal - $gapPairsKnown;
-
-    if ($gapCountInTop6 >= 2) {
-        $condition2Met  = true;                         // 確認済みだけで2個以上 → 成立確定
-        $condition2Desc = "成立（6番人気以内に確認済みの断層が{$gapCountInTop6}個あるため 0 確定）";
-    } elseif ($gapPairsUnknown === 0) {
-        $condition2Met  = false;                        // 全対象を確認済みで0〜1個 → 不成立確定
-        $condition2Desc = "不成立（6番人気以内の断層は{$gapCountInTop6}個・対象{$gapPairsTotal}ペアすべて確認済み）";
-    } else {
-        $condition2Met  = null;                         // 未確認ペアが残る → 不明
-        $condition2Desc = "不明（確認済みの断層{$gapCountInTop6}個・未確認ペア{$gapPairsUnknown}／対象{$gapPairsTotal}ペア。欠損を不成立として扱わない）";
-    }
-
-    // ─── 条件C: 全馬の複勝最小オッズの最大値が3.5倍未満（ガチガチレース）───
-    //   どの馬が来ても複勝が安い = 馬券コストを回収できない → 0 確定
-    //   確認済みに3.5倍以上が1頭でもあれば、未確認馬があっても不成立は確定する。
-    $fukuKnown   = [];
-    $fukuUnknown = 0;
-    foreach ($promptHorses as $h) {
-        $fv = $h['fuku_min_6'] ?? null;
-        if (is_numeric($fv) && $fv > 0) { $fukuKnown[] = (float) $fv; }
-        else                            { $fukuUnknown++; }
-    }
-    $maxFukuMin6 = !empty($fukuKnown) ? max($fukuKnown) : 0;
-
-    if (!empty($fukuKnown) && $maxFukuMin6 >= 3.5) {
-        $condition3Met  = false;                        // 3.5倍以上が確認できた → 不成立確定
-        $condition3Desc = "不成立（確認済みの6分前複勝最小オッズに{$maxFukuMin6}倍 ≧ 3.5倍がある）";
-    } elseif ($fukuUnknown === 0 && !empty($fukuKnown)) {
-        $condition3Met  = true;                         // 全実出走馬確認済みで最大<3.5 → 成立確定
-        $condition3Desc = "成立（全実出走馬の6分前複勝最小オッズ最大値が{$maxFukuMin6}倍 < 3.5倍 → 0 確定）";
-    } else {
-        $condition3Met  = null;                         // 未確認馬が残る → 不明
-        $condition3Desc = "不明（確認済み最大値{$maxFukuMin6}倍・複勝最小オッズ未取得{$fukuUnknown}頭。欠損を不成立として扱わない）";
-    }
-
-    // ─── 条件D: 1番人気の6分前単勝オッズが2.0倍未満（1強レース）───────────
-    //   1番人気が特定でき、その単勝オッズが確認できる場合だけ判定する。
-    //   1番人気が居ない／複数居る／オッズが無い場合は「不明」（矛盾・欠損）。
-    $firstPopHorses = array_values(array_filter(
-        $promptHorses,
-        fn($h) => (int) ($h['popularity'] ?? 0) === 1
-    ));
-    $firstPopOdds = 0;
-    if (count($firstPopHorses) === 1
-        && is_numeric($firstPopHorses[0]['odds_6'] ?? null)
-        && $firstPopHorses[0]['odds_6'] > 0) {
-        $firstPopOdds = (float) $firstPopHorses[0]['odds_6'];
-    }
-
-    if ($firstPopOdds > 0) {
-        $condition4Met  = ($firstPopOdds < 2.0);
-        $condition4Desc = $condition4Met
-            ? "成立（1番人気の6分前単勝オッズが{$firstPopOdds}倍 < 2.0倍 → 0 確定）"
-            : "不成立（1番人気の6分前単勝オッズ: {$firstPopOdds}倍）";
-    } else {
-        $condition4Met  = null;                         // 欠損・矛盾 → 不明
-        $condition4Desc = '不明（1番人気を1頭に特定できない、または6分前単勝オッズが未取得。欠損を不成立として扱わない）';
-    }
-
-    \Log::info('[厳選穴レース] 条件B・C・Dの三値判定（@ANCHOR-20260928-UPSET-TRISTATE）', [
-        'race' => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-        '条件B' => ['状態' => $condition2Met === null ? '不明' : ($condition2Met ? '成立' : '不成立'),
-                    '断層' => $gapCountInTop6, '対象ペア' => $gapPairsTotal, '未確認ペア' => $gapPairsUnknown],
-        '条件C' => ['状態' => $condition3Met === null ? '不明' : ($condition3Met ? '成立' : '不成立'),
-                    '確認済み最大' => $maxFukuMin6, '未取得頭数' => $fukuUnknown],
-        '条件D' => ['状態' => $condition4Met === null ? '不明' : ($condition4Met ? '成立' : '不成立'),
-                    '1番人気単勝' => $firstPopOdds > 0 ? $firstPopOdds : null,
-                    '1番人気の該当頭数' => count($firstPopHorses)],
-    ]);
-
-    // @ANCHOR-20261014-EVIDENCE-AUDIT2  依頼書⑦：断層の位置・本数・変化を監査ログに残す
-    //   これまで laravel.log にだけ出していましたが、.env が LOG_LEVEL=error のため
-    //   記録されていませんでした。統合の監査ログ（DB）へ入れます。
-    self::recordGapDetail([
-        '6番人気以内の断層の本数' => $gapCountInTop6,
-        '確認した隣接ペア数'       => $gapPairsTotal,
-        '未確認の隣接ペア数'       => $gapPairsUnknown,
-        '条件Bの判定'              => $condition2Desc,
-        '条件Cの判定'              => $condition3Desc,
-        '条件Dの判定'              => $condition4Desc,
-    ]);
-
-    // ─── 断層構造タイプ判定（PHP算出・AI入力として渡す） ──────────────────
-    // 単勝断層の生データを収集（タイプ判定用）
-    $tanGapAll    = []; // 全断層(ratio≥2.0)
-    $tanGapTop6   = []; // 6番人気以内の断層
-    $tanGapStrong = []; // 6番人気以内かつratio≥2.5の強断層
-    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
-        $u = $promptHorses[$i];
-        $l = $promptHorses[$i + 1];
-        if ($u['odds_6'] > 0 && $l['odds_6'] > 0) {
-            $r = round($l['odds_6'] / $u['odds_6'], 2);
-            if ($r >= 2.0) {
-                $entry = ['upper_pop' => $u['popularity'], 'lower_pop' => $l['popularity'], 'ratio' => $r];
-                $tanGapAll[] = $entry;
-                if ($u['popularity'] <= 6) {
-                    $tanGapTop6[] = $entry;
-                    if ($r >= 2.5) $tanGapStrong[] = $entry;
-                }
-            }
-        }
-    }
-
-    $tanHasGap  = count($tanGapAll) > 0;
-    $fukuHasGap = count($fukuGapDetails) > 0;
-
-    // A: 二重断層・上位完結型
-    // 【20260924 修正】仕様「6番人気以内に二重断層（2か所以上）」どおりに判定する。
-    //   旧実装は「うち1か所が比率2.5以上」も条件にしており、2.0〜2.49の断層が2か所の場合に
-    //   タイプA（独自発見枠0頭）ではなくタイプCになっていた（厳選穴の条件Bとも食い違っていた）。
-    if (count($tanGapTop6) >= 2) {
-        $gapType      = 'A';
-        // タイプA: 複数断層の中で最も上位（upper_popが最小）の断層を主断層とする
-        $typeAMinPos = !empty($tanGapTop6)
-            ? min(array_column($tanGapTop6, 'upper_pop'))
-            : 1;
-        $typeAMinPosNext = $typeAMinPos + 1;
-        $gapTypeDesc  = '二重断層・上位完結型（6番人気以内に断層' . count($tanGapTop6) . 'か所、主断層' . $typeAMinPos . '〜' . $typeAMinPosNext . '番人気間、うち比率2.5以上' . count($tanGapStrong) . 'か所）';
-        // 仕様書のタイプ別選出方針（原文どおり）
-        $gapTypeGuide = '断層上側を中心に。断層下側は自動除外せず、複勝流入が強ければ補欠候補に。';
-
-    // E: 単勝・複勝断層の矛盾（どちらか一方にだけ断層）
-    } elseif ($tanHasGap !== $fukuHasGap) {
-        $gapType      = 'E';
-        $gapTypeDesc  = '判定困難型（単勝断層' . ($tanHasGap ? 'あり' : 'なし') . '・複勝断層' . ($fukuHasGap ? 'あり' : 'なし') . 'で矛盾）';
-        // 仕様書のタイプ別選出方針（原文どおり）
-        $gapTypeGuide = '断層は参考程度。複勝の継続的な動きを最優先で評価。';
-
-    // B: 上位断層型（top6に断層1か所）
-    } elseif (count($tanGapTop6) === 1) {
-        $e            = $tanGapTop6[0];
-        $gapType      = 'B';
-        $gapTypeDesc  = '上位断層型（' . $e['upper_pop'] . '〜' . $e['lower_pop'] . '番人気間に断層、比率' . $e['ratio'] . '）';
-        // 仕様書のタイプ別選出方針（原文どおり）
-        $gapTypeGuide = '断層上側グループが中心。断層拡大中は上側重視、縮小中は下側の浮上を警戒。';
-
-    // C: 中間断層型（断層はあるがtop6外）
-    } elseif ($tanHasGap) {
-        $e            = $tanGapAll[0];
-        $gapType      = 'C';
-        $gapTypeDesc  = '中間断層型（' . $e['upper_pop'] . '〜' . $e['lower_pop'] . '番人気間に断層、比率' . $e['ratio'] . '）';
-        // 仕様書のタイプ別選出方針（原文どおり）
-        $gapTypeGuide = '断層上側=中心グループ、断層下側=穴グループ。複勝流入の方向で判断を補正。';
-
-    // D: 断層なし・混戦型
-    } else {
-        $gapType      = 'D';
-        $gapTypeDesc  = '断層なし・混戦型（2.0以上の断層なし）';
-        // 仕様書のタイプ別選出方針（原文どおり）
-        $gapTypeGuide = '複勝支持・変化率・単複人気差を重視。7〜10番人気も均等に比較。';
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // @ANCHOR-20261004-ALLOCATION  資格(F/R/O)・下位開放(S1〜S3)・選出前ゲート
-    // ═══════════════════════════════════════════════════════════════════════════
-    // よっしー20261004仕様書 4.2 / 5.1 / 5.2
-    //   資格あり = 7人気以下 かつ F成立 かつ（R または O 成立）
-    //     F1 複勝最小が21→6分で10%以上短縮、5区間中2区間以上で短縮、9→6分で上昇していない
-    //     F2 複勝最小が9→6分で5%以上短縮、12→9分でも短縮、12→6分で合計短縮
-    //     F  F1またはF2（同じ複勝時系列の根拠なので2種類には数えない）
-    //     R  6分前の単勝人気順位 − 複勝人気順位 が2以上
-    //     O  予測補正OPIが0.85以下
-    //   資格は「穴枠を優先確保する条件」であり、資格外の馬を全頭順位から消す条件ではない。
-    //   条件は成立／不成立／不明の3値で保持する（欠損を不成立として扱わない）。
-    $allocTimings = [21, 18, 15, 12, 9, 6];
-
-    // 短縮率 = 100×(旧−新)÷旧。正=短縮 / 負=上昇 / null=判定不能
-    $allocShrink = static function (array $series, int $from, int $to): ?float {
-        $a = $series[$from] ?? null;
-        $b = $series[$to]   ?? null;
-        if (!is_numeric($a) || !is_numeric($b) || (float)$a <= 0 || (float)$b <= 0) return null;
-        return 100.0 * ((float)$a - (float)$b) / (float)$a;
-    };
-    // 3値のAND / OR（false優先 / true優先、残りに不明があれば不明）
-    $allocAnd3 = static function (array $vals): ?bool {
-        $unknown = false;
-        foreach ($vals as $v) { if ($v === false) return false; if ($v === null) $unknown = true; }
-        return $unknown ? null : true;
-    };
-    $allocOr3 = static function (array $vals): ?bool {
-        $unknown = false;
-        foreach ($vals as $v) { if ($v === true) return true; if ($v === null) $unknown = true; }
-        return $unknown ? null : false;
-    };
-    // 比較結果を3値にする（値がnullなら不明）
-    $allocCmp = static function (?float $v, string $op, float $th): ?bool {
-        if ($v === null) return null;
-        return match ($op) { '>=' => $v >= $th, '>' => $v > $th, '<=' => $v <= $th, default => $v < $th };
-    };
-
-    // ── 複勝人気順位（6分前）───────────────────────────────────────────────
-    //   仕様: 既存PHP順位があれば使用。ない場合のみ複勝最小の昇順・同値時馬番昇順で派生。
-    //   この関数には既存の複勝人気順位が無いため派生を作り、保存とログ化を行う。
-    $allocFukuRank = [];
-    {
-        $afSorted = array_values(array_filter(
-            $promptHorses,
-            fn($h) => isset($h['fuku_min_6']) && is_numeric($h['fuku_min_6']) && $h['fuku_min_6'] > 0
-        ));
-        usort($afSorted, function ($a, $b) {
-            if ((float)$a['fuku_min_6'] !== (float)$b['fuku_min_6']) {
-                return (float)$a['fuku_min_6'] <=> (float)$b['fuku_min_6'];
-            }
-            return ((int)$a['num']) <=> ((int)$b['num']);   // 同値は馬番昇順
-        });
-        foreach ($afSorted as $afI => $afH) {
-            $allocFukuRank[(int)$afH['num']] = $afI + 1;
-        }
-    }
-
-    // ── 資格 F / R / O の判定 ───────────────────────────────────────────────
-    $allocQualified = [];   // 資格ありの馬番（6分前単勝人気の昇順で後段に詰める）
-    $allocEvidence  = [];   // 馬番 => 判定の内訳（監査ログ用）
-    foreach ($promptHorses as $aqH) {
-        $aqNum  = (int) $aqH['num'];
-        $aqPop  = (int) ($aqH['popularity'] ?? 0);
-        $aqFs   = is_array($aqH['fuku_min_series'] ?? null) ? $aqH['fuku_min_series'] : [];
-
-        // F1
-        $aqS216 = $allocShrink($aqFs, 21, 6);
-        $aqS96  = $allocShrink($aqFs, 9, 6);
-        $aqSegDown = 0; $aqSegKnown = 0;
-        foreach ([[21, 18], [18, 15], [15, 12], [12, 9], [9, 6]] as $aqSeg) {
-            $aqV = $allocShrink($aqFs, $aqSeg[0], $aqSeg[1]);
-            if ($aqV !== null) { $aqSegKnown++; if ($aqV > 0) $aqSegDown++; }
-        }
-        // 「5区間中2区間以上で短縮」: 2区間確認できた時点で成立。
-        //   2未満でも未確認区間が残るなら不明（欠損を不成立にしない）。
-        $aqSeg2 = ($aqSegDown >= 2) ? true : (($aqSegKnown === 5) ? false : null);
-        $aqF1 = $allocAnd3([
-            $allocCmp($aqS216, '>=', 10.0),   // 21→6分で10%以上短縮
-            $aqSeg2,                          // 5区間中2区間以上で短縮
-            $allocCmp($aqS96,  '>=', 0.0),    // 9→6分で上昇していない
-        ]);
-
-        // F2
-        $aqF2 = $allocAnd3([
-            $allocCmp($allocShrink($aqFs, 9, 6),  '>=', 5.0),   // 9→6分で5%以上短縮
-            $allocCmp($allocShrink($aqFs, 12, 9), '>',  0.0),   // 12→9分でも短縮
-            $allocCmp($allocShrink($aqFs, 12, 6), '>',  0.0),   // 12→6分で合計短縮
-        ]);
-
-        $aqF = $allocOr3([$aqF1, $aqF2]);
-
-        // R: 単勝人気順位 − 複勝人気順位 >= 2
-        $aqFukuRank = $allocFukuRank[$aqNum] ?? null;
-        $aqR = ($aqPop > 0 && $aqFukuRank !== null) ? (($aqPop - $aqFukuRank) >= 2) : null;
-
-        // O: 予測補正OPI <= 0.85
-        $aqOpi = $aqH['estimated_opi'] ?? null;
-        $aqO = is_numeric($aqOpi) ? ((float) $aqOpi <= 0.85) : null;
-
-        $aqOk = ($aqPop >= 7) && ($aqF === true) && ($aqR === true || $aqO === true);
-        if ($aqOk) $allocQualified[] = $aqNum;
-
-        $allocEvidence[$aqNum] = [
-            '人気'       => $aqPop,
-            '複勝人気'   => $aqFukuRank,
-            'F1'         => $aqF1, 'F2' => $aqF2, 'F' => $aqF,
-            'R'          => $aqR,  'O'  => $aqO,
-            '資格'       => $aqOk,
-            '原値'       => [
-                '21→6短縮率' => $aqS216 === null ? null : round($aqS216, 2),
-                '9→6短縮率'  => $aqS96  === null ? null : round($aqS96, 2),
-                '短縮区間数' => $aqSegDown, '確認区間数' => $aqSegKnown,
-                '予測補正OPI' => $aqOpi,
-            ],
-        ];
-    }
-    sort($allocQualified);
-
-    // ── 配分用主境界（6分前比率2.0以上の最大比率ペア。同値なら小さい人気順位k）──
-    //   既存の主断層（$primaryGapUpperPop）とは別フィールドとして保持する。
-    //   全時点を「6分前単勝人気順の同一馬番ペア」で比較する（時点ごとに別馬へ入れ替えない）。
-    $allocPairs = [];   // k => ペア情報
-    for ($aiI = 0; $aiI < count($promptHorses) - 1; $aiI++) {
-        $aiU = $promptHorses[$aiI];       // 人気 k 位
-        $aiL = $promptHorses[$aiI + 1];   // 人気 k+1 位
-        $aiK = (int) ($aiU['popularity'] ?? ($aiI + 1));
-
-        $aiRatio = static function (array $u, array $l, int $t): ?float {
-            $uv = $u['tan_series'][$t] ?? null;
-            $lv = $l['tan_series'][$t] ?? null;
-            if (!is_numeric($uv) || !is_numeric($lv) || (float)$uv <= 0 || (float)$lv <= 0) return null;
-            return (float)$lv / (float)$uv;
-        };
-        $allocPairs[$aiK] = [
-            'k'         => $aiK,
-            'upper_num' => (int) $aiU['num'],
-            'lower_num' => (int) $aiL['num'],
-            'ratio6'    => $aiRatio($aiU, $aiL, 6),
-            'ratio21'   => $aiRatio($aiU, $aiL, 21),
-        ];
-    }
-
-    $allocBoundary = null;
-    foreach ($allocPairs as $abP) {
-        if ($abP['ratio6'] === null || $abP['ratio6'] < 2.0) continue;
-        if ($allocBoundary === null
-            || $abP['ratio6'] > $allocBoundary['ratio6']
-            || ($abP['ratio6'] === $allocBoundary['ratio6'] && $abP['k'] < $allocBoundary['k'])) {
-            $allocBoundary = $abP;
-        }
-    }
-
-    // 下側（6分前単勝人気 k+1位以降）にいる資格あり穴馬の数
-    $allocLowerQualified = function (int $k) use ($allocQualified, $promptHorses): int {
-        $lqPopByNum = [];
-        foreach ($promptHorses as $lqH) { $lqPopByNum[(int) $lqH['num']] = (int) ($lqH['popularity'] ?? 0); }
-        $lqN = 0;
-        foreach ($allocQualified as $lqNum) {
-            if (($lqPopByNum[$lqNum] ?? 0) >= $k + 1) $lqN++;
-        }
-        return $lqN;
-    };
-
-    // ── S1 / S2 / S3 ───────────────────────────────────────────────────────
-    //   S1: 既存断層タイプD
-    //   S2: 21分に比率2以上のペアが6分で2未満 かつ その下側に資格あり穴馬2頭以上
-    //   S3: 配分用主境界の21分比率2以上、21→6分の縮小率20%以上、下側に資格あり穴馬2頭以上
-    //   タイプE・位置移動・単複断層不一致だけでは成立にしない。
-    $allocS1 = ($gapType === 'D');
-
-    $allocS2 = false; $allocS2Unknown = false; $allocS2Hit = null;
-    foreach ($allocPairs as $asP) {
-        if ($asP['ratio21'] === null || $asP['ratio6'] === null) { $allocS2Unknown = true; continue; }
-        if ($asP['ratio21'] >= 2.0 && $asP['ratio6'] < 2.0 && $allocLowerQualified($asP['k']) >= 2) {
-            $allocS2 = true; $allocS2Hit = $asP; break;
-        }
-    }
-    $allocS2Three = $allocS2 ? true : ($allocS2Unknown ? null : false);
-
-    $allocS3 = false; $allocS3Unknown = false; $allocS3Shrink = null;
-    if ($allocBoundary === null) {
-        $allocS3Unknown = false;   // 6分前に比率2以上のペアが無い＝主境界なし＝不成立
-    } elseif ($allocBoundary['ratio21'] === null) {
-        $allocS3Unknown = true;    // 21分の比率が取れない＝判定不能
-    } else {
-        $allocS3Shrink = 100.0 * ($allocBoundary['ratio21'] - $allocBoundary['ratio6']) / $allocBoundary['ratio21'];
-        $allocS3 = ($allocBoundary['ratio21'] >= 2.0)
-                && ($allocS3Shrink >= 20.0)
-                && ($allocLowerQualified($allocBoundary['k']) >= 2);
-    }
-    $allocS3Three = $allocS3 ? true : ($allocS3Unknown ? null : false);
-
-    $allocLowerOpen = $allocOr3([$allocS1, $allocS2Three, $allocS3Three]);
-
-    // ── 選出前ゲート（仕様書5.1）───────────────────────────────────────────
-    //   既存PHPのB・C・Dが全て不成立で、資格ありの7〜10人気が1頭以上いる場合のみ
-    //   中・強モードを検討する。いずれか成立または不明なら通常。
-    //   ※条件A（最終候補に7〜10人気がいるか）は選出前ゲートに使用しない。
-    $allocPopByNum = [];
-    foreach ($promptHorses as $apH) { $allocPopByNum[(int) $apH['num']] = (int) ($apH['popularity'] ?? 0); }
-    $allocQual7to10 = 0;
-    foreach ($allocQualified as $aqN) {
-        $aqP = $allocPopByNum[$aqN] ?? 0;
-        if ($aqP >= 7 && $aqP <= 10) $allocQual7to10++;
-    }
-    $allocBcdAllFalse = ($condition2Met === false && $condition3Met === false && $condition4Met === false);
-    $allocGate        = ($allocBcdAllFalse && $allocQual7to10 >= 1);
-
-    // ── 配分モード（通常／中／強）＝ @ANCHOR-20261004-ALLOC-MODE ────────────
-    //   仕様書5.3 表6（人気側＋穴側）
-    //     C=4  通常 既存目安 / 中 3＋1 / 強 2＋2
-    //     C=5  通常 既存目安 / 中 3＋2 / 強 2＋3
-    //     C=6  通常 既存目安 / 中 3＋3 / 強 3＋3   ※中と強が同数（よっしーへ確認②として照会中）
-    //     C=7  通常 5＋2     / 中 4＋3 / 強 3＋4
-    //   判定順:
-    //     1) ゲート成立 かつ 下位開放成立 かつ 強の頭数を満たす → 強
-    //     2) 満たせず中の頭数を満たす → 中
-    //        （下位開放が不成立・不明でも、ゲート成立かつ中の頭数を満たせば中）
-    //     3) それ以外 → 通常
-    //   「頭数を満たす」= 人気側と資格あり穴側の双方に必要頭数が存在すること。
-    //   Cが4〜7以外は表6の対象外。既存の全頭順位で処理する（モード判定しない）。
-    //   【20261004 よっしー回答④A】旧人気帯別上限は廃止し、新配分に一本化する。
-    //     仕様書の「通常C=4〜6は既存目安」は曖昧なので、下表の具体値へ置き換えた。
-    //     通常の穴側は仕様書の通常C7（5＋2＝穴側2／7頭）に合わせ、
-    //     同じ比率（約29%）を四捨五入して決めている。
-    //       C=4 → 4×0.29=1.14 → 穴側1 → 3＋1
-    //       C=5 → 5×0.29=1.43 → 穴側1 → 4＋1
-    //       C=6 → 6×0.29=1.71 → 穴側2 → 4＋2
-    //       C=7 → 仕様書どおり 5＋2
-    //     ※C=4は通常と中がどちらも3＋1になる。配分は同じだが判定条件とログは
-    //       区別する（C=6で中と強が3＋3で同じになるのと同じ扱い・回答②A）。
-    //     ※旧上限（$pickupUpperMax / $pickupMidMax / $pickupLowerMax）は
-    //       この表と二重に適用しない。監査ログ用に受け取るだけ。
-    $allocModeTable = [
-        4 => ['通常' => [3, 1], '中' => [3, 1], '強' => [2, 2]],
-        5 => ['通常' => [4, 1], '中' => [3, 2], '強' => [2, 3]],
-        6 => ['通常' => [4, 2], '中' => [3, 3], '強' => [3, 3]],
-        7 => ['通常' => [5, 2], '中' => [4, 3], '強' => [3, 4]],
-    ];
-    // 人気側プール = 6人気以内の実出走馬 / 穴側プール = 資格あり馬（資格の定義上すべて7人気以下）
-    $allocFavPool = 0;
-    foreach ($promptHorses as $afH) {
-        $afP = (int) ($afH['popularity'] ?? 0);
-        if ($afP >= 1 && $afP <= 6) $allocFavPool++;
-    }
-    $allocLongPool = count($allocQualified);
-    $allocC        = (int) $targetSelectionCount;
-
-    $allocMode       = '通常';
-    $allocModeTarget = $allocModeTable[$allocC]['通常'] ?? null;  // null = 既存目安（C=4〜6の通常）
-    $allocModeReason = '';
-    if (!isset($allocModeTable[$allocC])) {
-        $allocModeReason = "C={$allocC} は表6の対象外（4〜7以外）。既存の全頭順位で処理する";
-    } elseif ($allocGate !== true) {
-        $allocModeReason = '選出前ゲート不成立のため通常';
-    } else {
-        $amS   = $allocModeTable[$allocC]['強'];
-        $amM   = $allocModeTable[$allocC]['中'];
-        $amFitS = ($allocFavPool >= $amS[0] && $allocLongPool >= $amS[1]);
-        $amFitM = ($allocFavPool >= $amM[0] && $allocLongPool >= $amM[1]);
-        if ($allocLowerOpen === true && $amFitS) {
-            $allocMode       = '強';
-            $allocModeTarget = $amS;
-            $allocModeReason = "ゲート成立・下位開放成立・強の頭数（{$amS[0]}＋{$amS[1]}）を満たす";
-        } elseif ($amFitM) {
-            $allocMode       = '中';
-            $allocModeTarget = $amM;
-            $allocModeReason = ($allocLowerOpen === true)
-                ? "下位開放は成立だが強の頭数（{$amS[0]}＋{$amS[1]}）に不足（人気側{$allocFavPool}・資格穴側{$allocLongPool}）→ 中へ降格"
-                : '下位開放が' . ($allocLowerOpen === null ? '不明' : '不成立')
-                  . "だが、ゲート成立で中の頭数（{$amM[0]}＋{$amM[1]}）を満たすため中";
-        } else {
-            $allocModeReason = "ゲート成立だが中の頭数（{$amM[0]}＋{$amM[1]}）に不足（人気側{$allocFavPool}・資格穴側{$allocLongPool}）→ 通常へ降格";
-        }
-    }
-    $allocTargetFav  = $allocModeTarget[0] ?? null;
-    $allocTargetLong = $allocModeTarget[1] ?? null;
-
-    // 【20261004 よっしー回答②A】「配分が同じでも中・強の判定条件とログは区別してください」
-    //   同じ頭数になる組み合わせ（C=6の中と強、C=4の通常と中）が分かるよう注記を出す。
-    $allocSameAs = [];
-    if (isset($allocModeTable[$allocC])) {
-        foreach (['通常', '中', '強'] as $asM1) {
-            foreach (['通常', '中', '強'] as $asM2) {
-                if ($asM1 >= $asM2) continue;
-                if (($allocModeTable[$allocC][$asM1] ?? null) === ($allocModeTable[$allocC][$asM2] ?? null)) {
-                    $allocSameAs[] = "{$asM1}と{$asM2}が同じ頭数";
-                }
-            }
-        }
-    }
-    $allocSameNote = empty($allocSameAs)
-        ? 'なし'
-        : implode('・', $allocSameAs) . '（配分は同じだが判定条件とログは区別する）';
-
-    $allocThreeLabel = static fn(?bool $v): string => $v === null ? '不明' : ($v ? '成立' : '不成立');
-    // ═════════════════════════════════════════════════════════════════════════
-    // @ANCHOR-20261012-V03-SHADOW  v0.3 構造判定をシャドー実行して記録する
-    // ═════════════════════════════════════════════════════════════════════════
-    //   選出には一切使わない。計算して監査ログに残すだけ。
-    //   ここで例外が出ても予想を止めない（記録のための処理が予想を殺さない）。
-    //   @ANCHOR-20261005-AUX-NEVER-BREAKS と同じ方針。
-    try {
-        $v03QualThree = [];
-        foreach ($promptHorses as $v3h) {
-            $v3n = (int) $v3h['num'];
-            $v3p = (int) ($v3h['popularity'] ?? 0);
-            if ($v3p < 7) continue;                       // 資格の対象は7番人気以下だけ
-            $v3e = $allocEvidence[$v3n] ?? null;
-            if ($v3e === null)              { $v03QualThree[$v3n] = null; continue; }
-            if (!empty($v3e['資格']))       { $v03QualThree[$v3n] = true; continue; }
-            $v3unknown = ($v3e['F'] === null) || (($v3e['R'] === null) && ($v3e['O'] === null));
-            $v03QualThree[$v3n] = $v3unknown ? null : false;
-        }
-
-        $v03 = self::_v03StructureShadow(
-            $promptHorses,
-            (int) $activeRunnerCount,
-            (int) $targetSelectionCount,
-            is_array($similarStatsMap) ? $similarStatsMap : $similarStatsMap->all(),
-            $v03QualThree,
-            (string) $gapType
-        );
-        $v03['race']  = "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R";
-        $v03['スイッチ'] = [
-            'BAGANRIKI_V03_ENABLED'          => self::v03Enabled() ? '有効' : '無効（既定）',
-            'BAGANRIKI_V03_RESEARCH_EXTREME' => self::V03_RESEARCH_EXTREME_DEFAULT ? '有効' : '無効（既定）',
-            'BAGANRIKI_V03_ML_STAGE'         => self::V03_ML_STAGE_DEFAULT,
-        ];
-        // 現行の判定と並べて、差がどこに出るかを後から見られるようにする
-        $v03['現行との対比'] = [
-            '現行の断層タイプ' => $gapType,
-            '現行の配分モード' => $allocMode,
-            '現行の目標配分'   => ($allocTargetFav === null)
-                ? '既存目安' : "{$allocTargetFav}＋{$allocTargetLong}",
-            '現行の資格あり馬番' => $allocQualified,
-        ];
-
-        \Log::info('[V03_SHADOW] v0.3 構造判定（記録のみ・@ANCHOR-20261012-V03-SHADOW）', $v03);
-        self::auditFile('AUDIT_V03_SHADOW', $v03);
-    } catch (\Throwable $v03E) {
-        \Log::error('[V03_SHADOW] v0.3 構造判定の計算に失敗（予想は通常どおり継続）', [
-            'race'    => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-            'message' => $v03E->getMessage(),
-            'file'    => $v03E->getFile() . ':' . $v03E->getLine(),
-        ]);
-    }
-
-    \Log::info('[配分] 資格・下位開放・選出前ゲート（@ANCHOR-20261004-ALLOCATION）', [
-        'race'           => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-        'N'              => $activeRunnerCount,
-        'C'              => $targetSelectionCount,
-        '断層タイプ'     => $gapType,
-        '資格あり馬番'   => $allocQualified,
-        '資格7〜10人気'  => $allocQual7to10,
-        '配分用主境界'   => $allocBoundary === null ? null : [
-            'k' => $allocBoundary['k'],
-            '上側馬番' => $allocBoundary['upper_num'], '下側馬番' => $allocBoundary['lower_num'],
-            '6分前比率' => round($allocBoundary['ratio6'], 3),
-            '21分比率'  => $allocBoundary['ratio21'] === null ? null : round($allocBoundary['ratio21'], 3),
-            '縮小率'    => $allocS3Shrink === null ? null : round($allocS3Shrink, 2),
-        ],
-        'S1(タイプD)'    => $allocThreeLabel($allocS1),
-        'S2(断層消滅)'   => $allocThreeLabel($allocS2Three),
-        'S3(断層縮小)'   => $allocThreeLabel($allocS3Three),
-        '下位開放'       => $allocThreeLabel($allocLowerOpen),
-        'B/C/D'          => [
-            'B' => $allocThreeLabel($condition2Met),
-            'C' => $allocThreeLabel($condition3Met),
-            'D' => $allocThreeLabel($condition4Met),
-        ],
-        '選出前ゲート'   => $allocGate ? '成立（中・強を検討）' : '不成立（通常）',
-        '人気側プール'   => $allocFavPool,
-        '資格穴側プール' => $allocLongPool,
-        '配分モード'     => $allocMode,
-        '目標配分'       => ($allocTargetFav === null)
-            ? '既存目安（表6に数値なし）'
-            : "{$allocTargetFav}＋{$allocTargetLong}",
-        '降格理由'       => $allocModeReason,
-        '同配分の注記'   => $allocSameNote,
-    ]);
-    // ═══════════════════════════════════════════════════════════════════════
-    // @ANCHOR-20261004-AUDIT-HORSE  監査ログ【馬単位】（仕様書9.1 表10）
-    // ═══════════════════════════════════════════════════════════════════════
-    //   保存内容: DB人気・オッズ、F/R/Oと原値、Sと断層ペア・時点、資格、保護対象か
-    //   ※ここは診断専用。失敗しても予測を止めない。
-    try {
-        $auHorseRows = [];
-        foreach ($promptHorses as $auH) {
-            $auNum = (int) $auH['num'];
-            $auEv  = $allocEvidence[$auNum] ?? [];
-            $auPair = $allocPairs[(int) ($auH['popularity'] ?? 0)] ?? null;   // この馬が上側になるペア
-            $auHorseRows[$auNum] = [
-                '馬名'         => $auH['name'] ?? '',
-                'DB人気'       => (int) ($auH['popularity'] ?? 0),
-                'DB6分前単勝'  => $auH['tan_series'][6] ?? null,
-                'DB6分前複勝最小' => $auH['fuku_min_series'][6] ?? null,
-                '複勝人気'     => $auEv['複勝人気'] ?? null,
-                'F1' => $allocThreeLabel($auEv['F1'] ?? null),
-                'F2' => $allocThreeLabel($auEv['F2'] ?? null),
-                'F'  => $allocThreeLabel($auEv['F']  ?? null),
-                'R'  => $allocThreeLabel($auEv['R']  ?? null),
-                'O'  => $allocThreeLabel($auEv['O']  ?? null),
-                '原値'     => $auEv['原値'] ?? null,
-                '資格'     => !empty($auEv['資格']),
-                '保護対象' => in_array($auNum, array_map('intval', $protectedLongshotNums), true),
-                '下側ペア' => $auPair === null ? null : [
-                    'k'         => $auPair['k'],
-                    '上側馬番'  => $auPair['upper_num'],
-                    '下側馬番'  => $auPair['lower_num'],
-                    '6分前比率' => $auPair['ratio6']  === null ? null : round($auPair['ratio6'], 3),
-                    '21分比率'  => $auPair['ratio21'] === null ? null : round($auPair['ratio21'], 3),
-                ],
-            ];
-        }
-        // 1レース十数頭のため、1行に全頭を入れる（grepしやすさ優先）
-        \Log::info('[AUDIT_HORSE] 馬単位の監査ログ（@ANCHOR-20261004-AUDIT-HORSE）', [
-            'race'   => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-            '版'     => self::ALLOC_SPEC_VERSION,
-            '頭数'   => count($auHorseRows),
-            '時点'   => $allocTimings,
-            'S1'     => $allocThreeLabel($allocS1),
-            'S2'     => $allocThreeLabel($allocS2Three),
-            'S3'     => $allocThreeLabel($allocS3Three),
-            '配分用主境界' => $allocBoundary === null ? null : [
-                'k' => $allocBoundary['k'],
-                '上側馬番' => $allocBoundary['upper_num'],
-                '下側馬番' => $allocBoundary['lower_num'],
-            ],
-            '全頭'   => $auHorseRows,
-        ]);
-        self::auditFile('AUDIT_HORSE', [
-            'race'   => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-            '版'     => self::ALLOC_SPEC_VERSION,
-            '頭数'   => count($auHorseRows),
-            '時点'   => $allocTimings,
-            'S1'     => $allocThreeLabel($allocS1),
-            'S2'     => $allocThreeLabel($allocS2Three),
-            'S3'     => $allocThreeLabel($allocS3Three),
-            '配分用主境界' => $allocBoundary === null ? null : [
-                'k' => $allocBoundary['k'],
-                '上側馬番' => $allocBoundary['upper_num'],
-                '下側馬番' => $allocBoundary['lower_num'],
-            ],
-            '全頭'   => $auHorseRows,
-        ]);
-    } catch (\Throwable $auE) {
-        \Log::warning('[AUDIT_HORSE] 馬単位の監査ログの作成に失敗（処理は継続）', [
-            'message' => $auE->getMessage(),
-        ]);
-    }
-
-    // ── @ANCHOR-20261004-AUDIT-SNAPSHOT  6分前入力のスナップショットID ──────
-    //   仕様書は「6分前snapshot_id」を求めているが、DBにスナップショットを識別する
-    //   列が無い（申告事項）。そこで6分前の入力そのものから決定論的に算出する。
-    //   取消・オッズ更新があれば値が変わるので、同一入力かどうかの判定には使える。
-    //   統合側でも同じ値を再計算して突き合わせられるよう、算出元は
-    //   「DBの6分前の行そのもの」に固定する（整形後の配列に依存させない）。
-    //   算出式を変えると過去のログと比較できなくなるので、変更しないこと。
-    $auSnapshotId = self::oddsSnapshotId($oddsRows);
-
-    // ═════════════════════════════════════════════════════════════════════════
-    // @ANCHOR-20261013-V04-SHADOW  v0.4-X 構造判定をシャドー実行して記録する
-    // ═════════════════════════════════════════════════════════════════════════
-    //   選出・表示・DBには一切使わない。計算して監査ログに残すだけ。
-    //   ここで例外が出ても予想を止めない（@ANCHOR-20261005-AUX-NEVER-BREAKS）。
-    //   AI呼び出しは1回も増えない（既存の入力を計算し直すだけ）。
-    //
-    //   10/12の @ANCHOR-20261012-V03-SHADOW と並べて記録するので、
-    //   AUDIT_V03_SHADOW と AUDIT_V04_RACE を見比べれば差分が追える。
-    if (self::v04Shadow()) {
-        try {
-            $v04 = self::_v04StructureShadow(
-                $promptHorses,
-                (int) $activeRunnerCount,
-                [
-                    'similarStats'  => is_array($similarStatsMap) ? $similarStatsMap : $similarStatsMap->all(),
-                    'qualThree'     => $v03QualThree ?? [],
-                    'legacyGapType' => (string) $gapType,
-                    'snapshotId'    => (string) $auSnapshotId,
-                    'raceKey'       => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-                    // H/V研究採点はAIから受け取る。BAGANRIKI_V04_HV_PROMPT が
-                    // 既定OFFなので、通常は null（全項目null・partial）になる。
-                    'hv'            => null,
-                ]
-            );
-            $v04['スイッチ'] = self::v04Switches();
-
-            \Log::info('[V04_SHADOW] v0.4-X 構造判定（記録のみ・@ANCHOR-20261013-V04-SHADOW）', [
-                'race'            => $v04['race'] ?? null,
-                'run_id'          => $v04['run_id'] ?? null,
-                'N'               => $v04['N'] ?? null,
-                'target_count'    => $v04['target_count'] ?? null,
-                'signals'         => $v04['structure']['signals'] ?? null,
-                'mode'            => $v04['structure']['mode'] ?? null,
-                'allocation_mode' => $v04['structure']['allocation_mode'] ?? null,
-                'S'               => $v04['structure']['S'] ?? null,
-                'score_min'       => $v04['structure']['score_min'] ?? null,
-                'score_max'       => $v04['structure']['score_max'] ?? null,
-                'quota'           => $v04['structure']['quota'] ?? null,
-                'actual'          => $v04['selection']['actual'] ?? null,
-                'selected'        => $v04['selection']['selected'] ?? null,
-                'Tier別頭数'      => $v04['Tier別頭数'] ?? null,
-            ]);
-
-            // 05-7 の必須監査ログ6種（RACE / GAP / HORSE / MERGE / COMPARE）
-            self::v04WriteAudit($v04, [
-                '現行との対比' => [
-                    '現行の断層タイプ'   => $gapType,
-                    '現行の配分モード'   => $allocMode,
-                    '現行の目標配分'     => ($allocTargetFav === null)
-                        ? '既存目安' : "{$allocTargetFav}＋{$allocTargetLong}",
-                    '現行の資格あり馬番' => $allocQualified,
-                    '現行のC'            => $targetSelectionCount,
-                    '版'                 => 'v20261006系（本番）',
-                ],
-                '一致加点' => '未適用（シャドーでは両AIの公開候補一致を数えていない。'
-                              . '一致+5の正本は現行PHPの統合式）',
-            ]);
-        } catch (\Throwable $v04E) {
-            \Log::error('[V04_SHADOW] v0.4-X 構造判定の計算に失敗（予想は通常どおり継続）', [
-                'race'    => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-                'message' => $v04E->getMessage(),
-                'file'    => $v04E->getFile() . ':' . $v04E->getLine(),
-            ]);
-        }
-    }
-    $auInputSrc   = [];
-    foreach ($promptHorses as $auSH) {
-        $auInputSrc[(int) $auSH['num']] = [
-            $auSH['tan_series']      ?? [],
-            $auSH['fuku_min_series'] ?? [],
-            $auSH['fuku_max_series'] ?? [],
-        ];
-    }
-    ksort($auInputSrc);
-    $auInputHash = hash('sha256', json_encode($auInputSrc));
-
-    if (!empty($allocQualified)) {
-        \Log::info('[配分] 資格ありの内訳', [
-            'race' => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-            '内訳' => array_intersect_key($allocEvidence, array_flip($allocQualified)),
-        ]);
-    }
-
-    // ─── Block 8: 断層位置別・人気帯別の選出上限 ─────────────────────────────
-    // 主断層位置（upper_pop）を決定し、仕様書テーブルに従い上限を設定する
-    // 仕様書テーブル:
-    //   1〜2番人気間: Upper3 / Mid2 / Lower1
-    //   2〜3番人気間: Upper4 / Mid2 / Lower1
-    //   3〜4番人気間: Upper4 / Mid2 / Lower1
-    //   4〜5番人気間: Upper4 / Mid2 / Lower1 (大穴進入度1〜2なら Lower0 だがPHP未計算のため1適用)
-    //   5〜6番人気間: Upper3 / Mid3 / Lower2
-    //   6番人気以降:  Upper2 / Mid3 / Lower2
-    //   断層なし・D・E: Upper3 / Mid3 / Lower2
-    $primaryGapUpperPop = null; // null = 断層なし・判定困難
-    if ($gapType === 'A' && !empty($tanGapTop6)) {
-        $primaryGapUpperPop = min(array_column($tanGapTop6, 'upper_pop'));
-    } elseif ($gapType === 'B' && !empty($tanGapTop6)) {
-        $primaryGapUpperPop = $tanGapTop6[0]['upper_pop'];
-    } elseif ($gapType === 'C' && !empty($tanGapAll)) {
-        $primaryGapUpperPop = $tanGapAll[0]['upper_pop']; // top6外 → ≥7 → 「6番人気以降」扱い
-    }
-    // タイプD / E: $primaryGapUpperPop = null（断層なし・判定困難として扱う）
-
-    if ($primaryGapUpperPop === null || in_array($gapType, ['D', 'E'])) {
-        [$pickupUpperMax, $pickupMidMax, $pickupLowerMax] = [3, 3, 2];
-    } elseif ($primaryGapUpperPop === 1) {
-        [$pickupUpperMax, $pickupMidMax, $pickupLowerMax] = [3, 2, 1];
-    } elseif ($primaryGapUpperPop <= 4) {
-        // 2〜3 / 3〜4 / 4〜5番人気間: 同じ上限
-        [$pickupUpperMax, $pickupMidMax, $pickupLowerMax] = [4, 2, 1];
-    } elseif ($primaryGapUpperPop === 5) {
-        [$pickupUpperMax, $pickupMidMax, $pickupLowerMax] = [3, 3, 2];
-    } else {
-        // 6番人気以降（upper_pop >= 6）
-        [$pickupUpperMax, $pickupMidMax, $pickupLowerMax] = [2, 3, 2];
-    }
-    // 【仕様】「1st AIの候補上限は7頭」。
-    //   人気帯別上限の単純合計は、断層なし／判定困難・5〜6番人気間断層のとき 3+3+2=8 になり、
-    //   仕様の7頭を超えてしまう。その状態でAIが8頭返すと B-15 が制御済みエラーで
-    //   レースごと無効化してしまうため、ここで必ず7頭に頭打ちする。
-    $pickupTotalMax = min(7, $pickupUpperMax + $pickupMidMax + $pickupLowerMax);
-
-    // ─── 断層時系列（単勝・6分前人気順基準） ─────────────────────────────
-    // $fetchTimings = [999, 21, 18, 15, 12, 9, 6] から 999 を除いた時点を使用
-    $gapSeriesTimings = array_values(array_filter($fetchTimings, fn($t) => $t !== Constants::ODDS_DB_FIRST));
-    // = [21, 18, 15, 12, 9, 6]（早い→遅い順）
-
-    $gapTimeSeriesLines = [];
-    for ($i = 0; $i < count($promptHorses) - 1; $i++) {
-        $upper = $promptHorses[$i];
-        $lower = $promptHorses[$i + 1];
-
-        $ratios   = [];
-        $maxRatio = 0;
-        foreach ($gapSeriesTimings as $t) {
-            $uOdds = $upper['tan_series'][$t] ?? null;
-            $lOdds = $lower['tan_series'][$t] ?? null;
-            if ($uOdds && $lOdds && $uOdds > 0) {
-                $r = round($lOdds / $uOdds, 2);
-                $ratios[$t] = $r;
-                if ($r > $maxRatio) $maxRatio = $r;
-            } else {
-                $ratios[$t] = null;
-            }
-        }
-
-        if ($maxRatio < 2.0) continue; // 一度も断層にならなかったペアはスキップ
-
-        // トレンド判定（最初と最後で比較）
-        $validRatios = array_values(array_filter($ratios, fn($r) => $r !== null));
-        $firstR      = $validRatios[0] ?? null;
-        $lastR       = end($validRatios) ?: null;
-        $trend       = '';
-        if ($firstR !== null && $lastR !== null) {
-            $diff = round($lastR - $firstR, 2);
-            if ($diff >= 0.3)      $trend = '【拡大中 +' . $diff . '】';
-            elseif ($diff <= -0.3) $trend = '【縮小中 ' . $diff . '】';
-            else                   $trend = '【安定】';
-        }
-
-        $pairLabel = $upper['popularity'] . '〜' . $lower['popularity'] . '番人気間';
-        $parts     = [];
-        foreach ($ratios as $t => $r) {
-            $marker  = ($r !== null && $r >= 2.0) ? '★' : '';
-            $parts[] = $t . '分=' . ($r !== null ? $marker . number_format($r, 2) : '－');
-        }
-
-        $gapTimeSeriesLines[] = $pairLabel . ': ' . implode(' → ', $parts) . ' ' . $trend;
-    }
-
-    // ─── 過去のレース情報から絞り込んだ馬番（forecast_nums）の取得 ──
-    $forecastNums = DB::table('t_horse_odds_finder_forecast_from_last_race')
-        ->where('date',       $targetDate)
-        ->where('kaisuu',     $race->kaisuu)
-        ->where('basho',      $race->basho)
-        ->where('basho_name', $race->basho_name)
-        ->where('day',        $race->day)
-        ->where('race',       $race->race)
-        ->value('forecast_nums');
-
-    // ─── プロンプト本文の構築 ─────────────────────────────────────────
-    $raceLabel = $race->kaisuu . '回' . $race->basho_name . $race->day . '日';
-    $raceNum   = $race->race . 'R';
-    $raceName  = $race->race_name ?? '';
-
-    $lines = [
-        'あなたは競馬オッズ分析の専門家です。',
-        '有料公開するものなので、正しい日本語で返してください。',
-        '',
-        'レース情報',
-        '日付: ' . $targetDate,
-        '開催: ' . $raceLabel,
-        'レース: ' . $raceNum . ' ' . $raceName,
-        '',
-        '単勝・複勝オッズデータ（計測開始前〜発走6分前・全時点）',
-        $table,
-        '',
-        '単勝断層テーブル（6分前単勝オッズ・隣接人気順間の比率）',
-        '※比率2.00以上=断層（★）、2.50以上=強い断層、3.00以上=非常に強い断層',
-        $gapTable,
-        '',
-        '複勝断層テーブル（6分前複勝最小オッズ・隣接複勝人気順間の比率）',
-        '※単勝断層と複勝断層が同じ位置に出ている場合は断層の信頼度が上がります',
-        '※矛盾する場合（単勝にあるが複勝にない、またはその逆）は複勝断層を優先してください',
-        $fukuGapTable,
-        '',
-    ];
-
-    $lines[] = '【断層構造タイプ（PHP算出済み）】';
-    $lines[] = "タイプ{$gapType}：{$gapTypeDesc}";
-    $lines[] = "選出方針：{$gapTypeGuide}";
-    $lines[] = '';
-    $lines[] = '※ タイプ別の詳細ルール（波乱度の目安を含む）';
-    $lines[] = 'A（二重断層・上位完結型）: 断層上側を中心に。断層下側は自動除外せず、複勝流入が強ければ補欠候補に。波乱度目安：1〜2（堅い〜やや堅い）';
-    $lines[] = 'B（上位断層型）: 断層上側グループが中心。断層拡大中は上側重視、縮小中は下側の浮上を警戒。波乱度目安：2〜3（やや堅い〜中波乱）';
-    $lines[] = 'C（中間断層型）: 断層上側=中心グループ、断層下側=穴グループ。複勝流入の方向で判断を補正。波乱度目安：3（中波乱）';
-    $lines[] = 'D（断層なし・混戦型）: 複勝支持・変化率・単複人気差を重視。7〜10番人気も均等に比較。波乱度目安：4〜5（波乱〜大波乱）';
-    $lines[] = 'E（判定困難型）: 断層は参考程度。複勝の継続的な動きを最優先で評価。波乱度目安：4〜5（波乱〜大波乱）';
-    $lines[] = '';
-    $lines[] = '【波乱度の修正ルール（1〜5：1=堅い、2=やや堅い、3=中波乱、4=波乱、5=大波乱）】';
-    $lines[] = 'タイプ別の波乱度目安を基準に、以下の条件で1段階上下してください。';
-    $lines[] = '■ 波乱度を1段階「上げる」条件（複数該当で2段階まで）';
-    $lines[] = '・断層時系列が6分前に向けて急縮小している';
-    $lines[] = '・断層より下の複数馬に複勝流入が確認できる';
-    $lines[] = '・7〜10番人気の複勝流入ランクが継続上昇している';
-    $lines[] = '・単勝と複勝の断層位置が不一致（タイプEの判定根拠）';
-    $lines[] = '・1番人気の複勝支持が継続低下している';
-    $lines[] = '■ 波乱度を1段階「下げる」条件（複数該当で2段階まで）';
-    $lines[] = '・断層が複数時点にわたって継続維持されている';
-    $lines[] = '・単勝と複勝の断層位置が一致している';
-    $lines[] = '・断層時系列が6分前に向けて拡大している';
-    $lines[] = '・6番人気以内に二重断層（2か所以上）が成立している';
-    $lines[] = '・断層より下の馬に明確な複勝流入がない';
-    $lines[] = '';
-    if (!empty($gapTimeSeriesLines)) {
-        $lines[] = '【断層時系列（単勝・6分前人気順基準）】';
-        $lines[] = '※ 断層（比率2.0以上）が一度でも発生した隣接ペアのみ表示。★=断層あり。21分前〜6分前の推移です';
-        foreach ($gapTimeSeriesLines as $gapLine) {
-            $lines[] = $gapLine;
-        }
-    } else {
-        $lines[] = '【断層時系列（単勝・6分前人気順基準）】';
-        $lines[] = '計測期間中、断層（比率2.0以上）は一度も発生しませんでした';
-    }
-    $lines[] = '';
-
-    if (!empty($gapHorseNums) || !empty($upsetPickupHorseNums) || !empty($forecastNums)) {
-        $lines[] = 'なお、オッズ分析にあたり、下記の注目馬番も参考にしてください。';
-        if (!empty($upsetPickupHorseNums)) {
-            $lines[] = '特に、②の期待数値の馬番はかなり結果を出せているので、重点的に注視してください。';
-        }
-        $lines[] = '';
-        $lines[] = '①　オッズ間断層の調査から絞り込んだ馬番「' . $gapHorseNums . '」（1|2|...のようにパイプで区切られている）';
-        $lines[] = 'オッズ間断層とは、隣り合う人気順間のオッズの比率（次の人気順のオッズ ÷ この人気順のオッズ）です。';
-        $lines[] = '比率が2以上の場合、「断層が発生している」と判断し、断層上の馬に注目しています。';
-        $lines[] = '';
-        if (!empty($upsetPickupHorseNums)) {
-            $lines[] = '②　期待数値の調査から絞り込んだ馬番「' . $upsetPickupHorseNums . '」（1|2|...のようにパイプで区切られている）';
-            $lines[] = '期待数値とは、過去の類似レースにおける人気順別の中央値オッズを、今回のレースの同人気順のオッズで割った値です。';
-            $lines[] = '';
-        }
-        if (!empty($forecastNums)) {
-            $lines[] = '③　過去のレース情報から絞り込んだ馬番「' . $forecastNums . '」（1|2|...のようにパイプで区切られている）';
-            $lines[] = '過去の出走情報をAIに渡して、レースの頭数に応じて馬番を絞り込んだ値です（8頭以下は4頭、13頭以下は5頭、14頭以上は6頭に絞り込み）。';
-            $lines[] = '';
-        }
-    }
-
-    $lines = array_merge($lines, [
-        '分析依頼',
-        '',
-        '【⚠️ 絶対ルール：DB・PHP算出値は変更・再計算禁止】',
-        '以下の値はDBまたはPHPが事前に算出した確定値です。AIは自分で再計算・上書き・補正・推測をしてはなりません。',
-        'データ欄に表示されている値を必ずそのまま使用してください。',
-        '・断層構造タイプ（A〜E）: PHP算出済み。AIが独自に「Cタイプだと思う」のように上書き判断することは禁止',
-        '・OPI（単勝OPI・複勝OPI・推定補正OPI）: DB算出済み。自分でオッズ比率から独自計算しないこと',
-        '・相対資金流入ランク（単勝流入ランク・複勝流入ランク）: DB算出済み。自分でオッズ変化率からランクを推測しないこと',
-        '・推定確定オッズ・補正係数: DB算出済み。自分でオッズパターンから独自予測しないこと',
-        '・厳選穴レース判定（条件B・C・D）: PHP算出済み。自分でオッズを見て再判定しないこと',
-        '・人気順: テーブルの「X人気」欄の値をそのまま使用。自分でオッズ順に並べ替えて人気順を変えないこと',
-        '',
-        '【このシステムの目的（最重要）】',
-        'このシステムの目的は「当てること」ではなく「回収率を上げること」です。',
-        '1〜3番人気ばかりを正確に当てても、オッズが低いため回収率は上がりません。',
-        '「来そうかどうか（信頼度）」と「そのオッズで買う価値があるか（妙味）」を必ず両方考えてください。',
-        '信頼度が同等の馬が複数いる場合は、オッズが高い馬（妙味がある馬）を優先して選出してください。',
-        '',
-        // ── AI回収率実績ブロック: 有効データがある場合のみ送信（仕様: 0件・－%は送信しない）
-        ...($aiRec100['race_count'] > 0 || $aiRec300['race_count'] > 0 || $aiRec600['race_count'] > 0 ? [
-            '【このAIの過去回収率実績】',
-            '※選択馬全頭に100円ずつ単勝・複勝を投資した場合の実績（毎日自動集計）',
-            sprintf(
-                '直近%dレース: 単勝回収率%s%%  複勝回収率%s%%',
-                $aiRec100['race_count'],
-                $aiRec100['tan_rate'] !== null ? number_format($aiRec100['tan_rate'], 1) : '－',
-                $aiRec100['fuku_rate'] !== null ? number_format($aiRec100['fuku_rate'], 1) : '－'
-            ),
-            sprintf(
-                '直近%dレース: 単勝回収率%s%%  複勝回収率%s%%',
-                $aiRec300['race_count'],
-                $aiRec300['tan_rate'] !== null ? number_format($aiRec300['tan_rate'], 1) : '－',
-                $aiRec300['fuku_rate'] !== null ? number_format($aiRec300['fuku_rate'], 1) : '－'
-            ),
-            sprintf(
-                '直近%dレース: 単勝回収率%s%%  複勝回収率%s%%',
-                $aiRec600['race_count'],
-                $aiRec600['tan_rate'] !== null ? number_format($aiRec600['tan_rate'], 1) : '－',
-                $aiRec600['fuku_rate'] !== null ? number_format($aiRec600['fuku_rate'], 1) : '－'
-            ),
-            '単勝・複勝どちらかの回収率が100%未満の場合、その馬券種については妙味の採点を厳しくしてください。候補から外す理由にはしません。',
-            '',
-        ] : []),
-        // ── よっしー20260927指摘: 上限ではなく「目標数C頭を必ず満たす」 ──────
-        "このレースの実出走頭数は {$activeRunnerCount} 頭です（取消・除外反映後）。",
-        "選出する頭数は {$targetSelectionCount} 頭です。これは目標かつ上限です。",
-        "全実出走馬を同一の固定100点配点で評価し、全頭を順位付けしたうえで、原則として上位 {$targetSelectionCount} 頭を出力してください。",
-        "利用可能な情報だけでは {$targetSelectionCount} 頭に届かない場合は、確認できる候補だけを返してください。未出力馬を作ってはいけません。",
-        "{$targetSelectionCount} 頭を超えて出力してはいけません。実出走馬が {$targetSelectionCount} 頭未満の場合は実出走馬全頭が上限です。",
-        "頭数は人間が別途算出した確定値です。あなたが独自に計算し直してはいけません。",
-        '',
-        // 【20261004 よっしー回答④A】旧人気帯別上限は廃止し、新配分に一本化する。
-        //   目標配分が決まっているとき（C=4〜7）は、この旧目安を送らない。
-        //   二重に適用しないため。断層タイプA〜Eの分類自体は維持する。
-        //   @ANCHOR-20261004-NO-OLD-POPBAND
-        ...(($allocTargetFav === null) ? [
-            "【このレースの人気帯別の優先目安（タイプ{$gapType}）】",
-            '以下は順位づけの優先目安です。最終候補を減らすハード上限ではありません。',
-            "・1〜6番人気 … 目安{$pickupUpperMax}頭",
-            "・7〜10番人気 … 目安{$pickupMidMax}頭",
-            "・11番人気以下 … 目安{$pickupLowerMax}頭",
-            "目標数 {$targetSelectionCount} 頭に近づけるために必要なら、全頭順位に従って枠を補ってください。",
-            '人気帯の目安は最終候補数を減らすハード上限として適用しません。',
-            '',
-        ] : [
-            "【このレースの断層タイプ】タイプ{$gapType}",
-            '断層タイプは順位づけの材料です。人気帯別の頭数上限は使いません。',
-            '最終候補の内訳は、後述の【配分（PHP算出済み・変更禁止）】に従ってください。',
-            '',
-        ]),
-        '【能力・適性評価（100点満点・6項目）】',
-        'プロンプト末尾の【各馬の直近成績（過去最大10走）と今走データ】を根拠に、選出した各馬を以下の6項目で採点してください。',
-        '1. 基礎能力・クラス実績：25点',
-        '2. 近走内容・着差・相手関係：20点',
-        '3. コース・距離・芝ダート・馬場適性：20点',
-        '4. 脚質・想定展開・枠順との適合：15点',
-        '5. 上がり性能・位置取り・レース内容：10点',
-        '6. 斤量・騎手・馬体重・休養間隔などの補正：10点',
-        '評価区分：A（80〜100点）B（70〜79点）C（60〜69点）D（59点以下）',
-        // 【20260924 修正】仕様【欠損値の扱い】「DBにない項目は不明として中立扱い」「欠損を0点として扱わない」に合わせる
-        '出走履歴がない馬は能力・適性を推測せず「不明」とし、選出理由の冒頭は「能力適性:不明。」と記載する。不明は0点・D評価・減点・除外の理由にしない（中立として扱う）。',
-        '採点結果は、選出理由の冒頭に必ず「能力適性:X（XX点）。」の形式で記載してください。この記載がないとPHP側で能力適性点を抽出できません。',
-        'ただし能力・適性だけで候補を決めてはいけません。時系列オッズの補強材料として扱い、能力適性Dでも強い市場根拠がある馬を自動除外しないでください。',
-        '',
-        // ── @ANCHOR-20261004-ALLOC-PROMPT  配分モードの通知（仕様書 表7 の N / C / MODE）──
-        //   PHPが確定した配分モードと目標配分をAIへ凍結値として渡す。
-        //   仕様書8.2「AIはPHP確定の配分モードを変更しない」。
-        //   フラグを false にすると、この配分ブロックは埋め込まれない（仕様書11.2）。
-        ...(self::allocFeatureEnabled() ? [
-            '【配分（PHP算出済み・変更禁止）】',
-            "実出走頭数N: {$activeRunnerCount}頭 / 目標数C: {$targetSelectionCount}頭 / 配分モード: {$allocMode}",
-            ($allocTargetFav === null
-                ? '目標配分: 既存目安（人気帯の目安に従う）'
-                : "目標配分: 人気側（1〜6番人気）{$allocTargetFav}頭 ＋ 穴側（PHPが資格を確認した7番人気以下）{$allocTargetLong}頭"),
-            '資格あり馬番: ' . (!empty($allocQualified) ? implode('|', $allocQualified) : 'なし'),
-            // @ANCHOR-20261004-QUAL-EVIDENCE  資格馬の根拠を凍結値として渡す
-            //   よっしー20261004回答①A-2「理由文には確認できた入力値と時点だけを使い、
-            //   点数・能力評価・根拠を推測で補わない」に使う。
-            //   統合時にこの行を読み戻し、PHPが定型の選出理由を組む。
-            //   書式: 馬番=pop:人気,s216:21→6短縮率,s96:9→6短縮率,fuku:複勝人気,opi:予測補正OPI
-            //         取得できない値は - を入れる（0 で補わない）。
-            '資格根拠: ' . (function () use ($allocQualified, $allocEvidence): string {
-                if (empty($allocQualified)) return 'なし';
-                $qe = [];
-                foreach ($allocQualified as $qn) {
-                    $ev = $allocEvidence[$qn] ?? [];
-                    $gv = static function ($v, int $dec = 2): string {
-                        return is_numeric($v) ? number_format((float) $v, $dec, '.', '') : '-';
-                    };
-                    $qe[] = $qn . '='
-                          . 'pop:'  . $gv($ev['人気'] ?? null, 0)
-                          . ',s216:' . $gv($ev['原値']['21→6短縮率'] ?? null)
-                          . ',s96:'  . $gv($ev['原値']['9→6短縮率']  ?? null)
-                          . ',fuku:' . $gv($ev['複勝人気'] ?? null, 0)
-                          . ',opi:'  . $gv($ev['原値']['予測補正OPI'] ?? null);
-                }
-                return implode(' ', $qe);
-            })(),
-            // ══════════════════════════════════════════════════════════════════
-            // @ANCHOR-20261006-QUAL-STATE  7番人気以下の資格判定を三値で凍結する
-            // ══════════════════════════════════════════════════════════════════
-            // 【20261006 ご指摘④】
-            //   「0頭回避の例外を適用するなら、補充上限、対象となる有効候補、
-            //     資格不成立と資格不明の扱い、選出理由を定義する」
-            //   資格の判定は成立／不成立／不明の三値だが、これまで統合側へは
-            //   「資格ありの馬番」しか渡しておらず、不成立と不明を区別できなかった。
-            //   この行を統合時に読み戻して区別する。
-            //   書式: 馬番:状態（1=成立 / 0=不成立 / ?=不明）
-            '資格判定: ' . (function () use ($promptHorses, $allocEvidence): string {
-                $qs = [];
-                foreach ($promptHorses as $qh) {
-                    $qn  = (int) $qh['num'];
-                    $qp  = (int) ($qh['popularity'] ?? 0);
-                    if ($qp < 7) continue;                   // 7番人気以下だけが資格の対象
-                    $ev  = $allocEvidence[$qn] ?? null;
-                    if ($ev === null)            { $qs[] = $qn . ':?'; continue; }
-                    if (!empty($ev['資格']))     { $qs[] = $qn . ':1'; continue; }
-                    // F・R・O のいずれかが不明なら「不明」、すべて確認できて満たさないなら「不成立」
-                    $unknown = ($ev['F'] === null)
-                            || (($ev['R'] === null) && ($ev['O'] === null));
-                    $qs[] = $qn . ($unknown ? ':?' : ':0');
-                }
-                return empty($qs) ? 'なし' : implode(' ', $qs);
-            })(),
-            '配分モードと目標配分はPHPが確定した値です。あなたが再判定・変更してはいけません。',
-            '目標配分は最終候補の内訳の目標です。根拠のない馬を数合わせで入れてはいけません。',
-            '',
-        ] : []),
-
-        // @ANCHOR-20261004-AUDIT-SNAPSHOT  入力の同一性を後から確認するための記録行
-        //   仕様書9.2「途中の取消更新 → 両AIを同じ最新版で再実行。旧snapshot_idと混ぜない」。
-        //   統合時にこの行を読み戻し、その時点の入力から算出した値と突き合わせる。
-        "【入力スナップショット（記録用・予想の判断には使いません）】snapshot_id: {$auSnapshotId}",
-        '',
-
-        // ── よっしー20260927指摘【人気薄の根拠付き保護枠】保護対象の通知 ──────
-        //   【20261004 仕様変更】仕様書6.2「旧保護対象は参考入力とする。無条件の1頭入替、
-        //   別枠追加、11人気以下だけの最大1〜2頭制限は廃止する。資格馬は全て同じ穴側の
-        //   配分内で比較する。」に従い、入替を指示する文面を参考扱いへ差し替えた。
-        //   旧文面は削除せずコメントアウトで残す。
-        //   @ANCHOR-20261004-PROTECTED-REFERENCE-ONLY
-        //   フラグ ON = 参考扱い（20261004仕様） / OFF = 旧文面（20260927の入替指示）
-        ...(empty($protectedLongshotNums) ? [] : (self::allocFeatureEnabled() ? [
-            '【7番人気以下で根拠を確認した馬（PHP算出済み・参考）】',
-            '次の馬番は、PHPが客観的な市場・能力根拠を確認した7番人気以下の馬です。',
-            '対象馬番: ' . implode('|', $protectedLongshotNums),
-            'これは参考情報です。該当馬を別枠で追加したり、他の候補と無条件に入れ替えたりはしません。',
-            '穴側の候補として、他の馬と同じ基準で比較してください。',   // ※2nd AIでは配分ブロックを除去するため「上に示した目標配分」とは書かない
-            'この判定はPHPが算出済みです。あなたが再判定・追加・除外してはいけません。',
-            '',
-        ] : [
-            // 【旧文面】可変配分を無効にしたときだけ使う（2026-09-28時点の安定動作）
-            '【人気薄の根拠付き保護対象（PHP算出済み）】',
-            '次の馬番は、PHPが客観的な市場・能力根拠を確認した7番人気以下の馬です。',
-            '対象馬番: ' . implode('|', $protectedLongshotNums),
-            "この中でおすすめ度が最も高い1頭を、最大 {$targetSelectionCount} 頭の候補の中に可能な範囲で含めてください。",
-            '同点の場合は馬番の小さい馬を選びます。',
-            '通常の上位候補の最下位1頭と入れ替える形になります。入れ替えは最大1頭です。',
-            'この判定はPHPが算出済みです。あなたが再判定・追加・除外してはいけません。',
-            '',
-        ])),
-        '【出力フォーマット（厳守）】',
-        'このフォーマットは画面表示アプリがそのままパースします。',
-        '前置き・後書き・補足コメントは不要です。フォーマット通りに出力してください。',
-        '',
-        '─────────────────────────────',
-        '厳選穴レース|1または0',
-        'レース指標|波乱度: X|下位進入度: X|大穴進入度: X',
-        '馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：能力適性:A（82点）。XXXXXXXXXXXXXXXXXXXXXXXXXXXX（候補1頭につき改行なしの1行。冒頭の「能力適性:X（XX点）。」は必須。続けて客観的根拠を4〜5要素入れ、箇条書きにしない）',
-        '─────────────────────────────',
-        '',
-
-        // ── @ANCHOR-20261004-AUDIT-ALLSCORE  全頭採点（内部用）の出力指示 ────────
-        //   よっしー20261004回答③A。公開部分とマーカーで分離する。
-        '【全頭採点（内部用）】',
-        '上の候補行を出力し終えたあと、全実出走馬の採点内訳を下のマーカーで囲んで1行のJSONとして出力してください。',
-        'この領域は画面に表示しません。公開候補行の中にJSONを混ぜてはいけません。',
-        '候補に選ばれなかった馬も含め、必ず全実出走馬を入れてください。候補が0頭の場合もこの領域は出力します。',
-        'キーは次の意味です。数値だけを入れ、説明文は書かないでください。',
-        '  n  … 馬番（整数）',
-        '  c  … 信頼度7項目の得点を順番に並べた配列 [0〜15, 0〜12, 0〜8, 0〜10, 0〜8, 0〜4, 0〜3]',
-        '  cs … 信頼度小計（cの合計・0〜60）',
-        '  m  … 妙味4項目の得点を順番に並べた配列 [0〜15, 0〜12, 0〜8, 0〜5]',
-        '  ms … 妙味小計（mの合計・0〜40）',
-        '  t  … 総合点（cs + ms・0〜100。候補行のおすすめ度と必ず一致させる）',
-        '  a  … 能力適性の点数（0〜100）。採点不能なら null とし、推測値を入れない',
-        '小計・合計は必ず内訳の合計と一致させてください。一致しない場合はPHP側で無効として扱います。',
-        '馬番の重複・欠落があってはいけません。',
-        '出力例（この例の数値はあくまで書式の見本です）:',
-        self::AUDIT_JSON_BEGIN,
-        '{"v":1,"horses":[{"n":1,"c":[12,9,5,7,6,3,2],"cs":44,"m":[6,8,4,2],"ms":20,"t":64,"a":78}]}',
-        self::AUDIT_JSON_END,
-        '',
-        '【厳選穴レースの判定ルール】',
-        '選出が終わったあと、以下のルールで「厳選穴レース|1」または「厳選穴レース|0」を出力の先頭1行目に必ず入れてください。',
-        '',
-        '■ 0に強制する条件（以下のいずれか1つでも成立すれば「0」確定・条件Aより優先）',
-        '・条件B: 6番人気以内の隣接間に断層（比率2.00以上）が2つ以上ある（上位完結型）',
-        '・条件C: 全馬の6分前複勝最小オッズの最大値が3.5倍未満（ガチガチレース・どの馬が来ても安い）',
-        '・条件D: 1番人気の6分前単勝オッズが2.0倍未満（1強レース・荒れる余地なし）',
-        '',
-        '■ 1になる条件（B・C・D が全て不成立の場合のみ判定）',
-        '・条件A: 選出した馬の中に7〜10番人気の馬が1頭以上含まれている',
-        '',
-        '■ 判定の優先順位（条件B・C・Dは「成立／不成立／不明」の3つで判定済みです）',
-        '条件B・C・D のいずれか1つでも【成立】 → 0（条件Aの結果を無視）',
-        '条件B・C・D が全て【不成立】 かつ 条件A成立 → 1',
-        '条件B・C・D が全て【不成立】 かつ 条件A不成立 → 0',
-        '【成立】が1つもなく【不明】が残る かつ 条件A成立 → 不明',
-        '【成立】が1つもなく【不明】が残る かつ 条件A不成立 → 0',
-        '',
-        '※【不明】は「判定に必要な入力が欠けている」という意味です。不明を不成立として扱ってはいけません。',
-        '※最終的な厳選穴レースの値はPHPが最終候補の確定後に再判定します。あなたはこの結果をそのまま1行目に書いてください。',
-        '',
-        '■ PHP算出済みの結果（必ずこの結果に従うこと・自分で再計算しないこと）',
-        "条件B（PHP算出済み）: {$condition2Desc}",
-        "条件C（PHP算出済み）: {$condition3Desc}",
-        "条件D（PHP算出済み）: {$condition4Desc}",
-        '',
-        '【おすすめ度の計算方法】',
-        // ── 以下は仕様書【おすすめ度の計算方法】の本文そのまま（要約・省略禁止）──
-        'おすすめ度は100点満点とし、「信頼度60点＋妙味40点」の固定内訳で全頭を採点してください。項目の追加、削除、配点変更、信頼度と妙味の間での点数移動は禁止です。同じ事実を複数項目で評価する場合は、各項目の目的に限定し、同一根拠を重複して満点評価しないでください。',
-        '',
-        '■ 信頼度（60点）：この馬が5着以内に来そうか',
-        '1．複勝支持・安定性：0〜15点',
-        '　複勝最小オッズの水準、複勝レンジの幅、複数時点での支持の安定性を評価する。複勝オッズが継続上昇、またはレンジが大きく拡大して不安定な馬は減点する。',
-        '2．単勝・複勝の継続資金流入：0〜12点',
-        '　計測開始から6分前までの継続性を評価し、特に複勝流入を重視する。単発急落、急落後の反発、1時点だけの変化は高得点にしない。',
-        '3．単複人気差・支持差：0〜8点',
-        '　複勝人気が単勝人気より高いこと、複勝流入ランクが単勝流入ランクより良いこと、単複比の整合性を補助材料として評価する。単複比だけで断定しない。',
-        '4．断層位置・時間変化・単複一致：0〜10点',
-        '　主断層の上側・下側、断層の継続・拡大・縮小・消滅、単勝断層と複勝断層の一致、断層下からの接近を評価する。断層下側という理由だけで自動的に0点または除外にしない。',
-        '5．類似レース統計：0〜8点',
-        '　サンプル数とともに3着以内率、5着以内率、平均着順、着外率を評価する。サンプル30件未満は参考値とし、単独で高得点にしない。',
-        '6．予測補正の維持・直前傾向：0〜4点',
-        '　推定確定単勝・複勝オッズ、補正係数、誤差、9分前→6分前の流入維持または加速を評価する。誤差が大きい場合は参考程度にする。',
-        '7．能力・今回条件への適性：0〜3点',
-        '　別途算出する能力適性A〜Dを補強材料として反映する。A=3点、B=2点、C=1点、D=0点を原則とする。ただし能力適性だけで候補を採用せず、能力適性Dでも強い市場根拠がある馬を自動除外しない。',
-        '',
-        '■ 妙味（40点）：推定確定オッズで買う価値があるか',
-        '1．推定確定配当水準：0〜15点',
-        '　推定確定複勝最小オッズを中心に評価する。1.5倍未満は本項目を原則2点以下、1.5〜2.5倍は3〜7点、2.5〜4.0倍は8〜11点、4.0〜7.0倍は12〜14点、7.0倍以上は継続的な複勝流入がある場合だけ15点まで可能とする。高オッズだけで高得点にしない。',
-        '2．3種類の回収率の裏付け：0〜12点',
-        '　過去回収率、OPI帯別回収率、フェーズパターン別回収率をサンプル数とセットで評価する。2種類以上が110%以上なら高評価、2種類以上が100%未満なら減点、2種類以上が90%未満なら0点とする。これは本項目の採点だけに効く減点であり、候補から外す条件ではない。欠損・0レース・「－」は不明として中立扱いし、0点や不振と解釈しない。',
-        '3．OPI・予測補正OPIによる市場評価：0〜8点',
-        '　予測補正OPIを中心に、単勝OPI・複勝OPIとの整合性を評価する。過小評価ゾーンは加点、過剰人気ゾーンは減点する。ただしOPIだけで採用・除外を決めない。',
-        '4．配当と市場流入・断層構造の整合性：0〜5点',
-        '　中穴・人気薄でありながら複勝への継続流入、断層縮小・接近、単複断層の矛盾など、今回の配当に対する客観的な穴進入根拠が重なる場合に加点する。人気薄という理由だけ、または単発急落だけでは加点しない。',
-        '',
-        '推定確定複勝最小オッズが1.5倍未満の場合は、上記4項目の合計である妙味小計を原則5点以下とする。後掲の低配当例外3条件をすべて満たす場合だけこの妙味上限を解除できるが、解除した事実と根拠を選出理由へ明記する。',
-        '',
-        '信頼度60点と妙味40点は、後掲の市場妙味基礎点80点・能力適性補正20点・高配当総合点とは別の「既存おすすめ度」です。両者を加算・平均・置換してはいけません。シャドー検証中は高配当強化指標をこの100点採点へ逆流させないでください。',
-        '',
-        '低配当例外を除き、信頼度が低い馬を妙味だけで70点以上にしないでください。原則として本候補は信頼度36点以上、補欠は信頼度30点以上を目安とします。これは採点の目安であり、候補から外す条件ではありません。',
-        '',
-        // 【20261004 よっしー回答③A】「JSONを出力しない」→「公開部分に混ぜず、内部用領域に出力する」へ統一
-        //   @ANCHOR-20261004-AUDIT-ALLSCORE
-        '全頭について信頼度小計、妙味小計、7項目＋4項目の内訳を確定してから合計してください。最終おすすめ度だけを既存候補行へ出力し、必ずこの固定配点から算出してください。',
-        '内訳・小計・合計は公開候補行には混ぜず、別に示す【全頭採点（内部用）】の領域にだけ出力してください。既存Flutter形式は変えません。',
-        // 【旧文面】'…既存Flutter形式を変えないため、内訳、小計、新しいJSON項目は出力へ追加しません。…'
-        '',
-        'おすすめ度（信頼度＋妙味）の降順でソートしてください。',
-        '人気順は上記テーブルの「X人気」欄の値をそのまま出力してください。自分で計算しないでください。',
-        '',
-        // 【20261004】仕様書 表8：候補削除と69点固定上限は廃止。妙味小計5点以下の制限だけ維持。
-        //   @ANCHOR-20261004-NO-PROMPT-EXCLUDE
-        '【低配当の採点制限（候補からは外しません）】',
-        '対象: 推定確定複勝最小が1.5倍未満 かつ 推定確定オッズ（単勝）が3.0倍未満 の両方を満たす馬。',
-        '該当馬は妙味小計を原則5点以下としてください。下記の例外3条件をすべて満たす場合だけ解除できます。',
-        'これは採点の制限であり、候補から外す条件ではありません。おすすめ度に上限は設けません。該当馬も通常どおり候補に選べます。',
-        '・例外①: 主断層の上側グループ（断層最上位グループ）に属している',
-        '・例外②: 単勝・複勝の両方で複数時点にわたる継続流入が確認できる',
-        '・例外③: サンプル30件以上かつ回収率110%以上の回収率が2種類以上ある',
-        '3条件すべてが成立した場合のみ上限を解除し、解除した事実と根拠を選出理由へ明記してください。1つでも欠ければ解除できません。',
-        'この判定はPHP側（Block 13a）でも行いますが、候補からは外しません。馬券を買うか見送るかの判断にだけ使います。',
-        '',
-        // 【20261004】仕様書 表8：90%ハード除外と64点固定上限は廃止。採点での減点のみ維持。
-        //   @ANCHOR-20261004-NO-PROMPT-EXCLUDE
-        '【回収率の扱い（候補からは外しません）】',
-        '各馬の3種類の回収率（過去回収率・OPI帯別回収率・フェーズパターン別回収率）は、サンプル30件以上のものだけを有効値として扱ってください。',
-        '・欠損・0件・「－」は不明として中立扱いとし、0点や不振と解釈してはいけません',
-        '・有効値が2種類以上あり、そのうち2種類以上が ' . self::B12_RECOVERY_LOW_THRESH . '%未満の馬は、PHP側（Block 12）で「馬券は見送り」の印が付きます。候補からは外しません。おすすめ度に上限も設けません。妙味の採点でのみ減点してください',
-        '・有効値のうち2種類以上が110%以上の馬は、妙味を高く評価してください',
-        '・サンプル30件未満の回収率を単独の根拠にして高得点・低得点にしてはいけません',
-        '',
-        '【選出ルール】',
-        '・選出した馬が全員4番人気以内の場合、選出理由の最後に必ず「※妙味補足：〜（なぜ高人気馬だけになったか1行で）」を追記してください',
-        '・7〜10番人気でオッズが継続下落している馬は、信頼度・妙味ともに積極的に加点してください',
-        '・複勝オッズが1.3倍以下の馬は、断層の最上位または複勝継続下落でない限りおすすめ度を下げてください',
-        '・一時的なオッズ急落（すぐ戻った）は過大評価しないでください',
-        '',
-        "【目標数 {$targetSelectionCount} 頭（目標かつ上限）】",
-        '全実出走馬を100点満点で採点し、固定おすすめ度順に並べたうえで上位から候補を確定してください。',
-        "おすすめ度70点・60点などの区分、低配当条件、回収率、人気帯別条件、大穴条件、断層条件は、候補から除外する理由にしてはいけません。",
-        'これらは選出理由と馬券購入判断に使ってください。候補選出と馬券購入判断は分離します。',
-        "点数が低いという理由だけで候補を削らないでください。確認できる候補が {$targetSelectionCount} 頭に届かない場合は、その頭数で構いません。",
-        '以下の区分は候補の除外条件ではなく、選出理由に書く際の目安です。',
-        '・おすすめ度70点以上: 本候補',
-        '・おすすめ度60〜69点: 補欠相当',
-        '・おすすめ度55点以上の11番人気以下: 人気薄注目馬相当',
-        '※点数の基準は暫定値です。データ蓄積後に調整します。',
-        '',
-        '【混戦・波乱含み（タイプD・E）における人気帯別の選出条件】',
-        '',
-        '■ 7〜10番人気の選出条件',
-        'タイプD・Eのレースで7〜10番人気を選出する場合、以下のうち3項目以上を満たした馬を優先してください。',
-        '・複勝オッズが複数時点で継続低下している',
-        '・複勝人気順位が単勝人気順位より2順位以上高い',
-        '・同人気帯で複勝流入ランクが1〜2位、または複勝流入ランクが単勝流入ランクより明確に良い',
-        '・6分前に向けて複勝流入ランクが上昇している（直前に資金が加速している）',
-        '・断層より下に位置するが、断層への接近が見られる',
-        '・断層が縮小または消滅し、人気帯の境界が曖昧になっている',
-        '・類似レース統計の5着以内率が高い',
-        '・予測補正OPIが0.85以下（市場の過小評価ゾーン）',
-        '・一時的な急落ではなく、複数時点にわたって資金流入が継続している',
-        '3項目以上を満たさない7〜10番人気の馬は選出を慎重に判断してください。',
-        '',
-        '■ 11番人気以下（大穴）の選出条件',
-        // 【20261004】仕様書 6.2：11人気以下だけの別枠・最大1〜2頭制限・選出禁止はすべて廃止。
-        //   下記の条件は「穴側の候補として評価を高める材料」であり、選べる／選べないの門ではない。
-        //   @ANCHOR-20261004-NO-PROMPT-EXCLUDE
-        '【11番人気以下を評価するときの材料】',
-        '11番人気以下に専用の別枠や頭数制限は設けません。他の馬と同じ基準で順位を付けてください。',
-        '次の条件が揃っている馬は、下位進入の根拠が強いものとして評価を高めてください。',
-        '・おすすめ度55点以上であること',
-        '・複勝オッズが複数時点で継続低下していること（単発急落は不可）',
-        '・複勝流入ランクが7人気以下グループ内で1〜2位であること',
-        '・単勝と複勝の両方で資金流入が確認できること',
-        '・断層なし・断層縮小・単複断層の矛盾、または5〜6番人気間／6番人気以降の断層など、下位進入を裏付ける構造があること。タイプB・Cでも強い継続流入と客観的根拠が揃えば人気帯上限内で最大1頭まで比較可能',
-        '上記が揃わない11番人気以下の馬を、選出禁止にはしません。ただし「来そうな気がする」だけで高く評価してはいけません。根拠の数と強さで順位を付けてください。',
-        '大穴進入度による頭数の割り当て（1〜2なら0頭、3なら1頭など）は廃止しました。頭数はPHPが別途決めます。',
-        '',
-        '【⚠️ 選出理由の記述ルール（厳守）】',
-        '・選出理由にAIが独自に算出・推測した確率値（「〜%の確率で」「〜%の可能性」等）を記載することは禁止です',
-        '・確率として引用してよいのは、各馬のデータ欄に表示されている「類似レース統計」の3着以内率・5着以内率・着外率のみです',
-        '・オッズの動きや断層位置から「〜%」という数値をAIが独自計算してはいけません。「資金が継続流入している」「断層上側に位置する」など事実ベースの表現を使ってください',
-        '',
-        '【下位進入度・大穴進入度の判定（選出前に必ず行うこと）】',
-        '馬を選ぶ前に、以下の3指標をそれぞれ1〜5で判定してください。これが人気帯別の選出頭数の根拠になります。',
-        '・波乱度（1〜5）: レース全体の予測困難度。断層タイプと修正ルールで決定。',
-        '・下位進入度（1〜5）: 7〜10番人気が5着以内へ入る可能性。断層下への複勝流入・断層縮小・複勝流入ランク上昇で判定。',
-        '・大穴進入度（1〜5）: 11番人気以下が5着以内へ入る可能性。継続的な複勝流入が確認できない限り1〜2にとどめること。',
-        '【重要】波乱度が高くても下位進入度・大穴進入度が低い場合は、1〜6番人気の中での順番入れ替えが主因です。7番人気以下を無理に選ばないでください。',
-        '例：波乱度4・下位進入度2・大穴進入度1 → 混戦だが決着は上位人気中心。7番人気以下の選出は慎重に。',
-        '例：波乱度4・下位進入度4・大穴進入度2 → 7〜10番人気に根拠のある馬がいれば積極的に選出。',
-        '',
-        '分析の観点：',
-        '・複勝オッズの動きを単勝より重視してください。複勝は「来るかどうか」を市場が評価している数値です',
-        '・単勝より複勝で継続的に資金が入っている馬を高く評価してください',
-        '・流入ランクの見方: 「単勝流入ランク」「複勝流入ランク」は同じ人気帯グループ（1〜3人気・4〜6人気・7人気以下）の中で、短縮率（計測前→6分前のオッズ下落率）が大きい順に付けた順位です。1位＝そのグループ内で最も資金が流入している馬。複勝流入ランクを単勝流入ランクより重視してください。同じ人気帯の中でグループ1位の馬は、数字上は人気が近くても相対的に最も買われており、流入シグナルとして重要です',
-        '・単勝断層と複勝断層が同じ位置に出ている場合は、その断層を強いシグナルとして扱ってください',
-        '・単勝オッズ下落10%以上は人気急上昇として注目（ただし単発の急落は過大評価しない）',
-        '・単複比が高い馬＝単勝支持に比べて複勝支持が相対的に強い可能性を示す補助材料。ただし、単複比だけで「勝ちにくい」「3着以内に絡みやすい」と断定せず、複勝時系列、流入ランク、断層、回収率、類似レース統計と合わせて評価する',
-        '・複勝の最小・最大の幅が広い馬＝市場の評価が割れている不安定な馬',
-        '・複勝の最小・最大の幅が狭い馬＝安定して3着以内が期待されている馬',
-        '・複勝オッズが下落している馬は3着以内の信頼度が高い',
-        '・OPI（Over Popularity Index）の見方: OPI>1.2は過去同人気より低オッズ＝市場が過大評価している可能性（妙味低）、OPI<0.8は過去同人気より高オッズ＝市場が過小評価している可能性（妙味高）。妙味スコアの補正材料として活用してください',
-        '・推定確定オッズの見方: 過去の6分前→確定オッズの変動パターンから算出した「発走時点での最終オッズ予測値」です。6分前オッズより推定確定オッズが大きく下がる馬（補正係数<1）は直前にさらに人気が集中する傾向があり、信頼度の補強材料になります。逆に推定確定オッズが上がる馬（補正係数>1）は直前に売られる傾向があります。±の補正誤差が大きい馬は予測の振れ幅が大きいため参考程度に留めてください。妙味スコアを算出する際は、6分前オッズではなく推定確定オッズを基準にしてください',
-        '・過去回収率・OPI帯別回収率・フェーズパターン別回収率の使い方: 各馬に表示されている「過去回収率」「OPI帯別回収率」「フェーズパターン別回収率」は、勝率ではなく回収率（%）を妙味スコア判断の最重要指標として使ってください。回収率が100%を下回るパターン（例: 1〜3人気×変化なし = 83%）は、たとえ勝率が高くても長期的には損をするパターンです。妙味スコアを下げる材料として扱ってください。逆に回収率が110%以上のパターンは積極的に妙味を高く評価してください。フェーズパターン別回収率は特に「前半下落・後半上昇（売り戻し）」や「前半上昇・後半下落（直前急落）」のような市場の急変パターンを捉えた重要シグナルです。1〜3番人気ばかりを選出して回収率の低い予想になることを厳に避けてください',
-        '',
-        "選出馬は必ず下記フォーマットを厳守して出力してください（「馬番：」から始まる候補行を最大 {$targetSelectionCount} 頭）。",
-        '1行目: 「厳選穴レース|X」（X=1: 成立, X=0: 不成立, X=不明: 判定に必要なPHP入力が欠損。PHP算出済み条件を再計算・推測しない）',
-        '2行目: 「レース指標|波乱度: X|下位進入度: X|大穴進入度: X」（各Xは1〜5の整数。判定に必要な入力が不足して算出できない項目は「不明」とし、推測値・0・固定値を入れない。このまま1行で出力すること）',
-        '3行目以降: 「馬番：X、馬名：XXX、人気順: X、6分前オッズ: X.X、おすすめ度: XX、選出理由：能力適性:X（XX点）。〜」を選出頭数分',
-        // 【20260924 追加】仕様【最終指示】の本文（1st AIの候補0頭時の出力）。抜けていたため追加
-        // 【20260927 変更】旧「候補0頭は正常」は仕様追補により無効。C頭必達。
-        "候補0件または {$targetSelectionCount} 頭未満でもエラーや公開停止にはなりません。確認できる候補だけを返し、頭数を埋めるための推測はしないでください。",
-        '厳選穴レース行・レース指標行は候補数に数えません。',
-        '※画面表示に影響するので、この形を必ず守ってください。',
-    ]);
-
-    // ── Block A: 直近走データ取得・プロンプト付加（① ⑩ 両AI対応）──────────────
-    // 仕様:「各馬の直近5走以上（取得可能なら10走）」→ 取得上限を10走にする
-    // _getAiAnalysisPrompt 内で 1st AI (Claude) にも全頭の過去成績・能力適性データを渡す。
-    // $race->dist/$race->course/$race->grade = 今走レース条件
-    // $horses（冒頭で全カラム取得済み）から今走騎手を参照
-    {
-        $todayDist   = isset($race->dist)   ? (int)$race->dist   : null;
-        $todayCourse = isset($race->course) ? $race->course       : null;
-        $todayGrade  = isset($race->grade)  ? $race->grade        : null;
-
-        $aHistoryText  = "
-
-【各馬の直近成績（過去最大10走）と今走データ】
-";
-        $aHistoryText .= "能力・適性評価（100点満点・6項目）の根拠として利用してください。
-";
-        $aHistoryText .= "評価区分：A（80〜100点）B（70〜79点）C（60〜69点）D（59点以下）
-";
-        if ($todayCourse || $todayDist) {
-            $aHistoryText .= '【今走条件】'
-                . ($todayCourse ?? '')
-                . ($todayDist   ? $todayDist . 'm' : '')
-                . ($todayGrade  ? ' ' . $todayGrade : '')
-                . "
-";
-        }
-        $aHistoryText .= "
-";
-
-        foreach ($horses as $_aNum => $_aHorse) {
-            $_aName   = $_aHorse->name;
-            $_aJockey = $_aHorse->jockey ?? null; // 今走騎手
-
-            $_aRows = DB::table('t_horse_odds_finder_shutsuba_history')
-                ->where('name', $_aName)
-                ->where('date', '<', $targetDate)   // 【20260924】仕様「対象レースより前の最大10走」・未来情報混入の防止
-                ->orderBy('date', 'desc')
-                ->limit(10)   // 仕様: 取得可能なら10走
-                ->get(['date', 'basho', 'race_name', 'dist', 'condition', 'grade',
-                       'finishing_position', 'num_horses', 'popularity', 'jockey',
-                       'burden_weight', 'horse_weight', 'last_3f', 'fin_time_diff',
-                       'corner_1', 'corner_2', 'corner_3', 'corner_4']);
-
-            $aHistoryText .= "{$_aNum}番 {$_aName}";
-            if ($_aJockey) {
-                $aHistoryText .= "（今走騎手: {$_aJockey}）";
-            }
-            $aHistoryText .= "
-";
-
-            // @ANCHOR-20261013-V04-ABILITY-VERIFY  AIへ渡した過去走の件数を控える
-            self::$v04PastRunCount[(int) $_aNum] = $_aRows->count();
-
-            if ($_aRows->isEmpty()) {
-                $aHistoryText .= "  （出走履歴なし）
-";
-            } else {
-                $_aRowsArr = $_aRows->values()->all(); // 0-indexed array
-                foreach ($_aRowsArr as $_ai => $_ar) {
-                    // 通過順位
-                    $_corners = array_filter([
-                        $_ar->corner_1 ?? null,
-                        $_ar->corner_2 ?? null,
-                        $_ar->corner_3 ?? null,
-                        $_ar->corner_4 ?? null,
-                    ], fn($v) => $v !== null && $v !== '');
-                    $_cornerStr = !empty($_corners) ? implode('-', $_corners) : '-';
-
-                    // 距離変化（今走 vs 最新前走）
-                    $_distDiff = '';
-                    if ($_ai === 0 && $todayDist && $_ar->dist) {
-                        $_dd = $todayDist - (int)$_ar->dist;
-                        if ($_dd > 0) $_distDiff = "（今走+{$_dd}m延長）";
-                        elseif ($_dd < 0) $_distDiff = "（今走{$_dd}m短縮）";
-                    }
-
-                    // 騎手継続・乗り替わり（今走 vs 最新前走）
-                    $_jockeyChg = '';
-                    if ($_ai === 0 && $_aJockey && ($_ar->jockey ?? null)) {
-                        $_jockeyChg = ($_ar->jockey === $_aJockey)
-                            ? '（騎手継続）'
-                            : "（乗替:前走{$_ar->jockey}）";
-                    }
-
-                    // 休養日数（この走と直前走との日数差）
-                    $_restStr = '';
-                    if ($_ai === 0 && $targetDate && $_ar->date) {
-                        $_d1 = new \DateTime($targetDate);
-                        $_d2 = new \DateTime($_ar->date);
-                        $_restStr = '休' . $_d1->diff($_d2)->days . '日';
-                    } elseif ($_ai > 0 && isset($_aRowsArr[$_ai - 1]->date) && $_ar->date) {
-                        $_d1 = new \DateTime($_aRowsArr[$_ai - 1]->date);
-                        $_d2 = new \DateTime($_ar->date);
-                        $_restStr = '休' . $_d1->diff($_d2)->days . '日';
-                    }
-
-                    $aHistoryText .= sprintf(
-                        "  %s %s %s %s%s %s着/%s頭中 %s人気 通過:%s 上がり%s 着差%s 斤%s 馬体%s %s%s%s%s
-",
-                        $_ar->date               ?? '-',
-                        $_ar->basho              ?? '-',
-                        $_ar->race_name          ?? '-',
-                        $_ar->dist               ?? '-',
-                        $_ar->condition          ?? '',
-                        $_ar->finishing_position ?? '-',
-                        $_ar->num_horses         ?? '-',
-                        $_ar->popularity         ?? '-',
-                        $_cornerStr,
-                        $_ar->last_3f            ?? '-',
-                        $_ar->fin_time_diff      ?? '-',
-                        $_ar->burden_weight      ?? '-',
-                        $_ar->horse_weight       ?? '-',
-                        $_restStr,
-                        $_distDiff,
-                        $_jockeyChg,
-                        ($_ar->grade ?? null) ? '[' . $_ar->grade . ']' : ''
-                    );
-                }
-            }
-            $aHistoryText .= "
-";
-        }
-        $lines[] = $aHistoryText;
-    }
-    // ── Block A End ──────────────────────────────────────────────────────────────
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // @ANCHOR-20261005-ALLSCORE-TAIL  全頭採点の指示を末尾でもう一度出す
-    // ══════════════════════════════════════════════════════════════════════════
-    // 【見つかった問題（2026-10-05）】
-    //   10/3の24レースを呼び直したところ、1st・2ndとも全頭採点JSONが
-    //   1レースも返らなかった（AUDIT_AI:「全頭採点のJSONが無い」×24）。
-    //   公開候補数は5〜7で正常なので、候補行は指示どおり出せている。
-    //   原因はプロンプトの並び順。【全頭採点（内部用）】の指示は前半にあり、
-    //   そのあとに「このフォーマットを厳守」という出力指示と、
-    //   各馬の過去成績が延々と続く。LLMは最後に読んだ指示を優先するため、
-    //   末尾の「候補行だけ」という形に引っ張られてJSONが落ちていた。
-    //   前半のブロックは動かさず（他の指示との参照関係を壊さないため）、
-    //   末尾に同じことをもう一度、短く書く。
-    // ══════════════════════════════════════════════════════════════════════════
-    // @ANCHOR-20261013-V04-HV  研究用H/V10項目の依頼（既定OFF・送信文は変わらない）
-    // ══════════════════════════════════════════════════════════════════════════
-    // 付録A/Bの「共通全頭100点（hv10-v04）」をここで追記できるようにしておく。
-    //   ・BAGANRIKI_V04_HV_PROMPT が既定falseなので、通常は空文字が返り、
-    //     送信文は1バイトも変わらない（受入A4の最終項目を満たす）。
-    //   ・ONにできるのは、07章Dの未決（現行BEGIN/ENDマーカー・Flutterパーサー・
-    //     行区切りとの適合）がよっしーから回答され、ユーザーが明示承認したあと。
-    //   ・付録A/Bの本文をそのまま送らないのは、資料自身が「実送信されていない
-    //     設計テンプレート」「そのまま実運用APIへ送信しない」と明記しており、
-    //     未置換の <<...>> を含むため（05-3）。
-    if (self::v04HvPrompt()) {
-        try {
-            $hvNums = array_map(static fn($h) => (int) $h['num'], $promptHorses);
-            $hvBlock = self::v04HvPromptBlock(
-                (int) $targetSelectionCount,
-                $v04['structure'] ?? [],
-                $hvNums,
-                // @ANCHOR-20261014-ID-ECHO  照合用の実値（統合時に突き合わせる）
-                ['race_id'       => "{$targetDate}_{$targetKaisuu}_{$targetBasho}_{$targetDay}_{$targetRace}",
-                 'snapshot_hash' => (string) $auSnapshotId]
-            );
-            if ($hvBlock !== '') {
-                $lines[] = '';
-                $lines[] = '────────────────────────────────────────';
-                $lines[] = $hvBlock;
-            }
-        } catch (\Throwable $hvE) {
-            \Log::error('[V04_HV] 研究用H/V採点の依頼文の生成に失敗（現行の送信文はそのまま）', [
-                'message' => $hvE->getMessage(),
-            ]);
-        }
-    }
-
-    $lines[] = '';
-    $lines[] = '────────────────────────────────────────';
-    $lines[] = '【最後に・出力の締めくくり】';
-    $lines[] = '上の候補行をすべて出し終えたあと、改行して、前述の【全頭採点（内部用）】を必ず出力してください。';
-    // ══════════════════════════════════════════════════════════════════════
-    // @ANCHOR-20261013-V04-HV-TAIL  締めくくりで出力ブロックを全部数え上げる
-    // ══════════════════════════════════════════════════════════════════════
-    // 【10/13の実AI送信テストで分かったこと】
-    //   研究用H/Vの依頼文を末尾（この締めくくりより後ろ）に足して1レース送ったら、
-    //   1st・2ndとも <<<BAGANRIKI_ALLSCORE_END>>> で回答が終わっており、
-    //   H/VのJSONが1度も返ってこなかった。原因はこの締めくくりの文面で、
-    //   「この2行のマーカーと、その間の1行のJSONだけを置いてください」の
-    //   「だけ」をAIが出力契約として読み、そこで打ち切っていた。
-    //   10/5に全頭採点JSONが1レースも返らなかったときと同じ構図（最後の指示が勝つ）。
-    //   → 依頼文をこのブロックの手前へ移し、ここで「出すブロックは何組か」を
-    //     明示的に数え上げる。H/V依頼がOFFのときは従来どおりの文面に戻るので、
-    //     本番の送信文は1バイトも変わらない。
-    if (self::v04HvPrompt()) {
-        $lines[] = '書き方は次のとおりです。出力するマーカー付きブロックは【2組】あります。';
-        $lines[] = '必ず両方とも、この順番で出力してください。1組だけで終えてはいけません。';
-        $lines[] = '';
-        $lines[] = '〈1組目〉現行の全頭採点（内部用）';
-        $lines[] = self::AUDIT_JSON_BEGIN;
-        $lines[] = '{"v":1,"horses":[ ... 全実出走馬ぶん ... ]}';
-        $lines[] = self::AUDIT_JSON_END;
-        $lines[] = '';
-        $lines[] = '〈2組目〉研究用の全頭採点（' . self::V04_SCORING_VERSION . '）※前述のH1〜H5・V1〜V5';
-        $lines[] = self::V04_HV_JSON_BEGIN;
-        $lines[] = '{"schema_version":"' . self::V04_SCHEMA_VERSION . '", ... 全実出走馬ぶん ... }';
-        $lines[] = self::V04_HV_JSON_END;
-        $lines[] = '';
-        $lines[] = 'この2組は別物です。1組目を2組目のマーカーで囲んだり、逆にしたりしないでください。';
-        $lines[] = 'どちらの領域も画面に表示しないため、Flutter形式を崩すことにはなりません。';
-        $lines[] = '候補行が0頭の場合も、この2組は両方とも出力してください。';
-        $lines[] = '候補行の中にJSONを混ぜてはいけません。';
-        $lines[] = '順番は「候補行 → 1組目のJSON → 2組目のJSON」です。';
-    } else {
-        $lines[] = '書き方は次のとおりです。この2行のマーカーと、その間の1行のJSONだけを置いてください。';
-        $lines[] = self::AUDIT_JSON_BEGIN;
-        $lines[] = '{"v":1,"horses":[ ... 全実出走馬ぶん ... ]}';
-        $lines[] = self::AUDIT_JSON_END;
-        $lines[] = 'この領域は画面に表示しないため、Flutter形式を崩すことにはなりません。';
-        $lines[] = '候補行が0頭の場合も、この領域だけは出力してください。';
-        $lines[] = '候補行の中にJSONを混ぜてはいけません。順番は「候補行 → マーカー付きJSON」です。';
-    }
-
-    // @ANCHOR-20261013-V04-HV  （2026-10-13 移動）研究用H/Vの依頼文はここにあったが、
-    //   末尾の【最後に・出力の締めくくり】より後ろだと、AIがその直前の
-    //   「この2行のマーカーと、その間の1行のJSONだけを置いてください」に従って
-    //   出力を打ち切り、H/VのJSONを1度も返さなかった（10/13の実AI送信テストで確認）。
-    //   そのため締めくくりブロックの手前へ移し、締めくくり側で
-    //   「マーカーは2組」と明記するように変えた。@ANCHOR-20261013-V04-HV-TAIL
-    $promptText = implode("\n", $lines);
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // @ANCHOR-20260928-PROMPT-SELFCHECK  送信前の機械検査（受入チェック#85）
-    // ═══════════════════════════════════════════════════════════════════════
-    // よっしー20260928指摘【本番差し込みの必須規則】：
-    //   「1st AI・2nd AIそれぞれの最終送信文に未置換プレースホルダー、例示値、
-    //     別レース値が残っていないことを機械検査してから送信する」
-    //   「生成後に全馬番が対象レースの実出走馬一覧に含まれることを検査する」
-    // ※ここは診断専用。検査そのもので予測を止めないよう \Throwable で保護する。
-    try {
-        $pcNg = [];
-
-        // ① 未置換プレースホルダー（{{...}} / {ピンク} / <...> 形式）
-        if (preg_match_all('/\{\{[^}]{1,60}\}\}/u', $promptText, $pcM1)) {
-            $pcNg['未置換プレースホルダー'] = array_values(array_unique($pcM1[0]));
-        }
-        if (mb_strpos($promptText, '{ピンク}') !== false) {
-            $pcNg['差し込み位置の記号'] = '{ピンク}';
-        }
-
-        // ② レース識別が対象レースと一致しているか（別レース値の混入検知）
-        if (preg_match('/^日付: (\S+)$/mu', $promptText, $pcM2) && $pcM2[1] !== (string) $targetDate) {
-            $pcNg['日付の不一致'] = ['プロンプト' => $pcM2[1], '対象' => (string) $targetDate];
-        }
-        if (preg_match('/^レース: (\d+)R/mu', $promptText, $pcM3) && (int) $pcM3[1] !== (int) $targetRace) {
-            $pcNg['レース番号の不一致'] = ['プロンプト' => (int) $pcM3[1], '対象' => (int) $targetRace];
-        }
-
-        // ③ 馬番ブロックの馬番がすべて対象レースの実出走馬に含まれるか
-        //    （「 1番( 4人気) 馬名」の行を拾う）
-        $pcValidNums = array_map(fn($h) => (int) $h['num'], $displayHorses);
-        if (preg_match_all('/^\s*(\d+)番\(\s*\d+人気\)/mu', $promptText, $pcM4)) {
-            $pcBlockNums = array_values(array_unique(array_map('intval', $pcM4[1])));
-            $pcAlien     = array_values(array_diff($pcBlockNums, $pcValidNums));
-            if (!empty($pcAlien)) {
-                $pcNg['実出走馬にない馬番'] = $pcAlien;
-            }
-            if (count($pcBlockNums) !== count($pcValidNums)) {
-                $pcNg['馬番ブロック数の不一致'] = [
-                    'ブロック' => count($pcBlockNums), '実出走馬' => count($pcValidNums),
-                ];
-            }
-        }
-
-        if (!empty($pcNg)) {
-            \Log::warning('[プロンプト検査] 送信前チェックでNG（受入チェック#85）', [
-                'race' => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-                'NG'   => $pcNg,
-            ]);
-        } else {
-            \Log::info('[プロンプト検査] 送信前チェックOK（未置換・別レース値・不明馬番なし）', [
-                'race'   => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-                '馬番数' => count($pcValidNums),
-                '文字数' => mb_strlen($promptText),
-            ]);
-        }
-    } catch (\Throwable $pcE) {
-        \Log::warning('[プロンプト検査] 検査中に例外（プロンプトはそのまま使用）', [
-            'message' => $pcE->getMessage(),
-        ]);
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // @ANCHOR-20261004-AUDIT-RACE  監査ログ【レース単位】（仕様書9.1 表10）
-    // ═══════════════════════════════════════════════════════════════════════
-    //   保存内容: 版、snapshot_id、N/C、入力とプロンプトのSHA-256、B/C/D、
-    //             配分モード、目標と実配分、降格理由、最終表示
-    //   ※実配分・最終表示は統合後に決まるため、統合側の [AUDIT_MERGE] に出す。
-    //   ※ここは診断専用。失敗しても予測を止めない。
-    try {
-        \Log::info('[AUDIT_RACE] レース単位の監査ログ（@ANCHOR-20261004-AUDIT-RACE）', [
-            'race'            => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-            '版'              => self::ALLOC_SPEC_VERSION,
-            '可変配分'        => self::allocFeatureEnabled() ? '有効' : '無効（巻き戻し中）',
-            'snapshot_id'     => $auSnapshotId,
-            'N'               => $activeRunnerCount,
-            'C'               => $targetSelectionCount,
-            '入力SHA256'      => $auInputHash,
-            'プロンプトSHA256' => hash('sha256', $promptText),
-            'プロンプト文字数' => mb_strlen($promptText),
-            'B'               => $allocThreeLabel($condition2Met),
-            'C条件'           => $allocThreeLabel($condition3Met),
-            'D'               => $allocThreeLabel($condition4Met),
-            '断層タイプ'      => $gapType,
-            '下位開放'        => $allocThreeLabel($allocLowerOpen),
-            '選出前ゲート'    => $allocGate ? '成立' : '不成立',
-            '配分モード'      => $allocMode,
-            '目標配分'        => ($allocTargetFav === null)
-                ? '既存目安（表6に数値なし）'
-                : "{$allocTargetFav}＋{$allocTargetLong}",
-            '降格理由'        => $allocModeReason,
-            '同配分の注記'    => $allocSameNote,
-            '資格あり馬番'    => $allocQualified,
-            '保護対象馬番'    => $protectedLongshotNums,
-        ]);
-        // @ANCHOR-20261015-PROMPT-FACTS  監査ログと同じ値を控える（検証で突き合わせる）
-        //   監査ログへ書くかどうかとは別に、いつでも控えます。
-        self::recordPromptFacts([
-            'race'             => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-            'snapshot_id'      => $auSnapshotId,
-            'N'                => $activeRunnerCount,
-            'C'                => $targetSelectionCount,
-            '入力SHA256'       => $auInputHash,
-            'プロンプトSHA256' => hash('sha256', $promptText),
-            'プロンプト文字数' => mb_strlen($promptText),
-            '断層タイプ'       => $gapType,
-            '配分モード'       => $allocMode,
-            '資格あり馬番'     => $allocQualified,
-        ]);
-
-        // ══════════════════════════════════════════════════════════════════
-        // @ANCHOR-20261015-AUDIT-NODIRTY  検証で組み直すときは監査ログへ書かない
-        // ══════════════════════════════════════════════════════════════════
-        // 10/15（1回目）02.txt ⑤「比較CSVの1st・2nd送信文MD5が空欄です。
-        //   取得状況と、実際に送信されたプロンプトの一致を確認してください」
-        // への対応で、保存済みの記録と突き合わせるためにプロンプトを
-        // 組み直す検証コマンド（--prompt-verify）を足しました。
-        // 組み直しは実レースの予想ではないので、監査ログには新しい行を足しません。
-        // $dryRunNoPersist = true のときだけ書かないので、本番の動きは変わりません。
-        if (!self::$dryRunNoPersist) {
-            self::auditFile('AUDIT_RACE', [
-                'race'            => "{$targetDate} {$targetKaisuu}回{$targetBasho} {$targetDay}日目 {$targetRace}R",
-                '版'              => self::ALLOC_SPEC_VERSION,
-                '可変配分'        => self::allocFeatureEnabled() ? '有効' : '無効（巻き戻し中）',
-                'snapshot_id'     => $auSnapshotId,
-                'N'               => $activeRunnerCount,
-                'C'               => $targetSelectionCount,
-                '入力SHA256'      => $auInputHash,
-                'プロンプトSHA256' => hash('sha256', $promptText),
-                'プロンプト文字数' => mb_strlen($promptText),
-                'B'               => $allocThreeLabel($condition2Met),
-                'C条件'           => $allocThreeLabel($condition3Met),
-                'D'               => $allocThreeLabel($condition4Met),
-                '断層タイプ'      => $gapType,
-                '下位開放'        => $allocThreeLabel($allocLowerOpen),
-                '選出前ゲート'    => $allocGate ? '成立' : '不成立',
-                '配分モード'      => $allocMode,
-                '目標配分'        => ($allocTargetFav === null)
-                    ? '既存目安（表6に数値なし）'
-                    : "{$allocTargetFav}＋{$allocTargetLong}",
-                '降格理由'        => $allocModeReason,
-                '同配分の注記'    => $allocSameNote,
-                '資格あり馬番'    => $allocQualified,
-                '保護対象馬番'    => $protectedLongshotNums,
-            ]);
-        }
-    } catch (\Throwable $arE) {
-        \Log::warning('[AUDIT_RACE] レース単位の監査ログの作成に失敗（処理は継続）', [
-            'message' => $arE->getMessage(),
-        ]);
-    }
-
-    // @ANCHOR-20261014-EVIDENCE-AUDIT2  依頼書②：送信文のハッシュを残す
-    //   1st AIへ送る本文そのもの。2nd AIはここから一部を外して使うので、
-    //   2nd側は送信直前に別途控える。
-    self::recordPromptHash('1st', (string) $promptText);
-
-    return $promptText;
-}
+    // ##########################################################################
+    // ## 第4部　2nd AI（DeepSeek）と統合・フィルター・保存　@SECTION-20261026-D
+    // ##   入口 getHorseOddsFinderSecondAiOpinion → 統合 _mergeAiResults
+    // ##########################################################################
 
 
 
@@ -11547,39 +11747,6 @@ SYSTEM;
     }
 }
 
-    /**
-     * 【20260928】1st AI が通信失敗・APIエラーのときに空回答を保存する。
-     *   2nd AI（DeepSeek）側が「1st AIの分析が完了していません（409）」で止まらず、
-     *   DeepSeek の有効候補だけでレースを成立させられるようにするため。
-     *   自動再試行は禁止なので、やり直すときは ai_analysis の該当行を削除して再実行する。
-     *   @ANCHOR-20260928-NO-RACE-STOP
-     */
-    private function _saveEmptyFirstAiAnalysis(
-        string $date, $kaisuu, string $basho, $day, $race, $raceRow, string $reason
-    ): void {
-        // @ANCHOR-20261004-DRY-RUN  試算モードでは保存しない
-        if (self::$dryRunNoPersist) return;
-        try {
-            DB::table('t_horse_odds_finder_ai_analysis')->updateOrInsert(
-                ['date' => $date, 'kaisuu' => $kaisuu, 'basho_code' => $basho, 'day' => $day, 'race' => $race],
-                [
-                    'basho'         => $raceRow->basho_name ?? '',
-                    'race_name'     => $raceRow->race_name  ?? '',
-                    'analysis_text' => '',
-                ]
-            );
-            \Log::warning('[PREDICTION_PARTIAL] 1st AI を空回答として保存（2nd AIで続行）', [
-                'reason' => $reason,
-                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
-            ]);
-        } catch (\Throwable $seE) {
-            \Log::error('[RACE_PROCESSING_ERROR] 1st AI 空回答の保存に失敗（処理は継続）', [
-                'message' => $seE->getMessage(),
-                'date' => $date, 'kaisuu' => $kaisuu, 'basho' => $basho, 'day' => $day, 'race' => $race,
-            ]);
-        }
-    }
-
     private function _getGapBand(float $changeRate): string
     {
         if ($changeRate <= -30) return '30%以上下落';
@@ -13920,98 +14087,6 @@ SYSTEM;
     }
 
     /**
-     * 【20260924 追加】1st AI の回答を公開してよいかを判定する。
-     *   失敗（空・形式不正・必要な2行が無い）または候補8頭以上（上限7頭超過）なら理由を返す。
-     *   公開してよい場合は null を返す。
-     *   getHorseOddsFinderAiAnalysis（1st AI 表示）と getHorseOddsFinderSecondAiOpinion（統合）で
-     *   同じ基準を使うためのメソッド。
-     */
-    private function _firstAiPublishError(string $firstAiText): ?string
-    {
-        // 【20261004】内部監査用JSON（@ANCHOR-20261004-AUDIT-ALLSCORE）を必ず落としてから扱う。
-        //   公開パーサー・回答判定に内部データを混ぜない（よっしー回答③Aの条件）。
-        $firstAiText = self::publicPart($firstAiText);
-        // 【20260928 レース停止回避追補】戻り値は「公開を止める理由」ではなく
-        //   「警告として記録する理由」になった。呼び出し元は 500 を返してはならない。
-        //   候補数の超過は _trimAiCandidates() が決定論的に絞るため、ここでは理由にしない。
-        //   @ANCHOR-20260928-NO-RACE-STOP
-        $judge = $this->_judgeFirstAiResponse($firstAiText);
-        if ($judge['status'] === 'failed') {
-            return $judge['reason'];
-        }
-        return null;
-    }
-
-    /**
-     * 1st AI（Claude）の回答を「正常 / 正常な0件 / 失敗」に判定する（受入チェック #65・#66）
-     *
-     * 仕様:
-     *   ・1st AI は「厳選穴レース行」「レース指標行」「候補行」を既存形式で返す。
-     *   ・正常な0件 = 厳選穴レース行がある／レース指標行がある／候補行だけが無い。
-     *   ・完全な空回答、形式不正、必要な2行が無い回答は【失敗】として扱い、
-     *     通常予測を公開してはならない（2nd AI だけの候補を公開するのは禁止）。
-     *
-     * 【なぜ必要か】
-     *   これまでは 1st AI の回答が空でも形式不正でも「候補0頭」として素通りし、
-     *   2nd AI だけの候補が通常予測として公開されうる状態だった。
-     *   1st AI が落ちたレースは、予測そのものを出さないのが仕様である。
-     *
-     * @return array{status:'ok'|'zero'|'failed', reason:string,
-     *               has_upset_line:bool, has_index_line:bool, horse_count:int}
-     */
-    private function _judgeFirstAiResponse(string $firstAiText): array
-    {
-        // 【20261004】内部監査用JSON（@ANCHOR-20261004-AUDIT-ALLSCORE）を必ず落としてから扱う。
-        //   公開パーサー・回答判定に内部データを混ぜない（よっしー回答③Aの条件）。
-        $firstAiText = self::publicPart($firstAiText);
-        $faText = trim($firstAiText);
-
-        // 完全な空回答 → 失敗
-        if ($faText === '') {
-            return ['status' => 'failed', 'reason' => '回答が空',
-                    'has_upset_line' => false, 'has_index_line' => false, 'horse_count' => 0];
-        }
-
-        // 厳選穴レース行（「厳選穴レース|1」「|0」、または判定に必要な入力欠損時の「|不明」）
-        // 【20260928】仕様で「不明」が有効な欠損表記として追加された。
-        $faUpset = (preg_match('/^厳選穴レース\|(?:[01]|不明)\s*$/mu', $faText) === 1);
-        // レース指標行（波乱度・下位進入度・大穴進入度。算出不能な項目は「不明」を許容）
-        $faIndex = (preg_match(
-            '/^レース指標\|波乱度[:：\s]*(?:\d+|不明)\|下位進入度[:：\s]*(?:\d+|不明)\|大穴進入度[:：\s]*(?:\d+|不明)/mu',
-            $faText
-        ) === 1);
-        $faHorses = count($this->_parseAiHorses($faText));
-
-        // 【20260928 仕様変更（よっしー20260928指摘）】
-        //   「候補以外の余分な文章や1st AIのレース指標行の欠損・形式不正は警告ログに残すが、
-        //     個別に形式検証を通過した候補行を無効化しない」
-        //   そのため、候補行が1行でも読み取れれば「失敗」にはしない。
-        //   厳選穴レースはPHPが Block 15 で再判定し、レース指標は欠損なら「不明」とする。
-        //   @ANCHOR-20260928-NO-RACE-STOP
-        if (!$faUpset || !$faIndex) {
-            $faReason = '必要な行が無い（厳選穴レース行: ' . ($faUpset ? 'あり' : 'なし')
-                      . ' / レース指標行: ' . ($faIndex ? 'あり' : 'なし') . '）';
-            if ($faHorses > 0) {
-                return ['status' => 'ok', 'reason' => $faReason . '／候補行は有効なので続行',
-                        'has_upset_line' => $faUpset, 'has_index_line' => $faIndex,
-                        'horse_count' => $faHorses];
-            }
-            return ['status' => 'failed', 'reason' => $faReason,
-                    'has_upset_line' => $faUpset, 'has_index_line' => $faIndex,
-                    'horse_count' => $faHorses];
-        }
-
-        // 2行が揃っていて候補行だけが無い → 正常な0件
-        if ($faHorses === 0) {
-            return ['status' => 'zero', 'reason' => '候補0頭（正常）',
-                    'has_upset_line' => true, 'has_index_line' => true, 'horse_count' => 0];
-        }
-
-        return ['status' => 'ok', 'reason' => '',
-                'has_upset_line' => true, 'has_index_line' => true, 'horse_count' => $faHorses];
-    }
-
-    /**
      * 低配当例外3条件の判定（受入チェック #69）
      *
      * 仕様:
@@ -15475,6 +15550,10 @@ SYSTEM;
         }
         // ── Block B-10 End ──────────────────────────────────────────────────────────
     }
+    // ##########################################################################
+    // ## 第5部　機械学習の窓口　@SECTION-20261026-E
+    // ##   計算の中身は下の BaganrikiMl
+    // ##########################################################################
 
 
 
@@ -15539,6 +15618,9 @@ SYSTEM;
     { return BaganrikiMl::_calcBandBasedRanking(...$args); }
     private function _saveMlSnapshot(...$args)
     { return BaganrikiMl::_saveMlSnapshot(...$args); }
+    // ##########################################################################
+    // ## 第6部　馬眼力指数・公開予想の読み出しAPI　@SECTION-20261026-F
+    // ##########################################################################
 
 
     /**
@@ -16034,6 +16116,9 @@ SYSTEM;
                                  ? json_decode((string) $pub->shortfalls, true) : [],
         ]));
     }
+    // ##########################################################################
+    // ## 第7部-1　r12.2 新しい予想の流れ：入力を集めて固定する（凍結）　@SECTION-20261026-G1
+    // ##########################################################################
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
@@ -17471,6 +17556,9 @@ SYSTEM;
         }
         return ['registry' => $add, 'coverage' => $cov];
     }
+    // ##########################################################################
+    // ## 第7部-2　r12.2：AI枠の予約・応答の検査・公開　@SECTION-20261026-G2
+    // ##########################################################################
 
     /**
      * @ANCHOR-20261020-R122-MICRO  DBの DATETIME が入っているタイムゾーン
@@ -19032,6 +19120,9 @@ SYSTEM;
         }
         return $o;
     }
+    // ##########################################################################
+    // ## 第7部-3　r12.2：過去走・市場の事前分布・役割の完了判定　@SECTION-20261026-G3
+    // ##########################################################################
 
     /**
      * @ANCHOR-20261020-R122-BANDKEEP  順位の指摘が付いた帯の名前だけを返します
@@ -20007,6 +20098,9 @@ SYSTEM;
         }
         return $out;
     }
+    // ##########################################################################
+    // ## 第7部-4　r12.2：処理経路・対象レース・Job投入・実状態　@SECTION-20261026-G4
+    // ##########################################################################
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
@@ -20723,6 +20817,9 @@ SYSTEM;
             return $out;
         }
     }
+    // ##########################################################################
+    // ## 第7部-5　r12.2：JSON・送信時刻・AI使用量・読取権限　@SECTION-20261026-G5
+    // ##########################################################################
 
     /** JSONへ（既存の書き方にそろえます） */
     private static function encodeJson($v): string
@@ -20964,6 +21061,9 @@ SYSTEM;
         $out['ok'] = true; $out['code'] = 'KEY';
         return $out;
     }
+    // ##########################################################################
+    // ## 第7部-6　r12.2：訂正の準備・テスト用の偽AI・料金と予算　@SECTION-20261026-G6
+    // ##########################################################################
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
@@ -21736,6 +21836,9 @@ SYSTEM;
             $db->select("SELECT RELEASE_LOCK('baganriki_r122_budget') AS l");
         }
     }
+    // ##########################################################################
+    // ## 第7部-7　r12.2：AIへの送信・訂正・公開・キャッシュ後の再開・巡回　@SECTION-20261026-G7
+    // ##########################################################################
 
     /**
      * @ANCHOR-20261023-COMPACT  送信形式 SOURCE_TABLE_V1 の説明（指示文の末尾に足します）
