@@ -1,0 +1,5134 @@
+{
+  "all_data_synthetic": true,
+  "display_schema_version": "baganriki-expected-display-v0.1.2",
+  "server_cases": [
+    {
+      "id": "normal_32_0_and_14_0",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      }
+    },
+    {
+      "id": "zero_is_visible",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 0.0,
+        "trial_score_5": 0.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.0,
+        "p5_raw": 0.0,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 0.0,
+        "top3_expectation_value": 0.0,
+        "expectation_value_text": "0.0",
+        "top3_expectation_value_text": "0.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      }
+    },
+    {
+      "id": "upper_boundary",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 100.0,
+        "trial_score_5": 100.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 1.0,
+        "p5_raw": 1.0,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 100.0,
+        "top3_expectation_value": 100.0,
+        "expectation_value_text": "100.0",
+        "top3_expectation_value_text": "100.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      }
+    },
+    {
+      "id": "few_examples",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "LOW_SUPPORT",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "LOW_SUPPORT"
+      }
+    },
+    {
+      "id": "baseline_only",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "BASELINE_ONLY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "BASELINE_ONLY"
+      }
+    },
+    {
+      "id": "missing_baseline",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": null,
+        "trial_score_5": null,
+        "support_status": "UNAVAILABLE_BASELINE",
+        "score_basis": "UNAVAILABLE",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": null,
+        "p5_raw": null,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": null,
+        "top3_expectation_value": null,
+        "expectation_value_text": "—",
+        "top3_expectation_value_text": "—",
+        "score_basis": "UNAVAILABLE",
+        "support_status": "UNAVAILABLE_BASELINE"
+      }
+    },
+    {
+      "id": "missing_input",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": null,
+        "trial_score_5": null,
+        "support_status": "UNAVAILABLE_INPUT",
+        "score_basis": "UNAVAILABLE",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": null,
+        "p5_raw": null,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": null,
+        "top3_expectation_value": null,
+        "expectation_value_text": "—",
+        "top3_expectation_value_text": "—",
+        "score_basis": "UNAVAILABLE",
+        "support_status": "UNAVAILABLE_INPUT"
+      }
+    },
+    {
+      "id": "calibration_applied",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "CALIBRATION_APPLIED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": true,
+        "p3_cal": 0.14,
+        "p5_cal": 0.32
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "CALIBRATION_APPLIED",
+        "support_status": "COMPARISON_READY"
+      }
+    },
+    {
+      "id": "numeric_string_rejected",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": "32.0",
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "boolean_rejected",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": false,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "negative_rejected",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": -0.1,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": -0.001,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "over_100_rejected",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 100.1,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 1.001,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "unrounded_value_rejected",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.05,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32049999999999995,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "one_null_rejected",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": null,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "top3_over_top5_rejected",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 33.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.33,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "formula_version_mismatch",
+      "calculation": {
+        "formula_version": "other",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "unavailable_with_numbers",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "UNAVAILABLE_BASELINE",
+        "score_basis": "UNAVAILABLE",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": null,
+        "p5_raw": null,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "wrong_time_slot",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 0,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 0,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "bad_calendar",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-02-30T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-02-30T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "bad_clock",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T24:00:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T24:00:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "bad_offset",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+99:99",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+99:99",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "year_zero",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "0000-01-01T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "0000-01-01T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "nonleap_day",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-02-29T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-02-29T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "different_frozen_time",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:45:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "source_horse_mismatch",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "ANOTHER_HORSE",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "source_snapshot_mismatch",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "OLD_SNAPSHOT",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "source_identity_missing",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "tampered_score_vs_raw_probability",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 40.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "false_calibration_label",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "CALIBRATION_APPLIED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "raw_with_calibrated_value",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": 0.14,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "wrong_implementation_version",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "old",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "raw_probabilities_reversed",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.5,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "withdrawn_after_freeze",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "WITHDRAWN"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "WITHDRAWN",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": null,
+        "top3_expectation_value": null,
+        "expectation_value_text": "—",
+        "top3_expectation_value_text": "—",
+        "score_basis": "UNAVAILABLE",
+        "support_status": "WITHDRAWN"
+      }
+    },
+    {
+      "id": "invalid_runner_status",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "UNKNOWN"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "cannot_revive_cancelled_source",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "WITHDRAWN"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "valid_leap_date",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2024-02-29T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2024-02-29T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2024-02-29T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      }
+    },
+    {
+      "id": "empty_identity",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "out_of_scope",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": null,
+        "trial_score_5": null,
+        "support_status": "OUT_OF_SCOPE",
+        "score_basis": "UNAVAILABLE",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": null,
+        "p5_raw": null,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": null,
+        "top3_expectation_value": null,
+        "expectation_value_text": "—",
+        "top3_expectation_value_text": "—",
+        "score_basis": "UNAVAILABLE",
+        "support_status": "OUT_OF_SCOPE"
+      }
+    },
+    {
+      "id": "calculation_error",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": null,
+        "trial_score_5": null,
+        "support_status": "CALCULATION_ERROR",
+        "score_basis": "UNAVAILABLE",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": null,
+        "p5_raw": null,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": null,
+        "top3_expectation_value": null,
+        "expectation_value_text": "—",
+        "top3_expectation_value_text": "—",
+        "score_basis": "UNAVAILABLE",
+        "support_status": "CALCULATION_ERROR"
+      }
+    },
+    {
+      "id": "bound_calculation_integration",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      },
+      "math_arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "synthetic_000",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_001",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_002",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_003",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_004",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_005",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_006",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_007",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_008",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_009",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_010",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_011",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_012",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_013",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_014",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_015",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_016",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_017",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_018",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_019",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_020",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_021",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_022",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_023",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_024",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_025",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_026",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_027",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_028",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_029",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_030",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_031",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_032",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_033",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_034",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_035",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_036",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_037",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_038",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_039",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_040",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_041",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_042",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_043",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_044",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_045",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_046",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_047",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_048",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_049",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_050",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_051",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_052",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_053",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_054",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_055",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_056",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_057",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_058",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_059",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_060",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_061",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_062",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_063",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_064",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_065",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_066",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_067",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_068",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_069",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_070",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_071",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_072",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_073",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_074",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_075",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_076",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_077",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_078",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_079",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_080",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_081",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_082",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_083",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_084",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_085",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_086",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_087",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_088",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_089",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_090",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_091",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_092",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_093",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_094",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_095",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_096",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_097",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_098",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_099",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "calculation_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      }
+    },
+    {
+      "id": "bound_calculation_then_cancel",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "WITHDRAWN"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "WITHDRAWN",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": null,
+        "top3_expectation_value": null,
+        "expectation_value_text": "—",
+        "top3_expectation_value_text": "—",
+        "score_basis": "UNAVAILABLE",
+        "support_status": "WITHDRAWN"
+      },
+      "math_arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "synthetic_000",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_001",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_002",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_003",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_004",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_005",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_006",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_007",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_008",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_009",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_010",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_011",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_012",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_013",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_014",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_015",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_016",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_017",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_018",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_019",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_020",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_021",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_022",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_023",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_024",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_025",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_026",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_027",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_028",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_029",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_030",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_031",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_032",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_033",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_034",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_035",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_036",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_037",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_038",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_039",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_040",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_041",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_042",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_043",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_044",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_045",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_046",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_047",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_048",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_049",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_050",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_051",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_052",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_053",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_054",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_055",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_056",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_057",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_058",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_059",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_060",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_061",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_062",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_063",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_064",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_065",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_066",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_067",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_068",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_069",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_070",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_071",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_072",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_073",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_074",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_075",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_076",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_077",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_078",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_079",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_080",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_081",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_082",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_083",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_084",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_085",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_086",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_087",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_088",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_089",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_090",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_091",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_092",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_093",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_094",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_095",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_096",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_097",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_098",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_099",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "calculation_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      }
+    },
+    {
+      "id": "cancelled_before_calculation",
+      "calculation": {
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "source_identity": {
+          "race_id": "DEMO_RACE_001",
+          "horse_id": "DEMO_HORSE_02",
+          "horse_number": 2,
+          "popularity_rank": 7,
+          "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+          "source_minutes_before": 6,
+          "frozen_at": "2026-10-25T09:44:00+09:00",
+          "runner_status": "ACTIVE"
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "calibration_applied": false,
+        "p3_cal": null,
+        "p5_cal": null
+      },
+      "identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "WITHDRAWN"
+      },
+      "expected_accept": true,
+      "expected": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "WITHDRAWN",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": null,
+        "top3_expectation_value": null,
+        "expectation_value_text": "—",
+        "top3_expectation_value_text": "—",
+        "score_basis": "UNAVAILABLE",
+        "support_status": "WITHDRAWN"
+      },
+      "math_arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "synthetic_000",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_001",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_002",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_003",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_004",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_005",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_006",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_007",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_008",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_009",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_010",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_011",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_012",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_013",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_014",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_015",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_016",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_017",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_018",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_019",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_020",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_021",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_022",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_023",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_024",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_025",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_026",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_027",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_028",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_029",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_030",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_031",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_032",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_033",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_034",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_035",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_036",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_037",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_038",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_039",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_040",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_041",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_042",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_043",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_044",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_045",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_046",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_047",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_048",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_049",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_050",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_051",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_052",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_053",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_054",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_055",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_056",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_057",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_058",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_059",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_060",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_061",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_062",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_063",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_064",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_065",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_066",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_067",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_068",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_069",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_070",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_071",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_072",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_073",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_074",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_075",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_076",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_077",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_078",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_079",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_080",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_081",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_082",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_083",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_084",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_085",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_086",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_087",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_088",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_089",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_090",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_091",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_092",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_093",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_094",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_095",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_096",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_097",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_098",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_099",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "calculation_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "WITHDRAWN"
+      }
+    }
+  ],
+  "client_cases": [
+    {
+      "id": "normal_32_0_and_14_0",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true
+    },
+    {
+      "id": "zero_is_visible",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 0.0,
+        "top3_expectation_value": 0.0,
+        "expectation_value_text": "0.0",
+        "top3_expectation_value_text": "0.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true
+    },
+    {
+      "id": "upper_boundary",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 100.0,
+        "top3_expectation_value": 100.0,
+        "expectation_value_text": "100.0",
+        "top3_expectation_value_text": "100.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true
+    },
+    {
+      "id": "few_examples",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "LOW_SUPPORT",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true
+    },
+    {
+      "id": "baseline_only",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "BASELINE_ONLY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true
+    },
+    {
+      "id": "missing_baseline",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": null,
+        "top3_expectation_value": null,
+        "expectation_value_text": "—",
+        "top3_expectation_value_text": "—",
+        "score_basis": "UNAVAILABLE",
+        "support_status": "UNAVAILABLE_BASELINE",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true
+    },
+    {
+      "id": "missing_input",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": null,
+        "top3_expectation_value": null,
+        "expectation_value_text": "—",
+        "top3_expectation_value_text": "—",
+        "score_basis": "UNAVAILABLE",
+        "support_status": "UNAVAILABLE_INPUT",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true
+    },
+    {
+      "id": "calibration_applied",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "CALIBRATION_APPLIED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true
+    },
+    {
+      "id": "score_string",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": "32.0",
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "score_boolean",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": true,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "text_mismatch",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "31.9",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "one_null",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": null,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "—",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "top3_over_top5",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 40.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "40.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "wrong_race",
+      "payload": {
+        "race_id": "ANOTHER_RACE",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "wrong_horse",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "ANOTHER_HORSE",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "stale_snapshot",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "OLD_SNAPSHOT",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "wrong_horse_number",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 3,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "wrong_popularity_rank",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 6,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "wrong_time_slot",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 0,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "missing_numeric_field",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "unsupported_schema",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "other",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "fake_percent_unit",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "percent",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "missing_timezone",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "negative_score",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": -0.1,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "-0.1",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "runner_status": "ACTIVE"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "strict_calendar_2026-02-30T09:44:00+09:00",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-02-30T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-02-30T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "strict_calendar_2026-10-25T24:00:00+09:00",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T24:00:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T24:00:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "strict_calendar_0000-01-01T09:44:00+09:00",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "0000-01-01T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "0000-01-01T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "strict_calendar_2026-02-29T09:44:00+09:00",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-02-29T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-02-29T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "same_id_different_timestamp",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:45:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "stale_active_response_after_cancel",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "WITHDRAWN"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "withdrawn_flag_with_numeric_score",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "WITHDRAWN",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "WITHDRAWN"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "withdrawn_displays_dash",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "WITHDRAWN",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": null,
+        "top3_expectation_value": null,
+        "expectation_value_text": "—",
+        "top3_expectation_value_text": "—",
+        "score_basis": "UNAVAILABLE",
+        "support_status": "WITHDRAWN"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "WITHDRAWN"
+      },
+      "expected_accept": true
+    },
+    {
+      "id": "valid_leap_day",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2024-02-29T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2024-02-29T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": true
+    },
+    {
+      "id": "empty_identity",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "wrong_implementation",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "old",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T09:44:00+09:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    },
+    {
+      "id": "utc_is_not_canonical_jst",
+      "payload": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "source_minutes_before": 6,
+        "frozen_at": "2026-10-25T00:44:00+00:00",
+        "runner_status": "ACTIVE",
+        "display_schema_version": "baganriki-expected-display-v0.1.2",
+        "formula_version": "baganriki-expected-v0.1-draft-20261025",
+        "implementation_version": "baganriki-expected-impl-v0.1.4",
+        "comparison_only": true,
+        "validated_for_live": false,
+        "main_target": "TOP5",
+        "unit": "score_0_100",
+        "expectation_value": 32.0,
+        "top3_expectation_value": 14.0,
+        "expectation_value_text": "32.0",
+        "top3_expectation_value_text": "14.0",
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      },
+      "expected_identity": {
+        "race_id": "DEMO_RACE_001",
+        "horse_id": "DEMO_HORSE_02",
+        "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+        "horse_number": 2,
+        "popularity_rank": 7,
+        "frozen_at": "2026-10-25T00:44:00+00:00",
+        "runner_status": "ACTIVE"
+      },
+      "expected_accept": false
+    }
+  ],
+  "implementation_version": "baganriki-expected-impl-v0.1.4"
+}

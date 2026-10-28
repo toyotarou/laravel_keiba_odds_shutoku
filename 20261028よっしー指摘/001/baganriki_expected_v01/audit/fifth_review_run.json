@@ -1,0 +1,137 @@
+{
+  "verify_summation.py": {
+    "audit_date_jst": "2026-10-26",
+    "implementation_version": "baganriki-expected-impl-v0.1.4",
+    "threshold_cases_passed": 3,
+    "boundary_details": [
+      {
+        "case": "just_below",
+        "each_weight": 0.09999999999999,
+        "count": 100,
+        "ordinary_sum": 9.999999999999009,
+        "compensated_sum": 9.999999999999,
+        "exact_binary_input_sum": "9.99999999999899996661056889024621341377496719360351562500",
+        "below_10": true
+      },
+      {
+        "case": "at_threshold",
+        "each_weight": 0.1,
+        "count": 100,
+        "ordinary_sum": 9.99999999999998,
+        "compensated_sum": 10.0,
+        "exact_binary_input_sum": "10.0000000000000005551115123125782702118158340454101562500",
+        "below_10": false
+      },
+      {
+        "case": "just_above",
+        "each_weight": 0.10000000000001,
+        "count": 100,
+        "ordinary_sum": 10.000000000001016,
+        "compensated_sum": 10.000000000001,
+        "exact_binary_input_sum": "10.0000000000009997558336749534646514803171157836914062500",
+        "below_10": false
+      }
+    ],
+    "random_numeric_cases_passed": 500,
+    "summation_order_checks_passed": 1500,
+    "empty_sum_passed": true,
+    "oracle": "400-digit Decimal of exact binary inputs, plus math.fsum",
+    "php_dart_flutter_execution_performed": false,
+    "scope": "Python numerical reproduction and counterpart; PHP runtime checks remain required."
+  },
+  "verify_fixture_oracles.py": {
+    "math_fixture_answers_checked": 27,
+    "math_fixture_answer_ids": [
+      "main_example_14_and_32",
+      "four_weighted_neighbours",
+      "baseline_only",
+      "no_baseline_returns_null",
+      "identity_calibration",
+      "monotone_calibration",
+      "baseline_only_does_not_apply_calibration",
+      "zero_weight_keeps_baseline",
+      "tiny_support_is_shrunk",
+      "baseline_formula",
+      "year_half_life",
+      "distance_decay",
+      "combined_decay",
+      "identical_features",
+      "common_odds_scale_keeps_profile_but_changes_price",
+      "distance_400_metres",
+      "class_mismatch",
+      "movement_one_scale",
+      "profile_only",
+      "tiny_bandwidth_zero_distance",
+      "tiny_bandwidth_nonzero_distance",
+      "tiny_equal_weights_effective_n",
+      "zero_neighbours_tiny_lambda_keeps_baseline",
+      "tiny_positive_prior_is_preserved",
+      "support_weight_below_threshold",
+      "support_weight_exact_threshold",
+      "support_weight_above_threshold"
+    ],
+    "php_rejection_cases_not_executed": 29,
+    "server_expected_payloads_checked_against_python_contract": 15,
+    "server_expected_payload_ids": [
+      "normal_32_0_and_14_0",
+      "zero_is_visible",
+      "upper_boundary",
+      "few_examples",
+      "baseline_only",
+      "missing_baseline",
+      "missing_input",
+      "calibration_applied",
+      "withdrawn_after_freeze",
+      "valid_leap_date",
+      "out_of_scope",
+      "calculation_error",
+      "bound_calculation_integration",
+      "bound_calculation_then_cancel",
+      "cancelled_before_calculation"
+    ],
+    "repeated_independent_checks": {
+      "python_transport_cases_passed": 36,
+      "python_decimal_math_cases_passed": 500,
+      "positive_tail_checks_passed": 10,
+      "php_dart_flutter_execution_performed": false,
+      "example_values": [
+        32.0,
+        14.0
+      ]
+    },
+    "php_dart_flutter_execution_performed": false,
+    "note": "This verifies fixture answers and Python equations, not execution of the supplied PHP or Dart programs."
+  },
+  "verify_calibration_loss.py": {
+    "audit_date_jst": "2026-10-26",
+    "test_origin": "fourth_review",
+    "boundary_loss_cases_passed": 234,
+    "oracle": "120-digit Decimal using the direct mathematical objective",
+    "relative_tolerance": 3e-12,
+    "absolute_tolerance": 0.0,
+    "reproduction": {
+      "p_raw": 0.99,
+      "a": 10.0,
+      "b": 10.0,
+      "z": 55.951198501345885,
+      "float_sigmoid": 1.0,
+      "outcomes": [
+        {
+          "y": 0,
+          "direct_float_loss": "math domain error: log(0)",
+          "stable_float_loss": 55.951198501345885
+        },
+        {
+          "y": 1,
+          "direct_float_loss": "math domain error: log(0)",
+          "stable_float_loss": 5.01999442680722e-25
+        }
+      ]
+    },
+    "coefficient_training_performed": false,
+    "php_dart_flutter_execution_performed": false,
+    "reference_implementation_executed": false,
+    "implementation_version": "baganriki-expected-impl-v0.1.4",
+    "scope": "Numerical implementation guidance for the future calibration training module."
+  }
+}

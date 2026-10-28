@@ -1,0 +1,13 @@
+{
+  "input": {
+    "W": 1.0,
+    "lambda": 1e-20,
+    "p0": 0.1,
+    "weighted_success": 0
+  },
+  "v012_result": 0.0,
+  "independent_expected": 1e-21,
+  "proposed_result": 1e-21,
+  "old_absolute_tolerance_would_accept": true,
+  "proposed_relative_error": 0.0
+}

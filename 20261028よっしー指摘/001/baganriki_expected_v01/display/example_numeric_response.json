@@ -1,0 +1,23 @@
+{
+  "race_id": "DEMO_RACE_001",
+  "horse_id": "DEMO_HORSE_02",
+  "horse_number": 2,
+  "popularity_rank": 7,
+  "snapshot_id": "DEMO_SNAPSHOT_6MIN",
+  "source_minutes_before": 6,
+  "frozen_at": "2026-10-25T09:44:00+09:00",
+  "runner_status": "ACTIVE",
+  "display_schema_version": "baganriki-expected-display-v0.1.2",
+  "formula_version": "baganriki-expected-v0.1-draft-20261025",
+  "implementation_version": "baganriki-expected-impl-v0.1.4",
+  "comparison_only": true,
+  "validated_for_live": false,
+  "main_target": "TOP5",
+  "unit": "score_0_100",
+  "expectation_value": 32.0,
+  "top3_expectation_value": 14.0,
+  "expectation_value_text": "32.0",
+  "top3_expectation_value_text": "14.0",
+  "score_basis": "RAW_UNCALIBRATED",
+  "support_status": "COMPARISON_READY"
+}

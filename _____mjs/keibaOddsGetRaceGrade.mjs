@@ -59,6 +59,9 @@
  * 【使い方】
  *   node keibaOddsGetRaceGrade.mjs --yearmonth=2023-01
  *   node keibaOddsGetRaceGrade.mjs --yearmonth=2023-01 --list-only  （開催名一覧のみ）
+ *   node keibaOddsGetRaceGrade.mjs --yearmonth=2026-10 --with-condition --kaisai=4-05-8,4-08-8
+ *     （20261028 追加：グレードなしのレースも含め、全レースの条件テキスト race_condition を出力。
+ *       --kaisai を付けるとその開催だけを開く。--with-condition が無いときの動きは従来どおり）
  *
  * 【出力 JSON 形式】
  *   {
@@ -99,6 +102,14 @@ import { dirname, join } from 'path';
 const args = process.argv.slice(2);
 const yearmonthArg = args.find(a => a.startsWith('--yearmonth='));
 const listOnly     = args.includes('--list-only');
+// 20261028: 改良期待数値（E3/E5）のクラス取り込み用
+//   --with-condition : グレードなしのレースも含めて全レースを出力し、race_condition（例「3歳以上2勝クラス（混合）［指定］」）を付ける
+//   --kaisai=A,B     : 指定した開催だけを開く（JRAへのアクセスを最小限にするため）
+//                      「回-場コード-日」の数字だけで渡す（例 4-05-8 ＝ 4回東京8日）。
+//                      PHP の escapeshellarg がサーバの言語設定で日本語を落とすため、日本語は渡さない。
+const withCondition = args.includes('--with-condition');
+const kaisaiArg     = args.find(a => a.startsWith('--kaisai='));
+const kaisaiCodes   = kaisaiArg ? kaisaiArg.split('=')[1].split(',').map(s => s.trim()).filter(Boolean) : null;
 
 if (!yearmonthArg) {
     process.stderr.write('Usage: node keibaOddsGetRaceGrade.mjs --yearmonth=2023-01\n');
@@ -239,6 +250,18 @@ async function navigateToKaisaiList(page, year, month) {
             return;
         }
 
+        // 20261028: --kaisai 指定時は、その開催だけに絞る（「4-05-8」→「4回東京8日」に戻して照合）
+        const codeToName = Object.fromEntries(Object.entries(bashoMap).map(([name, code]) => [code, name]));
+        const kaisaiFilter = kaisaiCodes ? kaisaiCodes.map(c => {
+            const m = c.match(/^(\d+)-(\d{2})-(\d+)$/);
+            return (m && codeToName[m[2]]) ? `${parseInt(m[1], 10)}回${codeToName[m[2]]}${parseInt(m[3], 10)}日` : null;
+        }).filter(Boolean) : null;
+        if (kaisaiFilter) {
+            const before = kaisaiList.length;
+            kaisaiList.splice(0, kaisaiList.length, ...kaisaiList.filter(k => kaisaiFilter.includes(k.text)));
+            log(`--kaisai 指定: ${before}件 → ${kaisaiList.length}件 (${kaisaiFilter.join(', ')})`);
+        }
+
         log(`対象開催 ${kaisaiList.length}件: ${kaisaiList.map(k => k.text).join(', ')}`);
 
         // --list-only モード: 開催名一覧だけ返して終了
@@ -334,7 +357,19 @@ async function navigateToKaisaiList(page, year, month) {
 
                     const grade = nameTd ? extractGrade(nameTd) : null;
 
-                    races.push({ race, race_name, grade });
+                    // 20261028: 条件テキスト（クラス）。td.race_name > div の中に div が2つある。
+                    //   特別戦：1つ目＝レース名（div.stakes）、2つ目＝「3歳以上2勝クラス（混合）［指定］」
+                    //   一般戦：1つ目＝「3歳以上1勝クラス[指定]」、2つ目＝空
+                    //   2つ目に文字があればそれを、無ければ1つ目を使う。
+                    let race_condition = null;
+                    if (nameTd) {
+                        const inner = nameTd.querySelectorAll(':scope > div > div');
+                        const t0 = inner[0] ? inner[0].textContent.replace(/\s+/g, ' ').trim() : '';
+                        const t1 = inner[1] ? inner[1].textContent.replace(/\s+/g, ' ').trim() : '';
+                        race_condition = (t1 !== '' ? t1 : t0) || null;
+                    }
+
+                    races.push({ race, race_name, grade, race_condition });
                 });
 
                 races.sort((a, b) => a.race - b.race);
@@ -347,7 +382,23 @@ async function navigateToKaisaiList(page, year, month) {
             }
 
             // グレードありのレースのみ記録・ログ出力
+            //   20261028: --with-condition のときは全レースを記録し、race_condition を付ける
             races.forEach(r => {
+                if (withCondition) {
+                    log(`    [${r.race}R] ${r.race_name} / condition=${r.race_condition ?? '-'} / grade=${r.grade ?? '-'}`);
+                    allData.push({
+                        date,
+                        kaisuu,
+                        basho_name:     bashoName,
+                        basho_code,
+                        day,
+                        race:           r.race,
+                        race_name:      r.race_name,
+                        grade:          r.grade,
+                        race_condition: r.race_condition,
+                    });
+                    return;
+                }
                 if (r.grade === null) return;
                 log(`    [${r.race}R] ${r.race_name} / grade=${r.grade}`);
                 allData.push({

@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力 期待値数の検証結果</title>
+<style>
+:root{
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1f2328; --sub:#5b6370; --line:#e3e1dc;
+  --ok:#1f7a4d; --okbg:#e7f4ec; --warn:#9a5b00; --warnbg:#fbf1df;
+  --info:#2457a6; --infobg:#e8eefa; --code:#f0eee9; --ng:#b3261e;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#16181b; --card:#1f2226; --ink:#e8e6e1; --sub:#a3a9b2; --line:#33373d;
+    --ok:#6fcf9b; --okbg:#1d3328; --warn:#f0b65a; --warnbg:#3a2e1a;
+    --info:#8fb4f2; --infobg:#1e2a40; --code:#2a2d32; --ng:#f28b82;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:16px;line-height:1.75}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.35rem;margin:0 0 4px}
+.meta{color:var(--sub);font-size:.85rem;margin-bottom:20px}
+h2{font-size:1.08rem;margin:28px 0 10px;padding-left:10px;border-left:4px solid var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0}
+.lead{font-size:1.02rem}
+ul{padding-left:1.2em;margin:6px 0}
+li{margin:4px 0}
+.tag{display:inline-block;font-size:.78rem;font-weight:700;border-radius:6px;padding:1px 8px;margin-right:6px}
+.ok{color:var(--ok);background:var(--okbg)}
+.warn{color:var(--warn);background:var(--warnbg)}
+.info{color:var(--info);background:var(--infobg)}
+.note{color:var(--sub);font-size:.85rem}
+.ng{color:var(--ng);font-weight:700}
+.good{color:var(--ok);font-weight:700}
+.tw{overflow-x:auto;margin:8px 0}
+table{border-collapse:collapse;width:100%;font-size:.86rem}
+th,td{border-bottom:1px solid var(--line);padding:6px 6px;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--sub);font-weight:600;font-size:.78rem}
+tr.hl td{background:var(--warnbg)}
+.formula{background:var(--code);border-radius:8px;padding:10px 12px;margin:8px 0;font-size:.95rem}
+pre{background:var(--code);border-radius:8px;padding:12px;font-size:.8rem;line-height:1.6;white-space:pre-wrap;word-break:break-all;margin:8px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>馬眼力「期待値数」の検証結果と計算例</h1>
+<div class="meta">2026年10月26日（月）／ふなっしー（豊田）より</div>
+
+<div class="card lead">
+<span class="tag info">結論</span>
+<ul>
+<li>ご提案の<b>期待値数の考え方は採用できます。</b>式もそのまま使えます。</li>
+<li>ただし検証したところ、<b>複勝オッズの「中間値」を使うと、期待値が実際より1〜2割高く出ます。</b>中間値で「プラス」と出た馬は、実際の払戻では<span class="ng">回収率 約86%</span>でした。</li>
+<li>そこで<b>中間値は、過去の実際の払戻に合わせて補正して使う</b>ことにしました（4章）。</li>
+<li>オッズだけから出した確率は、よく当たっていました（予測30%の馬は実際も約30%）。<b>問題は確率ではなく、オッズの扱いでした。</b></li>
+<li><b>最後の7章で、A・Bのどちらかをお選びください。</b></li>
+</ul>
+</div>
+
+<h2>1. 検証のやり方</h2>
+<div class="card">
+<ul>
+<li>使ったデータ：2023年1月〜2026年10月25日のJRAのレース結果と、実際の複勝払戻金（約13,000レース）。</li>
+<li><b>学習用</b>：2023〜2025年のレース。<b>検証用</b>：2026年1月〜10月25日のレース（35,253頭）。<br>検証用のレースは学習に一切使っていません。未来の情報は混ざっていません。</li>
+<li>複勝圏は、8頭以上は3着まで、7頭以下は2着までで判定しました。4頭以下のレース（複勝の発売なし）は除外しています。</li>
+<li>AIは一度も使っていません（費用はかかっていません）。</li>
+</ul>
+<p class="note"><span class="tag warn">注意</span>今回は「確定オッズ」で検証しています。馬眼力の予想は<b>6分前オッズ</b>が基準ですが、6分前の複勝オッズの記録は9月19日以降の約390レース分しかなく、まだ検証に足りません。確定オッズは6分前より正確なので、<b>実際の6分前での結果は、今回より良くなることはまずありません。</b></p>
+</div>
+
+<h2>2. 確率の当たり具合</h2>
+<div class="card">
+<p>複勝圏に入る確率を、「単勝オッズ帯 × 出走頭数」ごとの過去の実績から出しました（新方式）。</p>
+<div class="tw"><table>
+<tr><th>予測した確率</th><th>頭数</th><th>予測（平均）</th><th>実際の複勝率</th></tr>
+<tr><td>0〜10%</td><td>9,862</td><td>4.4%</td><td>4.5%</td></tr>
+<tr><td>10〜20%</td><td>8,584</td><td>13.7%</td><td>13.9%</td></tr>
+<tr><td>20〜30%</td><td>5,704</td><td>24.9%</td><td>24.7%</td></tr>
+<tr><td>30〜40%</td><td>3,674</td><td>34.2%</td><td>33.6%</td></tr>
+<tr><td>40〜50%</td><td>2,825</td><td>44.6%</td><td>44.2%</td></tr>
+<tr><td>50〜60%</td><td>2,036</td><td>54.0%</td><td>55.6%</td></tr>
+<tr><td>60〜70%</td><td>1,497</td><td>64.1%</td><td>62.9%</td></tr>
+<tr><td>70〜80%</td><td>373</td><td>71.6%</td><td>75.1%</td></tr>
+<tr><td>80%以上</td><td>698</td><td>81.4%</td><td>82.7%</td></tr>
+</table></div>
+<ul>
+<li>予測と実際がほぼ一致しています。</li>
+<li>Brier Score：現行方式 0.1428／新方式 0.1427（小さいほど良い）。ほぼ同じです。</li>
+<li>7頭以下のレースでは差が出ました。現行方式は「3着まで」で計算しているため予測37.0%（実際31.6%）、新方式は33.9%でした。</li>
+</ul>
+</div>
+
+<h2>3. 期待値数と実際の回収率</h2>
+<div class="card">
+<p>新方式（4章の補正あり）で期待値数を出し、区分ごとに「100円ずつ買っていたら」を集計しました。</p>
+<div class="tw"><table>
+<tr><th>期待値数</th><th>頭数</th><th>的中</th><th>実回収率<br>（確定払戻）</th><th>参考：中間値<br>で計算した場合</th></tr>
+<tr><td>−30未満</td><td>12,075</td><td>1,599</td><td>66.1%</td><td>73.4%</td></tr>
+<tr><td>−30〜−20</td><td>8,127</td><td>2,317</td><td>74.5%</td><td>82.9%</td></tr>
+<tr><td>−20〜−10</td><td>7,370</td><td>2,626</td><td>82.4%</td><td>90.3%</td></tr>
+<tr><td>−10〜0</td><td>3,647</td><td>1,066</td><td>83.5%</td><td>95.2%</td></tr>
+<tr class="hl"><td>0〜+10</td><td>1,778</td><td>433</td><td>90.6%</td><td>113.7%</td></tr>
+<tr class="hl"><td>+10〜+20</td><td>876</td><td>182</td><td>77.8%</td><td>103.9%</td></tr>
+<tr class="hl"><td>+20以上</td><td>1,380</td><td>232</td><td>85.9%</td><td>133.3%</td></tr>
+</table></div>
+<ul>
+<li>右端の列は「中間値どおりに払い戻されたら」の数字です。<b>中間値で見るとプラス（100%超え）ですが、実際の払戻では85%前後</b>です。</li>
+<li>期待値数がマイナスの区分では、低いほど回収率も低くなっています（66%→83%）。<b>危ない馬を外す目安としては使えます。</b></li>
+<li>一方、プラスの区分の中では、期待値数が高いほど回収率が高い、という並びにはなっていません。</li>
+<li>参考：検証用の全馬を買った場合の回収率は75.5%です。</li>
+</ul>
+<p>つまり、<b>オッズの情報だけでは、本当に期待値がプラスの馬は見つかりません。</b>本当のプラスを見つけるには、馬眼力の強みである「6分前までの資金流入・断層・単複の差」を確率に入れる必要があります。これは6分前データが貯まってから検証できます（6章）。</p>
+</div>
+
+<h2>4. 複勝オッズの中間値について</h2>
+<div class="card">
+<p>2023〜2025年の、実際に複勝圏に入った馬の「実際の払戻 ÷ 中間値」です。</p>
+<div class="tw"><table>
+<tr><th>複勝オッズの中間値</th><th>頭数</th><th>実払戻 ÷ 中間値</th></tr>
+<tr><td>1.5倍未満</td><td>5,605</td><td>0.964</td></tr>
+<tr><td>1.5〜2倍</td><td>6,889</td><td>0.932</td></tr>
+<tr><td>2〜3倍</td><td>6,898</td><td>0.903</td></tr>
+<tr><td>3〜4倍</td><td>3,428</td><td>0.884</td></tr>
+<tr><td>4〜6倍</td><td>3,187</td><td>0.876</td></tr>
+<tr><td>6〜8倍</td><td>1,421</td><td>0.865</td></tr>
+<tr><td>8〜12倍</td><td>1,213</td><td>0.859</td></tr>
+<tr><td>12倍以上</td><td>1,350</td><td>0.833</td></tr>
+</table></div>
+<ul>
+<li>どの帯でも、実際の払戻は中間値より低くなっています。<b>人気薄ほど差が大きい</b>（12倍以上では約17%低い）です。</li>
+<li>人気がある馬が来ると、他の馬の複勝配当は下側に寄るためです。</li>
+<li><b>こうしました：</b>期待値数の計算に使う複勝オッズは「中間値 × 上の表の値」にします。この表は毎週の結果で更新します。</li>
+<li>ご提案どおり、検証では「中間値で計算した場合」と「確定払戻」を分けて出しています（3章の表）。</li>
+</ul>
+</div>
+
+<h2>5. 計算例</h2>
+<div class="card">
+<p>ご提案の例（確率30%、複勝オッズ中間値4.0倍）を、補正ありで計算します。複勝オッズの表示は3.0〜5.0倍とします。</p>
+<div class="formula">
+中間値 ＝ (3.0 ＋ 5.0) ÷ 2 ＝ 4.0倍<br>
+補正後オッズ ＝ 4.0 × 0.876（4〜6倍の帯） ＝ 3.50倍<br>
+期待値数 ＝ 100 × (0.30 × 3.50 − 1) ＝ <b>＋5</b>
+</div>
+<ul>
+<li>補正なし（中間値のまま）では <b>＋20</b> になります。補正で15点下がります。</li>
+<li>画面に出すときは、小数点以下を四捨五入した整数にします。</li>
+</ul>
+</div>
+
+<h2>6. ご提案から変えたところ</h2>
+<div class="card">
+<ul>
+<li><b>「締切時点の複勝オッズ」→「6分前の複勝オッズ」</b>：予想を出す時点では、締切オッズはまだ出ていません。馬眼力の予想は6分前オッズが基準なので、それに合わせました。</li>
+<li><b>中間値 → 補正した中間値</b>：4章のとおりです。</li>
+<li><b>複勝圏の判定</b>：7頭以下は2着までにしました。</li>
+<li><b>確率の出し方</b>：まずは「単勝オッズ帯 × 出走頭数」の実績表で出します。資金流入・断層などを入れた統計モデルは、すでに進めている6分前データの蓄積（9月19日から記録中）に乗せ、<b>1,000レース貯まった時点（目安：12月下旬）</b>で、今回と同じ検証をやり直します。</li>
+<li>Brier Score、予測確率と実績の照合、期待値区分ごとの回収率、現行方式との比較（7章の表）は、ご提案どおり毎回出します。</li>
+</ul>
+</div>
+
+<h2>7. 現行方式との比較と、ご判断いただきたいこと</h2>
+<div class="card">
+<div class="tw"><table>
+<tr><th></th><th>現行方式</th><th>新方式</th></tr>
+<tr><td>確率の精度（Brier）</td><td>0.1428</td><td>0.1427</td></tr>
+<tr><td>期待値プラスの馬（購入対象）</td><td>9,473頭</td><td>4,034頭</td></tr>
+<tr><td>その実回収率</td><td>約85%</td><td>約86%</td></tr>
+<tr><td>見送り</td><td>25,780頭</td><td>31,219頭</td></tr>
+</table></div>
+<p class="note">現行方式＝今サーバにある「期待値スコア」（中間値そのまま、常に3着まで）。現在は画面には出していません。</p>
+</div>
+
+<div class="card">
+<span class="tag ok">豊田のおすすめ</span><b>A．計算と記録だけ先に始め、画面に出すのは検証でプラスが確認できてから</b>
+<ul>
+<li>毎レース、新方式の期待値数を計算して記録します。画面にはまだ出しません。</li>
+<li>6分前データが1,000レース貯まったら（目安：12月下旬）、資金流入などを入れた確率で同じ検証をやり直し、結果をご報告します。</li>
+<li>「プラスの馬の実回収率が100%を超える」ことが確認できたら、画面に出します。</li>
+</ul>
+</div>
+<div class="card">
+<b>B．今すぐ画面に出す</b>
+<ul>
+<li>新方式（補正あり）の期待値数を、すぐに各馬の横に表示します。</li>
+<li>ただし今の時点では、<b>「プラス」と表示された馬でも実際の回収率は8〜9割</b>です。お客様に「買えば儲かる」と誤解される心配があります。</li>
+</ul>
+</div>
+<p class="note">どちらを選んでも、今のAI予想の中身・点数・選ばれる馬は変わりません。</p>
+
+<h2>8. なるさんへの確認用（技術的な内容）</h2>
+<div class="card">
+<p class="note">下の枠をそのまま、なるさんに貼ってください。</p>
+<pre>【検証条件】
+・母集団：t_horse_odds_finder_race_result_history（確定単勝 tan、確定複勝 fuku_min/fuku_max、着順）
+  × t_horse_odds_finder_race_result_payout.fuku（確定複勝払戻）
+・Y_i：複勝払戻の対象馬なら1（7頭以下は2着まで・同着も払戻表で判定）、それ以外0
+・出走頭数5頭未満は除外。着順なし（取消・除外・中止）は除外
+・学習：date &lt; 2026-01-01／検証：2026-01-01〜2026-10-25（35,253頭）。時系列で分離
+
+【P_i】
+・現行：FLOOR(確定単勝) 帯ごとの3着内率（学習期間・30件以上の帯のみ）
+・新：単勝帯（20倍未満は1倍刻み、20/30/50/100倍で区切り）×頭数帯（5-7/8-11/12-15/16-18）の
+  複勝圏率。セル50件未満は単勝帯のみの率で代替
+
+【O_i】
+・現行：(fuku_min+fuku_max)/2
+・新：(fuku_min+fuku_max)/2 × 補正係数（中間値帯8区分ごとの Σ実払戻/Σ中間値、学習期間の的中馬で算出）
+
+【期待値数】100 × (P_i × O_i − 1)
+
+【結果（検証期間）】
+・Brier：現行 0.14276／新 0.14266
+・期待値数≧0：現行 9,473頭・実回収率約85%／新 4,034頭・約86%
+・全馬購入の回収率 75.5%
+
+【確認したいこと】
+・6分前複勝オッズでの再検証（ml_snapshot 1,000レース到達時）まで、
+  画面表示を保留する判断（A案）に問題がないか
+・補正係数の帯の切り方に、ご意見があればお願いします</pre>
+</div>
+
+</main>
+</body>
+</html>

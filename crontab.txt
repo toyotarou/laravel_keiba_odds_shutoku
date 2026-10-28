@@ -92,6 +92,10 @@
 # t_horse_odds_finder_race_result_payoutのinner_outerを埋める
 50 22 * * * flock -n /tmp/keiba_importPayoutInnerOuter.lock php /var/www/horse_odds_finder/artisan keiba:importPayoutInnerOuter >> /var/www/horse_odds_finder/storage/logs/importPayoutInnerOuter.log 2>&1
 
+# 20261028 追加：t_horse_odds_finder_race_result_payoutのrace_condition（クラスの条件テキスト）を埋める（今後分のみ。改良期待数値用）
+#   keibaOddsGetRaceGrade.mjs を使うため、23:00 の keiba:importPayoutGrade と重ならない時刻にする
+35 22 * * * flock -n /tmp/keiba_importPayoutRaceCondition.lock php /var/www/horse_odds_finder/artisan keiba:importPayoutRaceCondition >> /var/www/horse_odds_finder/storage/logs/importPayoutRaceCondition.log 2>&1
+
 # レースのグレードを取得する
 0 23 * * * flock -n /tmp/keiba_ImportKeibaPayoutGrade.lock php /var/www/horse_odds_finder/artisan keiba:importPayoutGrade >> /var/www/horse_odds_finder/storage/logs/ImportKeibaPayoutGrade.log 2>&1
 
@@ -101,6 +105,9 @@
 # 当日開催のレースのAI予想データが存在しない場合、補完実行する（9:00〜16:59の先回り実行で取りこぼしたぶんの保険）
 # ※sudo -u apache 必須。付けないと全レース失敗する。2026-09-28まで付いておらず、夜間の補完がずっと失敗していた
 20 23 * * * sudo -u apache php /var/www/horse_odds_finder/artisan keiba:ai-analysis-compensate >> /var/www/horse_odds_finder/storage/logs/summaryAiAnalysisCompensate.log 2>&1
+
+# 20261028 追加：毎日23:30 改良期待数値（E3/E5）を計算してt_horse_odds_finder_expected_scoreへ保存する（非公開・比較用。画面・AI予想には使わない）
+30 23 * * * flock -n /tmp/keiba_summaryExpectedScore.lock php /var/www/horse_odds_finder/artisan keiba:summaryExpectedScore >> /var/www/horse_odds_finder/storage/logs/summaryExpectedScore.log 2>&1
 
 # 毎日23:40 断層パターン学習の正解ラベル(M1〜M4)をレース結果から算出しml_snapshotへ保存する
 40 23 * * * flock -n /tmp/keiba_updateMlResultLabels.lock php /var/www/horse_odds_finder/artisan keiba:updateMlResultLabels >> /var/www/horse_odds_finder/storage/logs/updateMlResultLabels.log 2>&1

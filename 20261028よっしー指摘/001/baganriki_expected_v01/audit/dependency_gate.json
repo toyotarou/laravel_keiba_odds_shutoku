@@ -1,0 +1,7 @@
+{
+  "command": "bash run_checks.sh",
+  "exit_code": 2,
+  "output": "PHP is required. No PHP checks have run.",
+  "php_executed": false,
+  "dart_executed": false
+}

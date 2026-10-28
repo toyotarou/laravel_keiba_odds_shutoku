@@ -1,0 +1,23 @@
+{
+  "audit_date_jst": "2026-10-26",
+  "review": "sixth",
+  "implementation_version": "baganriki-expected-impl-v0.1.4",
+  "code_review_additional_defects_found": 0,
+  "reference_implementation_changed": false,
+  "fixture_metadata_correction": "Split the stale absolute-or-relative label into relative=1e-9 and absolute=0, matching verify.php. Cases and runner unchanged.",
+  "reexecuted_python_checks": {
+    "summation_threshold_cases_passed": 3,
+    "summation_random_numeric_cases_passed": 500,
+    "summation_order_checks_passed": 1500,
+    "empty_sum_passed": true,
+    "math_fixture_answers_checked": 27,
+    "server_expected_payloads_checked": 15,
+    "previous_formula_random_cases_passed": 500,
+    "positive_tail_checks_passed": 10,
+    "transport_cases_passed": 36,
+    "calibration_loss_cases_passed": 234
+  },
+  "php_dart_flutter_execution_performed": false,
+  "real_race_accuracy_validation_performed": false,
+  "scope": "Static code/contract review and repeated Python checks; not execution of PHP/Dart/Flutter."
+}

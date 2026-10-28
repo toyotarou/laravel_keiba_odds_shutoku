@@ -1,0 +1,32 @@
+{
+  "audit_date_jst": "2026-10-26",
+  "review": "fourth",
+  "boundary_loss_cases_passed": 234,
+  "oracle": "120-digit Decimal using the direct mathematical objective",
+  "relative_tolerance": 3e-12,
+  "absolute_tolerance": 0.0,
+  "reproduction": {
+    "p_raw": 0.99,
+    "a": 10.0,
+    "b": 10.0,
+    "z": 55.951198501345885,
+    "float_sigmoid": 1.0,
+    "outcomes": [
+      {
+        "y": 0,
+        "direct_float_loss": "math domain error: log(0)",
+        "stable_float_loss": 55.951198501345885
+      },
+      {
+        "y": 1,
+        "direct_float_loss": "math domain error: log(0)",
+        "stable_float_loss": 5.01999442680722e-25
+      }
+    ]
+  },
+  "coefficient_training_performed": false,
+  "php_dart_flutter_execution_performed": false,
+  "reference_implementation_changed": false,
+  "implementation_version": "baganriki-expected-impl-v0.1.3",
+  "scope": "Numerical implementation guidance for the future calibration training module."
+}

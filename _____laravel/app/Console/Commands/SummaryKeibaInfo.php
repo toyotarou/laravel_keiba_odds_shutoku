@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
  *   【ブロック 3】レース情報を取得（basho_name, race_name） → $races マップ
  *   【ブロック 4】既存サマリーキーを取得（重複INSERT防止用ハッシュセット）
  *   【ブロック 5】JRAオッズを取得 → $oddsMap に集約
+ *                （20261027: 6分前の複勝下限・上限 → $fuku6、6分前の取得日時 → $getTime6 も集約）
  *   【ブロック 6】サマリーを INSERT（既存キーはスキップ）
  *   【ブロック 7】レース結果履歴をUPSERT（popularity_rank は設定済み行を保護）
  *   【ブロック 8】完了ログ・WebPush 通知
@@ -176,6 +177,7 @@ class SummaryKeibaInfo extends Command
 
         $oddsMap      = [];
         $lastFukuOdds = [];
+        $fuku6        = [];   // 20261027: 6分前の複勝下限・上限（期待値数の検証用に保存）
         $targetDates  = [];
 
         foreach ($result as $v) {
@@ -193,8 +195,31 @@ class SummaryKeibaInfo extends Command
                     break;
                 default:
                     $oddsMap[$key]["odds_tan_before_{$v->minutes_before_start}"] = $v->odds;
+                    // 20261027: 6分前は複勝の下限・上限も保存する
+                    if ((int) $v->minutes_before_start === 6) {
+                        $fuku6[$key]['min'] = $v->fuku_min;
+                        $fuku6[$key]['max'] = $v->fuku_max;
+                    }
                     break;
             }
+        }
+
+        // 20261027: 6分前オッズの取得日時（レース単位）を取得する。
+        //   t_horse_odds_finder_odds_get_timing は毎週消えるため、サマリーに写して残す。
+        //   同じレースで複数行ある場合は最も遅い取得日時を使う。
+        $getTime6 = [];
+        if (!empty($targetDates)) {
+            DB::table('t_horse_odds_finder_odds_get_timing')
+                ->whereIn('date', array_keys($targetDates))
+                ->where('timing', 6)
+                ->groupBy('date', 'kaisuu', 'basho', 'day', 'race')
+                ->get([
+                    'date', 'kaisuu', 'basho', 'day', 'race',
+                    DB::raw('MAX(get_datetime) AS get_datetime'),
+                ])
+                ->each(function ($r) use (&$getTime6) {
+                    $getTime6["{$r->date}_{$r->kaisuu}_{$r->basho}_{$r->day}_{$r->race}"] = $r->get_datetime;
+                });
         }
         $this->info('  JRAオッズ: ' . count($oddsMap) . ' 頭分');
 
@@ -252,6 +277,9 @@ class SummaryKeibaInfo extends Command
                 'odds_tan_before_12' => $odds['odds_tan_before_12'] ?? null,
                 'odds_tan_before_9'  => $odds['odds_tan_before_9']  ?? null,
                 'odds_tan_before_6'  => $odds['odds_tan_before_6']  ?? null,
+                'odds_fuku_min_before_6'     => $fuku6[$key]['min'] ?? null,     // 20261027: 追加
+                'odds_fuku_max_before_6'     => $fuku6[$key]['max'] ?? null,     // 20261027: 追加
+                'odds_get_datetime_before_6' => $getTime6[$raceKey] ?? null,     // 20261027: 追加
                 'odds_tan_before_3'  => $odds['odds_tan_before_3']  ?? null,
                 'odds_tan_before_0'  => $odds['odds_tan_before_0']  ?? null,
             ];

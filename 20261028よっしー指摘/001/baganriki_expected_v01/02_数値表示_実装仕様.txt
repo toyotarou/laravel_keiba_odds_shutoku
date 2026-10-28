@@ -1,0 +1,211 @@
+馬眼力　数値表示の実装追補（実装v0.1.4／表示スキーマv0.1.2）
+対象：Laravel＋Flutter
+作成日：2026-10-25
+数式：v0.1を維持／今回追加：計算結果を各馬の数字として返す仕組み
+
+1．画面の表示を固定
+主表示：期待数値（5着内） 32.0
+補助表示：3着内 14.0
+対象：各出走馬。人気順位による計算対象の打切りはしない。
+数値の範囲：0.0～100.0、小数第1位を常に表示。
+例：32は「32.0」、0は「0.0」、未算出は「—」。
+「%」や「倍」は付けない。32.0を検証済みの好走確率32%と説明しない。
+主表示を5着内とするのは候補抽出という目的に合わせた表示上の初期案。
+3着内スコアも保持・併記する。選出の重みや人気帯枠を変更するものではない。
+
+現行画面の1.00、1.11等は旧オッズ比、新しい32.0等は好走スコア。
+試験段階では比較欄に表示し、旧項目を上書きしない。
+旧オッズ比や「馬眼力指数」をこの数値に代入しない。
+正式採用時の画面置換・一般公開は別作業。本資料は実装用の追補。
+
+2．処理の流れ
+(1) 既存仕様どおり、6分前の入力を凍結。
+(2) ExpectedScorePresenterV01::calculateForHorse($identity, ...) で、
+    各馬の計算結果へ計算時のsource_identityを結び付ける。
+    内部でExpectedValueV01::calculate(...)を呼ぶ。
+(3) ExpectedScorePresenterV01::present($calculation, $identity) で数値API用へ整形。
+(4) LaravelからJSONとして返す。
+(5) Flutterで型と馬・レース・スナップショット・正確な凍結日時・最新の取消状態を確認して表示する。
+Flutter側で予測計算・100倍・再丸めをしない。
+
+今回の式は6分前基準。画像の「0分前」等の切替ボタンと連動して
+値を取り直したり、6分前値を0分前値と表示したりしない。
+比較欄には「比較用・6分前基準」を付ける。
+別の時刻の新指標を作る場合は、その時刻用の過去データと別仕様で検証する。
+
+3．受け渡しのキーと型
+expectation_value             number|null   主表示の5着内スコア
+top3_expectation_value        number|null   補助表示の3着内スコア
+expectation_value_text        string        表示専用文字列。例「32.0」「—」
+top3_expectation_value_text   string        表示専用文字列。例「14.0」「—」
+main_target                  string        常にTOP5
+unit                         string        常にscore_0_100
+score_basis                  string        RAW_UNCALIBRATED / CALIBRATION_APPLIED / UNAVAILABLE
+support_status               string        データの状態（第4節）
+display_schema_version       string        baganriki-expected-display-v0.1.2
+formula_version              string        baganriki-expected-v0.1-draft-20261025
+comparison_only              boolean       true
+validated_for_live           boolean       false
+race_id、horse_id             string        一意なレース・馬ID（数値IDも文字列で渡す）
+horse_number、popularity_rank integer       1～99
+snapshot_id                  string        凍結済み入力の識別子
+source_minutes_before        integer       6（整数型）
+frozen_at                    string        JSTの実在日時。例 2026-10-25T09:44:00+09:00
+runner_status                string        ACTIVE / WITHDRAWN（最新の正式な取消状態）
+implementation_version       string        baganriki-expected-impl-v0.1.4
+
+numberの項目に文字列「32.0」や「—」を入れない。
+JSONで32.0が32として解釈されても数値としては同じ。
+表示専用の*_textを使うことで末尾の「.0」を必ず残す。
+数値と表示文字列が一致しなければエラーとして検知する。
+浮動小数のNaN、Infinity、負数、100超、未丸めの32.05、片方だけnullは拒否する。
+既存モデルから返るtrial_score_5→expectation_value、
+trial_score_3→top3_expectation_valueという単純な対応であり、再採点しない。
+並べ替え・選出には従来どおり丸め前の原値と既存規則を使う。
+表示用の小数1桁の数値だけで順位を作り直さない。
+
+4．未算出・少数例
+COMPARISON_READY：数値を表示。未校正/校正適用の状態も添える。
+LOW_SUPPORT：数値を表示し「参考値（少数例）」を添える。
+BASELINE_ONLY：基準率由来の数値を表示し「基準値のみ」を添える。
+UNAVAILABLE_INPUT / UNAVAILABLE_BASELINE / OUT_OF_SCOPE / CALCULATION_ERROR：
+両数値はnull、両表示文字列は「—」、score_basisはUNAVAILABLE。
+
+WITHDRAWN：最新状態が取消なら、両数値をnull、表示を「—／取消」にする。
+凍結時にACTIVEだった保存結果でも、最新の正式取消で数値表示を停止する。
+取消後に過去の保存結果をACTIVEへ戻して再利用することは拒否する。
+
+正常な0.0と欠損を区別する。if(value)等の真偽値判定を使わない。
+片方だけ表示できない状態は今回の同一標本の式では認めない。
+Flutterで不正な応答や別の馬・レース・snapshot_idを受けた場合は
+その行を「—・未算出」にし、エラーを記録する。別レースの古い数値を流用しない。
+通信待ちは既存UIの読み込み状態を使い、結果未取得を0点にしない。
+
+5．Laravelへの接続
+display/ExpectedScorePresenterV01.php を
+app/Services/Baganriki/ExpectedScorePresenterV01.phpへ配置する想定。
+名前空間は App\Services\Baganriki。
+数学部分のExpectedValueV01.phpも、
+app/Services/Baganriki/ExpectedValueV01.phpへ配置する。
+両クラスをApp\Services\Baganrikiへ統一済みで、標準のLaravelのAppオートロードに合わせている。
+アプリ側のApp名前空間を独自変更している場合は、その規則へ両方を合わせる。
+
+コード例：
+  use App\Services\Baganriki\ExpectedScorePresenterV01;
+  // $calculationIdentityは計算時の凍結情報から作る。
+  $calculation = ExpectedScorePresenterV01::calculateForHorse(
+      $calculationIdentity, $m, $b3, $b5, $samples, 20.0, $calibration
+  );
+  // 保存する場合はsource_identityも含め、計算結果を一体で保存する。
+  // $displayIdentityは同じ凍結情報＋最新の取消状態。
+  $payload = ExpectedScorePresenterV01::present($calculation, $displayIdentity);
+  return response()->json(
+      $payload, 200, [],
+      JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+  );
+
+$calculationはcalculateForHorseの出力。純粋な数学関数の出力を直接presentへ渡すことは、
+source_identityがないため拒否する。DBから復元するときもsource_identityを落とさない。
+$calculationIdentityと$displayIdentityは既存の凍結済みレース・馬情報から作る。
+runner_statusだけは最新状態を反映できる。その他の情報が違う結果は使わない。
+IDの付け替えで過去の別馬の結果を再利用しない。デモ値を流用しない。
+凍結日時はJST「YYYY-MM-DDTHH:MM:SS+09:00」へ正規化して渡す。
+2月30日・24時・不正な分秒・他の時差表記は拒否する。
+IDや時刻の利用可能性検査は既存スナップショット処理で済ませる。
+異常な計算をcatchした場合は、理由をログに保存し、
+ExpectedScorePresenterV01::unavailable($displayIdentity, 'CALCULATION_ERROR')で未算出を返す。
+入力不足はUNAVAILABLE_INPUT。数式エラーを正常な0.0に変換しない。
+
+APIのURL、認証・権限、DBスキーマ、既存Controller接続はプロジェクト側で決める。
+新しい一般公開APIやr12.2のJSON Schemaをこの資料だけで追加・変更しない。
+比較用APIの行はrace_id＋horse_id＋snapshot_idで対応させる。
+取消の扱い、人気帯枠、公開候補、旧期待数値の計算は既存仕様を維持する。
+
+6．Flutterへの接続
+display/expected_score_view.dart：受信値の検査用モデル。
+display/expected_score_card.dart：数値を出す参考Widget。
+同じフォルダに置き、既存の比較用画面に組み込む。
+既存アプリの全画面ソースがないため、そのまま貼る位置まで確定した差分ではない。
+
+読み込み例：
+  ExpectedScoreView view;
+  try {
+    view = ExpectedScoreView.fromJson(
+      json,
+      expectedRaceId: currentRaceId,
+      expectedHorseId: horseId,
+      expectedSnapshotId: frozenSnapshotId,
+      expectedHorseNumber: horseNumber,
+      expectedPopularityRank: frozenPopularityRank,
+      expectedFrozenAt: frozenAtJst,
+      expectedRunnerStatus: runnerStatus,
+    );
+  } on FormatException catch (error) {
+    // 既存のログへ記録する。画面はその行だけ未算出として継続する。
+    view = ExpectedScoreView.unavailable(
+      horseNumber, frozenPopularityRank, withdrawn: runnerStatus == 'WITHDRAWN',
+    );
+  }
+  // Widgetツリー内：
+  ExpectedScoreCard(data: view, isWithdrawn: runnerStatus == 'WITHDRAWN')
+
+fromJsonへ渡すjsonはjsonDecode後のMap<String,dynamic>。
+Listやnullなどルートの型が違う場合も受信層で検知し、行全体を未算出にする。
+複数馬を表示するときは全出走馬を馬IDで照合し、既存の順序を維持する。
+取消イベントを受信したら、既存の最新状態へrunnerStatusを更新して再描画する。
+WidgetにもisWithdrawnを渡すため、旧応答を保持していても取消なら数値を隠す。
+元の人気順位・頭数を変えて再計算する場合は新しいsnapshot_idを発行し、旧結果を無効化する。
+この通知・再描画・キャッシュ更新は既存アプリ側へ接続する必要がある。
+横方向へ並べる場合は既存のスクロール領域を使う。
+参考Widgetは固定高を持たず、数値は幅を超える場合だけ縮小する。実機の大きな文字設定と横幅で表示を確認する。
+
+7．同梱する確認用ファイル
+display/demo_numeric.php
+  架空の100例を計算→API整形→JSON出力する、DB不要の通し例。
+  実行：php display/demo_numeric.php
+  期待する主要値：expectation_value=32.0、top3_expectation_value=14.0。
+display/example_numeric_response.json
+  上記の期待応答。実行結果を記録したファイルではなく、照合用の架空例。
+display/display_test_vectors.json
+  通常値・0.0・100.0・未算出・異常値・識別子の不一致を含む受け渡し用ケース。
+display/verify_display.php
+  実行：php display/verify_display.php（42ケース）
+display/verify_display.dart
+  実行：dart run display/verify_display.dart（36ケース）
+  Flutterの描画試験ではなく、受け渡しモデルの照合。
+元の数式の確認：
+  php verify.php（56ケース）
+
+作成環境ではPHP・Dart・Flutterが利用できないため、上記コマンドは未実行。
+JSONの型・数値と表示文字列の一致・正常0とnullの区別はPythonで照合する。
+対象環境でPHP/Dartの照合とFlutter実機表示を確認してから組み込む。
+検算結果はverification_summary.jsonへ追記。
+新しい実レースの推定値や、精度向上の検証結果を生成したものではない。
+
+8．参考
+Laravel JSON responses：
+https://laravel.com/docs/12.x/responses
+PHP JSON encoding：
+https://www.php.net/manual/en/function.json-encode.php
+Flutter JSON：
+https://docs.flutter.dev/data-and-backend/serialization/json
+Dart numeric representation：
+https://api.dart.dev/dart-core/num/toStringAsFixed.html
+
+既存プロジェクトのLaravel/Flutterバージョンは本追補で確定していない。
+参考コードはPHP 8.0以上、null safety対応Dartを前提とし、組込み環境で確認する。
+
+
+再精査修正の補足：
+・表示値を採用したraw/cal確率の100倍・小数1桁と照合し、不一致は拒否する。
+・校正のラベルだけを変更することはできない。calibration_appliedとp3_cal/p5_calも照合する。
+・数学関数の式は同じまま、極小の重みや係数で0除算・桁落ちを起こしにくい実装へ変更。
+・距離関数は仕様どおりTURF/DIRTかつFLATのみを受け付ける。
+・実際の校正係数の来歴・学習締切・対象範囲の検査、DB抽出の正しさは引き続き接続側で必要。
+
+追加確認：php audit/verify_weak_types.php（12ケース）
+一括実行：bash run_checks.sh
+件数・順位は元の値を整数型で、λと重み関数の引数は数値型で渡す。
+DBの文字列は取得層で表記と範囲を確認してから変換し、小数や真偽値を自動変換しない。
+
+五次精査：PHPとDartを実装v0.1.4にそろえる。v0.1.3以前の保存結果は版番号だけを付け替えず、比較用の凍結入力から再計算する。表示スキーマはv0.1.2を維持する。

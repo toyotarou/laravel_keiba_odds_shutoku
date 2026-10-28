@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力 改良期待数値の実装報告</title>
+<style>
+:root{
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1f2328; --sub:#5b6370; --line:#e3e1dc;
+  --ok:#1f7a4d; --okbg:#e7f4ec; --warn:#9a5b00; --warnbg:#fbf1df;
+  --info:#2457a6; --infobg:#e8eefa; --code:#f0eee9;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#16181b; --card:#1f2226; --ink:#e8e6e1; --sub:#a3a9b2; --line:#33373d;
+    --ok:#6fcf9b; --okbg:#1d3328; --warn:#f0b65a; --warnbg:#3a2e1a;
+    --info:#8fb4f2; --infobg:#1e2a40; --code:#2a2d32;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:16px;line-height:1.75}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.35rem;margin:0 0 4px}
+.meta{color:var(--sub);font-size:.85rem;margin-bottom:20px}
+h2{font-size:1.08rem;margin:28px 0 10px;padding-left:10px;border-left:4px solid var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0}
+.lead{font-size:1.02rem}
+ul,ol{padding-left:1.3em;margin:6px 0}
+li{margin:4px 0}
+.tag{display:inline-block;font-size:.78rem;font-weight:700;border-radius:6px;padding:1px 8px;margin-right:6px}
+.ok{color:var(--ok);background:var(--okbg)}
+.warn{color:var(--warn);background:var(--warnbg)}
+.info{color:var(--info);background:var(--infobg)}
+.note{color:var(--sub);font-size:.85rem}
+.tw{overflow-x:auto;margin:8px 0}
+table{border-collapse:collapse;width:100%;font-size:.84rem}
+th,td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:top}
+th{color:var(--sub);font-weight:600;font-size:.76rem;white-space:nowrap}
+code{font-size:.82rem;word-break:break-all}
+pre{background:var(--code);border-radius:8px;padding:12px;font-size:.78rem;line-height:1.6;white-space:pre-wrap;word-break:break-all;margin:8px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>馬眼力「改良期待数値」の実装報告</h1>
+<div class="meta">2026年10月28日（水）／ふなっしー（豊田）より ／ B案（非公開の計算・保存）<br>同日夕方 追記：21分前の期限判定・記録の出所（5章）</div>
+
+<div class="card lead">
+<span class="tag info">要点</span>
+<ul>
+<li>B案の実装が終わり、サーバへ反映しました。<b>10月31日（土）の夜から、毎日E3・E5を計算して保存</b>します。</li>
+<li>画面・AI予想・プロンプト・人気帯の枠・今の期待数値は<b>変えていません</b>。保存した数字は、どこにも表示しません。</li>
+<li>資料に付いていたPHPの試験は、サーバで<b>110件すべて合格</b>しました。Dartの試験（36件）は、サーバにDartがないため未実施です。</li>
+<li>組み込んだ計算をサーバで10月分に流し、10月28日にお送りした試算と<b>1頭ずつ一致</b>することを確かめました。</li>
+<li>名前のついた特別戦のクラスを、JRAから取り込む仕組みも入れました。今後のレースが対象です。</li>
+<li><b>（夕方 追記）</b>21分前の取得期限の照合を追加し、10/24・10/25 を通常運転と同じ形で計算・保存しました（933頭、出馬表照合は全頭一致、期限超過0）。記録の出所は5章です。</li>
+</ul>
+<p class="note">今回、よっしーさんにご判断いただくことはありません。</p>
+</div>
+
+<h2>1. 入れたもの</h2>
+<div class="card">
+<ol>
+<li><b>クラスの取り込み</b>（毎晩22:35）：JRAの「レース結果」のレース一覧から、「3歳以上2勝クラス（混合）［指定］」のような条件の文字を取り、払戻の表に保存します。その日の開催だけを開きます。</li>
+<li><b>E3・E5の計算と保存</b>（毎晩23:30）：その日のレースについて、各馬のE3・E5を計算し、専用の表に保存します。計算できない馬も、理由をつけて保存します（0点にはしません）。</li>
+</ol>
+<p class="note">画面に出す時期は、データがたまり、人気順の平均より良くなったことを確認してから判断します（B案）。</p>
+</div>
+
+<h2>2. 確認した結果</h2>
+<div class="card">
+<div class="tw"><table>
+<tr><th>確認</th><th>結果</th></tr>
+<tr><td>資料のPHP試験（数式56件・表示42件・型12件）</td><td><span class="tag ok">合格</span>110件すべて合格（サーバで実行）</td></tr>
+<tr><td>資料のDart試験（36件）</td><td><span class="tag warn">未実施</span>サーバにDartがないため。画面に出す段階で実施します</td></tr>
+<tr><td>組み込んだ計算と、試算（10/28提出）の突き合わせ</td><td><span class="tag ok">一致</span>10月の263レース・3,530頭。状態の判定、件数、E3・E5の表示値がすべて一致</td></tr>
+<tr><td>クラスの取り込み（10/25の1日分で試験）</td><td><span class="tag ok">成功</span>36レースすべてで取得。障害レースも見分けられることを確認</td></tr>
+</table></div>
+</div>
+
+<h2>3. 今後の予定</h2>
+<div class="card">
+<ul>
+<li>10月31日（土）の夜に、初めて本番で動きます。翌朝、計算された頭数・状態・時刻の照合結果を確認し、ご報告します。</li>
+<li>データがたまった段階で、10月28日の試算と同じ比べ方（人気順の平均だけの場合との比較、人気帯別・予測値の帯別）でご報告します。</li>
+</ul>
+</div>
+
+<h2>4. なるさんへの確認用（技術的な内容）</h2>
+<div class="card">
+<p class="note">下の枠をそのまま、なるさんに貼ってください。</p>
+<pre>【実装（2026-10-28、123サーバへ反映）】
+1. app/Services/ExpectedScoreService.php
+   資料の ExpectedValueV01.php（impl v0.1.4）を、プロジェクトの命名規則に合わせて配置。
+   差分は namespace（App\Services\Baganriki → App\Services）とクラス名（ExpectedValueV01 → ExpectedScoreService）の2行と
+   冒頭コメントのみ。数式・検査・定数は資料のまま（diff で確認）。
+2. app/Console/Commands/SummaryExpectedScore.php（keiba:summaryExpectedScore、cron 23:30）
+   入力の読み出し・照合・近傍選択のみ。数式は 1 を呼ぶ。条件は 10/28 提出の試算SQLと同じ。
+   保存先：t_horse_odds_finder_expected_score（1レース1頭1行、UNIQUE(date,basho,race,num,implementation_version)）
+   comparison_only=1、validated_for_live=0、score_basis=RAW_UNCALIBRATED（校正なし）。
+   参照した過去レースの race_id・D²・w を neighbours_json に保存（資料6章）。
+3. app/Console/Commands/ImportKeibaPayoutRaceCondition.php（keiba:importPayoutRaceCondition、cron 22:35）
+   scripts/keibaOddsGetRaceGrade.mjs に --with-condition / --kaisai を追加（指定しないときの動きは従来どおり）。
+   JRA「レース結果」レース一覧 td.race_name の2つ目の div（特別戦）または1つ目の div（一般戦）を
+   t_horse_odds_finder_race_result_payout.race_condition に保存。対象は 2026-10-31 以降の未設定レースのみ。
+   ※動作試験として 2026-10-25 の36レースだけ取得済み。
+   class_group は grade（G1/G2/G3/L）優先、次に race_condition、無ければ race_name から固定の対応で決定。
+
+【対象レースの照合（どれかに当たれば未算出として理由を保存）】
+・凍結した出馬表 t_horse_odds_finder_horses と summary の馬番の全馬照合（行の欠落を検知）。不一致は UNAVAILABLE_INPUT。
+・6分前の取得日時（summary.odds_get_datetime_before_6）が r12.2 と同じ期限
+  input_freeze_at＝発走予定（races.start_time）−330秒 を超えたら UNAVAILABLE_INPUT（ACQUISITION_DEADLINE_EXCEEDED）。
+  取得日時・発走予定・出馬表の記録が無いときも UNAVAILABLE_INPUT（本番の既定）。
+・6分前が数値でも「取消」でもない馬が1頭でもいれば、レース全体を計算しない（試算SQLの rc.miss6 と同じ）。
+
+【確認結果】
+・資料の run_checks.sh をサーバ（PHP 8.x）で実行：verify.php 56 passed／verify_display.php 42 passed／
+  verify_weak_types.php 12 passed。Dart 36件は NOT RUN（サーバに dart なし）。
+  ※試験は資料の元ファイルに対して実行。組み込んだ ExpectedScoreService は上記2行以外同一。
+・keiba:summaryExpectedScore --from=2026-10-01 --to=2026-10-25 --allow-missing-freeze --dry-run --export
+  （10月は取得日時・出馬表の記録が無いため、照合用に記録なしでも計算する指定）：
+  263レース・3,530頭。COMPARISON_READY 784、LOW_SUPPORT 1,971、OUT_OF_SCOPE 101、UNAVAILABLE_INPUT 674。
+  試算CSV（改良期待数値_試算_20261028.csv、SHA-256 6f3bd46b…）と1頭ずつ照合：
+  状態の不一致 0、M・B3・B5・近傍件数の不一致 0、W・n_eff・p3_raw・p5_raw の差は最大 5.0e-7
+  （試算CSVの小数6桁丸めの範囲）、E3・E5 表示値の不一致 0。実行時間 6.7秒。
+  出力CSV：expected_score_202610.csv（SHA-256 5e1f2052c4dd768fd2d14b5888c5b04b7896925b2ccb4d51ecca89c16a8ab072）
+
+【限界（記録として残す）】
+・過去レース側の6分前取得日時は 2026-10-31 より前は保存されていないため、過去レース側の期限照合はしていない。
+・2026-10-25 より前の名前つき特別戦はクラス不明のまま（過去分は取り直さない）。基準集団には入るが近傍候補にはならない。
+・Dart 36件、Flutter の実画面確認は、画面に出す段階で実施する。
+
+【変更していないもの】
+AI予想・r12.2・選出・人気帯枠・プロンプト・公開API・画面・旧期待数値。
+
+【追記 2026-10-28 夕方】
+・21分前の期限照合を追加：取得日時 > 発走予定−1140秒 で UNAVAILABLE_INPUT（ACQUISITION_DEADLINE_EXCEEDED）。
+  6分前は > 発走予定−330秒。期限ちょうどは採用（BaganrikiTime::acceptBatch と同じ）。
+  --allow-missing-freeze は記録欠落のときだけ計算を許し、期限超過・出馬表不一致は許さない。
+  保存表に odds_get_datetime_before_21 を追加。
+・--self-check（判定のみ、18件）全件合格。
+・通常運転（allow なし）で 2026-10-24〜25：72レース・933頭保存。COMPARISON_READY 128／LOW_SUPPORT 688／
+  OUT_OF_SCOPE 21／UNAVAILABLE_INPUT 96（10/24 クラス不明7レース）。roster MATCH 全頭、期限超過 0。
+・記録の出所：出馬表＝t_horse_odds_finder_horses、発走予定＝races.start_time、
+  6分前＝summary.odds_get_datetime_before_6（10/31以降）→空なら odds_get_timing(timing=6)、
+  21分前＝odds_get_timing(timing=21)。odds_get_timing は土曜05:50に TRUNCATE、races/horses は直近の開催週のみ。
+  前回の「10月は記録なし」は 10/1〜23 は正、10/24〜25 は不正確（前回は summary のみ参照し odds_get_timing を見ていなかった）。
+  今回の値はDBに残っていた記録で、保存ログからの復元ではない。
+・代表：2026-10-25_05_09 三鷹特別。horses 11頭 MATCH／start 14:10:00／
+  6分前 14:04:13（odds_get_timing timing=6、347秒前）／21分前 13:49:14（timing=21、1246秒前）／
+  race_condition「3歳以上2勝クラス（混合）（特指）」→ C2。
+・933行は比較用の履歴として保持。期限は延ばさない。</pre>
+</div>
+
+<h2>5. 夕方の追記：期限判定と記録の出所</h2>
+<div class="card">
+<p><b>追加した判定</b>（r12.2 の採用処理と同じく、期限ちょうどは採用・超えたら未算出）</p>
+<ul>
+<li>6分前：取得日時 ＞ 発走予定 − 330秒 → 未算出（ACQUISITION_DEADLINE_EXCEEDED）</li>
+<li>21分前：取得日時 ＞ 発走予定 − 1140秒（21分前＋猶予120秒）→ 未算出（同上）</li>
+<li>記録が無い過去日を計算する指定（--allow-missing-freeze）でも、期限超過と出馬表の不一致は計算しません。期限は延ばしません。</li>
+</ul>
+<div class="tw"><table>
+<tr><th>確認</th><th>結果</th></tr>
+<tr><td>判定の試験（--self-check、18件）</td><td><span class="tag ok">合格</span>18件すべて合格（サーバで実行）</td></tr>
+<tr><td>通常運転（指定なし）で 10/24・10/25</td><td><span class="tag ok">保存</span>72レース・933頭。出馬表照合は全頭一致、6分前・21分前の取得日時は全頭あり、期限超過0</td></tr>
+<tr><td>前回CSVとの比較</td><td><span class="tag ok">一致</span>64レースは状態・件数・E3/E5合計が一致。差はクラスが付いた8レース107頭のみ</td></tr>
+</table></div>
+
+<p><b>記録の出所</b></p>
+<div class="tw"><table>
+<tr><th>記録</th><th>参照元</th><th>残っている期間</th></tr>
+<tr><td>出馬表</td><td>t_horse_odds_finder_horses</td><td>直近の開催週のみ（日付ごとに入れ替え）</td></tr>
+<tr><td>発走予定</td><td>t_horse_odds_finder_races.start_time</td><td>同上</td></tr>
+<tr><td>6分前の取得日時</td><td>① summary.odds_get_datetime_before_6（10/31以降、毎日写す）<br>② ①が空なら odds_get_timing（timing=6）</td><td>①は永続、②は土曜05:50に消える</td></tr>
+<tr><td>21分前の取得日時</td><td>odds_get_timing（timing=21）。計算時に保存表へ写す</td><td>土曜05:50に消える（保存表には残る）</td></tr>
+</table></div>
+<p class="note">前回の「10月は取得日時・出馬表の記録なし」は、10/1〜10/23 は正しく、10/24・10/25 は不正確でした。前回の計算は①だけを見ており（10/27に足した列なので10月は全部空）、②を見ていませんでした。出馬表は10/24・10/25分が当時もDBにありましたが、記録なしとして扱っていました。今回は②を参照元に追加し、DBに残っていた記録を読みました。保存ログから復元したものではありません。10/23以前は②・出馬表とも既に消えているため、記録なしのままです。</p>
+
+<p><b>代表1レース：2026-10-25 東京9R 三鷹特別</b></p>
+<div class="tw"><table>
+<tr><th>項目</th><th>値</th><th>参照元</th></tr>
+<tr><td>出馬表</td><td>11頭（1〜11番）、summaryと全頭一致</td><td>horses</td></tr>
+<tr><td>発走予定</td><td>14:10:00</td><td>races.start_time</td></tr>
+<tr><td>6分前の取得日時</td><td>14:04:13（発走の347秒前）</td><td>odds_get_timing（timing=6、JRA）。summary の列は空</td></tr>
+<tr><td>21分前の取得日時</td><td>13:49:14（発走の1246秒前）</td><td>odds_get_timing（timing=21、JRA）</td></tr>
+<tr><td>クラス</td><td>3歳以上2勝クラス（混合）（特指）→ C2</td><td>payout.race_condition</td></tr>
+</table></div>
+<p class="note">取消の2頭（10/24 新潟4R 4番、10/25 京都3R 5番）は、出馬表とsummaryにあり、出走馬ではないため保存しません。実際の余裕は、6分前が発走の334〜348秒前（期限まで最小4秒）、21分前が1214〜1248秒前でした。</p>
+</div>
+
+</main>
+</body>
+</html>

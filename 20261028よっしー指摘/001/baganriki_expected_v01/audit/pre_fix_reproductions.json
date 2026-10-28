@@ -1,0 +1,6 @@
+{
+  "old_date_regex_accepts_invalid_calendar": true,
+  "old_bandwidth_squared_underflows": true,
+  "old_squared_weight_sum_underflows": true,
+  "correct_effective_sample_size_for_two_equal_weights": 2
+}

@@ -1,0 +1,60 @@
+{
+  "math_fixture_answers_checked": 24,
+  "math_fixture_answer_ids": [
+    "main_example_14_and_32",
+    "four_weighted_neighbours",
+    "baseline_only",
+    "no_baseline_returns_null",
+    "identity_calibration",
+    "monotone_calibration",
+    "baseline_only_does_not_apply_calibration",
+    "zero_weight_keeps_baseline",
+    "tiny_support_is_shrunk",
+    "baseline_formula",
+    "year_half_life",
+    "distance_decay",
+    "combined_decay",
+    "identical_features",
+    "common_odds_scale_keeps_profile_but_changes_price",
+    "distance_400_metres",
+    "class_mismatch",
+    "movement_one_scale",
+    "profile_only",
+    "tiny_bandwidth_zero_distance",
+    "tiny_bandwidth_nonzero_distance",
+    "tiny_equal_weights_effective_n",
+    "zero_neighbours_tiny_lambda_keeps_baseline",
+    "tiny_positive_prior_is_preserved"
+  ],
+  "php_rejection_cases_not_executed": 29,
+  "server_expected_payloads_checked_against_python_contract": 15,
+  "server_expected_payload_ids": [
+    "normal_32_0_and_14_0",
+    "zero_is_visible",
+    "upper_boundary",
+    "few_examples",
+    "baseline_only",
+    "missing_baseline",
+    "missing_input",
+    "calibration_applied",
+    "withdrawn_after_freeze",
+    "valid_leap_date",
+    "out_of_scope",
+    "calculation_error",
+    "bound_calculation_integration",
+    "bound_calculation_then_cancel",
+    "cancelled_before_calculation"
+  ],
+  "repeated_independent_checks": {
+    "python_transport_cases_passed": 36,
+    "python_decimal_math_cases_passed": 500,
+    "positive_tail_checks_passed": 10,
+    "php_dart_flutter_execution_performed": false,
+    "example_values": [
+      32.0,
+      14.0
+    ]
+  },
+  "php_dart_flutter_execution_performed": false,
+  "note": "This verifies fixture answers and Python equations, not execution of the supplied PHP or Dart programs."
+}

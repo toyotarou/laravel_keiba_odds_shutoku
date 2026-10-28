@@ -1,0 +1,62 @@
+{
+  "formula_version": "baganriki-expected-v0.1-draft-20261025",
+  "mode": "COMPARE_ONLY",
+  "validated_for_live": false,
+  "reference_policy": "PRE_TARGET_JST_DAY_ONLY",
+  "lookback_days": 730,
+  "same_field_size": true,
+  "same_surface": true,
+  "same_race_type": true,
+  "scales": {
+    "profile_log": 0.35,
+    "own_odds_log": 0.7,
+    "move_log": 0.35,
+    "distance_metres": 400
+  },
+  "distance_components": [
+    "log_odds_profile",
+    "own_log_odds",
+    "log_21_to_6_movement",
+    "distance_metres",
+    "class_mismatch"
+  ],
+  "component_weights": [
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "bandwidth": 1,
+  "max_distance": 3,
+  "half_life_days": 365,
+  "max_neighbours": 200,
+  "prior_alpha": 1,
+  "prior_beta": 1,
+  "lambda": 20,
+  "low_support_flags": {
+    "baseline_n_below": 100,
+    "neighbour_n_below": 20,
+    "weight_sum_below": 10,
+    "effective_n_below": 15
+  },
+  "calibration": {
+    "status": "NOT_FITTED",
+    "a": null,
+    "b": null,
+    "coefficient_bounds": {
+      "a": [
+        0.1,
+        10
+      ],
+      "b": [
+        -10,
+        10
+      ]
+    },
+    "epsilon": 1e-06
+  },
+  "note": "数値は実装比較用の初期値。精度検証で最適と確認された値ではない。既存r12.2には適用しない。",
+  "implementation_version": "baganriki-expected-impl-v0.1.4",
+  "display_schema_version": "baganriki-expected-display-v0.1.2"
+}

@@ -30,6 +30,12 @@ use Illuminate\Support\Facades\DB;
  *   1〜       : 着順
  *   -1        : 中止・除外・取消・失格等（再処理対象外）
  *
+ * 【finishing_status の値の意味】（20261027 追加）
+ *   NULL      : 着順が数字（通常の完走）、または 20261027 以前に取り込んだ行
+ *   中止 / 除外 / 取消 / 失格 / 降着 / その他 : 着順が数字でなかった馬の区分
+ *   ※ finishing_position = -1 の扱いは従来どおり。finishing_status は記録用で、既存処理は参照しない。
+ *   ※ JRA のページの文字列は SQL に直接入れず、上記の決まった語だけを書き込む。
+ *
  * 【CASE WHEN 一括 UPDATE の構造】
  *   CASE
  *     WHEN race = 1 AND num = 14 THEN 1
@@ -195,6 +201,7 @@ class SummaryHistoryFinishingPosition extends Command
                 //   1開催の全着順を1クエリで書き込むことで DB ラウンドトリップを最小化する。
                 // ─────────────────────────────────────────────────────────
                 $caseWhen    = 'CASE';
+                $caseStatus  = 'CASE';   // 20261027: 着順が数字でない馬の区分（finishing_status）
                 $raceGroups  = [];
                 $totalHorses = 0;
 
@@ -204,11 +211,33 @@ class SummaryHistoryFinishingPosition extends Command
                         $fp  = is_int($horse['chakujun']) ? $horse['chakujun'] : -1;
                         $num = (int) $horse['num'];
                         $caseWhen .= " WHEN race = {$raceNo} AND num = {$num} THEN {$fp}";
+
+                        // 20261027: 着順が数字でない馬は、決まった語だけを finishing_status に書く
+                        $status = 'NULL';
+                        if (!is_int($horse['chakujun'])) {
+                            $raw = (string) ($horse['chakujun'] ?? '');
+                            if (str_contains($raw, '中止')) {
+                                $status = "'中止'";
+                            } elseif (str_contains($raw, '除外')) {
+                                $status = "'除外'";
+                            } elseif (str_contains($raw, '取消')) {
+                                $status = "'取消'";
+                            } elseif (str_contains($raw, '失格')) {
+                                $status = "'失格'";
+                            } elseif (str_contains($raw, '降')) {
+                                $status = "'降着'";
+                            } else {
+                                $status = "'その他'";
+                            }
+                        }
+                        $caseStatus .= " WHEN race = {$raceNo} AND num = {$num} THEN {$status}";
+
                         $raceGroups[$raceNo][] = $num;
                         $totalHorses++;
                     }
                 }
                 $caseWhen .= ' END';
+                $caseStatus .= ' END';   // 20261027
 
                 $this->info("  取得完了: {$raceCount}レース / {$totalHorses}頭 ({$elapsed}秒)");
                 $this->info("  1クエリで一括更新中...");
@@ -223,7 +252,10 @@ class SummaryHistoryFinishingPosition extends Command
                             $q->orWhere(fn($q2) => $q2->where('race', $raceNo)->whereIn('num', $nums));
                         }
                     })
-                    ->update(['finishing_position' => DB::raw($caseWhen)]);
+                    ->update([
+                        'finishing_position' => DB::raw($caseWhen),
+                        'finishing_status'   => DB::raw($caseStatus),   // 20261027: 追加
+                    ]);
 
                 $totalUpdated += $affected;
                 $this->info("  [{$kaisaiIndex}/{$totalKaisai}] {$kaisai} 完了 → {$affected} 頭更新");
