@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * SummaryCalculateHorseScore
@@ -48,6 +49,19 @@ class SummaryCalculateHorseScore extends Command
             // 【ブロック 1】スコアテーブルを TRUNCATE（毎回全再計算）
             // ─────────────────────────────────────────────────────────────
             $this->info('[ブロック 1] t_horse_odds_finder_horse_scores を初期化中...');
+            // TRUNCATE 前に、keiba:importHorsePedigree で取り込んだ父・母を馬名ごとに控えておく
+            // （作り直した行へ書き戻し、JBIS への再検索を新しく出てきた馬だけにするため）
+            // father / mother / finish カラムがまだ無い環境では何もしない
+            $pedigreeMap = [];
+            if (Schema::hasColumn('t_horse_odds_finder_horse_scores', 'finish')) {
+                $pedigreeMap = DB::table('t_horse_odds_finder_horse_scores')
+                    ->where('finish', '>', 0)
+                    ->get(['name', 'father', 'mother', 'finish'])
+                    ->keyBy('name')
+                    ->all();
+            }
+            $this->info('  → 父・母を控えた馬: ' . count($pedigreeMap) . ' 頭');
+
             DB::statement('TRUNCATE TABLE t_horse_odds_finder_horse_scores');
             $this->info('  → TRUNCATE 完了');
             $this->info('');
@@ -83,11 +97,21 @@ class SummaryCalculateHorseScore extends Command
                 $scores = $validRaces->map(fn($r) => 1 - ($r->finishing_position - 1) / ($r->num_horses - 1))->toArray();
                 $score  = (int) round(array_sum($scores) / count($scores) * 100);
 
-                DB::table('t_horse_odds_finder_horse_scores')->insert([
+                $insertRow = [
                     'name'  => $horse->name,
                     'count' => $horse->count,
                     'score' => $score,
-                ]);
+                ];
+
+                // 控えておいた父・母を書き戻す（無い馬は finish=0 のままで、次の importHorsePedigree の対象になる）
+                if (isset($pedigreeMap[$horse->name])) {
+                    $pedigree = $pedigreeMap[$horse->name];
+                    $insertRow['father'] = $pedigree->father;
+                    $insertRow['mother'] = $pedigree->mother;
+                    $insertRow['finish'] = $pedigree->finish;
+                }
+
+                DB::table('t_horse_odds_finder_horse_scores')->insert($insertRow);
 
                 $savedCount++;
                 $this->info("  [{$savedCount}/{$totalHorses}] {$horse->name} → score: {$score} ({$horse->count}走)");
