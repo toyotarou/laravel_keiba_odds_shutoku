@@ -139,6 +139,11 @@ class DeleteKeibaTableRecords extends Command
             '/var/www/horse_odds_finder/storage/logs/summaryAiAnalysisCompensate.log',
 
             '/var/www/horse_odds_finder/storage/logs/updateMlResultLabels.log',
+
+            '/var/www/horse_odds_finder/storage/logs/aiPrewarm.log',
+            '/var/www/horse_odds_finder/storage/logs/importHorsePedigree.log',
+            '/var/www/horse_odds_finder/storage/logs/importPayoutRaceCondition.log',
+            '/var/www/horse_odds_finder/storage/logs/summaryExpectedScore.log',
             
             '/var/www/horse_odds_finder/scripts/keibaOddsGetJraRaceResult.log',
             '/var/www/horse_odds_finder/scripts/keibaOddsGetSchedule.log',

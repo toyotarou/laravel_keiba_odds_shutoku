@@ -259,14 +259,18 @@ class AdminController extends Controller
             'ImportKeibaShutsubaHistory'          => '22:10',
             'SummaryOddsGapRecoveryRate'          => '22:20',
             'SummaryOpiRecoveryRate'              => '22:30',
-            'ImportKeibaPayoutCourseDist'         => '22:40',
-            'ImportKeibaPayoutInnerOuter'         => '22:50',
+            'ImportKeibaPayoutRaceCondition'      => '22:40',   // 20261030 追加
+            'ImportKeibaPayoutCourseDist'         => '22:50',   // 20261030 22:40 → 22:50
             'G'                                  => '',       // ── セパレータ ──
-            'ImportKeibaPayoutGrade'              => '23:00',
-            'SummarySimilarRaceStats'             => '23:10',
-            'SummaryAiAnalysisCompensate'         => '23:20',
-            'UpdateMlResultLabels'                => '23:40',
-            'SummaryMakeBaganrikiBrain'           => '23:50',
+            'ImportKeibaPayoutInnerOuter'         => '23:00',   // 20261030 22:50 → 23:00
+            'ImportKeibaPayoutGrade'              => '23:10',   // 20261030 23:00 → 23:10
+            'SummarySimilarRaceStats'             => '23:20',   // 20261030 23:10 → 23:20
+            'SummaryAiAnalysisCompensate'         => '23:30',   // 20261030 23:20 → 23:30
+            'SummaryExpectedScore'                => '23:40',   // 20261030 追加
+            'UpdateMlResultLabels'                => '23:50',   // 20261030 23:40 → 23:50
+            'H'                                  => '',       // ── セパレータ（ここから翌日0時台。アプリ側で前日の列に表示する） ──
+            'SummaryMakeBaganrikiBrain'           => '0:00',    // 20261030 23:50 → 0:00
+            'ImportHorsePedigree'                 => '0:10',    // 20261030 追加
         ];
 
         $description = [
@@ -301,6 +305,9 @@ class AdminController extends Controller
             'SummaryAiAnalysisCompensate'         => '当日レースのAI予想未実行分を検知し、オッズ確認後に1st AI・2nd AIを順次補完実行する。空振り時もWebPushで通知する日次補完コマンド。',
             'UpdateMlResultLabels'                => 'レース結果の着順・人気順から断層パターン学習の正解ラベル（M1:上位完結／M2:下位進入／M3:大穴進入／M4:馬別5着以内）を算出しml_snapshotへ保存するバッチ。5着以内が揃わないレースはexcludedとして学習対象外にする。',
             'SummaryMakeBaganrikiBrain'           => '過去の振り返り分析テキストを30件ずつAIに送り、「有力馬の選び方の目線（脳みそ）」を段階的に統合・磨き上げてファイルに書き出すバッチ。次回のAI分析プロンプトの羅針盤として読み込まれ、回収率向上に活用される。',
+            'ImportKeibaPayoutRaceCondition'      => '払戻金テーブルのクラス条件テキスト（race_condition）が未設定のレコードをスクレイピングで補完するバッチ。今後分のみが対象で、改良期待数値（E3/E5）の計算に使われる。',
+            'SummaryExpectedScore'                => '改良期待数値（E3/E5）を計算してexpected_scoreテーブルへ保存するバッチ。非公開・比較用で、画面やAI予想には使わない。',
+            'ImportHorsePedigree'                 => 'JBIS-サーチから馬の父・母を取得してhorse_scoresテーブルに保存するバッチ。未取得の馬だけが対象で、二重起動はMySQLのGET_LOCKで防いでいる。',
         ];
 
         $SQL = " select * from t_horse_odds_finder_push_send_logs where title = 'develop' and body not like '%時刻修正%' order by body, sent_at; ";
