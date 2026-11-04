@@ -239,7 +239,12 @@ class RaceController extends Controller
 
 
     public function getHorseOddsFinderHorseScores(){
-        $result = DB::table('t_horse_odds_finder_horse_scores')->get();
+        // 20261102: 全件（約4,900行）ではなく、今週の出走馬（t_horse_odds_finder_horses）の分だけ返す（約350行）
+        //   Flutter は馬名をキーにしたMapに入れるだけで、今週の出走馬以外の行は使わないため。
+        // $result = DB::table('t_horse_odds_finder_horse_scores')->get();
+        $result = DB::table('t_horse_odds_finder_horse_scores')
+            ->whereIn('name', DB::table('t_horse_odds_finder_horses')->select('name'))
+            ->get();
         return response()->json(['data' => $result]);
     }
 

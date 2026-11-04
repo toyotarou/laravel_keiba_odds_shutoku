@@ -41,7 +41,10 @@
 # ════════════════════════════════════════════════════════════════════
 
 # 毎日9:00〜18:59 毎分起動・タイミング合致レースのみJRAオッズを取得する
-* 9-18 * * * /usr/bin/flock -n /tmp/keiba_importOdds.lock php /var/www/horse_odds_finder/artisan keiba:importOdds >> /var/www/horse_odds_finder/storage/logs/importOdds.log 2>&1
+# 20261031: -o を追加。importOdds が裏で起こすAI予想（補完）がロックを引き継いで握り続け、
+#   AIが終わるまで次の分の importOdds が起動できず、21分前などのオッズが抜けていた（10/31 京都8R）
+# * 9-18 * * * /usr/bin/flock -n /tmp/keiba_importOdds.lock php /var/www/horse_odds_finder/artisan keiba:importOdds >> /var/www/horse_odds_finder/storage/logs/importOdds.log 2>&1
+* 9-18 * * * /usr/bin/flock -n -o /tmp/keiba_importOdds.lock php /var/www/horse_odds_finder/artisan keiba:importOdds >> /var/www/horse_odds_finder/storage/logs/importOdds.log 2>&1
 
 # 毎日9:00〜19:59 毎分起動・タイミング合致レースのみレース結果を取得する
 * 9-19 * * * /usr/bin/flock -n /tmp/keiba_importJraRaceOneResult.lock php /var/www/horse_odds_finder/artisan keiba:importJraRaceOneResult >> /var/www/horse_odds_finder/storage/logs/importJraRaceOneResult.log 2>&1

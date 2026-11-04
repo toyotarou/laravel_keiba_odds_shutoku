@@ -1,0 +1,65 @@
+<!DOCTYPE html><html lang=ja><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>馬眼力 新しい予想の公開準備 報告 20261102</title><style>body{font-family:-apple-system,'Hiragino Sans',sans-serif;margin:0;background:#f6f6f4;color:#222;font-size:15px;line-height:1.7}
+main{max-width:720px;margin:0 auto;padding:12px}h1{font-size:20px;line-height:1.4}h2{font-size:17px;border-left:4px solid #2a6;padding-left:8px;margin-top:26px}h3{font-size:15px;margin:14px 0 4px}
+.card{background:#fff;border-radius:10px;padding:12px 14px;margin:12px 0;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+table{border-collapse:collapse;width:100%;font-size:12.5px}th,td{border-bottom:1px solid #eee;padding:5px 4px;text-align:left;vertical-align:top}th{background:#fafafa}
+.ok{color:#176b2c;font-weight:bold}.ng{color:#b00;font-weight:bold}.note{font-size:13px;color:#555}
+pre{white-space:pre-wrap;word-break:break-all;font-size:12px;background:#f3f3f3;padding:8px;border-radius:6px}
+.q{border:1px solid #cde;border-radius:8px;padding:8px 10px;margin:10px 0;background:#fbfdff}.q b.t{display:block;margin-bottom:4px}
+code{background:#f0f0f0;padding:0 3px;border-radius:3px;font-size:12.5px}</style></head><body><main><h1>馬眼力 新しい予想（v0.4.1-r12.2）を<br>11/7からお客様の画面に出すための報告</h1><p class=note>2026-11-02（月）　豊田（作業：Claude）</p><div class=card><b>結論</b><ol>
+<li>11/7（土）から、Flutter web の馬眼力の画面に、新しいプロンプトの予想が出る準備ができました（今の方式とは並走させず、置き換えます）。</li>
+<li>11/2 朝の実AIの試験（東京12R・京都12R の写し）で、<span class=ok>両AIとも時間内に返り、決まった頭数（5頭・7頭）を全部公開できました。</span></li>
+<li>費用は<span class=ok>1レース約0.04ドル</span>（1st 約0.015＋2nd 約0.02）。今の方式（約0.08ドル）の約半分です。</li>
+<li>そのために、<b>決まりを一部緩めました</b>（帳簿の合わせ直し・頭数の補充・直しの依頼を止める・送り方の変更）。5章の質問に A／B でお答えください。</li>
+</ol></div><h2>1. 何が問題だったか（11/2 朝の実AIの試験）</h2><div class=card><p>最初は、配布の決まりどおりの検証のままだと、<span class=ng>ほとんどの馬が不採用になり、公開できる馬が0〜1頭</span>でした。理由は次の3つです。</p>
+<ol><li><b>帳簿の合わせ間違いだけで馬ごと不採用</b>：observed_sum／observed_cap の値、非適格馬の rank_basis、公開リストの形（{horse_no,band} で返す）、各馬の public_candidate の印と公開リストのずれ、など。AIの採点・根拠・順位そのものは読めるのに、これだけで落ちていました。</li>
+<li><b>1st（Claude）が表の形（SOURCE_TABLE_V1）を読み切れない</b>：3回中2回、「参照が足りない」として根拠（evidence）と点数を出しませんでした。2nd（DeepSeek）は同じ形で問題なく読めました。圧縮しないと読めますが、1レース約0.19ドルかかります（送る量が10万トークンを超えて単価が5倍になるため）。</li>
+<li><b>「考える機能」で時間切れ</b>：2nd（deepseek-flash）は既定で考える機能が入っていて、169秒で時間切れ。1st も考える機能を入れると時間切れでした。</li></ol></div><h2>2. 変えたこと</h2><div class=card><h3>2-1. 帳簿の合わせ直し（決まりを緩めた所）</h3>
+<p>AIの書いた採点・資格・順位から、<b>決まりで一意に決まる欄だけ</b>をサーバが計算し直してから検証します。AIの判断（点数・根拠・順位・資格）は変えません。直した箇所はすべて記録に残します。<code>@ANCHOR-20261102-PREDICTION-CLERICAL</code>（<code>BAGANRIKI_PREDICTION_CLERICAL_FIX=0</code> で元の厳しい決まりに戻せます）</p>
+<table><tr><th>欄</th><th>直し方</th></tr>
+<tr><td>observed_sum・observed_cap・score_status・total_score</td><td>scores から計算し直す（範囲外・整数でない採点があるときは直さず、今までどおり不採用）</td></tr>
+<tr><td>非適格馬の rank_basis</td><td>NOT_RANKED にする</td></tr>
+<tr><td>public_candidates</td><td>{horse_no,band} の形なら馬番の配列にする。さらに「帯の先頭から枠数ぶん、適格馬だけ」の決まりで、AIの順位・資格・role_quota から作り直す（飛ばし取りはしない）</td></tr>
+<tr><td>各馬の public_candidate の印・nonselect_reason</td><td>公開リストに合わせて付け直す。選ばない馬で非選出理由が無ければ、決まったコード（BAND_QUOTA／NO_EVIDENCE／UNVERIFIED）と「サーバが付け直した印」の理由を付ける</td></tr>
+<tr><td>shortfalls・validation_issues</td><td>配列でなければ配列に包む（無ければ []）</td></tr></table>
+<p class=note>直さないもの：根拠が無い、別の馬・当てはまらない統計の参照を根拠にしている、出典が無い、など中身の問題は、今までどおり検証で落とします。</p>
+<p>保存済みの返事に当て直した結果（お金をかけずに確認）：1st 表の形 1頭→12頭、1st 圧縮なし 5頭→10頭・10頭→12頭、2nd 圧縮なし 3頭→4頭。</p></div><div class=card><h3>2-2. 決まった頭数を必ずそろえる（補充）</h3>
+<p>レースの頭数に応じた公開頭数（A・B・D の枠）を必ず出します。<code>@ANCHOR-20261102-PREDICTION-FILL</code></p>
+<ol><li>検証を通った馬で足りなければ、足りない分を、<b>同じ人気帯の中でAIが付けた順位（band_ranks）</b>、無ければ<b>6分前の人気順</b>で補います。</li>
+<li>帯に馬がいなければ、D の不足は B から、B の不足は D から、A の不足は B→D の順で取ります（公開の不足の埋め方と同じ順）。</li>
+<li>補った馬は、おすすめ度を付けず（0）、選出理由に「補充：AIの根拠を確かめきれなかったため…」と書きます。</li>
+<li>公開の締切までに検証を終えられなかったレースも、凍結した出走馬から、この補い方で頭数をそろえて出します。</li></ol>
+<p class=note>補充は画面に出すときだけで、baganriki_publications（公開の記録）は契約どおりのまま変えていません。</p></div><div class=card><h3>2-3. 送り方（入力の圧縮）</h3>
+<ul><li><b>1st：SOURCE_DICT_V3</b>（出典の名前 source_ref で値を引ける辞書の形。項目名を短くし、source_ref から一意に分かる値と、項目ごとに一番多い値を省く）。<code>BAGANRIKI_R122_COMPACT_1ST=dict3</code></li>
+<li><b>2nd：SOURCE_TABLE_V1</b>（10/23 に合意した表の形のまま）。<code>BAGANRIKI_R122_COMPACT_2ND=1</code></li>
+<li>どちらも、詰めたあと必ず元へ戻して、凍結入力と1バイトでも違えば詰めずに元のまま送ります。7レース分の凍結入力で、元に戻ることを確認しました。</li>
+<li>凍結入力（snapshot_hash の元）と検証は元のままです。変えるのは送る文字列だけです。</li></ul>
+<p>1st に足す説明文（SOURCE_DICT_V3_ADDENDUM_V1・sha256 accadf3a…e1f9）：</p><pre>【送信形式 SOURCE_DICT_V3】
+この入力では source_registry を source_dict に詰めて送る。中身は source_registry と同じで、値・出典は1件も省いていない。
+source_dict.entries のキーが source_ref で、値がその出典1件。各馬の値は h{馬番}_{field}（時点があれば _{分前}）のキーで引ける。
+各件の項目名は短くしてある：v=value、f=field、h=horse_nos、ah=applicable_horse_nos、p=parents、s=slot_offset、o=observed_at、a=available_at、c=computed_at、d=dependency_key。
+f が無ければ、source_ref から先頭の「h{馬番}_」と末尾の「_{s}」を除いた残りが field。
+h が無ければ、source_ref が h{馬番}_ で始まるなら [馬番]、それ以外は []。ah・p が無ければ []。s・c が無ければ null。
+o・a・c は source_dict.time_dict の番号（0始まり）。o が無ければ source_dict.field_auto[field].os[s]（s があるとき）、無ければ field_auto[field].o、それも無ければ null。a が無ければ field_auto[field].as[s]（s があるとき）、無ければその件の o と同じ。
+d が整数 n なら source_ref の先頭 n 文字。d が無ければ source_dict.field_auto[field].d（{h} は馬番）、それも無ければ source_ref と同じ。
+race_id は全件 source_dict.race_id。unit・dependency_role・source_kind・scope・formula_id・formula_version は、その件にあればその値、無ければ source_dict.field_defaults[field] の値。
+field_catalog の各項目で、display_label が無ければ項目名と同じ、maximum・minimum が無ければ null、missing_allowed が無ければ true。
+input_indices は送らない（source_dict から用途別に引ける）。coverage の source_fields は、その field の出典すべてを指す。
+根拠を引用するときは entries のキー（source_ref）の文字列をそのまま使い、facts の value にはその件の v をそのまま書く。source_registry と書かれている指示は source_dict に読み替える。</pre>
+<p>2nd に足す説明文（SOURCE_TABLE_V1_ADDENDUM_V2・sha256 459bdb08…d1a4。10/23 版のまま）：</p><pre>【送信形式 SOURCE_TABLE_V1】
+この入力では source_registry を source_table に詰めて送る。中身は source_registry と同じで、値・出典は1件も省いていない。
+source_table.rows の1行が出典1件。各行の値の並びは source_table.columns の並びと同じ。
+race_id は全件 source_table.race_id。
+observed_at・available_at・computed_at の値が整数なら source_table.time_dict の番号（0始まり）。null は null のまま。
+unit・dependency_role・source_kind・scope・formula_id・formula_version は、columns にその項目があれば、その行の値を使う（null も行の値として扱い、field_defaults で置き換えない）。columns に無い項目だけ source_table.field_defaults[field] の値を使う。
+dependency_key は、null なら source_ref と同じ、整数 n なら source_ref の先頭 n 文字、文字列ならその文字列。
+parents の要素は、整数なら rows の行番号（0始まり）の source_ref、文字列ならその名前のまま。
+input_indices は送らない（source_table から用途別に引ける）。coverage の source_fields は、その field の出典すべてを指す。
+根拠を引用するときは rows にある source_ref の文字列をそのまま使う。source_registry と書かれている指示は source_table に読み替える。</pre></div><div class=card><h3>2-4. そのほか</h3><ol>
+<li><b>直しの依頼（訂正）を止める</b>：<code>BAGANRIKI_R122_FIX_POLICY=never</code>。11/2 の試験で、1st は2回とも「この出力は私が生成したものではない」と答えを断り、2nd は直してはいけない馬まで変えてきて不採用でした。費用と時間だけかかるので止めます（契約の「最大1回」の範囲内）。</li>
+<li><b>2nd の考える機能を切る</b>：<code>BAGANRIKI_R122_2ND_THINKING=disabled</code>。切ると70〜85秒で返ります。</li>
+<li><b>今の画面の取得口から新しい予想を返す</b>：アプリの改修なしで、getHorseOddsFinderAiAnalysis（1st）・getHorseOddsFinderSecondAiOpinion（統合結果 merged_horses）・1日分の取得口が、対象レースでは新しい予想を今と同じ形で返します。旧方式のAIは呼びません（再読込み・「AI予想」ボタンでも呼ばない）。<code>BAGANRIKI_PREDICTION_PUBLIC=1</code> のときだけ。</li>
+<li><b>選出理由は決まった形の文</b>：AIの文章（explanation）は検証なしで出さない決まりなので使いません。凍結した入力の値と、サーバが確かめた根拠の系統だけで作ります。例：<br><code>確かめた根拠：オッズの動き、能力と適性（2系統）。6分前の単勝 3.4倍（21分前 3.8倍）。複勝 1.5〜1.8倍。近3走 3着・4着・5着。</code></li>
+<li><b>おすすめ度</b>：統合点（0〜100、両AIの公開候補の加点+5を含む）を四捨五入して100で止めます。購入推奨の印は出しません（buy_recommended=false のまま）。波乱度などのレース指標は新しい予想に無いので出しません。</li>
+<li><b>凍結できなかったレース</b>：凍結の時刻（発走5分30秒前）から30秒たっても凍結入力が無く、発走3分前より前で、予算が足りるときだけ、1回だけ今の方式に切り替えます（切り替えたレースは新しい予想を送らない）。</li>
+<li><b>費用の歯止め</b>：1日の予算 4ドル（見込み 約1.5ドル）。TARGETS=ALL は1件と数えられて12レースの上限が効かなかったので、<b>ALL は予算を書いたときだけ効く</b>ようにしました。予算には、圧縮した送信・しなかった送信・今の方式への切り替えを全部数えます。</li>
+<li>6分前オッズの取得が遅れて10/31 に凍結が24レース中22レースで失敗した件：取込コマンド（ImportKeibaOdds）の待ち方を直し、11/2 にサーバへ反映済みです。11/1 は設定の読み込みの不具合で 2nd が全レース 401 でした（11/2 朝に直しました）。</li></ol></div><h2>3. 11/2 実AIの試験の結果（すべて写したレースで行い、DBは全部元に戻しています）</h2><div class=card style='overflow-x:auto'><table><tr><th>時刻</th><th>レース</th><th>送り方</th><th>使えた頭数・公開</th><th>費用（ドル）</th></tr><tr><td>07:41</td><td>東京12R</td><td>1st 表の形</td><td>根拠を書かず 0頭</td><td>0.015＋訂正0.009</td></tr><tr><td>07:41</td><td>東京12R</td><td>2nd 表の形・考える機能あり</td><td>169秒で時間切れ</td><td>—</td></tr><tr><td>07:48</td><td>東京12R</td><td>1st 圧縮なし</td><td>5頭（旧決まり）→公開3頭。訂正は断られた</td><td>0.19＋訂正0.16</td></tr><tr><td>07:48</td><td>東京12R</td><td>2nd 表の形・考える機能なし</td><td>12頭→公開5頭。訂正は不採用</td><td>0.02＋0.02</td></tr><tr><td>07:53</td><td>東京12R</td><td>1st 表の形・考える機能あり</td><td>169秒で時間切れ</td><td>—</td></tr><tr><td>07:57</td><td>東京12R</td><td>1st 表の形</td><td>1頭（旧決まり）。帳簿の直しで12頭</td><td>0.015</td></tr><tr><td>08:00</td><td>京都12R</td><td>1st 表の形</td><td>全18頭を根拠なし（表を読めていない）</td><td>0.017</td></tr><tr><td>08:12</td><td>東京12R・京都12R</td><td>両AI 圧縮なし</td><td>1st 10頭・7頭、2nd 3頭・京都はJSONが途中で壊れた</td><td>合計 約0.55</td></tr><tr><td>08:24</td><td>東京12R</td><td>1st 辞書V1／2nd 表</td><td>12頭／12頭 → 両方とも公開5頭</td><td>0.105／0.021</td></tr><tr><td>08:27</td><td>京都12R</td><td>1st 辞書V1／2nd 表</td><td>7頭／15頭 → 両方とも公開7頭</td><td>0.102／0.022</td></tr><tr><td>08:37</td><td>東京12R</td><td>1st 辞書V2</td><td>8頭→公開5頭（入力7.3万トークン）</td><td>0.016</td></tr><tr><td>08:40</td><td>京都12R</td><td>1st 辞書V2</td><td>18頭→公開7頭（入力10.7万トークン：境目を超えた）</td><td>0.107</td></tr><tr><td>08:53</td><td>東京12R</td><td><b>1st 辞書V3</b></td><td>9頭→公開5頭（入力6.9万トークン）</td><td><b>0.017</b></td></tr><tr><td>08:56</td><td>京都12R</td><td><b>1st 辞書V3</b></td><td>7頭→公開7頭（入力9.0万トークン）</td><td><b>0.013</b></td></tr></table><p class=note>時間：1st 36〜62秒、2nd 55〜85秒（応答期限まで残り178秒）。試験の費用の合計 約1.7ドル。原応答と入力は一式の live_tests フォルダにあります。<br>まだ残る点：18頭立てでは、1st が一部の馬の評価行を省くことがあります（京都12R で11頭分）。そのレースでは 2nd と補充で頭数を埋めています。</p></div><h2>4. 一式の中身</h2><div class=card><ul><li><b>この報告</b>（馬眼力_新しい予想の公開準備_報告_20261102.html）</li><li><b>検証資料（今の方式）</b>：10/31・11/1 東京・京都 全48レース（馬眼力_検証資料_今の方式_20261031_20261101.html）。1st・2nd の回答原文（全頭採点のJSONを含む）、全頭の点数と統合の結果（選ばれなかった理由つき）、着順。例：10/31 京都12R の 11番（2着）・9番（3着）は、1st 32点／16点・2nd 43点／37点で、資格判定（人気薄の補充の条件）を満たさず候補に入っていません。11/1 は 2nd が動いていません。</li><li><b>code</b>：変えたファイル3本（AiController.php・HistoryController.php・SummaryAiAnalysisCompensate.php）と、10/30 版との差分（*.diff）</li><li><b>live_tests</b>：11/2 の実AIの試験の原応答と入力</li><li>MD5SUMS.txt・FILES.txt</li></ul></div><h2>5. 確認していただきたいこと（A／B でお答えください）</h2><div class=q><b class=t>Q1. 帳簿の合わせ直し（2-1）</b>A：このまま採用する（AIの判断は変えず、決まりで一意に決まる欄だけサーバが直す）<br>B：元の厳しい決まりに戻す（11/2 の試験では、ほとんどのレースで公開できる馬が0〜1頭になる）</div><div class=q><b class=t>Q2. 頭数の補充（2-2）</b>A：このまま採用する（AIの順位→人気順で補い、「補充」と明記。おすすめ度は0）<br>B：補わない（検証を通った馬だけを出す。頭数が足りないレースや0頭のレースが出る）</div><div class=q><b class=t>Q3. 直しの依頼（訂正）を止める（2-4の1）</b>A：止めたままにする<br>B：1回送る（1レースあたり 約0.01〜0.16ドル増える。11/2 は2回とも役に立たなかった）</div><div class=q><b class=t>Q4. 1st の送り方 SOURCE_DICT_V3（2-3）</b>A：採用する（1st 約0.015ドル。料金の境目10万トークンの下）<br>B：圧縮なしで送る（1st 約0.19ドル。1レースの費用が今の方式の約2.5倍）</div><div class=q><b class=t>Q5. 2nd の考える機能を切る（2-4の2）</b>A：切ったままにする（70〜85秒で返る）<br>B：入れる（169秒で時間切れになり、2nd の予想が出ない）</div><div class=q><b class=t>Q6. 選出理由の決まった形の文（2-4の4）</b>A：この文面でよい<br>B：文面を変える（変えたい文面を書いてください）</div><div class=q><b class=t>Q7. 凍結できなかったレースの今の方式への切り替え（2-4の6）</b>A：このまま（時間と予算の範囲で1回だけ切り替える）<br>B：切り替えない（凍結できなかったレースは「予想なし」）</div><p class=note>お返事が無い項目は A のまま 11/7 を迎えます。</p></main></body></html>

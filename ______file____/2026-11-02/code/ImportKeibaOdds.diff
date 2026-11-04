@@ -1,0 +1,69 @@
+diff --git a/_____laravel/app/Console/Commands/ImportKeibaOdds.php b/_____laravel/app/Console/Commands/ImportKeibaOdds.php
+index fda1564..212fb42 100644
+--- a/_____laravel/app/Console/Commands/ImportKeibaOdds.php
++++ b/_____laravel/app/Console/Commands/ImportKeibaOdds.php
+@@ -368,6 +368,25 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
+             $this->info("  [単複] DB保存完了 → {$saved} 頭分 (合計 {$totalSec}秒 / {$totalMs}ms)");
+             $totalInserted += $saved;
+ 
++            // 20261031: 【ブロック 11】（取得監査の記録）を【ブロック 10.8】より前へ移しました。
++            //   AI予想（補完）が起動した時点で、6分前の取得監査がすでに入っているようにするためです。
++            // ─────────────────────────────────────────────────────────────
++            // 【ブロック 11】r12.2 取得監査の記録
++            // @ANCHOR-20261020-R122-AUDIT
++            //   available_at は「保存が終わって読めると確かめた実時刻」です。
++            //   予定時刻で埋めません。ここは保存トランザクションの<b>後</b>です。
++            // ─────────────────────────────────────────────────────────────
++            // $this->r122RecordBatch($race, $diff, [   // 旧
++            $this->recordAcquisitionBatch($race, $diff, [
++                'request_started_at'   => $acqRequestStartedAt,
++                'response_received_at' => $acqResponseReceivedAt,
++                'available_at'         => self::acquisitionNow(),
++                'raw_payload'          => (string) $output,
++                'validation_result'    => 'ADOPTED',
++                'rejection_reason'     => null,
++                'committed'            => 1,
++            ]);
++
+             // ─────────────────────────────────────────────────────────────
+             // 【ブロック 10.8】20261026: 6分前オッズを保存した直後に、AI予想（補完）を裏で起動する
+             // @ANCHOR-20261026-PREWARM-AFTER-6MIN
+@@ -383,7 +402,13 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
+             if (!$isDebug && $diff === 6 && $saved > 0) {
+                 try {
+                     $prewarmCmd = sprintf(
+-                        'cd %s && nohup %s artisan keiba:ai-analysis-compensate --quiet-skip >> %s 2>&1 &',
++                        // 'cd %s && nohup %s artisan keiba:ai-analysis-compensate --quiet-skip >> %s 2>&1 &',   // 旧：exec() がAIの終了まで戻らなかった
++                        // 20261031: 全体を ( ) で包み、exec() へ戻る出力を /dev/null へ向ける。
++                        //   旧の書き方では、裏で動く sh が exec() の受け口を握ったままになり、
++                        //   AI予想（約1分）が終わるまでこのオッズ取得が止まっていた。
++                        //   その結果、取得監査の available_at が情報上限（6分前＋30秒）を過ぎ、
++                        //   全レースで COLLECTION_AUDIT_MISSING になっていた（10/31 laravel.log）。
++                        '(cd %s && nohup %s artisan keiba:ai-analysis-compensate --quiet-skip >> %s 2>&1) > /dev/null 2>&1 &',
+                         escapeshellarg(base_path()),
+                         escapeshellarg(PHP_BINARY),
+                         escapeshellarg(storage_path('logs/aiPrewarm.log'))
+@@ -395,23 +420,6 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
+                 }
+             }
+ 
+-            // ─────────────────────────────────────────────────────────────
+-            // 【ブロック 11】r12.2 取得監査の記録
+-            // @ANCHOR-20261020-R122-AUDIT
+-            //   available_at は「保存が終わって読めると確かめた実時刻」です。
+-            //   予定時刻で埋めません。ここは保存トランザクションの<b>後</b>です。
+-            // ─────────────────────────────────────────────────────────────
+-            // $this->r122RecordBatch($race, $diff, [   // 旧
+-            $this->recordAcquisitionBatch($race, $diff, [
+-                'request_started_at'   => $acqRequestStartedAt,
+-                'response_received_at' => $acqResponseReceivedAt,
+-                'available_at'         => self::acquisitionNow(),
+-                'raw_payload'          => (string) $output,
+-                'validation_result'    => 'ADOPTED',
+-                'rejection_reason'     => null,
+-                'committed'            => 1,
+-            ]);
+-
+             // ─────────────────────────────────────────────────────────────
+             // 【ブロック 12】r12.2 正式な取消・発走時刻の前倒しを実状態へ入れる
+             // @ANCHOR-20261023-NARU-LIVE  （なる 10/23 4-B）

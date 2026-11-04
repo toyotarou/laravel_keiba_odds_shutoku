@@ -38,7 +38,11 @@ class WebPushService
     // オッズ通知（全ユーザー向け）
     public function sendPushNotifierOddsNews(string $title, string $body, string $url = 'https://baganriki.com/horse_odds_finder/'): void
     {
-        $subscriptions = DB::table('t_horse_odds_finder_push_subscriptions')->get();
+        // 20261101: ホーム画面の「通知」スイッチで OFF（is_delete=1）にした端末には送らない
+        // $subscriptions = DB::table('t_horse_odds_finder_push_subscriptions')->get();
+        $subscriptions = DB::table('t_horse_odds_finder_push_subscriptions')
+            ->where('is_delete', 0)
+            ->get();
         $this->sendToSubscriptions($subscriptions, $title, $body, $url);
     }
 

@@ -336,6 +336,60 @@ class HistoryController extends Controller
     public function getHorseOddsFinderBestHorseWeight()
     {
 
+// 20261102: 速度改善のため書き換え（旧SQLは下にコメントアウトで残しています）
+//   旧：全レース結果（約18万行）すべてに出馬表履歴を結合してから、馬ごとに1件へ絞っていた（約2.3秒）
+//   新：先に馬ごとのベスト1件（約2.5万行）へ絞り、その分だけ出馬表履歴を結合する（約1.0秒）
+//   返す列・並び順・値は旧と同じ（本番DBで全25,572行のチェックサム一致を確認済み）
+// 20261102: さらに、返すのを「今週の出走馬（t_horse_odds_finder_horses）」かつ「馬体重あり」に限定（約0.26秒）
+//   Flutter で使っているのは race_content_page.dart の「Best Weight」表示だけで、
+//   今週の出走馬の馬名で引き、馬体重が空なら表示しない作り。なので表示される内容は変わらない。
+//   起動時に毎回 25,572行 → 約270行 の転送になる（本番DBで、表示対象の行が全件一致することを確認済み）
+$sql = "
+SELECT
+ranked.name,
+ranked.best_finishing_position,
+ranked.best_date       as date,
+ranked.best_basho      as basho,
+ranked.best_basho_code as basho_code,
+ranked.best_kaisuu     as kaisuu,
+ranked.best_day        as day,
+ranked.best_race       as race,
+ranked.best_race_name  as race_name,
+s.horse_weight
+FROM (
+SELECT
+r.name,
+r.finishing_position AS best_finishing_position,
+r.date               AS best_date,
+r.basho              AS best_basho,
+r.basho_code         AS best_basho_code,
+r.kaisuu             AS best_kaisuu,
+r.day                AS best_day,
+r.race               AS best_race,
+r.race_name          AS best_race_name,
+ROW_NUMBER() OVER (
+PARTITION BY r.name
+ORDER BY r.finishing_position ASC, r.date DESC
+) AS rn
+FROM t_horse_odds_finder_race_result_history r
+WHERE r.finishing_position IS NOT NULL
+AND r.finishing_position > 0
+AND r.name IN (SELECT h.name FROM t_horse_odds_finder_horses h)
+) ranked
+LEFT JOIN t_horse_odds_finder_shutsuba_history s
+ON  ranked.name            = s.name
+AND ranked.best_date       = s.date
+AND ranked.best_basho_code = s.basho_code
+AND ranked.best_race       = s.race
+WHERE ranked.rn = 1
+AND s.horse_weight IS NOT NULL
+AND s.horse_weight <> ''
+ORDER BY ranked.name;
+";
+
+$result = DB::select($sql);
+
+/* 20261102: 旧SQL（速度改善前）
 $sql = "
 SELECT
 name,
@@ -378,6 +432,7 @@ ORDER BY name;
 ";
 
 $result = DB::select($sql);
+*/
 
 return response()->json(['data' => $result]);
 
@@ -460,6 +515,33 @@ return response()->json(['data' => $result]);
                     'race'          => $r->race,
                     'analysis_text' => trim(AiController::publicPart((string) $r->analysis_text)),
                 ], $ai->_loadSavedMergeResult($date, $r->kaisuu, $r->basho_code, $r->day, $r->race));
+            }
+        }
+
+        // @ANCHOR-20261102-PREDICTION-PUBLIC  新しい予想の対象レースは、新しい予想で上書きします
+        //   BAGANRIKI_PREDICTION_PUBLIC が下りていれば何もしません（今までどおり）。
+        //   predictionAnswerFor が null のレース（旧方式の時代のレース等）は、上の旧方式の値のままです。
+        if (AiController::predictionPublicEnabled()) {
+            foreach (DB::table('t_horse_odds_finder_races')->where('date', $date)
+                        ->get(['kaisuu', 'basho', 'day', 'race']) as $r) {
+                $pa = $ai->predictionAnswerFor($date, $r->kaisuu, $r->basho, $r->day, $r->race);
+                if ($pa === null) { continue; }
+                $k = ((int) $r->kaisuu) . '_' . ((string) $r->basho) . '_' . ((int) $r->day) . '_' . ((int) $r->race);
+                if (!isset($items[$k])) {
+                    $items[$k] = [
+                        'date' => $date, 'kaisuu' => (int) $r->kaisuu, 'basho_code' => (string) $r->basho,
+                        'day' => (int) $r->day, 'race' => (int) $r->race,
+                        'first_analysis_text' => null, 'second' => null,
+                    ];
+                }
+                // null の側は旧方式の保存済み（上で入れた値）のまま
+                if ($pa['first'] !== null) {
+                    $items[$k]['first_analysis_text'] = !empty($pa['first']['not_ready'])
+                        ? null : (string) ($pa['first']['analysis_text'] ?? '');
+                }
+                if ($pa['second'] !== null) {
+                    $items[$k]['second'] = !empty($pa['second']['not_ready']) ? null : $pa['second'];
+                }
             }
         }
 

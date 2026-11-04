@@ -1,0 +1,62 @@
+--- SummaryAiAnalysisCompensate.php（変更前）
++++ SummaryAiAnalysisCompensate.php（11/2版）
+@@ -1047,6 +1047,14 @@
+             foreach ($races as $raceRow) {
+                 $label = "{$raceRow->kaisuu}回{$raceRow->basho_name}{$raceRow->day}日 {$raceRow->race}R";
+ 
++                // @ANCHOR-20261102-PREDICTION-PUBLIC  新しい予想が受け持つレースは、旧方式で補完しません
++                //   （旧方式のAIを呼ばない。旧方式へ切り替えると決まったレースは null が返り、下の補完に進みます）
++                if ($controller->predictionAnswerFor($raceRow->date, $raceRow->kaisuu, $raceRow->basho,
++                                                     $raceRow->day, $raceRow->race) !== null) {
++                    $skipped++;
++                    continue;
++                }
++
+                 // ── 1st AI チェック ───────────────────────────────────────
+                 // races.basho = ai_analysis.basho_code
+                 $exists1st = DB::table('t_horse_odds_finder_ai_analysis')
+@@ -23520,6 +23528,44 @@
+                     strpos((string) $u, 'api.anthropic.com') === false
+                     && strpos((string) $u, 'api.deepseek.com') === false)), 0);
+             $this->line('      送信口が呼ばれた回数 : ' . count($calls) . ' 回');
++
++            // ── @ANCHOR-20261102-PREDICTION-PUBLIC  お客様の画面へ出す形（今の取得口）まで通す ──
++            //   BAGANRIKI_PREDICTION_PUBLIC=1 などを、このコマンドの前に付けて起動したときだけ確かめます
++            //   （.env は変えません。写したレースは場98なので BAGANRIKI_R122_TARGETS=TEST を付けます。
++            //     例は作業手順のマークダウンを見てください）。
++            if (AiController::predictionPublicEnabled()) {
++                $pa = $ctrl->predictionAnswerFor($newDate, $race->kaisuu, $newBasho, $race->day, $race->race);
++                $check('G-25', '新しい予想の対象として扱われる（旧方式に回らない）', $pa !== null, true);
++                $this->line('      画面に返す状態 : ' . (string) ($pa['state'] ?? 'null'));
++                $callsBefore = count($calls);
++                $req1 = new Request();
++                $req1->query->add(['date' => $newDate, 'kaisuu' => $race->kaisuu, 'basho' => $newBasho,
++                                   'day' => $race->day, 'race' => (string) $race->race]);
++                $r1 = json_decode((string) $ctrl->getHorseOddsFinderAiAnalysis($req1)->getContent(), true);
++                $r2 = json_decode((string) $ctrl->getHorseOddsFinderSecondAiOpinion($req1)->getContent(), true);
++                $check('G-26', '1st の取得口が新しい予想を返す',
++                    (string) ($r1['data']['prediction_method'] ?? ''), 'new');
++                $check('G-27', '2nd の取得口が新しい予想を返す',
++                    (string) ($r2['data']['prediction_method'] ?? ''), 'new');
++                $legacy = \DB::table('t_horse_odds_finder_ai_analysis')->where('date', $newDate)
++                            ->where('kaisuu', $race->kaisuu)->where('basho_code', $newBasho)
++                            ->where('day', $race->day)->where('race', $race->race)->count();
++                $this->line('      旧方式の1stの行（写したレース。0行のはず） : ' . $legacy . ' 行');
++                $check('G-28', '取得口を呼んでも、AIの送信口は1回も呼ばれていない（旧方式も新方式も）',
++                    count($calls) - $callsBefore, 0);
++                $check('G-29', '写したレースに旧方式の1stの行ができていない', $legacy, 0);
++                foreach ((array) ($r2['data']['merged_horses'] ?? []) as $mh) {
++                    $this->line(sprintf('      %2d番 %s %s番人気 %s倍 おすすめ度%s', (int) $mh['num'],
++                        (string) $mh['name'], (string) ($mh['popularity'] ?? '-'),
++                        (string) ($mh['odds_6'] ?? '-'), (string) $mh['score']));
++                    $this->line('         ' . (string) $mh['reason']);
++                }
++                if (($r2['data']['status'] ?? '') === 'undetermined') {
++                    $this->line('      出せなかった理由 : ' . (string) ($r2['data']['status_reason'] ?? ''));
++                }
++            } else {
++                $this->line('      （画面へ出す形の確認は省きました：BAGANRIKI_PREDICTION_PUBLIC などが下りています）');
++            }
+         } catch (\Throwable $e) {
+             $ok = false;
+             $this->error('  × 例外 : ' . $e->getMessage());

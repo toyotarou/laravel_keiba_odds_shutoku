@@ -188,9 +188,15 @@ Route::get('getHorseOddsFinderPushSendLogsDeveloperNews', [AdminController::clas
 // WebPushController — Web プッシュ通知
 //   vapid-public-key    : VAPID 公開鍵
 //   web-push/subscribe  : サブスクリプション登録
+//   getMyPushReceive    : ユーザーの push 受信設定（ホーム画面スイッチ用）
+//   changeMyPushReceive : ユーザーの push 受信/非受信の切替（ホーム画面スイッチ用）
 ////////////////////////////////////////////////////////////////////////////////////
 
 // Web Push 用 VAPID 公開鍵を返す
 Route::get('vapid-public-key', [WebPushController::class, 'vapidPublicKey']);
 // Web Push サブスクリプションを登録する
 Route::post('web-push/subscribe', [WebPushController::class, 'subscribe']);
+// 20261101: ホーム画面の「通知」スイッチ — ユーザーの push 受信設定を返す
+Route::get('getMyPushReceive', [WebPushController::class, 'getMyPushReceive']);
+// 20261101: ホーム画面の「通知」スイッチ — ユーザーの全端末の push 受信/非受信を切り替える
+Route::post('changeMyPushReceive', [WebPushController::class, 'changeMyPushReceive']);
