@@ -133,7 +133,7 @@ use Illuminate\Support\Facades\DB;
 class SummaryAiAnalysisCompensate extends Command
 {
     // ══════════════════════════════════════════════════════════════════
-    // @ANCHOR-20261020-R122-IDLECAP  旗が下りているときの空回しの上限（秒）
+    // @ANCHOR-20261020-PREDICTION-IDLECAP  旗が下りているときの空回しの上限（秒）
     // ══════════════════════════════════════════════════════════════════
     //   --prediction-sweep --prediction-sweep-watch=55 を毎分の cron に入れると、
     //   枠の段が off の間は<b>55秒眠るだけのPHPが毎分立ち続けます。</b>
@@ -208,60 +208,60 @@ class SummaryAiAnalysisCompensate extends Command
                            . ' {--prediction-install : r12.2で使う新しいテーブル9本を作る（既にあれば何もしない。既存テーブルには触らない）}'
                            . ' {--prediction-status : r12.2のテーブルの有無と件数、版の設定値を表示する（読み取りだけ）}'
                            . ' {--prediction-exact-check : 本番側（AiControllerのv0.4判定）と検証側（--mode-check）の信号が全レースで一致するか突き合わせる。--mode-check と併用（読み取りだけ・AI呼び出し0回）}'
-                           // @ANCHOR-20261020-R122-PROMPT  r12.2の両AI本文（1st・2nd）の全文置換
+                           // @ANCHOR-20261020-PREDICTION-PROMPT  r12.2の両AI本文（1st・2nd）の全文置換
                            . ' {--prediction-prompt-install= : 配布された両AI本文3本（prompt_1st.txt / prompt_2nd.txt / common_prompt.txt）をstorageへ設置し、マーカー・版・差し込み記号を確かめる。promptsフォルダのパスを渡す}'
                            . ' {--prediction-prompt-check= : r12.2の送信文（system全文＋INPUT_JSON）を組み立て、先方の参照入力14本・同梱スキーマと突き合わせる。送付資料のルート（prompts/schemas/validationを含む）を渡す（AIへは送らない・費用0円・DB書込なし）}'
                            . ' {--prediction-prompt-dump= : 組み立てた送信文（system本文とINPUT_JSON）をこのフォルダへ書き出す}'
                            . ' {--prediction-prompt-real : 本番DBの保存済みレースで送信文を組み立てられるか試す。--prediction-prompt-check と --date= を併用（読み取りだけ・AI呼び出し0回）}'
                            . ' {--prediction-prompt-assume : 取得監査の実時刻を予定時刻で仮置きして送信文の形まで確かめる（本番送信には使わない）。--prediction-prompt-real と併用}'
                            . ' {--prediction-prompt-sales-offset= : 投票締切を「発走のN秒前」として仮置きする（正本ではない。契約11.2のため本番送信はしない）。--prediction-prompt-real と併用}'
-                           // @ANCHOR-20261020-R122-AUDIT  お願い②（A案）の取得監査
+                           // @ANCHOR-20261020-PREDICTION-AUDIT  お願い②（A案）の取得監査
                            . ' {--prediction-audit-check : 取得監査の記録の経路を確かめる（テーブル・列・マイクロ秒・読み戻し）。試し書きは必ずロールバックするのでDBへ残る書き込みは0件。--date= と併用}'
-                           // @ANCHOR-20261020-R122-INVALID  異常例32本（入力23・出力9）
+                           // @ANCHOR-20261020-PREDICTION-INVALID  異常例32本（入力23・出力9）
                            . ' {--prediction-invalid-cases= : 異常例32本を Schema と 意味検証 に分けて判定し、先方の期待と突き合わせる。送付資料のルートを渡す（読み取りだけ・AI呼び出し0回）}'
-                           // @ANCHOR-20261020-R122-FREEZE  凍結入力の保存
+                           // @ANCHOR-20261020-PREDICTION-FREEZE  凍結入力の保存
                            . ' {--prediction-freeze : 保存済みレースの凍結入力（snapshot）を作って保存する。--date= と併用。--prediction-freeze-dry で書かずに結果だけ見る}'
                            . ' {--prediction-freeze-dry : --prediction-freeze を1行も書かずに試す}'
-                           // @ANCHOR-20261020-R122-ACQFIX  監査行からの通し試験
+                           // @ANCHOR-20261020-PREDICTION-ACQFIX  監査行からの通し試験
                            . ' {--prediction-acq-test : 取得側と同じ形の監査行を作り、採用バッチの選定→INPUT_JSON→凍結保存→読戻しまで本番の経路で通す。すべてロールバックするのでDBへ残る書き込みは0件。--date= と併用}'
-                           // @ANCHOR-20261020-R122-FP  元値の指紋（切り捨ての起きない方法）
+                           // @ANCHOR-20261020-PREDICTION-FP  元値の指紋（切り捨ての起きない方法）
                            . ' {--prediction-fingerprint= : 元値の指紋を、主キー順の逐次SHA-256で出す（長さ付きの列表現・主キー集合も別hash・一貫した読取）。前回のJSONのパスを渡すと突き合わせる。読むだけ・書き込み0件}'
-                           // @ANCHOR-20261020-R122-33R  33レースの候補比較
+                           // @ANCHOR-20261020-PREDICTION-33R  33レースの候補比較
                            . ' {--prediction-33races : 暫定選出になるレースについて、保存済みの全頭評価をそのまま両側へ当てて候補の違いを出す（再評価なし・読み取りだけ）。--date= と併用。CSVへ書き出す}'
-                           // @ANCHOR-20261020-R122-QUEUE  キューと永続予約
+                           // @ANCHOR-20261020-PREDICTION-QUEUE  キューと永続予約
                            . ' {--prediction-queue-test : キューと永続予約（初回0・訂正1の2枠、重複送信の防止、再起動の後始末）が契約どおりか通しで確かめる。すべてロールバックするのでDBへ残る書き込みは0件}'
-                           // @ANCHOR-20261020-R122-ONEBUILD  固定入力の通し試験（007の2）
+                           // @ANCHOR-20261020-PREDICTION-ONEBUILD  固定入力の通し試験（007の2）
                            . ' {--prediction-onebuild-test : 固定した入力をそのまま両roleへ送れるか（作り直していないか）を通しで確かめる。--date= と併用。実AIは呼ばない。すべてロールバックする}'
-                           // @ANCHOR-20261021-R122-TOKENS  008のご指摘1（費用）
+                           // @ANCHOR-20261021-PREDICTION-TOKENS  008のご指摘1（費用）
                            . ' {--prediction-token-count= : トークン数を課金ゼロで実測する。count_tokens だけを使い、本文の生成は1回も呼ばない。送付資料ルートのパスを渡す。読むだけ}'
                            . ' {--prediction-token-out= : 実測した本文の書き出し先（DeepSeek側を公開トークナイザで数えるため）}'
                            . ' {--prediction-token-model= : 数えるモデルを1つに絞る（既定は claude-haiku-4-5 と claude-haiku-5-5 の両方）}'
-                           // @ANCHOR-20261020-R122-WIRETEST  007のE（実起動経路）
+                           // @ANCHOR-20261020-PREDICTION-WIRETEST  007のE（実起動経路）
                            . ' {--prediction-wire-test= : 送信口（Httpクライアント）を偽応答に差し替え、初回→検証→訂正→解決→公開を本番の関数で通す。片側失敗・通信不能・途中切れ・応答期限到達・公開期限到達・プロセス停止後の復旧・上限前呼出しも通す。送付資料ルートのパスを渡す。実AIは1回も呼ばない。すべてロールバックする}'
-                           // @ANCHOR-20261021-R122-E2E  実凍結から一続きの通し試験（010の5章末尾）
+                           // @ANCHOR-20261021-PREDICTION-E2E  実凍結から一続きの通し試験（010の5章末尾）
                            . ' {--prediction-e2e-test= : 実在レースの出馬表・オッズから監査行を作り、発走時刻を10分後へ寄せて、締切を渡さずに導出させ、キャッシュ後の入口が呼ぶ関数で実凍結し、期限の幅を1つずつ確かめ、送信口を偽応答に差し替えて初回→検証→訂正→採否→公開まで本番の関数で通す。3,600秒の決め打ちはしない。送付資料ルートのパスを渡す。実AIは1回も呼ばない。すべてロールバックする}'
-                           // @ANCHOR-20261023-R122-LIVEONCE  実AIの18頭実測（AC05・003チェックリスト P-07）
+                           // @ANCHOR-20261023-PREDICTION-LIVEONCE  実AIの18頭実測（AC05・003チェックリスト P-07）
                            . ' {--prediction-live-once= : 【課金あり】保存済みのレースを「いまから330秒後に発走」へ写して実凍結し、指定した role（1st か 2nd）の実AIへ初回を1回だけ送る。訂正が要れば1回だけ送る。受領までの秒数・complete・使用量・応答期限との差を出す。DBはすべてロールバックする。1st と 2nd を同時に測るときは2つ並べて起動する}'
                            . ' {--prediction-live-race= : --prediction-live-once の写し元 race_id（既定 20261018-4-04-2-10 ＝10/18新潟10R・18頭）}'
                            . ' {--prediction-live-yes : --prediction-live-once の課金に同意して確認を省く（並べて起動するときに使う）}'
-                           // @ANCHOR-20261021-R122-TYPETEST  型保持の通し試験（010の3章）
+                           // @ANCHOR-20261021-PREDICTION-TYPETEST  型保持の通し試験（010の3章）
                            . ' {--prediction-type-test= : JSONの型（数値／文字列、オブジェクト／配列、整数／小数／指数）を、診断→訂正比較→保存→読戻しまで落とさずに通せることを確かめる。010の3-5の6例をすべて含む。型の地図を渡さない場合に何を見逃すかも並べて出す。送付資料ルートのパスを渡す。実AIは1回も呼ばない。すべてロールバックする}'
-                           // @ANCHOR-20261021-R122-JOBTEST  Job構成の通し試験（010の2章）
+                           // @ANCHOR-20261021-PREDICTION-JOBTEST  Job構成の通し試験（010の2章）
                            // @ANCHOR-20261023-NARU-WORKERTEST
                            . ' {--prediction-worker-test : 実 worker（別プロセス）に Job を処理させる受入試験。外部AIは呼ばない（試験用の場 90〜99 だけに効く偽AI）。約7分。最後に試験用のレースの行だけ消す}'
                            . ' {--prediction-worker-keep : --prediction-worker-test の行を消さずに残す}'
                            . ' {--prediction-worker-mat= : --prediction-worker-test の S8a／S8b に使う配布の材料の場所（既定 ~/r122_v23/mat）}'
                            . ' {--prediction-job-test : Job構成（凍結・role・集計・実状態の4本）が、どの待ち行列へどの引数で積まれるかをjobs表の行から確かめる。秒数の整合（Jobの上限・retry_after・HTTPの上限）、経路の固定、対象レースの限定、実状態の変更（取消は足すだけ・締切は前倒しだけ）も見る。workerは立てず、Jobは1本も実行しない。実AIは1回も呼ばない。すべてロールバックする}'
-                           // @ANCHOR-20261020-R122-WIRE  再起動後のやり直し（006の6-4）
+                           // @ANCHOR-20261020-PREDICTION-WIRE  再起動後のやり直し（006の6-4）
                            . ' {--prediction-sweep : 原応答を保存したあと訂正・公開が始まらないまま止まったレースを拾い、訂正判定と公開だけやり直す。初回の送信はしない。1分おきのcronに入れてよい}'
-                           // @ANCHOR-20261020-R122-SWEEPWATCH  007の6-2（期限での起動）
+                           // @ANCHOR-20261020-PREDICTION-SWEEPWATCH  007の6-2（期限での起動）
                            . ' {--prediction-sweep-watch= : --prediction-sweep を、この秒数のあいだ繰り返す（既定55秒）。1分おきのcronでも、応答期限から公開期限までの30秒を取りこぼさないため}'
                            . ' {--prediction-sweep-interval= : --prediction-sweep-watch のときの間隔（秒。既定5）}'
-                           // @ANCHOR-20261023-R122-SWEEPROLE
+                           // @ANCHOR-20261023-PREDICTION-SWEEPROLE
                            . ' {--prediction-sweep-role= : --prediction-sweep で受け持つAI（1st か 2nd）。cronに2行入れると1stと2ndを同時に回せる。省略すると両方を1本で回す（従来どおり）}'
-                           // @ANCHOR-20261020-R122-RESP  応答検証と局所回復
+                           // @ANCHOR-20261020-PREDICTION-RESP  応答検証と局所回復
                            . ' {--prediction-response-test= : 正常出力14本を本番の経路（extract→封筒→隔離→診断）へ通し、局所回復と訂正（最大1回）を確かめる。送付資料ルートのパスを渡す。すべてロールバックする}'
-                           // @ANCHOR-20261020-R122-PUB  統合・公開・intent・revision
+                           // @ANCHOR-20261020-PREDICTION-PUB  統合・公開・intent・revision
                            . ' {--prediction-budget-probe= : 予算の予約を1回だけ試す（2つ同時に走らせて、上限を超えないことを確かめる）。値は余裕のドル。外部へは送らない}'
                            . ' {--prediction-budget-probe-cleanup : --prediction-budget-probe の予約を消す}'
                            . ' {--prediction-race-lock-test : 発走時刻の更新と、送信・公開の最終確認が直列になることを2つの接続で確かめる。外部へは送らない}'
@@ -272,14 +272,14 @@ class SummaryAiAnalysisCompensate extends Command
                            . ' {--prediction-compact-check= : 保存した入力JSONの出典一覧を詰めた形に変え、元へ戻せることとトークン数（count_tokens・無料）を確かめる。ファイルのパスを渡す。本文の生成は呼ばない。DBに書かない}'
                            . ' {--prediction-raw-odds-test= : 011再精査10版の追加139項目（原オッズの読込）を、統合後の本物の実装と MySQL で通す。値は写し元の race_id（省略は 1）。AIは呼ばない。すべてロールバックする}'
                            . ' {--prediction-publish-test= : 両roleの検証済み応答を統合して公開し、intentの再実行・版の見張り・期限・加点の証明を確かめる。送付資料ルートのパスを渡す。すべてロールバックする}'
-                           // @ANCHOR-20261020-R122-API  読取API
+                           // @ANCHOR-20261020-PREDICTION-API  読取API
                            . ' {--prediction-read-test= : 読取APIが返す中身（3つの版・ワーカーの状態・いまの取消を映した枠・表示状態）を確かめる。送付資料ルートのパスを渡す。すべてロールバックする}'
-                           // @ANCHOR-20261020-R122-PAST  本番の経路で作った入力をSchemaに当てる
+                           // @ANCHOR-20261020-PREDICTION-PAST  本番の経路で作った入力をSchemaに当てる
                            . ' {--prediction-prod-input= : 実レースについて本番と同じ経路でINPUT_JSONを作り、入力Schemaとsource_registry Schemaに当て、coverage7区分と過去走の件数を並べる。送付資料ルートのパスを渡す。読むだけ}'
-                           // @ANCHOR-20261020-R122-MARKETTEST  OPIと推定確定オッズの通し試験
+                           // @ANCHOR-20261020-PREDICTION-MARKETTEST  OPIと推定確定オッズの通し試験
                            . ' {--prediction-market-test= : OPI・複勝OPI・推定確定オッズ・推定確定複勝最小・予測補正OPIを、実レースの実オッズで載せ、SQLから取り直した値と突き合わせる。載らない側（当日を含む集計）と載る側（期間が終わっている集計）の両方を通す。送付資料ルートのパスを渡す。読むだけ}'
                            . ' {--as-of= : --prediction-market-test で「仮の開催日」をこの日として呼ぶ（既定は集計期間の終わりの7日後）。動かすのは開催日と情報上限だけで、オッズ・集計表・式はそのまま}'
-                           // @ANCHOR-20261020-R122-NATIVE  合成試験と取消の例を本体へ直接通す
+                           // @ANCHOR-20261020-PREDICTION-NATIVE  合成試験と取消の例を本体へ直接通す
                            . ' {--prediction-native-test= : 合成729件を本体 v04Classify へ、取得境界4件を本体 acceptBatch へ直接通す。取消で目標数Cが変わる例（16→15・14→13・9→8・全頭取消）と、正本の発走時刻との一致検査・日時の繰上がり検査も本体で確かめる。送付資料ルートのパスを渡す。読むだけ}';
     protected $description = '未実行のAI予想を補完実行する';
 
@@ -434,7 +434,7 @@ class SummaryAiAnalysisCompensate extends Command
             return;
         }
 
-        // @ANCHOR-20261020-R122-INSTALL  r12.2のテーブルを作る／状態を見る
+        // @ANCHOR-20261020-PREDICTION-INSTALL  r12.2のテーブルを作る／状態を見る
         if ((bool) $this->option('prediction-install')) {
             $this->runPredictionInstall();
             return;
@@ -444,28 +444,28 @@ class SummaryAiAnalysisCompensate extends Command
             return;
         }
 
-        // @ANCHOR-20261020-R122-NATIVE  合成試験と取消の例を本体へ直接通す
+        // @ANCHOR-20261020-PREDICTION-NATIVE  合成試験と取消の例を本体へ直接通す
         if ($this->hasOption('prediction-native-test')
             && $this->option('prediction-native-test') !== null) {
             $this->runNativeTest((string) $this->option('prediction-native-test'));
             return;
         }
 
-        // @ANCHOR-20261020-R122-MARKETTEST  OPIと推定確定オッズの通し試験
+        // @ANCHOR-20261020-PREDICTION-MARKETTEST  OPIと推定確定オッズの通し試験
         if ($this->hasOption('prediction-market-test')
             && $this->option('prediction-market-test') !== null) {
             $this->runMarketPriorTest((string) $this->option('prediction-market-test'));
             return;
         }
 
-        // @ANCHOR-20261020-R122-PAST  本番の経路で作った入力をSchemaに当てる
+        // @ANCHOR-20261020-PREDICTION-PAST  本番の経路で作った入力をSchemaに当てる
         if ($this->hasOption('prediction-prod-input')
             && $this->option('prediction-prod-input') !== null) {
             $this->runProductionInputCheck((string) $this->option('prediction-prod-input'));
             return;
         }
 
-        // @ANCHOR-20261020-R122-API  読取API
+        // @ANCHOR-20261020-PREDICTION-API  読取API
         if ($this->hasOption('prediction-read-test')
             && $this->option('prediction-read-test') !== null) {
             $this->runReadApiTest((string) $this->option('prediction-read-test'));
@@ -525,48 +525,48 @@ class SummaryAiAnalysisCompensate extends Command
             return;
         }
 
-        // @ANCHOR-20261020-R122-PUB  統合・公開・intent・revision
+        // @ANCHOR-20261020-PREDICTION-PUB  統合・公開・intent・revision
         if ($this->hasOption('prediction-publish-test')
             && $this->option('prediction-publish-test') !== null) {
             $this->runPublishTest((string) $this->option('prediction-publish-test'));
             return;
         }
 
-        // @ANCHOR-20261020-R122-RESP  応答検証と局所回復
+        // @ANCHOR-20261020-PREDICTION-RESP  応答検証と局所回復
         if ($this->hasOption('prediction-response-test')
             && $this->option('prediction-response-test') !== null) {
             $this->runResponseTest((string) $this->option('prediction-response-test'));
             return;
         }
 
-        // @ANCHOR-20261020-R122-QUEUE  キューと永続予約
+        // @ANCHOR-20261020-PREDICTION-QUEUE  キューと永続予約
         if ((bool) $this->option('prediction-queue-test')) {
             $this->runQueueTest();
             return;
         }
 
-        // @ANCHOR-20261020-R122-ONEBUILD  固定入力の通し試験（007の2）
-        // @ANCHOR-20261021-R122-TOKENS  008のご指摘1（費用）
+        // @ANCHOR-20261020-PREDICTION-ONEBUILD  固定入力の通し試験（007の2）
+        // @ANCHOR-20261021-PREDICTION-TOKENS  008のご指摘1（費用）
         if ($this->hasOption('prediction-token-count')
             && $this->option('prediction-token-count') !== null) {
             $this->runTokenCount((string) $this->option('prediction-token-count'));
             return;
         }
 
-        // @ANCHOR-20261020-R122-WIRETEST  007のE（実起動経路）
-        // @ANCHOR-20261021-R122-E2E  実凍結から一続きの通し試験（010の5章末尾）
+        // @ANCHOR-20261020-PREDICTION-WIRETEST  007のE（実起動経路）
+        // @ANCHOR-20261021-PREDICTION-E2E  実凍結から一続きの通し試験（010の5章末尾）
         if ($this->hasOption('prediction-e2e-test')
             && $this->option('prediction-e2e-test') !== null) {
             $this->runEndToEndTest((string) $this->option('prediction-e2e-test'));
             return;
         }
-        // @ANCHOR-20261023-R122-LIVEONCE  実AIの18頭実測（課金あり）
+        // @ANCHOR-20261023-PREDICTION-LIVEONCE  実AIの18頭実測（課金あり）
         if ($this->hasOption('prediction-live-once')
             && $this->option('prediction-live-once') !== null) {
             $this->runLiveAiOnce((string) $this->option('prediction-live-once'));
             return;
         }
-        // @ANCHOR-20261021-R122-TYPETEST  型保持の通し試験（010の3章）
+        // @ANCHOR-20261021-PREDICTION-TYPETEST  型保持の通し試験（010の3章）
         if ($this->hasOption('prediction-type-test')
             && $this->option('prediction-type-test') !== null) {
             $this->runTypePreserveTest((string) $this->option('prediction-type-test'));
@@ -578,7 +578,7 @@ class SummaryAiAnalysisCompensate extends Command
             $this->runWorkerAcceptanceTest();
             return;
         }
-        // @ANCHOR-20261021-R122-JOBTEST  Job構成の通し試験（010の2章）
+        // @ANCHOR-20261021-PREDICTION-JOBTEST  Job構成の通し試験（010の2章）
         if ($this->hasOption('prediction-job-test')
             && (bool) $this->option('prediction-job-test')) {
             $this->runJobTest();
@@ -595,14 +595,14 @@ class SummaryAiAnalysisCompensate extends Command
             return;
         }
 
-        // @ANCHOR-20261020-R122-WIRE  再起動後のやり直し（006の6-4）
+        // @ANCHOR-20261020-PREDICTION-WIRE  再起動後のやり直し（006の6-4）
         if ((bool) $this->option('prediction-sweep')) {
             self::loadPredictionClasses();
             $this->info('════════════════════════════════════════════════════════');
             $this->info(' r12.2 止まったレースのやり直し（初回の送信はしません）');
             $this->info('════════════════════════════════════════════════════════');
             $this->line('  実行時刻 : ' . date('c'));
-            // @ANCHOR-20261020-R122-WIRE  0件の理由が読めるようにします。
+            // @ANCHOR-20261020-PREDICTION-WIRE  0件の理由が読めるようにします。
             //   旗が下りているだけなのか、拾う対象が無かったのかを
             //   区別できないと「動いていない」のと見分けが付きません。
             $swW = \App\Http\Controllers\Api\BaganrikiWorker::class;
@@ -611,7 +611,7 @@ class SummaryAiAnalysisCompensate extends Command
             $this->line('  必要な表   : ' . ($swW::ready() ? 'そろっています'
                                                            : 'ありません'));
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261020-R122-SWEEPWATCH  10月20日007のご指摘6-2
+            // @ANCHOR-20261020-PREDICTION-SWEEPWATCH  10月20日007のご指摘6-2
             // ══════════════════════════════════════════════════════════
             //   【ご指摘のとおりでした】1分おきの巡回では、
             //   応答期限（発走150秒前）から公開期限（発走120秒前）までの
@@ -629,7 +629,7 @@ class SummaryAiAnalysisCompensate extends Command
             if ($swInterval <= 0) { $swInterval = 5; }
             if ($swWatch < 0)     { $swWatch = 0; }
             $ctrlSw = app(\App\Http\Controllers\Api\AiController::class);
-            // @ANCHOR-20261023-R122-SWEEPROLE  受け持つAI（省略なら両方）
+            // @ANCHOR-20261023-PREDICTION-SWEEPROLE  受け持つAI（省略なら両方）
             $swRole = trim((string) ($this->option('prediction-sweep-role') ?? ''));
             if (!in_array($swRole, ['', '1st', '2nd'], true)) {
                 $this->error('  × --prediction-sweep-role は 1st か 2nd です（指定：' . $swRole . '）');
@@ -644,7 +644,7 @@ class SummaryAiAnalysisCompensate extends Command
                           . (int) floor($swWatch / max(1, $swInterval)) . '回）');
             }
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261020-R122-SWEEPIDLE  旗が下りているときの見張り
+            // @ANCHOR-20261020-PREDICTION-SWEEPIDLE  旗が下りているときの見張り
             // ══════════════════════════════════════════════════════════
             //   枠の段が off のときは、拾う対象を見に行きません（従来どおり）。
             //   ただし <b>--prediction-sweep-watch を付けたときは、刻みだけは
@@ -654,7 +654,7 @@ class SummaryAiAnalysisCompensate extends Command
             //   なってしまうためです（10月20日007のご指摘6-2）。
             //   回すのは時計だけで、DBには触りません。
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261020-R122-IDLECAP  空回しは10秒で打ち切ります
+            // @ANCHOR-20261020-PREDICTION-IDLECAP  空回しは10秒で打ち切ります
             // ══════════════════════════════════════════════════════════
             //   【10月20日に気づいたこと】
             //   これを毎分の cron に入れると、枠の段が off の間は
@@ -684,7 +684,7 @@ class SummaryAiAnalysisCompensate extends Command
                         $gap = $now - $prev;
                         if ($idleRound > 1 && $gap > $gapMax) { $gapMax = $gap; }
                         $prev = $now;
-                        // @ANCHOR-20261021-R122-WATCHEND  終わりまで回します
+                        // @ANCHOR-20261021-PREDICTION-WATCHEND  終わりまで回します
                         $rest = $idleEnd - microtime(true);
                         if ($rest <= 0.05) { break; }
                         usleep((int) round(min((float) $swInterval, $rest) * 1000000));
@@ -695,7 +695,7 @@ class SummaryAiAnalysisCompensate extends Command
                               . '（最大の間隔 '
                               . number_format($gapMax, 1) . ' 秒）');
                     // ══════════════════════════════════════════════
-                    // @ANCHOR-20261021-R122-WATCHDESC  009のご指摘3
+                    // @ANCHOR-20261021-PREDICTION-WATCHDESC  009のご指摘3
                     // ══════════════════════════════════════════════
                     //   【書きすぎでした】「窓の取りこぼし：ありません」と
                     //   出していましたが、これは<b>何も処理していない
@@ -722,7 +722,7 @@ class SummaryAiAnalysisCompensate extends Command
                 $swPub += (int) $sw['published'];
                 if ((int) $sw['published'] > 0) {
                     foreach ((array) $sw['rows'] as $r) {
-                        // @ANCHOR-20261023-R122-SWEEPROWS  対象外レースの行は文字列です
+                        // @ANCHOR-20261023-PREDICTION-SWEEPROWS  対象外レースの行は文字列です
                         //   sweepPendingPredictions は対象外レースを「race_id:理由」の文字列で
                         //   rows へ入れます。配列として読むと PHP 8 で TypeError になり、
                         //   巡回そのものが止まります。文字列の行は表示だけ変えます。
@@ -736,7 +736,7 @@ class SummaryAiAnalysisCompensate extends Command
                 }
                 if ($swWatch <= 0) { break; }
                 // ══════════════════════════════════════════════════════
-                // @ANCHOR-20261021-R122-WATCHEND  10月21日008のご指摘5
+                // @ANCHOR-20261021-PREDICTION-WATCHEND  10月21日008のご指摘5
                 // ══════════════════════════════════════════════════════
                 //   【旧】`今 + 間隔 >= 終わり` で抜けていました。
                 //     55秒・5秒間隔なら 0,5,…,50秒で終わり、
@@ -759,7 +759,7 @@ class SummaryAiAnalysisCompensate extends Command
             $this->line('  公開できた : ' . $swPub . ' 件');
             if ($swWatch <= 0) {
                 foreach ((array) ($sw['rows'] ?? []) as $r) {
-                    // @ANCHOR-20261023-R122-SWEEPROWS  対象外レースの行は文字列です
+                    // @ANCHOR-20261023-PREDICTION-SWEEPROWS  対象外レースの行は文字列です
                     if (!is_array($r)) { $this->line('    ' . (string) $r); continue; }
                     $this->line(sprintf('    %-28s %s',
                         (string) $r['race_id'], (string) $r['publish']));
@@ -778,15 +778,15 @@ class SummaryAiAnalysisCompensate extends Command
             return;
         }
 
-        // @ANCHOR-20261020-R122-33R  33レースの候補比較
+        // @ANCHOR-20261020-PREDICTION-33R  33レースの候補比較
         if ((bool) $this->option('prediction-33races')) {
             $this->runThirtyThreeRaceCompare((string) ($this->option('date') ?: '2026-10-17,2026-10-18'));
             return;
         }
 
         // ══════════════════════════════════════════════════════════════
-        // @ANCHOR-20261020-R122-FP  元値の指紋
-        // @ANCHOR-20261020-R122-FPFLAG  値なしで渡したときに素通りしていた
+        // @ANCHOR-20261020-PREDICTION-FP  元値の指紋
+        // @ANCHOR-20261020-PREDICTION-FPFLAG  値なしで渡したときに素通りしていた
         // ══════════════════════════════════════════════════════════════
         //   【旧】option() が null でないことだけを見ていました。
         //     `--prediction-fingerprint=` は「値を省ける指定」なので、
@@ -810,31 +810,31 @@ class SummaryAiAnalysisCompensate extends Command
             return;
         }
 
-        // @ANCHOR-20261020-R122-ACQFIX  監査行からの通し試験
+        // @ANCHOR-20261020-PREDICTION-ACQFIX  監査行からの通し試験
         if ((bool) $this->option('prediction-acq-test')) {
             $this->runAcquisitionTest();
             return;
         }
 
-        // @ANCHOR-20261020-R122-INVALID  異常例32本の突き合わせ
+        // @ANCHOR-20261020-PREDICTION-INVALID  異常例32本の突き合わせ
         if ($this->option('prediction-invalid-cases')) {
             $this->runInvalidResponseCases((string) $this->option('prediction-invalid-cases'));
             return;
         }
 
-        // @ANCHOR-20261020-R122-FREEZE  凍結入力の保存
+        // @ANCHOR-20261020-PREDICTION-FREEZE  凍結入力の保存
         if ((bool) $this->option('prediction-freeze') || (bool) $this->option('prediction-freeze-dry')) {
             $this->runFreezeInput((bool) $this->option('prediction-freeze-dry'));
             return;
         }
 
-        // @ANCHOR-20261020-R122-AUDIT  取得監査の記録の確認
+        // @ANCHOR-20261020-PREDICTION-AUDIT  取得監査の記録の確認
         if ((bool) $this->option('prediction-audit-check')) {
             $this->runAcquisitionAuditCheck();
             return;
         }
 
-        // @ANCHOR-20261020-R122-PROMPT  r12.2の両AI本文の設置と送信文の検査
+        // @ANCHOR-20261020-PREDICTION-PROMPT  r12.2の両AI本文の設置と送信文の検査
         if ($this->option('prediction-prompt-install')) {
             $this->runPromptInstall((string) $this->option('prediction-prompt-install'));
             return;
@@ -10240,7 +10240,7 @@ class SummaryAiAnalysisCompensate extends Command
 
         $tot = ['レース' => 0, '確定' => 0, '判定不能' => 0, '計算不能' => 0];
         $byS0   = [];
-        // @ANCHOR-20261020-R122-EXACT  本番側との突き合わせ用
+        // @ANCHOR-20261020-PREDICTION-EXACT  本番側との突き合わせ用
         $exactCheck = (bool) $this->option('prediction-exact-check');
         $exactTotal = 0;
         $exactNg    = [];
@@ -10409,7 +10409,7 @@ class SummaryAiAnalysisCompensate extends Command
                 $res['レース'] = $label;
 
                 // ─────────────────────────────────────────────────────
-                // @ANCHOR-20261020-R122-EXACT  本番側の判定と突き合わせます
+                // @ANCHOR-20261020-PREDICTION-EXACT  本番側の判定と突き合わせます
                 //   検証側（この関数）は十進数の整数で厳密に比べています。
                 //   本番側（AiController の v0.4 判定）も元値で比べるよう直したので、
                 //   同じ入力で X1〜X5・Z が一致するはずです。
@@ -10597,8 +10597,8 @@ class SummaryAiAnalysisCompensate extends Command
                 $den > 0 ? $v / $den * 100 : 0, $sigU[$k], self::signalNote($k)));
         }
 
-        // ── 7. r12.2 の状態と配分 ───────────────────────────────────
-        // @ANCHOR-20261020-R122  2026-10-20 受領の指定をそのまま当てはめます。
+        // ── 7. 新方式 の状態と配分 ───────────────────────────────────
+        // @ANCHOR-20261020-PREDICTION  2026-10-20 受領の指定をそのまま当てはめます。
         //   ①X6=B案 ②取得猶予+30/+120秒 ③X6だけ不明のときの暫定配分。
         $this->line('');
         $this->info(' 7. r12.2 の状態と配分（2026-10-20 受領の指定）');
@@ -10701,7 +10701,7 @@ class SummaryAiAnalysisCompensate extends Command
                 if ($v === false) return 'FALSE';
                 return 'UNKNOWN';
             };
-            // @ANCHOR-20261020-R122  r12.2の列を後ろへ足します（既存列の順は変えません）
+            // @ANCHOR-20261020-PREDICTION  r12.2の列を後ろへ足します（既存列の順は変えません）
             fputcsv($fh, ['日付', 'レース', '出走頭数',
                           '取消馬番（凍結前）', '取消馬番（凍結後）', '状態', '理由',
                           'X1', 'X2', 'X3', 'X4', 'X5', 'X6', 'Z',
@@ -10797,7 +10797,7 @@ class SummaryAiAnalysisCompensate extends Command
     }
 
     // ═════════════════════════════════════════════════════════════
-    // @ANCHOR-20261020-R122  r12.2（2026-10-20 受領の変更計画書v1.2・
+    // @ANCHOR-20261020-PREDICTION  新方式（2026-10-20 受領の変更計画書v1.2・
     //   基本設計書v1.0・詳細設計書v1.0・server_contract_r12.2）の判定。
     //
     //   決まった3点をそのまま実装しています。
@@ -10812,7 +10812,7 @@ class SummaryAiAnalysisCompensate extends Command
     private const MODE_SIGNAL_WEIGHTS = ['X1'=>2,'X2'=>1,'X3'=>1,'X4'=>1,'X5'=>1,'X6'=>1,'Z'=>-2];
 
     /**
-     * 三値の信号から r12.2 の mode 一式を返します。
+     * 三値の信号から 新方式 の mode 一式を返します。
      * $sig は ['X1'=>true|false|null, … ,'Z'=>…]。X6を省くと null 扱いです。
      */
     private static function decideModeFromSignals(array $sig): array
@@ -11052,7 +11052,7 @@ class SummaryAiAnalysisCompensate extends Command
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-EXACT  本番側の信号判定と突き合わせる
+     * @ANCHOR-20261020-PREDICTION-EXACT  本番側の信号判定と突き合わせる
      * ═══════════════════════════════════════════════════════════════════════
      * 同じ入力（凍結6分前順の各馬のオッズ）を、
      *   ・検証側 … この Command の modeCheckOne（十進数の整数で厳密比較）
@@ -11087,7 +11087,7 @@ class SummaryAiAnalysisCompensate extends Command
         if ($N < 2) { return null; }
 
         // ─────────────────────────────────────────────────────────
-        // @ANCHOR-20261020-R122-AUTOLOAD  同じファイルに入れたクラスの読み込み
+        // @ANCHOR-20261020-PREDICTION-AUTOLOAD  同じファイルに入れたクラスの読み込み
         //   BaganrikiSignals は AiController.php の中に書いてあります。
         //   Laravel の自動読み込みはクラス名からファイル名を決めるので、
         //   先に AiController を触ってファイルを読ませないと見つかりません。
@@ -11125,7 +11125,7 @@ class SummaryAiAnalysisCompensate extends Command
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-INSTALL  r12.2 の新規テーブルを作る
+     * @ANCHOR-20261020-PREDICTION-INSTALL  新方式 の新規テーブルを作る
      * ═══════════════════════════════════════════════════════════════════════
      * 根拠：詳細設計書9章「MySQLの保存設計」
      *
@@ -11163,7 +11163,7 @@ class SummaryAiAnalysisCompensate extends Command
         $this->line('');
     }
 
-    /** @ANCHOR-20261020-R122-INSTALL  r12.2 のテーブルと設定の状態 */
+    /** @ANCHOR-20261020-PREDICTION-INSTALL  新方式 のテーブルと設定の状態 */
     private function runPredictionStatus(): void
     {
         $this->line('');
@@ -11216,7 +11216,7 @@ class SummaryAiAnalysisCompensate extends Command
         $this->line('');
     }
 
-    /** @ANCHOR-20261020-R122-INSTALL  9本のDDL（詳細設計書9章の表のとおり） */
+    /** @ANCHOR-20261020-PREDICTION-INSTALL  9本のDDL（詳細設計書9章の表のとおり） */
     private static function predictionTableDdl(): array
     {
         $opt = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
@@ -12681,7 +12681,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-PROMPT  同じファイルの中のクラスを読ませる一手間
+     * @ANCHOR-20261020-PREDICTION-PROMPT  同じファイルの中のクラスを読ませる一手間
      * ═══════════════════════════════════════════════════════════════════════
      * PSR-4 の自動読み込みは「クラス名＝ファイル名」で探すので、
      * AiController.php の<b>中に</b>置いた BaganrikiPrompt などは、
@@ -12703,7 +12703,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-PROMPT  配布された両AI本文を storage へ入れる
+     * @ANCHOR-20261020-PREDICTION-PROMPT  配布された両AI本文を storage へ入れる
      * ═══════════════════════════════════════════════════════════════════════
      * 本文はコードへ書き写しません。配布ファイルをそのまま置き、
      * 置いた直後に中身（マーカー・版・差し込み記号）を確かめます。
@@ -12759,7 +12759,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-PROMPT  送信文の検査（AIへは送りません・費用0円）
+     * @ANCHOR-20261020-PREDICTION-PROMPT  送信文の検査（AIへは送りません・費用0円）
      * ═══════════════════════════════════════════════════════════════════════
      * 根拠：10月20日003の確認結果①②／server_contract_r12.2.txt 5章・6章・9章
      *
@@ -12909,7 +12909,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                 $diff = $this->diffPromptInput($b['input'], $ref);
                 if ($diff === []) {
                     $c3ok++;
-                    // @ANCHOR-20261020-R122-PROMPT  件数は数えて出します（34と書いた誤りの再発防止）
+                    // @ANCHOR-20261020-PREDICTION-PROMPT  件数は数えて出します（34と書いた誤りの再発防止）
                     $this->line(sprintf('  ○ %-26s %s  全%dキー一致  snapshot_hash=%s',
                         $case, $role, count($keys),
                         substr((string) $b['input']['snapshot_hash'], 0, 16)));
@@ -13024,7 +13024,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
     }
 
     /**
-     * @ANCHOR-20261020-R122-PROMPT  合成ケースの文脈を生payloadから作ります
+     * @ANCHOR-20261020-PREDICTION-PROMPT  合成ケースの文脈を生payloadから作ります
      */
     private function promptCaseContext(string $vDir, string $case, array $ref): ?array
     {
@@ -13094,7 +13094,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
     }
 
     /**
-     * @ANCHOR-20261020-R122-PROMPT  2つの INPUT_JSON の違いを1行ずつにします
+     * @ANCHOR-20261020-PREDICTION-PROMPT  2つの INPUT_JSON の違いを1行ずつにします
      *   値そのものの比較はキー昇順のJSONで行います（キーの並びは意味を持たない）。
      */
     private function diffPromptInput(array $got, array $exp): array
@@ -13142,7 +13142,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
     }
 
     /**
-     * @ANCHOR-20261020-R122-PROMPT  本番DBの保存済みレースで組み立てを試します
+     * @ANCHOR-20261020-PREDICTION-PROMPT  本番DBの保存済みレースで組み立てを試します
      *   既定では「投票締切の正本が無い」「取得監査の実時刻が無い」で止まります。
      *   --prediction-prompt-assume を付けると、その2つを仮置きして送信文の形まで出します
      *   （本番送信には使いません。どこまで出来ているかを示すためです）。
@@ -13185,7 +13185,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                             $us - $offset * 1000000);
                     }
                 }
-                // @ANCHOR-20261020-R122-ONEBUILD  ここは「作り直す側」です。
+                // @ANCHOR-20261020-PREDICTION-ONEBUILD  ここは「作り直す側」です。
                 //   実レースの入力がどう組み上がるかを見る調査なので、
                 //   固定入力を作らずに組み立てます。
                 $asm = $ctrl->assembleFreshPredictionRequest($r->date, $r->kaisuu, $r->basho,
@@ -13224,7 +13224,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-PROMPT  JSON Schema（2020-12の必要な語彙だけ）
+     * @ANCHOR-20261020-PREDICTION-PROMPT  JSON Schema（2020-12の必要な語彙だけ）
      * ═══════════════════════════════════════════════════════════════════════
      * 外部ライブラリを入れずに済ませるため、同梱スキーマで実際に使われている
      * 語彙だけを実装しています。知らない語彙は無視せず、warn を返します。
@@ -13427,7 +13427,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-AUDIT  取得監査の記録の確認（書き込みは残しません）
+     * @ANCHOR-20261020-PREDICTION-AUDIT  取得監査の記録の確認（書き込みは残しません）
      * ═══════════════════════════════════════════════════════════════════════
      * 根拠：10月20日003の確認結果①（実物と再現手順）／お願い②A案
      *
@@ -13602,7 +13602,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-INVALID  異常例32本の突き合わせ
+     * @ANCHOR-20261020-PREDICTION-INVALID  異常例32本の突き合わせ
      * ═══════════════════════════════════════════════════════════════════════
      * 根拠：10月20日004の確認結果 §5／validation/invalid_cases.json
      *
@@ -13746,7 +13746,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $this->line('  意味検証の判定が期待と違ったもの : ' . $ngC . ' 件');
         if ($miss > 0) $this->line('  読めなかったファイル             : ' . $miss . ' 件');
         // ───────────────────────────────────────────────────────────
-        // @ANCHOR-20261020-R122-CHAIN  本番の応答処理へ通す（ご指摘6-2・6-3）
+        // @ANCHOR-20261020-PREDICTION-CHAIN  本番の応答処理へ通す（ご指摘6-2・6-3）
         // ───────────────────────────────────────────────────────────
         //   Schema と意味検証だけでなく、本番で通す順番
         //     extract → checkEnvelope → isolateHorses
@@ -13880,7 +13880,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
     }
 
     /**
-     * @ANCHOR-20261020-R122-INVALID  入力の意味検証
+     * @ANCHOR-20261020-PREDICTION-INVALID  入力の意味検証
      *   Schemaでは分からない「数字の辻褄」を見ます。
      *   @return array 違反の説明（空なら通過）
      */
@@ -14045,7 +14045,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
     }
 
     /**
-     * @ANCHOR-20261020-R122-INVALID  出力の意味検証
+     * @ANCHOR-20261020-PREDICTION-INVALID  出力の意味検証
      *   対になる入力を使わず、出力だけで分かる矛盾を見ます。
      *   @return array 違反の説明（空なら通過）
      */
@@ -14178,7 +14178,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-FREEZE  凍結入力の保存を走らせる
+     * @ANCHOR-20261020-PREDICTION-FREEZE  凍結入力の保存を走らせる
      * ═══════════════════════════════════════════════════════════════════════
      * 根拠：server_contract_r12.2.txt 2章・5章／詳細設計書 4.4・7.2
      *
@@ -14258,7 +14258,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-ACQFIX  監査行→採用→入力→凍結保存→読戻しの通し試験
+     * @ANCHOR-20261020-PREDICTION-ACQFIX  監査行→採用→入力→凍結保存→読戻しの通し試験
      * ═══════════════════════════════════════════════════════════════════════
      * 根拠：10月20日005のご指摘2-4「この接続を通した証跡がない」
      *
@@ -14355,7 +14355,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $ctrl = app(\App\Http\Controllers\Api\AiController::class);
 
             $this->info('── ② 監査行を読んで採用バッチを選び、INPUT_JSON を作る ──');
-            // @ANCHOR-20261020-R122-ONEBUILD  ここは「作り直す側」です。
+            // @ANCHOR-20261020-PREDICTION-ONEBUILD  ここは「作り直す側」です。
             //   仮の締切を差し込んで組み立てを見る試験なので、
             //   保存物を読む送信経路（assemblePredictionRequest）は通しません。
             $asm = $ctrl->assembleFreshPredictionRequest($r->date, $r->kaisuu, $r->basho, $r->day, $r->race,
@@ -14427,7 +14427,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                     $this->line(sprintf('  ○ 保存できました 出馬%s 取得%s 凍結%s 活動%s',
                         $c['entry'] ?? '-', $c['acquired'] ?? '-',
                         $c['frozen'] ?? '-', $c['active'] ?? '-'));
-                    // @ANCHOR-20261020-R122-SEP  REPLAY は別世代に保存されます
+                    // @ANCHOR-20261020-PREDICTION-SEP  REPLAY は別世代に保存されます
                     $gen = (int) ($fz['generation'] ?? 0);
                     $this->line('  ○ 保存先の世代 generation=' . $gen
                               . '（REPLAY は本番の0と分けています）');
@@ -14438,7 +14438,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                     } else {
                         $this->line('  ○ 読み戻し snapshot_hash ' . substr((string) $snap->snapshot_hash, 0, 16));
                         // ══════════════════════════════════════════════
-                        // @ANCHOR-20261020-R122-DERIVEDAT  hash が違う理由
+                        // @ANCHOR-20261020-PREDICTION-DERIVEDAT  hash が違う理由
                         // ══════════════════════════════════════════════
                         //   上の行と番号が違うのは不具合ではありません。
                         //   上は<b>この試験が組み立てた</b>入力、
@@ -14513,7 +14513,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-FP  元値の指紋（固定対象を一意に表す方法）
+     * @ANCHOR-20261020-PREDICTION-FP  元値の指紋（固定対象を一意に表す方法）
      * ═══════════════════════════════════════════════════════════════════════
      * 根拠：10月20日005のご指摘8
      *
@@ -14567,7 +14567,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
         $now = [];
         // ══════════════════════════════════════════════════════════════
-        // @ANCHOR-20261020-R122-FPFAIL  10月20日006のご指摘6-5
+        // @ANCHOR-20261020-PREDICTION-FPFAIL  10月20日006のご指摘6-5
         // ══════════════════════════════════════════════════════════════
         //   【旧】表が無いときや読取で落ちたときに警告だけ出して先へ進み、
         //     最後に「すべて一致しました」と言える経路がありました。
@@ -14579,7 +14579,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         try {
             foreach ($targets as $table => $cols) {
                 if (!\Schema::hasTable($table)) {
-                    // @ANCHOR-20261020-R122-FPFAIL  欠けは不合格です
+                    // @ANCHOR-20261020-PREDICTION-FPFAIL  欠けは不合格です
                     $fpMissing[] = $table;
                     $this->error('  × ' . $table . ' がありません（必須の対象です）');
                     continue;
@@ -14614,7 +14614,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                 $this->line('      主キーの指紋 ' . $now[$table]['keys_sha256']);
             }
         } catch (\Throwable $e) {
-            // @ANCHOR-20261020-R122-FPFAIL  読取の失敗も不合格です
+            // @ANCHOR-20261020-PREDICTION-FPFAIL  読取の失敗も不合格です
             $fpError[] = $e->getMessage();
             $this->error('  × 読み取りに失敗しました: ' . $e->getMessage());
         } finally {
@@ -14646,7 +14646,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             foreach ($now as $t => $v) {
                 $p = $prev['tables'][$t] ?? null;
                 if ($p === null) {
-                    // @ANCHOR-20261020-R122-FPFAIL  前回に無い対象も不合格です
+                    // @ANCHOR-20261020-PREDICTION-FPFAIL  前回に無い対象も不合格です
                     $ng++;
                     $this->error('  × ' . $t . ' が前回のファイルにありません'
                                . '（比べられないので合格にしません）');
@@ -14696,7 +14696,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
     }
 
     /**
-     * @ANCHOR-20261020-R122-FP  1つの列を、取り違えようのない形にします
+     * @ANCHOR-20261020-PREDICTION-FP  1つの列を、取り違えようのない形にします
      *   NULL            → 'N|'
      *   それ以外        → 'V<バイト数>:<値>|'
      * 長さを前に置くので、値が区切りや改行を含んでいても境目が決まります。
@@ -14710,7 +14710,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-33R  33レースの候補比較（機械比較）
+     * @ANCHOR-20261020-PREDICTION-33R  33レースの候補比較（機械比較）
      * ═══════════════════════════════════════════════════════════════════════
      * 根拠：10月20日003のご指摘④／16_33レース候補比較_方針と材料
      *
@@ -14718,7 +14718,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
      *   暫定選出（PROVISIONAL）になるレースについて、
      *   <b>同じ保存済み全頭評価を両側へ当てて、配分差だけを見ます。</b>
      *     比較側 … X6 を使わない従来判定（下側の mode = modeOfS(S_min)）
-     *     採用側 … r12.2 の暫定（上側の mode = allocation_mode）
+     *     採用側 … 新方式 の暫定（上側の mode = allocation_mode）
      *   S0=1 なら FIRM→MIXED、S0=3 なら MIXED→VOLATILE になります。
      *   評価は作り直しません（再評価ではなく機械比較です）。
      *
@@ -14731,7 +14731,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
      * ■ 使う材料
      *   t_horse_odds_finder_ai_merge_result の audit_merge.全頭
      *     統合点・統合順位・独立根拠（tier・独立群数・source_refs）・人気
-     *   帯は r12.2 の凍結人気（6分前の単勝昇順）から A/B/D を引き直します
+     *   帯は 新方式 の凍結人気（6分前の単勝昇順）から A/B/D を引き直します
      *   （保存されている「上・中・下」は旧い2〜3帯の呼び方なので使いません）。
      *
      *   ※ 全頭 は「当時その経路が評価した馬」だけです（全出走馬ではありません）。
@@ -14761,7 +14761,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
         $rows = [];      // CSV用
         // ══════════════════════════════════════════════════════════════
-        // @ANCHOR-20261020-R122-33CANCEL  10月20日006のご指摘6-3
+        // @ANCHOR-20261020-PREDICTION-33CANCEL  10月20日006のご指摘6-3
         // ══════════════════════════════════════════════════════════════
         //   ご指摘のとおり、03_33レース候補比較.md の説明が逆でした。
         //   正本は「input_freeze_at までに利用可能な正式取消なら
@@ -14810,7 +14810,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             foreach ($series as $key => $sr) {
                 [$kaisuu, $basho, $day, $race] = explode('|', $key);
                 $nAll++;
-                // @ANCHOR-20261020-R122-33R  modeCheckOne は「馬番=>true」の配列を受けます。
+                // @ANCHOR-20261020-PREDICTION-33R  modeCheckOne は「馬番=>true」の配列を受けます。
                 //   array_keys を通すと 0〜N-1 の並びになり、出馬表照合が必ず外れます。
                 $es  = $entry[$key] ?? null;
                 $res = $this->modeCheckOne($sr, $es, $declared[$key] ?? null);
@@ -14829,7 +14829,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                 ]);
                 $stat[$dec['mode_status']]++;
 
-                // @ANCHOR-20261020-R122-33CANCEL  取消があったレースの内訳を残します
+                // @ANCHOR-20261020-PREDICTION-33CANCEL  取消があったレースの内訳を残します
                 //   （暫定かどうかに関係なく、取消があれば全部出します）
                 foreach ($sr as $hn => $ho) {
                     if (!isset($ho['cancel'])) { continue; }
@@ -14889,7 +14889,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                     continue;
                 }
 
-                // ── 帯は r12.2 の凍結人気から引き直します ───────────────
+                // ── 帯は 新方式 の凍結人気から引き直します ───────────────
                 $horses = [];
                 foreach ($all as $num => $h) {
                     $n = (int) $num;
@@ -14909,7 +14909,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                         'tier'    => (string) ($h['独立根拠']['tier'] ?? ''),
                         'refs'    => array_values(array_unique($refs)),
                         // ══════════════════════════════════════════════
-                        // @ANCHOR-20261020-R122-33ELIG  006のご指摘6-2
+                        // @ANCHOR-20261020-PREDICTION-33ELIG  006のご指摘6-2
                         // ══════════════════════════════════════════════
                         //   【旧】'eligible' => ($groups >= 1 && $h['統合点'] !== null)
                         //     統合点が無い馬（採点が partial で点が出ていない馬）を
@@ -14930,7 +14930,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                     }
                     foreach ($byBand as $b => $list) {
                         usort($list, static function ($x, $y) {
-                            // @ANCHOR-20261020-R122-33ELIG  点の無い馬は最後に置きます
+                            // @ANCHOR-20261020-PREDICTION-33ELIG  点の無い馬は最後に置きます
                             //   （資格からは外しません。点数を資格の条件にしません）
                             $xs = ($x['score'] === null); $ys = ($y['score'] === null);
                             if ($xs !== $ys) { return $xs ? 1 : -1; }
@@ -14943,7 +14943,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                         $byBand[$b] = $list;
                     }
                     // ══════════════════════════════════════════════════
-                    // @ANCHOR-20261020-R122-33FILL  006のご指摘6-2
+                    // @ANCHOR-20261020-PREDICTION-33FILL  006のご指摘6-2
                     // ══════════════════════════════════════════════════
                     //   【旧】帯ごとに先頭から取るだけで、<b>適格馬が足りない
                     //     ときの枠移動をしていませんでした。</b>
@@ -15050,10 +15050,10 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $this->info('  書き出しました: ' . $path . '（' . count($rows) . '行）');
         $this->line('');
         // ══════════════════════════════════════════════════════════════
-        // @ANCHOR-20261020-R122-33LIMIT  この比較で言えること・言えないこと
+        // @ANCHOR-20261020-PREDICTION-33LIMIT  この比較で言えること・言えないこと
         // ══════════════════════════════════════════════════════════════
         // ══════════════════════════════════════════════════════════════
-        // @ANCHOR-20261020-R122-33CANCEL  取消があったレースの内訳（006の6-3）
+        // @ANCHOR-20261020-PREDICTION-33CANCEL  取消があったレースの内訳（006の6-3）
         // ══════════════════════════════════════════════════════════════
         $this->warn('  ■ 取消があったレースの内訳（10月20日006のご指摘6-3）');
         $this->line('    正本の規則 : input_freeze_at（発走330秒前）までに');
@@ -15112,7 +15112,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-QUEUE  キューと永続予約の通し試験
+     * @ANCHOR-20261020-PREDICTION-QUEUE  キューと永続予約の通し試験
      * ═══════════════════════════════════════════════════════════════════════
      * 根拠：server_contract_r12.2.txt 10章・11章
      *
@@ -15516,7 +15516,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             }
 
             // ───────────────────────────────────────────────────────────
-            // ⑬ @ANCHOR-20261020-R122-WIRE  実送信の後への接続（006の6-4）
+            // ⑬ @ANCHOR-20261020-PREDICTION-WIRE  実送信の後への接続（006の6-4）
             //    実AIは呼びません。呼ぶ手前で断る経路と、
             //    依頼本文の組み立て、公開の待ち合わせ、そして
             //    「本番の関数から本当に呼ばれているか」を確かめます。
@@ -15529,7 +15529,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
                 // 旗を一時的に動かすための道具（終わったら必ず戻します）
                 $keepX = [];
-                // @ANCHOR-20261023-R122-QTTARGET  対象レースの旗も退避して戻します
+                // @ANCHOR-20261023-PREDICTION-QTTARGET  対象レースの旗も退避して戻します
                 foreach (['BAGANRIKI_R122_PROMPT', 'BAGANRIKI_R122_QUEUE',
                           'BAGANRIKI_R122_TARGETS'] as $kk) {
                     $keepX[$kk] = [getenv($kk), $_ENV[$kk] ?? null, $_SERVER[$kk] ?? null];
@@ -15657,7 +15657,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                       ->where('attempt_no', 0)->update(['complete' => 1]);
 
                     // ══════════════════════════════════════════════════
-                    // @ANCHOR-20261023-R122-QTTARGET  枠の段が上がれば対象レースで限定
+                    // @ANCHOR-20261023-PREDICTION-QTTARGET  枠の段が上がれば対象レースで限定
                     // ══════════════════════════════════════════════════
                     //   10/23 から、QUEUE が shadow/1 なら TARGETS で必ず限定します
                     //   （入れ忘れで全レースへ送らないため）。空なら1レースも送りません。
@@ -15698,7 +15698,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                     $check('X-20', '2ndが終端でなければ公開しない',
                         $pw1['code'], 'WAITING');
                     // ══════════════════════════════════════════════════
-                    // @ANCHOR-20261021-R122-SETTLE  待ちの中身が増えました
+                    // @ANCHOR-20261021-PREDICTION-SETTLE  待ちの中身が増えました
                     // ══════════════════════════════════════════════════
                     //   1st は初回も訂正も RECEIVED ですが、採否確定の印が
                     //   まだ無いので「採否未確定」として待ちに入ります。
@@ -15718,7 +15718,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                     $check('X-22', '2ndが予約中でも公開しない', $pw2['code'], 'WAITING');
 
                     // ══════════════════════════════════════════════════
-                    // @ANCHOR-20261021-R122-SETTLE  受領の終端≠採否の確定
+                    // @ANCHOR-20261021-PREDICTION-SETTLE  受領の終端≠採否の確定
                     // ══════════════════════════════════════════════════
                     //   ご指摘（010の2-4）の競合そのものを試験にします。
                     //   「片方が受領済みだが訂正の要否をまだ判定していない
@@ -15766,7 +15766,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                         ($pw3['code'] === 'WAITING'), false);
 
                     // ══════════════════════════════════════════════════
-                    // @ANCHOR-20261021-R122-ATDEADLINE  期限ぴったりの1回
+                    // @ANCHOR-20261021-PREDICTION-ATDEADLINE  期限ぴったりの1回
                     // ══════════════════════════════════════════════════
                     //   ご指摘（010の2-3 末尾）：
                     //     「$now > reply の判定なので、期限ぴったりの1回で
@@ -15812,7 +15812,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                          strpos($bw, '->acceptedHorsesOf(') !== false,
                          strpos($bw, '->publishWhenReady(') !== false],
                         [true, true, true, true]);
-                    // ── @ANCHOR-20261020-R122-RESUME  007の6-1 ──────────
+                    // ── @ANCHOR-20261020-PREDICTION-RESUME  007の6-1 ──────────
                     //   キャッシュを返す経路から、固定のやり直しを
                     //   呼んでいるか。TOO_EARLY で空回答をキャッシュ
                     //   しないようにしているか。
@@ -15882,7 +15882,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-RESP  応答検証と局所回復の通し試験
+     * @ANCHOR-20261020-PREDICTION-RESP  応答検証と局所回復の通し試験
      * ═══════════════════════════════════════════════════════════════════════
      * ■ 何を確かめるか
      *   1. 正常出力14本が、本番の経路（extract→封筒→隔離→診断）を
@@ -16037,7 +16037,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $check('R-08', '重複は記録される', count((array) $r['diag']['duplicated']), 1);
 
             // 局所の項目不正
-            // @ANCHOR-20261020-R122-SALVAGE  10月20日006のご指摘5-2で期待値を直しました
+            // @ANCHOR-20261020-PREDICTION-SALVAGE  10月20日006のご指摘5-2で期待値を直しました
             //   【旧】採点集計が合わないだけで「1頭まるごと落ちる」を正としていました。
             //     契約は「不正な得点項目だけを直し、正常根拠は保持する」です。
             //     落とす側の経路は、帯の食い違い（採点以外）で見ます。
@@ -16066,7 +16066,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $check('R-14', '全頭そのまま残る', count($r['normal']), $N);
 
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261020-R122-REFCHECK  参照根拠の意味検証
+            // @ANCHOR-20261020-PREDICTION-REFCHECK  参照根拠の意味検証
             // ══════════════════════════════════════════════════════════
             $this->info('── ③-2 参照根拠の意味検証（実在・所有馬・SIGNAL）──');
 
@@ -16123,7 +16123,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $check('R-35', '全頭に自分のSIGNALがある', $own, $N);
 
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261020-R122-SCOREEV  採点と出典の結びつき
+            // @ANCHOR-20261020-PREDICTION-SCOREEV  採点と出典の結びつき
             // ══════════════════════════════════════════════════════════
             $this->info('── ③-3 採点と出典の結びつき ──');
 
@@ -16186,7 +16186,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                         'SCORE_EVIDENCE_UNKNOWN_KEY'])), 0);
 
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261020-R122-SALVAGE  採点欄だけの誤りで馬を落とさない
+            // @ANCHOR-20261020-PREDICTION-SALVAGE  採点欄だけの誤りで馬を落とさない
             // ══════════════════════════════════════════════════════════
             $this->info('── ③-4 採点欄だけの誤りで正常根拠を落とさない ──');
             $o = $base['out'];
@@ -16244,7 +16244,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $check('R-17', '全頭そろう', count($r['merged']), $N);
 
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261020-R122-RESTATE  10月20日007のご指摘4
+            // @ANCHOR-20261020-PREDICTION-RESTATE  10月20日007のご指摘4
             // ══════════════════════════════════════════════════════════
             //   【前回の試験が間違っていました】R-18 は、対象外の馬を
             //   <b>初回と同じ中身のまま</b>返す訂正を「対象外を変えようと
@@ -16253,7 +16253,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             //   通さなければいけません。期待値のほうを直し、
             //   <b>本当に中身を変える</b>訂正に差し替えます。
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-METASPLIT  この試験の作り方を直しました
+            // @ANCHOR-20261021-PREDICTION-METASPLIT  この試験の作り方を直しました
             // ══════════════════════════════════════════════════════════
             //   【前のやり方が間違っていました】
             //   対象外の馬の observed_sum を 777 にして「中身を変えた訂正」
@@ -16321,7 +16321,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                    count((array) ($firstRow['evidence'] ?? [])));
 
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-METASPLIT  10月21日008のご指摘3
+            // @ANCHOR-20261021-PREDICTION-METASPLIT  10月21日008のご指摘3
             // ══════════════════════════════════════════════════════════
             //   「採点の救済」と「全頭を返す正常な訂正」を<b>同じ経路で</b>
             //   通します。別々に試していたので、組み合わせたときに
@@ -16466,7 +16466,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
     }
 
     /**
-     * @ANCHOR-20261020-R122-REFCHECK  試験用。参照IDを全部1つの値へ差し替えます
+     * @ANCHOR-20261020-PREDICTION-REFCHECK  試験用。参照IDを全部1つの値へ差し替えます
      */
     private static function rtSwapRefs(array $h, string $to): array
     {
@@ -16483,7 +16483,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         return $walk($h, $to);
     }
 
-    /** @ANCHOR-20261020-R122-REFCHECK  試験用。参照IDを1件だけ足します */
+    /** @ANCHOR-20261020-PREDICTION-REFCHECK  試験用。参照IDを1件だけ足します */
     private static function rtAddRef(array $h, string $ref): array
     {
         if (isset($h['evidence'][0]['source_refs'])
@@ -16495,7 +16495,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-PUB  統合・公開・intent・revision の通し試験
+     * @ANCHOR-20261020-PREDICTION-PUB  統合・公開・intent・revision の通し試験
      * ═══════════════════════════════════════════════════════════════════════
      * ■ 何を確かめるか
      *   1. 両roleの検証済み応答を統合して公開できること
@@ -17918,7 +17918,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                     'raw_response' => $raw,
                     'response_hash' => hash('sha256', $j($doc)),
                 ]);
-                // @ANCHOR-20261021-R122-BANDSCOPE  訂正の枠も作れるようにします
+                // @ANCHOR-20261021-PREDICTION-BANDSCOPE  訂正の枠も作れるようにします
                 $fx = $opt['fix_' . $role] ?? null;
                 if (is_array($fx) && $fx !== []) {
                     $rawF = $BEGIN . $j($fx) . $END;
@@ -18181,7 +18181,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $check('P-17', '片方だけなら加点しない', $b4, 0);
 
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261020-R122-COMPLETE  未完了は選出に使わない
+            // @ANCHOR-20261020-PREDICTION-COMPLETE  未完了は選出に使わない
             // ══════════════════════════════════════════════════════════
             $this->info('── ⑤-2 未完了は候補にも順位点にも入れない ──');
             //   2nd だけで上位に来る馬を 2nd の帯の先頭へ置き、
@@ -18217,7 +18217,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                    $pC['code'], 'NO_RESPONSE');
 
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261020-R122-ELIG  根拠のない馬で枠を埋めない
+            // @ANCHOR-20261020-PREDICTION-ELIG  根拠のない馬で枠を埋めない
             // ══════════════════════════════════════════════════════════
             $this->info('── ⑤-3 全頭NO_EVIDENCEなら候補0 ──');
             $noEv = function (array $doc) {
@@ -18237,14 +18237,14 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $check('P-31', '候補は0頭', count((array) ($pD['candidates'] ?? [])), 0);
 
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261020-R122-USEDORDER  10月20日006のご指摘2-3
+            // @ANCHOR-20261020-PREDICTION-USEDORDER  10月20日006のご指摘2-3
             // ══════════════════════════════════════════════════════════
             //   「馬の評価を1頭訂正しつつ対象外の帯順を入れ替える例、
             //     順位集合不正の例を、候補生成まで通してください。」
             //   直すところがある応答の帯順位は、統合に使いません。
             //   「+5を付けない」だけでは順位の正しさは担保できないためです。
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261020-R122-BANDKEEP  10月20日007のご指摘3-1
+            // @ANCHOR-20261020-PREDICTION-BANDKEEP  10月20日007のご指摘3-1
             // ══════════════════════════════════════════════════════════
             //   【前回の試験が間違っていました】P-34〜P-38 は
             //   「1頭の採点集計が壊れたら全帯の順位を捨てる」動きを
@@ -18357,7 +18357,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $check('P-57', '明示縮退でも公開は止まらない', $pJ['code'], 'PUBLISHED');
 
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-BANDSCOPE  10月21日008のご指摘3（後半）
+            // @ANCHOR-20261021-PREDICTION-BANDSCOPE  10月21日008のご指摘3（後半）
             // ══════════════════════════════════════════════════════════
             //   訂正は馬の行しか照合していないので、トップレベルの
             //   band_ranks を黙って変えても通ります。FIX_APPLIED なら
@@ -18408,7 +18408,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                    strpos($noteC, '訂正は違う順位を返していました') !== false, false);
 
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261020-R122-FROZENK  取消で順位点を変えない
+            // @ANCHOR-20261020-PREDICTION-FROZENK  取消で順位点を変えない
             // ══════════════════════════════════════════════════════════
             $this->info('── ⑤-4 取消しても凍結Kと順位点は変わらない ──');
             $sidE = $mk($out1, $out2);
@@ -18501,7 +18501,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-API  読取APIの通し試験
+     * @ANCHOR-20261020-PREDICTION-API  読取APIの通し試験
      * ═══════════════════════════════════════════════════════════════════════
      * ■ 何を確かめるか
      *   1. 本番の世代（generation=0）だけを読み、REPLAY（900）を出さないこと
@@ -18731,10 +18731,10 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                    \App\Http\Controllers\Api\BaganrikiPublicView::PROVISIONAL_NOTE);
 
             // ══════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-READGATE  非公開の読取経路（010の7章⑤）
+            // @ANCHOR-20261021-PREDICTION-READGATE  非公開の読取経路（010の7章⑤）
             // ══════════════════════════════════════════════════════
             //   【見つかったこと】この読取APIには認証が1つも掛かって
-            //   いませんでした。画面側にも誰にでも見える「r12.2」の
+            //   いませんでした。画面側にも誰にでも見える「新方式」の
             //   ボタンが出ています。旗を上げた瞬間、12レースの予想が
             //   一般の利用者に見えます。
             //   既定で閉じるようにしたので、そのとおりかを見ます。
@@ -18791,7 +18791,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                    [(string) $g9['mode'], $g9['ok']], ['key', false]);
 
             // ══════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-READGATE200  画面が壊れない返し方
+            // @ANCHOR-20261021-PREDICTION-READGATE200  画面が壊れない返し方
             // ══════════════════════════════════════════════════════
             //   画面側（Flutter）の client.dart は 2xx 以外を全部例外に
             //   します。404 で返すと、画面に
@@ -18836,7 +18836,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-PAST  本番の経路で作った入力をSchemaに当てる
+     * @ANCHOR-20261020-PREDICTION-PAST  本番の経路で作った入力をSchemaに当てる
      * ═══════════════════════════════════════════════════════════════════════
      * ■ 何をするか
      *   実レース1本について、<b>本番と同じ gatherPredictionContext</b> で
@@ -19033,7 +19033,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-MARKETTEST  OPI と推定確定オッズの通し試験
+     * @ANCHOR-20261020-PREDICTION-MARKETTEST  OPI と推定確定オッズの通し試験
      * ═══════════════════════════════════════════════════════════════════════
      * ■ なぜこの試験が要るか
      *   OPI と推定確定オッズは「集計期間の終わりが対象レースの開催日より前」
@@ -19078,7 +19078,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
         // ── ① 集計表はいまどうなっているか ────────────────────────────
         $this->info('── ① 集計表の状態（この集計はいつの開催日から使えるか）──');
-        // @ANCHOR-20261020-R122-COVWIN  集計を使う5区分をまとめて並べます。
+        // @ANCHOR-20261020-PREDICTION-COVWIN  集計を使う5区分をまとめて並べます。
         //   「集計期間の列を持っているか」「算出時刻の列を持っているか」で
         //   判定できることが変わるので、そこも一緒に出します。
         $tables = [
@@ -19095,7 +19095,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                 $this->error('    × ' . $tbl . ' がありません'); $fail++; continue;
             }
             $rows = \DB::table($tbl)->get();
-            // @ANCHOR-20261020-R122-REALTIME  列が無いのと値が無いのを区別します
+            // @ANCHOR-20261020-PREDICTION-REALTIME  列が無いのと値が無いのを区別します
             $hasCol = (\Schema::hasColumn($tbl, 'computed_at')
                        || \Schema::hasColumn($tbl, 'updated_at'));
             $ed = ''; $sd = ''; $cAt = null; $n = 0;
@@ -19219,12 +19219,12 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $c1 = $m1['coverage'];
         $reg = $m1['registry'];
         // ══════════════════════════════════════════════════════════════
-        // @ANCHOR-20261020-R122-REALTIME  算出時刻がある表かどうかで期待値が変わります
+        // @ANCHOR-20261020-PREDICTION-REALTIME  算出時刻がある表かどうかで期待値が変わります
         // ══════════════════════════════════════════════════════════════
         //   過去平均の2表に computed_at が無い（または NULL）あいだは、
         //   「情報上限より前に利用できた証拠が無い」ので OPI は載せません。
         //   列が入って集計が次に走れば、その日から載ります。
-        //   @ANCHOR-20261020-R122-COMPUTEDAT  「夜の集計が1回まわれば」と
+        //   @ANCHOR-20261020-PREDICTION-COMPUTEDAT  「夜の集計が1回まわれば」と
         //     書いていましたが、新しいレース結果が無い日は集計が
         //     DBに1行も書かずに終わる作りでした。そちらを直しました。
         $hasPop = \Schema::hasColumn('t_horse_odds_finder_popularity_rank_average',
@@ -19251,7 +19251,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             'estimated_odds は INCLUDED（出典 '
             . count((array) ($c1['estimated_odds']['source_refs'] ?? [])) . ' 件）');
         $ok('M-08', count($reg) > 0, 'registry は ' . count($reg) . ' 件');
-        // @ANCHOR-20261021-R122-OPILINE  OPIが載ったのに「載らないぶん」と
+        // @ANCHOR-20261021-PREDICTION-OPILINE  OPIが載ったのに「載らないぶん」と
         //   書き続けていました（算出時刻が入る前の文面のままでした）。
         //   読む人に逆の意味で伝わるので、載らなかったときだけ出します。
         if (($c1['OPI']['status'] ?? '') !== 'INCLUDED') {
@@ -19395,7 +19395,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-NATIVE  合成試験と取消の例を「本体」へ直接通す
+     * @ANCHOR-20261020-PREDICTION-NATIVE  合成試験と取消の例を「本体」へ直接通す
      * ═══════════════════════════════════════════════════════════════════════
      * 【10月20日005のご指摘6-1・11-4】
      *   これまで合成729件＋境界4件は、Command側の検証用関数
@@ -19611,7 +19611,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $ok('N-28', $ac2['band_alive']['A'], 5, '取消でAの生存が1減る（詰め直さない）');
         $ok('N-29', $ac2['band_alive']['B'], 6, 'Bは動かない（人気を繰り上げない）');
         // ══════════════════════════════════════════════════════════════
-        // @ANCHOR-20261021-R122-PERCAND  10月21日008のご指摘4（取消の採用単位）
+        // @ANCHOR-20261021-PREDICTION-PERCAND  10月21日008のご指摘4（取消の採用単位）
         // ══════════════════════════════════════════════════════════════
         //   なるが挙げた例をそのまま本体 pick へ通します。
         //     出馬表 1・2・3番
@@ -19712,7 +19712,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-ONEBUILD  固定入力をそのまま送る通し試験
+     * @ANCHOR-20261020-PREDICTION-ONEBUILD  固定入力をそのまま送る通し試験
      * ═══════════════════════════════════════════════════════════════════════
      * 根拠：10月20日007のご指摘2（最優先）
      *
@@ -19972,7 +19972,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
     }
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261020-R122-WIRETEST  送信口を試験用に置き換えて接続を通す
+     * @ANCHOR-20261020-PREDICTION-WIRETEST  送信口を試験用に置き換えて接続を通す
      * ═══════════════════════════════════════════════════════════════════════
      * 10月20日007の「次の提出で確認したい最小セット」E：
      *   「上限前呼出し→上限後凍結、片側失敗、応答期限到達、
@@ -20034,7 +20034,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $j  = static fn($v) => (string) json_encode($v,
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
         $W     = \App\Http\Controllers\Api\BaganrikiWorker::class;
-        // @ANCHOR-20261021-R122-SETTLE  採否確定の印を見るために使います
+        // @ANCHOR-20261021-PREDICTION-SETTLE  採否確定の印を見るために使います
         $A     = \App\Http\Controllers\Api\AiController::class;
         $BEGIN = \App\Http\Controllers\Api\BaganrikiResponse::BEGIN;
         $END   = \App\Http\Controllers\Api\BaganrikiResponse::END;
@@ -20057,17 +20057,17 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $calls = [];
         $mode  = 'ok';
         $doc   = [];
-        $docFix = [];       // @ANCHOR-20261021-R122-FIXPROVE  訂正で返す本文
+        $docFix = [];       // @ANCHOR-20261021-PREDICTION-FIXPROVE  訂正で返す本文
         $bodyOf = function (array $d) use ($j, $BEGIN, $END): string {
             return $BEGIN . $j($d) . $END;
         };
-        $seq2 = 0;          // @ANCHOR-20261021-R122-FIXPROVE  何回目の送信か
+        $seq2 = 0;          // @ANCHOR-20261021-PREDICTION-FIXPROVE  何回目の送信か
         $HTTP::fake(function ($request)
                     use (&$calls, &$mode, &$doc, &$docFix, &$seq2, $bodyOf, $HTTP) {
             $url = (string) $request->url();
             $calls[] = $url;
             $seq2++;
-            // @ANCHOR-20261021-R122-FIXPROVE  2回目以降（＝訂正）は別の本文を返します
+            // @ANCHOR-20261021-PREDICTION-FIXPROVE  2回目以降（＝訂正）は別の本文を返します
             //   初回と訂正に同じ応答を返すと、訂正で直ったことを確かめられません。
             if ($docFix !== [] && $seq2 >= 2) { $doc = $docFix; }
             if ($mode === 'down') {
@@ -20114,14 +20114,14 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $nums  = [];
             foreach ((array) $in1['runners'] as $r) { $nums[] = (int) $r['horse_no']; }
             $sid = \DB::table('baganriki_snapshots')->insertGetId([
-                // @ANCHOR-20261021-R122-SENDFIRST  race_id は本番と同じ形にします
+                // @ANCHOR-20261021-PREDICTION-SENDFIRST  race_id は本番と同じ形にします
                 //   sendInitialAiRequest は受領のあと、race_id を5つに分けて
                 //   afterAiResponseReceived（検証→訂正→解決→公開）を呼びます。
                 //   'WT-1' のような形だと分けられず、そこで止まっていました。
                 //   試験の側を本番と同じ形（日付-回-場-日-R）にします。
                 //   場コード99は実在しないので、本番のレースとは混ざりません。
                 'race_id' => '20261018-9-99-9-' . $seq,
-                // @ANCHOR-20261021-R122-SENDFIRST  初回送信は本番の世代（0）を見ます
+                // @ANCHOR-20261021-PREDICTION-SENDFIRST  初回送信は本番の世代（0）を見ます
                 'generation' => (($opt['gen0'] ?? false) === true) ? 0 : 900,
                 'run_id' => 'WT',
                 'snapshot_hash'   => (string) $in1['snapshot_hash'],
@@ -20145,7 +20145,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                 'updated_at' => $W::toDb($now),
             ]);
             $tok = [];
-            // @ANCHOR-20261021-R122-SENDFIRST  枠を1つも作らない指定
+            // @ANCHOR-20261021-PREDICTION-SENDFIRST  枠を1つも作らない指定
             if (($opt['no_attempt'] ?? false) === true) {
                 return ['sid' => (int) $sid, 'nums' => $nums, 'token' => []];
             }
@@ -20203,7 +20203,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                    in_array($goneNo, array_map('intval',
                        (array) ($acc['rescued'] ?? [])), true), true);
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-SETTLE  公開は両roleの採否確定の後です
+            // @ANCHOR-20261021-PREDICTION-SETTLE  公開は両roleの採否確定の後です
             // ══════════════════════════════════════════════════════════
             //   【試験の前提が変わりました】
             //   これまでは 1st だけ接続を通し、2nd は枠を RECEIVED に
@@ -20250,7 +20250,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $check('E-51', '2nd の欠落馬を救済した',
                    in_array($gone2, array_map('intval',
                        (array) ($accb['rescued'] ?? [])), true), true);
-            // @ANCHOR-20261021-R122-SETTLE  こちらも両roleの採否確定が必要です
+            // @ANCHOR-20261021-PREDICTION-SETTLE  こちらも両roleの採否確定が必要です
             $check('E-52-1', '2nd だけでは公開しない',
                    (string) ($rb['publish']['code'] ?? ''), 'WAITING');
             $rb2 = $ctrl->afterAiResponseReceived($D[0], $D[1], $D[2], $D[3], $D[4], '1st', $qb);
@@ -20287,7 +20287,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $acc2 = $ctrl->acceptedHorsesOf($m2['sid'], '1st');
             $check('E-18', '初回の正常部分は残る（15頭）',
                    count((array) ($acc2['merged'] ?? [])), 15);
-            // @ANCHOR-20261021-R122-SETTLE  訂正が失敗しても、採否は確定します
+            // @ANCHOR-20261021-PREDICTION-SETTLE  訂正が失敗しても、採否は確定します
             //   初回が RECEIVED で訂正が FAILED なら、初回の正常部分を
             //   採って確定です。2nd は受領済みなので、こちらも接続を通します。
             $check('E-19-0', '訂正が失敗しても 1st の採否は確定する',
@@ -20368,7 +20368,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                    (array) ($rs['unknown'] ?? []), ['1st#0']);
             $check('E-36', '初回の送信はやり直さない', count($calls), 0);
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-NOTHINGTOADOPT  採るものが無い role
+            // @ANCHOR-20261021-PREDICTION-NOTHINGTOADOPT  採るものが無い role
             // ══════════════════════════════════════════════════════════
             //   1st は結果不明（UNKNOWN_RESULT）で終わりました。
             //   この役には診断も訂正も採否も、やることが残っていません。
@@ -20397,7 +20397,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                        static fn($c) => ((float) ($c['bonus'] ?? 0)) > 0.0)), 0);
 
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-SENDFIRST  10月21日008のご指摘5
+            // @ANCHOR-20261021-PREDICTION-SENDFIRST  10月21日008のご指摘5
             // ══════════════════════════════════════════════════════════
             //   「旧キャッシュあり・初回枠なしのレースが、上限後に凍結
             //     できただけで止まらず、両AIの初回送信へ進む経路を
@@ -20408,7 +20408,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $this->info('── ⑧-2 固定入力から初回を送る（キャッシュ後のやり直し）──');
             //   初回は1頭欠けた応答、訂正は正しい全頭を返します（009のご指摘5）
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-BANDPROVE  10月21日010の5章③
+            // @ANCHOR-20261021-PREDICTION-BANDPROVE  10月21日010の5章③
             // ══════════════════════════════════════════════════════════
             //   ご指摘：
             //     「E-58eの説明は『他の帯の順位は保たれている』ですが、
@@ -20471,7 +20471,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             //   進めるので、ここで呼び直すと「同じ intent は作り直さない」
             //   という契約どおり ALREADY が返ります。どちらも公開済みです。
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-FIXPROVE  10月21日009のご指摘5
+            // @ANCHOR-20261021-PREDICTION-FIXPROVE  10月21日009のご指摘5
             // ══════════════════════════════════════════════════════════
             //   【足りませんでした】E-58 は「訂正の枠ができた」だけを
             //   見ていました。<b>その訂正で欠落馬が直ったか</b>は
@@ -20488,7 +20488,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                        (array) ($accF['rescued'] ?? [])), true), true);
             $usedF = $ctrl->markResponseUsed($mf['sid'], '1st', $accF);
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-BANDPROVE  帯ごとに1つずつ突き合わせます
+            // @ANCHOR-20261021-PREDICTION-BANDPROVE  帯ごとに1つずつ突き合わせます
             // ══════════════════════════════════════════════════════════
             // $check('E-58e', '他の帯の順位は保たれている',
             //        count((array) ($usedF['band_ranks'] ?? [])) >= 1, true);  // 旧
@@ -20577,7 +20577,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $bodyW  = implode("\n", array_slice($linesW, $rmW->getStartLine() - 1,
                 $rmW->getEndLine() - $rmW->getStartLine() + 1));
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-SWEEPDESC  10月21日009のご指摘5
+            // @ANCHOR-20261021-PREDICTION-SWEEPDESC  10月21日009のご指摘5
             // ══════════════════════════════════════════════════════════
             //   【説明が現物と逆でした】
             //   「巡回に初回の送信は入っていない」と書いていましたが、
@@ -20619,7 +20619,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $rf1 = $ctrl->resumePredictionFreeze($future, '9', '99', '9', 9);
             $check('E-44', '情報上限より前は固定しない',
                    (string) ($rf1['code'] ?? ''), 'TOO_EARLY');
-            //   @ANCHOR-20261021-R122-SENDFIRST  この試験の凍結入力も
+            //   @ANCHOR-20261021-PREDICTION-SENDFIRST  この試験の凍結入力も
             //   race_id に 99 を含むので、like では当たってしまいます。
             //   仮レースの race_id だけを名指しで見ます。
             $futureId = \App\Http\Controllers\Api\AiController::buildPredictionRaceId(
@@ -20677,7 +20677,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
     }
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261021-R122-TOKENS  トークン数を課金ゼロで実測します
+     * @ANCHOR-20261021-PREDICTION-TOKENS  トークン数を課金ゼロで実測します
      * ═══════════════════════════════════════════════════════════════════════
      * 10月21日008のご指摘1：
      *   「金額は回数だけでは決まりません。実際のモデル名、入力・出力トークン、
@@ -20722,7 +20722,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             return;
         }
         // ══════════════════════════════════════════════════════════════
-        // @ANCHOR-20261021-R122-TWOMODELS  両モデルで数えます
+        // @ANCHOR-20261021-PREDICTION-TWOMODELS  両モデルで数えます
         // ══════════════════════════════════════════════════════════════
         //   ・Haiku 5.5 の $0.10／$0.50 は<b>入力10万トークンまで</b>。
         //     10万を超えると、そのリクエスト全体が $0.50／$2.50 になります。
@@ -20878,7 +20878,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $this->line('');
 
         // ══════════════════════════════════════════════════════════════
-        // @ANCHOR-20261021-R122-CTXLIMIT  入力がモデルの上限に収まるか
+        // @ANCHOR-20261021-PREDICTION-CTXLIMIT  入力がモデルの上限に収まるか
         // ══════════════════════════════════════════════════════════════
         //   claude-haiku-4-5 のコンテキストウィンドウは 200,000 トークンです。
         //   実測で 18頭が 257,696 トークンだったので、<b>そのままでは
@@ -21053,7 +21053,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261021-R122-JOBTEST  Job構成の通し試験（010の2章）
+     * @ANCHOR-20261021-PREDICTION-JOBTEST  Job構成の通し試験（010の2章）
      * ═══════════════════════════════════════════════════════════════════════
      * 10月21日010（なる）の第2章に対する試験です。
      *
@@ -21668,12 +21668,12 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $this->info('── ⑥ 積まれること（worker は動かしません）──');
 
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-AFTERCOMMIT  未commitを読ませない
+            // @ANCHOR-20261021-PREDICTION-AFTERCOMMIT  未commitを読ませない
             // ══════════════════════════════════════════════════════════
             //   ご指摘（010の2-2 FreezeRaceJob）：
             //     「トランザクション内で投入する場合は、未commitの
             //       snapshotをworkerが先に読まないようにします。」
-            //   r122 の接続は after_commit = true なので、
+            //   新方式 の接続は after_commit = true なので、
             //   トランザクションの中で dispatch しても、<b>commit まで
             //   jobs 表には入りません。</b>まずそれを確かめます。
             //   （この試験は最後にロールバックするので、ここで積んだ
@@ -22204,7 +22204,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
             // ── ⑩ 対象レースを「全入口」で見ていること（010の2-5）────
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-TARGET12  入口を名指しで確かめます
+            // @ANCHOR-20261021-PREDICTION-TARGET12  入口を名指しで確かめます
             // ══════════════════════════════════════════════════════════
             //   ご指摘：
             //     「通常アクセス・キャッシュ後・巡回・訂正の全入口で
@@ -22304,7 +22304,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261021-R122-TYPETEST  型保持の通し試験（010の3章）
+     * @ANCHOR-20261021-PREDICTION-TYPETEST  型保持の通し試験（010の3章）
      * ═══════════════════════════════════════════════════════════════════════
      * 10月21日010（なる）の第3章ぜんぶに対する試験です。
      *
@@ -22753,7 +22753,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261021-R122-E2E  実凍結から一続きの通し試験（010の5章末尾）
+     * @ANCHOR-20261021-PREDICTION-E2E  実凍結から一続きの通し試験（010の5章末尾）
      * ═══════════════════════════════════════════════════════════════════════
      * ご指摘（010の5章 末尾）：
      *   「通し試験の$mkはsnapshotを直接INSERTし、締切を既定3,600秒後に置く
@@ -22796,7 +22796,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
      */
     /**
      * ═══════════════════════════════════════════════════════════════════════
-     * @ANCHOR-20261023-R122-LIVEONCE  実AIの18頭実測（AC05・P-07）【課金あり】
+     * @ANCHOR-20261023-PREDICTION-LIVEONCE  実AIの18頭実測（AC05・P-07）【課金あり】
      * ═══════════════════════════════════════════════════════════════════════
      * 変更計画書9章／AC05「最大18頭＋必要時訂正が設定した受領／公開期限内に
      * 終了し、finish_reason と出力長を確認できる」の実測です。
@@ -23000,7 +23000,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                     ($rcv !== null) ? (string) round(((int) $dl['reply'] - $rcv) / 1000000, 1) : '—',
                     mb_strimwidth((string) ($at->failure_reason ?? ''), 0, 60, '…')));
                 $this->line('       応答の長さ ' . number_format(strlen((string) ($at->raw_response ?? ''))) . ' バイト');
-                // @ANCHOR-20261023-R122-LIVETAIL  応答の終わり方を見ます（JSONの閉じ忘れ・マーカー抜けの確認）
+                // @ANCHOR-20261023-PREDICTION-LIVETAIL  応答の終わり方を見ます（JSONの閉じ忘れ・マーカー抜けの確認）
                 $rawAt = (string) ($at->raw_response ?? '');
                 if ($rawAt !== '') {
                     $this->line('       応答の最後の500文字 ↓');
@@ -23010,7 +23010,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             }
             $this->line('  使用量   : ' . json_encode($A::aiUsageOf($sid), JSON_UNESCAPED_UNICODE));
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261023-R122-LIVEDIAG  検証で何を指摘したか・訂正を採ったか
+            // @ANCHOR-20261023-PREDICTION-LIVEDIAG  検証で何を指摘したか・訂正を採ったか
             // ══════════════════════════════════════════════════════════
             //   検証は同じ入力なら同じ結果なので、ここで呼び直して中身を見せます（AIは呼びません）。
             //   原応答と凍結入力は storage/logs/r122_live/ へ書き出します（あとで手元で調べるため）。
@@ -23180,7 +23180,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
             // ── ② 出馬表とオッズを「今日・いまから5分後・場98」へ写します ──
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-E2EDATE  発走時刻だけでは足りません
+            // @ANCHOR-20261021-PREDICTION-E2EDATE  発走時刻だけでは足りません
             // ══════════════════════════════════════════════════════════
             //   情報上限・入力凍結・応答期限・公開期限は、すべて
             //   「日付＋発走時刻」から出します。発走時刻だけを動かしても、
@@ -23193,7 +23193,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             //   場コードは98（実在しません）にして、本番の行と混ざらない
             //   ようにします。ロールバックするので写しも残りません。
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-E2EWINDOW  寄せ先は「いまから5分後」
+            // @ANCHOR-20261021-PREDICTION-E2EWINDOW  寄せ先は「いまから5分後」
             // ══════════════════════════════════════════════════════════
             //   10分後にすると、情報上限（発走の360秒前＝いまから240秒後）が
             //   <b>まだ来ていない</b>ので、凍結が TOO_EARLY で正しく止まります。
@@ -23377,7 +23377,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                 // 馬は、この凍結の runner にそろえます（雛形の1頭目を使い回します）
                 $proto = (array) (($tpl['horses'][0]) ?? []);
                 // ══════════════════════════════════════════════════════
-                // @ANCHOR-20261021-R122-E2EEVID  根拠の参照は馬ごとに直します
+                // @ANCHOR-20261021-PREDICTION-E2EEVID  根拠の参照は馬ごとに直します
                 // ══════════════════════════════════════════════════════
                 //   雛形の1頭目をそのまま使い回すと、全頭が
                 //   <b>1番の根拠（h1_…）を指します。</b>診断は
@@ -23485,7 +23485,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
             $this->line('      公開 : ' . (string) ($pb['code'] ?? '')
                       . '／' . mb_strimwidth((string) ($pb['reason'] ?? ''), 0, 70, '…'));
             // ══════════════════════════════════════════════════════════
-            // @ANCHOR-20261021-R122-E2ESCOPE  この試験が示す範囲
+            // @ANCHOR-20261021-PREDICTION-E2ESCOPE  この試験が示す範囲
             // ══════════════════════════════════════════════════════════
             //   この試験の目的は、010の5章末尾でご指摘いただいた
             //     出馬表・監査行からの実凍結／キャッシュ入口／
