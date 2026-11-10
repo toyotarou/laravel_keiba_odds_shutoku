@@ -1,0 +1,56 @@
+--- a/AiController.php
++++ b/AiController.php
+@@ -18239,6 +18239,15 @@
+         $out['ok']   = true;
+         if ($current && ($fix['needs_fix'] || $out['skipped'] || $rankRejected)) {
+             $changed = $out['rescued'] !== [];
++            // Display-only corrections do not need a rescued horse to count as a partial repair.
++            try {
++                $firstParsed=\App\Services\Baganriki\CandidateSelectionW2::parseOriginal($from['raw'],$from['hash']);
++                $fixParsed=\App\Services\Baganriki\CandidateSelectionW2::parseOriginal($to['raw'],$to['hash']);
++                $out['metric_repairs']=\App\Services\Baganriki\RaceMetricsW2::repairedKeys(
++                    $bound,$firstParsed['json'],$fixParsed['json'],$firstParsed['map'],$fixParsed['map']);
++                if ($out['metric_repairs']!==[]) $out['metric_receipts']=[$from['hash'],$to['hash']];
++                $changed=$changed || $out['metric_repairs']!==[];
++            } catch (\InvalidArgumentException $e) { $out['metric_repairs']=[]; }
+             foreach ($out['applied'] as $no) {
+                 if (!isset($first['normal'][$no]) || !BaganrikiResponse::sameHorseRow($first['normal'][$no], $fix['normal'][$no],
+                      $first['normal_map'], $fix['normal_map'], [(string)$no])) { $changed = true; break; }
+@@ -18249,7 +18258,7 @@
+             }
+             if ($rankRejected) $out['rank_issue'] = 'W5_REPAIR_RANK_SCOPE';
+             $out['code'] = $changed ? 'FIX_PARTIAL' : 'FIX_REJECTED';
+-            $out['reason'] = $changed ? '訂正を検証できた馬だけ反映しました。順位と候補を再計算します'
++            $out['reason'] = $changed ? '訂正を検証できた馬・表示指標だけ反映しました。順位と候補を再計算します'
+                                       : '訂正に指摘が残ったため、初回の正常部分を残します';
+             return $out;
+         }
+@@ -19259,7 +19268,27 @@
+             }
+         }
+         if ($current && $role==='1st' && \App\Services\Baganriki\RaceMetricsW2::enabled($rankInput)) {
+-            $o['race_metrics']=\App\Services\Baganriki\RaceMetricsW2::fromResponse($rankInput,$useRes,(string)$useRow->response_hash);
++            $o['race_metrics']=\App\Services\Baganriki\RaceMetricsW2::fromResponse($rankInput,$useRes,(string)$useRow->response_hash,$useInsp['map']);
++            // Partial horse recovery keeps the original ranks. Display repairs have their own
++            // receipt binding and must not silently fall back to those original, invalid fields.
++            if ($partial && !empty($accepted['metric_repairs'])) {
++                $metricFix=\DB::table('baganriki_ai_attempts')->where('snapshot_id',$snapshotId)
++                    ->where('role',$role)->where('attempt_no',BaganrikiWorker::FIX)
++                    ->where('status',BaganrikiWorker::RECEIVED)->first();
++                if ($metricFix!==null && ($accepted['metric_receipts']??null)===[$useRow->response_hash,$metricFix->response_hash]) {
++                    $metricInspection=$this->inspectAiResponse($snapshotId,$role,BaganrikiWorker::FIX);
++                    if (($metricInspection['ok']??false) && ($metricInspection['complete']??false)===true &&
++                        ($metricInspection['response_hash']??null)===$metricFix->response_hash) {
++                        try {
++                            $fixedMetric=\App\Services\Baganriki\CandidateSelectionW2::parseOriginal($metricFix->raw_response,$metricFix->response_hash);
++                            \App\Services\Baganriki\RaceMetricsW2::checkCorrection($rankInput,$useRes,$fixedMetric['json'],$useInsp['map'],$fixedMetric['map']);
++                            $metricIssues=\App\Services\Baganriki\RaceMetricsW2::issues($rankInput,$fixedMetric['json'],$fixedMetric['map']);
++                            if (!isset($metricIssues['race_metrics']))
++                                $o['race_metrics']=\App\Services\Baganriki\RaceMetricsW2::fromResponse($rankInput,$fixedMetric['json'],$metricFix->response_hash,$fixedMetric['map']);
++                        } catch (\InvalidArgumentException $e) { /* Keep verified initial display values. */ }
++                    }
++                }
++            }
+         }
+         return $o;
+     }

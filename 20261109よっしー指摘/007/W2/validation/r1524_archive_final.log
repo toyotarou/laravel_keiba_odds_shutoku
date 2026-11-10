@@ -1,0 +1,4 @@
+PASS 108 cases; original/fixed responses written for independent integration checks.
+PASS 607 independent Fraction arithmetic cases
+PASS 144 cross-process version, correction and tamper cases
+PASS R15.19 targeted suite; patched controller SHA-256 674a448861e3f3d2ab843b57108a84a6df4016491f786154e1c2edb2d37fb50a

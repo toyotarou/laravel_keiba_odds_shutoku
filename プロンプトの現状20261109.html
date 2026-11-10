@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新しいプロンプトの現状（2026年11月9日）</title>
+<style>
+  body { margin:0; background:#f4f5f7; color:#222; font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; font-size:16px; line-height:1.75; }
+  header { background:#1f4e79; color:#fff; padding:20px 16px 16px; }
+  header h1 { margin:0; font-size:21px; }
+  header p { margin:6px 0 0; font-size:13px; opacity:.85; }
+  nav { background:#fff; margin:12px; border-radius:12px; padding:12px 16px; box-shadow:0 1px 3px rgba(0,0,0,.08); font-size:15px; }
+  nav b { display:block; margin-bottom:4px; color:#1f4e79; }
+  nav a { color:#1f4e79; text-decoration:none; display:block; padding:3px 0; }
+  main { padding:0 12px 12px; max-width:640px; margin:0 auto; }
+  section { background:#fff; border-radius:12px; padding:14px 16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  h2 { font-size:18px; margin:0 0 10px; color:#1f4e79; border-left:4px solid #1f4e79; padding-left:8px; }
+  h3 { font-size:16px; margin:16px 0 6px; color:#333; }
+  .big { font-size:18px; font-weight:bold; }
+  .ok { color:#1b7f3b; font-weight:bold; }
+  .warn { color:#b35c00; font-weight:bold; }
+  .note { font-size:13px; color:#666; }
+  table { width:100%; border-collapse:collapse; font-size:15px; margin:6px 0; }
+  th, td { padding:7px 4px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
+  th { color:#555; font-weight:normal; font-size:13px; }
+  td.n { text-align:right; font-weight:bold; white-space:nowrap; }
+  ul, ol { margin:4px 0; padding-left:22px; }
+  li { margin:5px 0; }
+  .tag { display:inline-block; font-size:12px; background:#e8f0f8; color:#1f4e79; border-radius:10px; padding:1px 8px; margin-right:4px; }
+  .box { background:#f7f9fc; border:1px solid #dde6f0; border-radius:10px; padding:10px 12px; margin:8px 0; }
+  .ba { display:grid; grid-template-columns:3.2em 1fr; gap:2px 6px; margin:6px 0 4px; font-size:15px; }
+  .ba .k { color:#888; font-size:13px; padding-top:2px; }
+  .term { margin:10px 0; }
+  .term b { color:#1f4e79; }
+  .flow { counter-reset:f; list-style:none; padding:0; }
+  .flow li { position:relative; padding:8px 10px 8px 44px; background:#f7f9fc; border-radius:10px; margin:8px 0; }
+  .flow li::before { counter-increment:f; content:counter(f); position:absolute; left:10px; top:8px; width:24px; height:24px; border-radius:12px; background:#1f4e79; color:#fff; font-size:13px; text-align:center; line-height:24px; }
+  .flow .t { display:block; font-size:13px; color:#1f4e79; font-weight:bold; }
+</style>
+</head>
+<body>
+<header>
+  <h1>新しいプロンプトの現状</h1>
+  <p>2026年11月9日（月）時点のまとめ　／　馬眼力</p>
+</header>
+
+<nav>
+  <b>もくじ</b>
+  <a href="#s1">1. ひとことで言うと</a>
+  <a href="#s2">2. この資料に出てくる言葉</a>
+  <a href="#s3">3. 予想が出るまでの流れ</a>
+  <a href="#s4">4. 先週末（11/7・11/8）の結果</a>
+  <a href="#s5">5. この数日で直したこと（7つ）</a>
+  <a href="#s6">6. 予想が出るまでの時間</a>
+  <a href="#s7">7. お金（AIの料金）</a>
+  <a href="#s8">8. まだ残っていること</a>
+  <a href="#s9">9. これからの予定</a>
+</nav>
+
+<main>
+
+<section id="s1">
+  <h2>1. ひとことで言うと</h2>
+  <p class="big">11月7日（土）から、アプリの予想は<span class="ok">新しいプロンプトだけ</span>で出ています。</p>
+  <p>「プロンプト」は、AIに渡す<b>質問文（指示書）</b>のことです。よっしーと作った新しい質問文に切り替わりました。</p>
+  <p>以前の質問文に戻る仕組みは、<b>プログラムからすべて取り除きました</b>。うまくいかないことがあっても、以前の方式には戻りません。</p>
+  <div class="box">
+    予想は、2つのAIに聞いて作っています。
+    <ul>
+      <li><span class="tag">1st</span>Claude（クロード）の「claude-haiku-5-5」</li>
+      <li><span class="tag">2nd</span>DeepSeek（ディープシーク）の「deepseek-flash」</li>
+    </ul>
+  </div>
+</section>
+
+<section id="s2">
+  <h2>2. この資料に出てくる言葉</h2>
+  <div class="term"><b>レース</b><br>競馬の1回の勝負のこと。「東京6R」は「東京競馬場の6番目のレース」という意味です（R＝レース）。1日に1つの競馬場で12レースあります。先週末は3つの競馬場（東京・京都・福島）で、1日36レースでした。</div>
+  <div class="term"><b>発走（はっそう）</b><br>レースがスタートする時刻のこと。予想は、発走の前に出さないと意味がありません。</div>
+  <div class="term"><b>オッズ</b><br>それぞれの馬の「人気」と「当たったときに戻ってくる倍率」です。発走が近づくほど変わります。予想には、<b>発走6分前のオッズ</b>を使います。</div>
+  <div class="term"><b>1st と 2nd</b><br>2つのAIの役割です。同じレースについて、2つのAIにそれぞれ予想させます。</div>
+  <div class="term"><b>JSON（ジェイソン）</b><br>AIが答えを返すときの「決まった書き方」です。カンマや括弧が1つ抜けるだけで、プログラムが読めなくなります。</div>
+  <div class="term"><b>代わりの表示</b><br>AIの答えが使えなかったときに、アプリに出す表示です。予想の代わりに、決まった内容を出します。</div>
+  <div class="term"><b>以前の方式</b><br>新しいプロンプトの前に使っていた質問文と、その仕組みです。もう使いません。</div>
+</section>
+
+<section id="s3">
+  <h2>3. 予想が出るまでの流れ</h2>
+  <p>1つのレースについて、毎回この順番で動きます。</p>
+  <ol class="flow">
+    <li><span class="t">発走6分前</span>オッズが届きます。</li>
+    <li><span class="t">発走5分前</span>そのレースのデータ（出る馬・オッズなど）を<b>固めます</b>。ここから先、データは変えません。オッズが届いていなければ、<b>最大60秒</b>待ちます。</li>
+    <li><span class="t">すぐに</span>固めたデータと新しいプロンプトを、<b>2つのAIに同時に</b>送ります。</li>
+    <li><span class="t">答えが返ってきたら</span>答えが決まった書き方になっているかを確かめます。小さな書き間違いは自動で直します。</li>
+    <li><span class="t">確かめ終わったら</span>アプリに予想を出します（平均で発走の約3分前）。</li>
+    <li><span class="t">同時に</span>そのレースで使った質問文を、ファイルに保存します（あとから見返せるように）。</li>
+  </ol>
+  <p class="note">2つのAIがどちらも使えない答えだったときは、待たずに「代わりの表示」を出します。</p>
+</section>
+
+<section id="s4">
+  <h2>4. 先週末（11/7・11/8）の結果</h2>
+  <table>
+    <tr><th></th><th>11/7（土）</th><th>11/8（日）</th></tr>
+    <tr><td>レースの数</td><td class="n">36</td><td class="n">36</td></tr>
+    <tr><td>新しいプロンプトで予想を出せた</td><td class="n ok">32</td><td class="n ok">35</td></tr>
+    <tr><td>AIの答えが使えず「代わりの表示」</td><td class="n">2</td><td class="n">1</td></tr>
+    <tr><td>以前の方式で予想した</td><td class="n">2</td><td class="n ok">0</td></tr>
+  </table>
+
+  <h3>11/7（土）：以前の方式になった2レース</h3>
+  <p>京都8R と 福島12R です。</p>
+  <p>理由：発走6分前のオッズが届くのが、<b>38秒と45秒</b>遅れました。当時は30秒しか待たない設定だったので、間に合わず、以前の方式で予想していました。</p>
+  <p>→ その日の夜に、<b>待つ時間を60秒に延ばし</b>、以前の方式に切り替わる仕組みも止めました。<span class="ok">11/8 は 0 件</span>でした。</p>
+  <p class="note">※ 福島12R は高い配当が出たレースですが、このレースの予想は以前の方式で出したものです。</p>
+
+  <h3>11/7（土）：「代わりの表示」になった2レース</h3>
+  <p>2つのAIが、どちらも書き方の崩れた答え（JSONが壊れた答え）を返しました。プログラムが読めなかったので、「代わりの表示」になりました。</p>
+  <p>→ 小さな書き間違いを自動で直す仕組みを入れました（5章の「5」）。この日の壊れた答えで試すと、3つのうち2つは大部分が読めるようになりました（例：15頭中14頭）。1つは、直しても読めませんでした。</p>
+
+  <h3>11/8（日）：「代わりの表示」になった1レース</h3>
+  <p>東京6R です。</p>
+  <ul>
+    <li>1st（Claude）の答えは、使える馬が0頭でした。</li>
+    <li>2nd（DeepSeek）は、答えが返ってくるまでに2分以上（134秒）かかり、時間切れになりました。</li>
+  </ul>
+  <p>どちらも使えなかったので、「代わりの表示」になりました。</p>
+</section>
+
+<section id="s5">
+  <h2>5. この数日で直したこと（7つ）</h2>
+
+  <h3>1）オッズを待つ時間を、30秒から60秒にしました</h3>
+  <div class="ba"><span class="k">前は</span><span>オッズが30秒以上遅れると、以前の方式で予想していました。</span><span class="k">今は</span><span>60秒まで待ちます。それでも以前の方式には切り替えません。</span></div>
+  <p class="note">目的：すべてのレースを、新しいプロンプトで予想するためです。</p>
+
+  <h3>2）レースごとの質問文を、ファイルに保存します</h3>
+  <div class="ba"><span class="k">前は</span><span>新しいプロンプトに切り替えたときに、保存が止まっていました（11/7 の昼に4ファイルしかなかった）。</span><span class="k">今は</span><span>1st と 2nd で別々のフォルダに、全レース分を保存します。11/8 は 36ファイルずつありました。</span></div>
+
+  <h3>3）「波乱度」「下位進入度」「大穴進入度」を、アプリにもう一度出します</h3>
+  <div class="ba"><span class="k">前は</span><span>新しいプロンプトに切り替えたら、アプリの上の方に出ていたこの3つが消えていました。</span><span class="k">今は</span><span>1st のAIに、この3つを 1〜5 の数字で答えてもらいます。意味は以前と同じです。</span></div>
+  <div class="box">
+    <b>3つの意味（ざっくり）</b>
+    <ul>
+      <li><b>波乱度</b>：人気どおりにならない（荒れる）可能性の高さ</li>
+      <li><b>下位進入度</b>：人気のない馬が、上位に入ってくる可能性の高さ</li>
+      <li><b>大穴進入度</b>：とても人気のない馬（大穴）が、上位に入ってくる可能性の高さ</li>
+    </ul>
+    数字が大きいほど、可能性が高いという意味です。
+  </div>
+  <p><b>11/14（土）のレースから</b>表示されます。アプリ（画面）側は変えていません。サーバーから返すデータに、3つを入れ直しました。</p>
+  <p class="note">質問を足したのは 1st だけです。2nd の質問文は変えていません。</p>
+
+  <h3>4）予想の文章から「確かめた根拠：」を消しました</h3>
+  <div class="ba"><span class="k">前は</span><span>それぞれの予想に「確かめた根拠：」という文字が付いていて、読みにくかった。</span><span class="k">今は</span><span>この文字を付けずに表示します。中身の文章はそのままです。</span></div>
+
+  <h3>5）AIの答えの小さな書き間違いを、自動で直します</h3>
+  <div class="ba"><span class="k">前は</span><span>カンマや括弧が1つ抜けているだけで、答え全体が読めませんでした。</span><span class="k">今は</span><span>カンマ・括弧の抜けや余分を、自動で直してから読みます。直せない場合だけ、使えない答えにします。</span></div>
+  <p class="note">直すのは書き方（記号）だけです。予想の中身（馬・順位・文章）は変えません。</p>
+
+  <h3>6）2つのAIがどちらも失敗したら、すぐ「代わりの表示」にします</h3>
+  <div class="ba"><span class="k">前は</span><span>どちらも失敗していても、しばらく待ってから「代わりの表示」にしていました。</span><span class="k">今は</span><span>どちらも失敗と分かった時点で、すぐに出します。</span></div>
+
+  <h3>7）以前の方式のプログラムを、すべて取り除きました</h3>
+  <p>以前の方式で予想を作る部分を、プログラムから消しました。また、プログラムの中身を読みやすく整理しました。</p>
+  <p>整理する前と後で、<b>319レース分・1289回の結果がすべて同じ</b>になることを確かめています。予想の動きは変わっていません。</p>
+  <p class="note">以前の方式で過去に保存した予想は、これまでどおり見ることができます。</p>
+</section>
+
+<section id="s6">
+  <h2>6. 予想が出るまでの時間</h2>
+  <ul>
+    <li>発走5分前にデータを固めて、AIに聞き始めます。</li>
+    <li>予想がアプリに出るのは、平均で<b>発走の約3分前</b>です。
+      <ul>
+        <li>11/7：固めてから平均 約1分40秒</li>
+        <li>11/8：固めてから平均 約2分</li>
+      </ul>
+    </li>
+    <li>いちばん時間がかかっているのは <b>2nd（DeepSeek）</b>です。答えが長いと遅くなり、11/8 の東京6R では時間切れになりました。</li>
+  </ul>
+  <p class="warn">「もっと早く出したい」という話は、まだ手を付けていません。何を減らすか（質問文を短くする・答えを短くさせる など）は、よっしーと決めてから直します。</p>
+</section>
+
+<section id="s7">
+  <h2>7. お金（AIの料金）</h2>
+  <table>
+    <tr><th>日</th><th>実際にかかった額（2つのAIの合計）</th></tr>
+    <tr><td>11/7（土）</td><td class="n">約 2.1 ドル</td></tr>
+    <tr><td>11/8（日）</td><td class="n">約 2.7 ドル</td></tr>
+  </table>
+  <ul>
+    <li>1日あたり、<b>だいたい2〜3ドル</b>です。</li>
+    <li>1日の上限を <b>10ドル</b> にしています。上限に届くと、その日はそれ以上AIに聞きません（お金を使いすぎないため）。</li>
+    <li>3つの指標（5章の「3」）を足したので、1st の答えが少し長くなります。料金はわずかに増える見込みです。</li>
+  </ul>
+  <p class="note">数字は、サーバーに残っている記録から集計しました。</p>
+</section>
+
+<section id="s8">
+  <h2>8. まだ残っていること</h2>
+  <ul>
+    <li><b>2nd（DeepSeek）が遅いことがある</b>　→ 6章のとおり。直し方はよっしーと決めます。</li>
+    <li><b>AIの答えが大きく崩れたときは、直せない</b>　→ 小さな書き間違いは直せますが、大きく崩れた答えは「代わりの表示」になります。</li>
+    <li><b>3つの指標が本当に出るか</b>　→ 11/14（土）のレースで確かめます。</li>
+  </ul>
+</section>
+
+<section id="s9">
+  <h2>9. これからの予定</h2>
+  <table>
+    <tr><td>11/11（水）</td><td>よっしーからの修正の希望を受けて、対応します。</td></tr>
+    <tr><td>11/14（土）</td><td>3つの指標がアプリに出ているか確かめます。</td></tr>
+  </table>
+  <p class="note">レースがある日（土・日）は、サーバーには手を入れません。</p>
+</section>
+
+</main>
+</body>
+</html>

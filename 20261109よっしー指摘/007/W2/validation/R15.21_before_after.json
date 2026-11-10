@@ -1,0 +1,298 @@
+[
+  {
+    "case": "normal",
+    "before_values": {
+      "波乱度": 3,
+      "下位進入度": 2,
+      "大穴進入度": 2
+    },
+    "after_values": {
+      "波乱度": 3,
+      "下位進入度": 2,
+      "大穴進入度": 2
+    },
+    "before_status": {
+      "wave_level": "VALID",
+      "lower_entry": "VALID",
+      "big_gap_entry": "VALID"
+    },
+    "after_status": {
+      "wave_level": "VALID",
+      "lower_entry": "VALID",
+      "big_gap_entry": "VALID"
+    },
+    "before_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ],
+    "after_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ]
+  },
+  {
+    "case": "partial_metric_fix",
+    "before_values": {
+      "波乱度": null,
+      "下位進入度": null,
+      "大穴進入度": 2
+    },
+    "after_values": {
+      "波乱度": 3,
+      "下位進入度": null,
+      "大穴進入度": 2
+    },
+    "before_status": {
+      "wave_level": "INVALID",
+      "lower_entry": "INVALID",
+      "big_gap_entry": "VALID"
+    },
+    "after_status": {
+      "wave_level": "VALID",
+      "lower_entry": "INVALID",
+      "big_gap_entry": "VALID"
+    },
+    "before_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ],
+    "after_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ]
+  },
+  {
+    "case": "partial_metric_fix_and_horse",
+    "before_values": {
+      "波乱度": null,
+      "下位進入度": null,
+      "大穴進入度": 2
+    },
+    "after_values": {
+      "波乱度": 3,
+      "下位進入度": null,
+      "大穴進入度": 2
+    },
+    "before_status": {
+      "wave_level": "INVALID",
+      "lower_entry": "INVALID",
+      "big_gap_entry": "VALID"
+    },
+    "after_status": {
+      "wave_level": "VALID",
+      "lower_entry": "INVALID",
+      "big_gap_entry": "VALID"
+    },
+    "before_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ],
+    "after_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ]
+  },
+  {
+    "case": "object_refs",
+    "before_values": {
+      "波乱度": 3,
+      "下位進入度": 2,
+      "大穴進入度": 2
+    },
+    "after_values": {
+      "波乱度": 3,
+      "下位進入度": null,
+      "大穴進入度": 2
+    },
+    "before_status": {
+      "wave_level": "VALID",
+      "lower_entry": "VALID",
+      "big_gap_entry": "VALID"
+    },
+    "after_status": {
+      "wave_level": "VALID",
+      "lower_entry": "INVALID",
+      "big_gap_entry": "VALID"
+    },
+    "before_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ],
+    "after_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ]
+  },
+  {
+    "case": "empty_object_refs",
+    "before_values": {
+      "波乱度": 3,
+      "下位進入度": null,
+      "大穴進入度": 2
+    },
+    "after_values": {
+      "波乱度": 3,
+      "下位進入度": null,
+      "大穴進入度": 2
+    },
+    "before_status": {
+      "wave_level": "VALID",
+      "lower_entry": "UNKNOWN",
+      "big_gap_entry": "VALID"
+    },
+    "after_status": {
+      "wave_level": "VALID",
+      "lower_entry": "INVALID",
+      "big_gap_entry": "VALID"
+    },
+    "before_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ],
+    "after_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ]
+  },
+  {
+    "case": "precise_fraction",
+    "before_values": {
+      "波乱度": 3,
+      "下位進入度": null,
+      "大穴進入度": 2
+    },
+    "after_values": {
+      "波乱度": 3,
+      "下位進入度": null,
+      "大穴進入度": 2
+    },
+    "before_status": {
+      "wave_level": "VALID",
+      "lower_entry": "INVALID",
+      "big_gap_entry": "VALID"
+    },
+    "after_status": {
+      "wave_level": "VALID",
+      "lower_entry": "INVALID",
+      "big_gap_entry": "VALID"
+    },
+    "before_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ],
+    "after_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ]
+  },
+  {
+    "case": "valid_integral_decimal",
+    "before_values": {
+      "波乱度": 3,
+      "下位進入度": 2,
+      "大穴進入度": 2
+    },
+    "after_values": {
+      "波乱度": 3,
+      "下位進入度": 2,
+      "大穴進入度": 2
+    },
+    "before_status": {
+      "wave_level": "VALID",
+      "lower_entry": "VALID",
+      "big_gap_entry": "VALID"
+    },
+    "after_status": {
+      "wave_level": "VALID",
+      "lower_entry": "VALID",
+      "big_gap_entry": "VALID"
+    },
+    "before_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ],
+    "after_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ]
+  },
+  {
+    "case": "extra_metric_key",
+    "before_values": {
+      "波乱度": null,
+      "下位進入度": null,
+      "大穴進入度": null
+    },
+    "after_values": {
+      "波乱度": null,
+      "下位進入度": null,
+      "大穴進入度": null
+    },
+    "before_status": {
+      "wave_level": "INVALID",
+      "lower_entry": "INVALID",
+      "big_gap_entry": "INVALID"
+    },
+    "after_status": {
+      "wave_level": "INVALID",
+      "lower_entry": "INVALID",
+      "big_gap_entry": "INVALID"
+    },
+    "before_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ],
+    "after_candidates": [
+      16,
+      15,
+      14,
+      10,
+      5
+    ]
+  }
+]

@@ -1,0 +1,40 @@
+【R9の履歴】送信・受領記録の条件は継承。現在のR10の版と応答抽出は02・12を参照。
+馬眼力 W2-R9　エンジニア向け実装差分　2026年11月1日
+対象　baganriki-v041-r12-2-w2-e35-r9-20261101
+
+1　R8で確認した動作
+混戦16頭の試験で、ファーストのA帯の訂正を承認し、セカンドも受領済みにした。訂正版を使う正しい公開順は2・6・1・7・8・10・12番。古い初回原文だけを渡すと、同じ応答版番号のまま1・2・3・7・8・10・12番を保存できた。セカンドが抜けた読取も片側だけで公開できた。
+圧縮データでは、余分なsource_registry、source_table内の独自欄、使わない時刻辞書の値が、正式な復元処理で消えても送信本文に残った。R9は元に戻した入力と実送信の圧縮表現の両方を検査する。いずれも人工的に再現した例で、配信済みレースの誤表示を確認したものではない。
+
+2　初回の実送信
+・各roleのプロンプトと圧縮付録のファイルSHAをconfig/w2_contract.jsonで照合。FULLは当該roleの本文、SOURCE_TABLE_V1はその本文＋LF2個＋付録の正確なバイト列。ZIP展開後、配置前にW2/SHA256SUMS.txtと照合する。
+    $send = ExpectedBridgeW2::prepareSend($frozen, $pack, $expand, $withinBudget, $readLiveState, $allowFullFallback);
+    $messages = $send['messages'];
+    $audit = DispatchW2::recordSent($frozen, $send, $messages);
+・$withinBudget($format,$userJson,$systemText)には送る2つの全文が入る。予算には実モデルの入力・出力、旧経路併用分、残額、訂正枠を含める。SDKの実引数に別のsystemが入る構成では、SDKに渡すsystem/userの実値を2メッセージに投影してrecordSentへ。照合した同じ値を送信し、$auditを予約済みの当該試行にsent_requestとして保存する。W9_OUTBOUND_MESSAGESなら送信を中止する。
+・SOURCE_TABLE_V1は提出済みBaganrikiPrompt::compactWireで同じ凍結原文から作れる形を使う。余分な欄は診断W9_WIRE_SURPLUS。FULLを明示許可した初回だけ、正常な凍結原文と対応systemで費用を再判定できる。予算超過はW2_SEND_BUDGET。外部APIの予約・送信許可・結果不明時の再送禁止・実費記録は既存処理を継承する。
+
+3　訂正は同じAIの同じ初回に結び付ける
+・初回受領時に、race_id、snapshot_hash、ai_role、attempt_no、送受信時刻、完了・採否、rawとresponse_hash、sent_requestを保存する。sent_requestにはformat、attempt_no、system_text、user_jsonとそれぞれのSHA、両者とレース・roleを結ぶrequest_sha256がある。送信文と応答原文は別の記録。
+・サーバーが初回の診断を確定した時点で以下を保存する。$grantは既存repairGrantが返すfirst_response_hash付きの許可範囲。$diagnosticsは既存correctionErrorListの5項目（errors、missing_horses、duplicated_horses、unknown_horses、isolated_horses）。
+    $inspectionSha = DispatchW2::inspectionSeal($frozen,$firstReceipt['response_hash'],$grant,$diagnostics);
+    $repair = ['first_receipt'=>$firstReceipt, 'repair_scope'=>$grant,
+               'diagnostics'=>$diagnostics, 'inspection_sha256'=>$inspectionSha];
+・prepareSendの第7引数に$repairを渡す。初回原文・範囲・診断に使った印は元のDB行から読む。診断と一緒に渡された値だけから照合用SHAを作り直さない。初回と同じ送信形式で、fix_request・first_response・inputを含む全体を組み立てる。FULLでの訂正はFULLが明示許可されている場合に限る。圧縮で始めたAIが訂正時だけFULLに変わることはない。訂正全文が4MiBを超える場合も送信前に停止する。
+・訂正にもrecordSentを実行。訂正受領行のsent_request、repair_scope、repair_diagnostics、inspection_sha256を保存する。役割違いの指示文、違う馬番・初回原文・診断、後付けの欄を含む応答はその試行で不採用。利用できる初回・他roleの扱いは既存の採否規則に従う。
+
+4　公開計算へ渡す公式の受領記録
+・RoleJournalW2::witness($frozen,$officialAttempts,$officialProofHashes)は1st／2ndをキーにSHAまたはnullを返す。$officialAttemptsは02のORIGINAL／RECOVEREDと同形。役割別凍結原文、各試行の送受信・実際の送信原文・応答原文・承認、訂正時の診断、回復文書、馬別の一致証明を対象にする。各役割の試行の並び、正当な0/1の表記、同じ瞬間のタイムゾーン表記などを正規化する。
+・初期化時の未記録は明示的な1st=null、2nd=null。受領・訂正・採否・回復・一致票の更新時は、正本から作った両roleのSHAとresponse_revisionを同一トランザクションで保存する。他方のroleの同時更新を失わないように同じlive_stateをロックし、先に作った印を使う場合は対応する読取版を再照合する。受領前や失敗中の行が既にある場合はその状態を記録する。
+・公開時は公式の2つのSHAを独立して読み、$liveState['role_journal']に入れる。作業側の$acceptedAttempts・$proofHashesを従来どおりmergeStoredへ渡す。W9_JOURNAL_REQUIREDは正本不足、W9_JOURNAL_MISMATCH_1st／2ndは読み違い。新規公開を止めて整合読取からやり直す。正本に片方の有効応答がないと確認できたときは、従来の公開ポリシーに従い有効な側を使える。根拠のない一致加点は付けない。
+・保存直前は既存の短いロック内で3版・公式取消・実効期限・両roleのSHAを読み直してassertPublicationCommit。W9_JOURNAL_CHANGEDなら再検証。稼働中のMySQL・Queueでこれらの呼出箇所を接続することが公開の条件。
+
+5　完了済み処理の再試行
+・初回保存で検証済み結果を原文JSONとして保持し、payload_sha256=SHA256(原文)を保存する。DBが公開IDを割り当てたら次を計算し、同じ取引が完了する前にpublication_sha256を確定する。
+    $publicationSha = AttemptWindowW2::publicationSeal($frozen,$intentHash,(string)$publicationId,$payloadSha);
+・同じsnapshot_idとintent_hashでロック検索し、対応する確定公開行と結合する。$storedはrace_id、snapshot_hash、intent_hash、publication_id、selection_json、payload_sha256、publication_sha256を持つDB記録。新しい候補や応答を組み直さず、次の戻り値を既存の公開IDとして使う。
+    $existingId = AttemptWindowW2::replayId($frozen,$intentHash,$stored);
+・レース／snapshot／intentの混同はW9_REPLAY_ID、保存原文との不一致はW9_REPLAY_BYTES、公開ID・処理キーと本文の組合せを入れ替えた場合はW9_REPLAY_RECORD等で停止。別レースも含めてintentだけを検索する実装は使わない。これらのSHAは取違え・破損の照合用。DBの権限、予約、ロックは既存実装で担保する。R8以前の公開履歴や受領記録はその版として読む。
+
+6　非公開2レースの受入
+10月23日提出のAiController.phpを指定し、02の --submitted-php 付き検査を実行する。配布試験には2レースの独立した凍結原文、2接続のローカルSQLite、別PHPプロセスでの送信・予算境界・受領・公開・再読込を使う。エンジニア側はMySQLと実際のQueue経由で、送った各roleのsystem/user・初回と訂正の回数・実費・公開IDとFlutterの馬番／順序を照合する。画面再読込で有料AIを再度起動しないことも確認する。断層学習はCOLLECT_ONLY、購入推奨はPENDING_VALIDATION。週末8レース123頭は市場の再現に使用。新しい複勝回収率は未測定。

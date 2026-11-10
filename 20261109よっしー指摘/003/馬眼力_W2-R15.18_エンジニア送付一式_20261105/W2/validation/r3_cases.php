@@ -1,0 +1,61 @@
+<?php
+declare(strict_types=1);
+use App\Services\Baganriki\CandidateSelectionW2 as Sel;
+use App\Services\Baganriki\ExpectedBridgeW2 as Bridge;
+use App\Services\Baganriki\ExpectedPacketW2 as Packet;
+use App\Services\Baganriki\MarketStateW2 as Market;
+(function() use($i,$o,$c,$base,$history,$roles,$nr,$groups,$unavailable) {
+    $test=static fn($k,$v,$code)=>rejectsWith(fn()=>Sel::validateInput(freezeFixture(array_replace($i,[$k=>$v]))),$code,'R3 corrupted '.$k);
+    $test('S_min',1,'W3_MARKET_STATE_S_min');$test('S_max',7,'W3_MARKET_STATE_S_max');$test('S',2,'W3_MARKET_STATE_S');
+    $test('display_rating',5,'W3_MARKET_STATE_display_rating');$test('mode','FIRM','W3_MARKET_STATE_mode');
+    $bad=$i;$bad['mode']=$bad['allocation_mode']='FIRM';$bad['base_quota']=$bad['quota']=$bad['role_quota']=['A'=>5,'B'=>2,'D'=>0];
+    rejectsWith(fn()=>Sel::apply(freezeFixture($bad),$o['horses'],$o['band_ranks']),'W3_MARKET_STATE_mode','R3 MIXED market cannot borrow FIRM quota');
+    $test('learning_stage','LIVE','W3_LEARNING_STAGE');$test('model_version','future','W3_LEARNING_STAGE');
+    $bad=$i;$bad['signals']['X6']=true;rejectsWith(fn()=>Market::verify($bad),'W3_MARKET_SIGNALS','R3 unlearned X6 cannot be enabled');
+    $test('base_quota',['A'=>5,'B'=>2,'D'=>0],'W3_BASE_QUOTA');
+    $test('quota_adjustments',[['requested_band'=>'D','actual_band'=>'A','count'=>1,'reason'=>'BAND_CAPACITY']],'W3_STRUCTURAL_MOVES');
+    $bad=$i;$bad['input_indices']['horse/1/win_odds/6']=$i['input_indices']['horse/2/win_odds/6'];
+    rejectsWith(fn()=>Market::verify($bad),'W3_ODDS_SOURCE','R3 wrong runner in saved win odds index');
+    $bad=$i;unset($bad['input_indices']['horse/1/win_odds/6']);
+    rejectsWith(fn()=>Market::verify($bad),'W3_ODDS_SOURCE','R3 discarded live source cannot disguise a known quote as missing');
+    $bad=$i;$ref=$bad['input_indices']['horse/1/place_min/9'][0];$bad['source_registry'][$ref]['available_at']=$bad['input_freeze_at'];
+    rejectsWith(fn()=>Market::verify($bad),'W3_ODDS_TIME','R3 one horse cannot borrow another slot commit time');
+    $bad=$i;$bad['collection_audit'][6]['available_at']=(new DateTimeImmutable($i['input_freeze_at']))->modify('+1 microsecond')->format('Y-m-d\TH:i:s.uP');
+    rejectsWith(fn()=>Market::verify($bad),'W3_BATCH_TIME','R3 late last batch denied before the AI send');
+    $bad=$i;$bad['time_contract']['reply_deadline']=$bad['time_contract']['publish_deadline'];
+    rejectsWith(fn()=>Market::verify($bad),'W3_TIME_CONTRACT','R3 cannot shift AI deadline to the publication deadline');
+    $bad=$i;[$bad['expected_v01']['rows'][0]['formula_rank'],$bad['expected_v01']['rows'][1]['formula_rank']]=[2,1];
+    rejectsWith(fn()=>Market::verify($bad),'W3_FORMULA_RANK_BINDING','R3 all formula ranks checked against true odds and horse numbers');
+    $bad=$i;$bad['expected_v01']['calibration_id']='unexpected-calibrator';
+    rejectsWith(fn()=>Sel::validateInput(freezeFixture($bad)),'W3_COMMON_CALIBRATION','R3 cannot label a raw packet with a calibrator');
+    $digest=Packet::build($c,[])['packet']['current_sha256'];
+    $later=$c;$later['batches'][3]=['quotes'=>[['horse_id'=>'H1','win'=>2]]];$later['final_popularity']=99;
+    check(Packet::build($later,[])['packet']['current_sha256']===$digest,'R3 future or unrelated DB columns cannot alter a pre-race fingerprint');
+    $reorder=$c;$reorder['roster']=array_reverse($reorder['roster']);foreach ($reorder['batches'] as &$b)$b['quotes']=array_reverse($b['quotes']);unset($b);
+    check(Packet::build($reorder,[])['packet']===Packet::build($c,[])['packet'],'R3 SQL order cannot change E packet identity');
+    $previous=$history[0];$other=$previous;$other['results']=array_reverse($other['results']);$other['payout_afterwards']=123;
+    check(Packet::build($c,[$previous])['packet']===Packet::build($c,[$other])['packet'],'R3 same official labels and quotes produce same history fingerprint');
+    $q=$c;$q['batches'][21]['quotes'][0]['win']='11.000000000000000000001';
+    check(Packet::build($q,null)['packet']['current_sha256']!==$digest,'R3 genuinely different admitted exact odds change the fingerprint');
+    $utc=static fn($s)=>(new DateTimeImmutable($s))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.u\Z');
+    $z=$c;$z['post_at']=$utc($z['post_at']);$z['input_freeze_at']=$utc($z['input_freeze_at']);
+    foreach ($z['batches'] as &$b) foreach (['requested_at','received_at','available_at'] as $k)$b[$k]=$utc($b[$k]);unset($b);
+    check(Bridge::attach($base,$z,[])['common']===Bridge::attach($base,$c,[])['common'],'R3 UTC/JST forms of the same committed instants agree');
+    $small=Packet::oddsParts('0.'.str_repeat('0',149).'1');check($small!==null && $small[0]===-149,'R3 leading decimal zeros do not consume significant digit budget');
+    check(Packet::oddsParts('1e-309')===null && Packet::oddsParts('1e0000002')!==null,'R3 exponent protocol matches normalized magnitude');
+    $wide=$c;$wide['batches'][6]['quotes'][15]['win']='2e308';
+    $wv=Packet::build($wide,$history)['packet']['rows'];
+    check($wv[15]['formula_rank']===16 && array_unique(array_column($wv,'reason'))===['FORMULA_NUMERIC_RANGE'],'R3 exact market remains rankable when E lacks a finite calculation input');
+    $wide=$c;$wide['batches'][21]['quotes'][9]['win']='2e308';$wv=Packet::build($wide,$history)['packet']['rows'];
+    check($wv[9]['reason']==='FORMULA_NUMERIC_RANGE' && $wv[8]['status']==='COMPARISON_READY','R3 one extreme early input is local to that horse');
+    $bad=$i;$bad['collection_audit'][6]['source_updated_at']=$bad['collection_audit'][6]['available_at'];
+    rejectsWith(fn()=>Market::verify($bad),'W3_PROVIDER_FUTURE','R3 future provider revision cannot be visible before receipt');
+    $no=$i;$no['expected_v01']=$unavailable;$no=freezeFixture($no);
+    $rs=[];foreach(['1st','2nd'] as $j=>$role) {
+        $in=$no;$in['ai_role']=$role;if($j){$in['role_cap']=5;$in['role_quota']=['A'=>1,'B'=>3,'D'=>1];}
+        $h=$o['horses'];$r=$o['band_ranks'];foreach ($h as &$horse) if ($horse['band']!=='A') {$horse['eligibility']='NO_EVIDENCE';$horse['tier']='C';}unset($horse);
+        $r['B']=$r['D']=[];$rs[]=Sel::apply($in,$h,$r);
+    }
+    $m=Sel::merge($no,$rs,$no['quota'],$nr,[],$groups);
+    check(count($m['public_candidates'])===3 && array_column($m['shortfalls'],'missing','band')===['B'=>3,'D'=>1],'R3 unfilled hole quotas stay visible and cannot be backfilled by A');
+})();

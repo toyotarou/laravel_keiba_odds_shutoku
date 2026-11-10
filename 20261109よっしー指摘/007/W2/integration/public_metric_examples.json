@@ -1,0 +1,56 @@
+[
+  {
+    "case": "published",
+    "state": "PUBLISHED",
+    "race_metrics": {
+      "波乱度": 3,
+      "下位進入度": 2,
+      "大穴進入度": 2
+    },
+    "expected_labels": [
+      "3",
+      "2",
+      "2"
+    ]
+  },
+  {
+    "case": "partial_unknown",
+    "state": "PUBLISHED",
+    "race_metrics": {
+      "波乱度": 3,
+      "下位進入度": null,
+      "大穴進入度": 2
+    },
+    "expected_labels": [
+      "3",
+      "不明",
+      "2"
+    ]
+  },
+  {
+    "case": "first_unavailable",
+    "state": "PUBLISHED",
+    "race_metrics": {
+      "波乱度": null,
+      "下位進入度": null,
+      "大穴進入度": null
+    },
+    "expected_labels": [
+      "不明",
+      "不明",
+      "不明"
+    ]
+  },
+  {
+    "case": "not_published",
+    "state": "UNAVAILABLE",
+    "race_metrics": null,
+    "expected_labels": null
+  },
+  {
+    "case": "all_cancelled",
+    "state": "CANCELLED",
+    "race_metrics": null,
+    "expected_labels": null
+  }
+]

@@ -1,1 +1,0 @@
-{"error":"ai_output_invalid","reason":"この応答は1st AIとしての出力ではありません。INPUT_JSONの内容を踏まえると、前回の回答はレース条件・配分契約と整合しておらず、そのまま採用できません。","race_id":"20261102-4-98-10-12","snapshot_hash":"4b6114ecf41ab8bab2fbc9ca4178ab8656081263486a5623b7fd4e5706f013ed","retry_guidance":"訂正要求を受けた場合は、repair_scopeの対象だけを修正し、全頭・5系統・10項目・両順位を省略せずに出力し直してください。"}

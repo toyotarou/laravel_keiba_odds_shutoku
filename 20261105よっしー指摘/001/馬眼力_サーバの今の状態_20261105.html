@@ -1,0 +1,67 @@
+<!DOCTYPE html><html lang=ja><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>馬眼力 サーバの今の状態 20261105</title><style>body{font-family:-apple-system,'Hiragino Sans',sans-serif;margin:0;background:#f6f6f4;color:#222;font-size:15px;line-height:1.75}
+main{max-width:720px;margin:0 auto;padding:12px}h1{font-size:20px;line-height:1.4}h2{font-size:17px;border-left:4px solid #2a6;padding-left:8px;margin-top:24px}
+.card{background:#fff;border-radius:10px;padding:12px 14px;margin:12px 0;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.note{font-size:13px;color:#555}.ng{color:#b00;font-weight:bold}
+table{border-collapse:collapse;width:100%;font-size:12.5px}th,td{border-bottom:1px solid #eee;padding:5px 4px;text-align:left;vertical-align:top}th{background:#fafafa}
+code{background:#f0f0f0;padding:0 3px;border-radius:3px;font-size:12px;word-break:break-all}pre{white-space:pre-wrap;font-size:12.5px;background:#f3f3f3;padding:10px;border-radius:6px}</style></head><body><main>
+<h1>馬眼力 サーバの今の状態（2026-11-05 時点）<br><span style='font-size:14px;font-weight:normal'>W2 の差分を作る前に読んでください</span></h1>
+
+<div class=card><b>ひとことで</b><ol>
+<li>11/7（土）から、お客様の画面は<b>新方式（10/20 版のプロンプト）</b>の予想に切り替わります（11/4 に設定済み）。今の方式との並走はしません。</li>
+<li>10/30 に渡した AiController から、<b>11/2・11/4 にかなり変えています</b>（下の3章）。W2 の差分（patch）は、<span class=ng>10/30 版ではなく、今の版を元に作ってください。</span>今の版のコードは、この資料と同じ zip の「今のコード_20261105」に入れています。</li>
+<li>11/2 の実AIの試験で、両AIとも時間内に返り、決まった頭数を公開できました。1レース約0.04ドルです。</li>
+</ol></div>
+
+<h2>1. 今サーバに入っているファイル</h2>
+<div class=card><table><tr><th>ファイル</th><th>md5</th><th>反映</th></tr>
+<tr><td><code>app/Http/Controllers/Api/AiController.php</code></td><td><code>0c86b5b7eae2798aa6581d1869f92f0e</code></td><td>11/4 20:05</td></tr><tr><td><code>app/Http/Controllers/Api/HistoryController.php</code></td><td><code>ac92850f4576182519eb85adf58873d7</code></td><td>11/2（午後に別件の速度改善も入った手元の版）</td></tr><tr><td><code>app/Console/Commands/SummaryAiAnalysisCompensate.php</code></td><td><code>a64d8783b17e0a1e67e5bab8cf451249</code></td><td>11/4 20:05</td></tr><tr><td><code>app/Console/Commands/ImportKeibaOdds.php</code></td><td><code>4e599b2422bba80f42ee7f85277c4f5a</code></td><td>11/2</td></tr><tr><td><code>storage/app/baganriki/prompts/r12_2/prompt_1st.txt</code></td><td><code>sha256 0f3d3c95…dfd3（10/20 版のまま）</code></td><td>—</td></tr><tr><td><code>storage/app/baganriki/prompts/r12_2/prompt_2nd.txt</code></td><td><code>sha256 90f40945…2d3d（10/20 版のまま）</code></td><td>—</td></tr>
+</table><p class=note>プロンプトの版：schema_version <code>baganriki-v041-r12-2</code>・prompt_version <code>baganriki-v041-r12-2-20261020</code>（BaganrikiPrompt::SCHEMA_VERSION／PROMPT_VERSION と照合）。</p></div>
+
+<h2>2. 今の .env（新方式に関係する行）</h2>
+<div class=card><pre>BAGANRIKI_R122_PROMPT=1
+BAGANRIKI_R122_QUEUE=1
+BAGANRIKI_R122_JOBS=0
+BAGANRIKI_R122_TARGETS=ALL
+BAGANRIKI_R122_BUDGET_USD_DAY=4
+BAGANRIKI_R122_1ST_MODEL=claude-haiku-5-5
+BAGANRIKI_R122_1ST_THINKING=disabled
+BAGANRIKI_R122_1ST_MAX_TOKENS=65536
+BAGANRIKI_R122_2ND_MAX_TOKENS=65536（2nd のモデルは既定の deepseek-flash）
+BAGANRIKI_R122_2ND_THINKING=disabled
+BAGANRIKI_R122_COMPACT_1ST=dict3
+BAGANRIKI_R122_COMPACT_2ND=1
+BAGANRIKI_R122_FIX_POLICY=never
+BAGANRIKI_R122_FIX_MAX_WAIT=170
+BAGANRIKI_SALES_CLOSE_DERIVE=1・BAGANRIKI_SALES_CLOSE_OFFSET_SEC=60
+BAGANRIKI_PAST_RUNS_MAX=5
+BAGANRIKI_R122_AUDIT=1・BAGANRIKI_R122_FAKE_AI=0・BAGANRIKI_R122_TARGETS_ENFORCE=0
+BAGANRIKI_PREDICTION_PUBLIC=1（11/2 追加。お客様の画面を新方式にするスイッチ）</pre></div>
+
+<h2>3. 10/30 版からの変更</h2>
+<div class=card style='overflow-x:auto'><table><tr><th>日</th><th>何を</th><th>中身</th><th>目印・場所</th></tr>
+<tr><td>11/2</td><td>今の画面の取得口から新方式の予想を返す</td><td>getHorseOddsFinderAiAnalysis・getHorseOddsFinderSecondAiOpinion・HistoryController::getHorseOddsFinderAiAnalysisByDate の先頭で、対象レースなら新方式の公開結果を今と同じ形（analysis_text・merged_horses）で返し、旧方式のAIは呼ばない。旧方式の補完（compensate）も対象レースは飛ばす。</td><td><code>@ANCHOR-20261102-PREDICTION-PUBLIC</code></td></tr><tr><td>11/2</td><td>凍結できなかったレースだけ旧方式へ切り替え</td><td>凍結時刻（発走330秒前）＋30秒たっても有効な凍結入力が無く、発走180秒前より前で、予算を押さえられたときだけ、1回だけ。audit kind=PREDICTION_FALLBACK_LEGACY。切り替えたレースは sendInitialAiRequest で新方式を送らない（FALLBACK_LEGACY）。</td><td><code>同上</code></td></tr><tr><td>11/2</td><td>TARGETS=ALL は予算が必要</td><td>ALL は1件と数えるため12レース上限が効かない。BAGANRIKI_R122_BUDGET_USD_DAY が無いと ALL_NEEDS_BUDGET で送らない。</td><td><code>@ANCHOR-20261102-PREDICTION-ALL-BUDGET</code></td></tr><tr><td>11/2</td><td>帳簿の合わせ直し（clericalFix）</td><td>BaganrikiResponse::extract の中で、検証の前に：observed_sum・observed_cap・score_status・total_score を scores から再計算、非適格馬の rank_basis=NOT_RANKED、public_candidates を {horse_no,band} から馬番配列へ・さらに「帯の先頭から枠数ぶん適格馬」で作り直し、public_candidate の印と nonselect_reason を付け直し、shortfalls・validation_issues を配列に。直した箇所は clerical_fixes に記録。BAGANRIKI_PREDICTION_CLERICAL_FIX=0 で止まる。</td><td><code>@ANCHOR-20261102-PREDICTION-CLERICAL</code></td></tr><tr><td>11/2</td><td>頭数の補充（表示のときだけ）</td><td>公開候補が枠（A/B/D）に足りなければ、同じ帯でAIの band_ranks 順→6分前人気順で補う（D←B、B←D、A←B→D）。score=0・理由に「補充」。公開締切までに公開できなかったレースも凍結出走馬から補充で出す。baganriki_publications は変えない。</td><td><code>@ANCHOR-20261102-PREDICTION-FILL</code></td></tr><tr><td>11/2</td><td>送り方を role ごとに選べる</td><td>compactUserForSend($user, $role) に変更（第2引数を追加）。BAGANRIKI_R122_COMPACT_1ST / _2ND（無ければ BAGANRIKI_R122_COMPACT）。値は 0／1（=table：SOURCE_TABLE_V1）／dict（SOURCE_DICT_V1）／dict2（V2）／dict3（V3）。指示文の末尾に、形に合った説明文を足す（1st：SOURCE_DICT_V3_ADDENDUM_V1、2nd：SOURCE_TABLE_V1_ADDENDUM_V2）。usage 記録の compact_addendum は実際に使った版名。</td><td><code>@ANCHOR-20261102-PREDICTION-DICT／DICT2／DICT3</code></td></tr><tr><td>11/2</td><td>SOURCE_DICT_V3（1st 用）</td><td>source_registry を「source_ref → 1件」の辞書で送る。項目名を短く（v,f,h,ah,p,s,o,a,c,d）、source_ref から一意に分かる値（field・horse_nos）を省き、項目ごとに一番多い dependency_key／observed_at／available_at を field_auto に置く。field_catalog の既定値も省く。詰めたあと必ず元へ戻して凍結入力と1バイトでも違えば詰めない。</td><td><code>BaganrikiPrompt::compactWireDict3 / expandWireDict3</code></td></tr><tr><td>11/2</td><td>選出理由の定型文</td><td>AIの explanation は使わない。凍結入力の値（6分前・21分前単勝、複勝、近走着順）と、検証済み応答の family_review が SUPPORTED の系統名だけで作る。</td><td><code>predictionReason</code></td></tr><tr><td>11/4</td><td>過去レースの表示</td><td>公開が無く締切を過ぎたレースは、旧方式の保存済みがあればそれを先に返す（10/24・10/25 など凍結だけ動いたレースが補充表示に変わらないように）。</td><td><code>@ANCHOR-20261104-PREDICTION-HISTORY</code></td></tr><tr><td>11/4</td><td>コメントの名前直し（動きは不変）</td><td>コメント内の「r12.2」→「新方式」、目印の <b>-R122- → -PREDICTION-</b>（AiController 421か所・補完 185か所）。コメント以外のトークンは全一致を確認済み。</td><td><code>例：@ANCHOR-20261020-R122-RESP → @ANCHOR-20261020-PREDICTION-RESP</code></td></tr><tr><td>11/2</td><td>オッズ取込の遅れ（10/31 凍結22/24失敗の原因）</td><td>ImportKeibaOdds：取得バッチの記録（block 11）を補完の起動より前へ。補完の起動を nohup で切り離す。crontab の importOdds に flock -o。</td><td><code>—</code></td></tr>
+</table></div>
+
+<h2>4. 1レースの流れ（11/7 から）</h2>
+<div class=card><ol>
+<li>発走330秒前ごろ：巡回（cron の --prediction-sweep、1st 用・2nd 用の2本）が入力を凍結する。</li>
+<li>1st（claude-haiku-5-5・考える機能なし・SOURCE_DICT_V3）と 2nd（deepseek-flash・考える機能なし・SOURCE_TABLE_V1）へ1回ずつ送る。直しの依頼（訂正）は送らない。</li>
+<li>返事を受けたら、帳簿の合わせ直し → 検証 → 採否確定 → 公開（今までの publishPrediction のまま）。</li>
+<li>お客様がレースを開くと、今の取得口から公開結果（足りなければ補充）を返す。公開前は「まだ」。</li>
+</ol>
+<p>11/2 の実AIの試験（写したレース・DBは元に戻した）：</p>
+<table><tr><th>レース</th><th>1st</th><th>2nd</th><th>公開</th></tr>
+<tr><td>10/31 東京12R（12頭）</td><td>62秒・入力6.9万トークン・約0.017ドル</td><td>85秒・約0.02ドル</td><td>5頭</td></tr>
+<tr><td>10/31 京都12R（18頭）</td><td>36秒・入力9.0万トークン・約0.013ドル</td><td>73秒・約0.02ドル</td><td>7頭</td></tr></table>
+<p class=note>分かったこと：1st は表の形（SOURCE_TABLE_V1）を読み切れず根拠を書かない回があった／考える機能を入れると両AIとも169秒で時間切れ／訂正は 1st が「自分の出力ではない」と断り、2nd は対象外の馬まで変えるので役に立たなかった／18頭では 1st が一部の馬の評価行を省くことがある（2nd と補充で埋まる）。詳しくは 11/2 の報告（2026-11-02.zip）。</p></div>
+
+<h2>5. W2 を当てるときのお願い</h2>
+<div class=card><ol>
+<li><b>今の版を元に差分を作ってください。</b>目印は <code>-R122-</code> から <code>-PREDICTION-</code> に変わっているので、10/30 版の目印を前後の行にした差分は当たりません。</li>
+<li><b>1st に表の形の説明文を組み込まないでください。</b>1st は SOURCE_DICT_V3 で送っていて、説明文はサーバが送るときに足します（COMPACT_DICT3_PROMPT_ADDENDUM）。プロンプト本体に SOURCE_TABLE_V1_ADDENDUM_V2 を組み込むと、1st には違う形の説明が届きます。2nd は表の形のままなので、2nd 側だけなら問題ありません（ただし二重に足さないよう、どちらで足すかを決めたい）。</li>
+<li><b>入力の量。</b>E3・E5 の値と根拠を各馬に足すと、1st の入力が料金の境目（10万トークン）を超えるかもしれません（今は18頭で約9万）。超えると 1st の単価が5倍になります。足す項目はできるだけ少なくしてください。</li>
+<li><b>時間。</b>応答の持ち時間は約3分（発走330秒前の凍結から、発走150秒前の応答期限まで）。今は 1st 36〜62秒、2nd 55〜85秒です。</li>
+<li><b>11/2 の報告の Q1〜Q7 に A か B で答えてください。</b>帳簿の合わせ直し・補充・訂正を止めたこと・送り方・2nd の考える機能・選出理由の文・旧方式への切り替えです。W2 の差分がこれらを元に戻す形になっていないか、先に揃えたいです。</li>
+<li><b>名前の変更の予定。</b>来週（11/9 の週）に、.env の項目名（BAGANRIKI_R122_… → BAGANRIKI_PREDICTION_…）・DBの記録の種類（R122_USAGE など）・ログの見出しも、古い名前でも動くようにしながら新しい名前へ直す予定です。W2 の組み込みと重なるなら、どちらを先にするか相談させてください。</li>
+</ol></div>
+</main></body></html>

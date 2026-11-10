@@ -1,0 +1,6 @@
+PASS R15.23 active/archive policy and system checksum coverage
+PASS R15.23 tested controller SHA-256 674a448861e3f3d2ab843b57108a84a6df4016491f786154e1c2edb2d37fb50a
+PASS corrected 1st, exact original/repair hashes, 12th favourite +5 and historical publication kept.
+PASS corrected 2nd, exact original/repair hashes, 12th favourite +5 and historical publication kept.
+PASS 2 R15.23 staged sender/repair/SQLite/GET flows; both roles V2, three calls each
+PASS 8 altered V2 encoding rejections and 2 original-request retries; zero wrong provider calls

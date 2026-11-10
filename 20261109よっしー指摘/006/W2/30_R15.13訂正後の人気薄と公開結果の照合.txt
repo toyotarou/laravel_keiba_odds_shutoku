@@ -1,0 +1,30 @@
+馬眼力　W2-R15.13　訂正後の人気薄と公開結果の照合
+2026年11月5日　エンジニア向け
+
+適用するもの
+送付一式は「馬眼力_W2-R15.13_エンジニア送付一式_20261105.zip」。W2/02の手順で、10月23日の提出原本（SHA-256 1e8f0fbfe732fd24639c6b1f40c40b384e5956accd969a5aea3ff838159ed7ae）にintegration/response_frame_w2.patch、integration/score_evidence_w2.patchの順で適用する。R15.12適用済みの場合は新旧の適用結果を比較して現行と統合する。R15.13適用後のAiController.phpは 3f8e42b2f9b5bf12a25b99805b5410c9365cc2dacc8d681092b154257a2a6544。同梱の標準試験に訂正後の公開までのケースを追加した。両AIのsystemはR15、validator_versionはw2-r15.5、期待値数はv0.1.4。ここでの修正はサーバーの訂正結果の引渡しに限定される。
+
+R15.12で起きたこと
+16頭立ての合成混戦で、1stだけが12番の好走根拠を持つ。初回は1・2・3・12番を公開する。1stが同じ有効な内容を訂正枠でも返すと、R15.12の通常の公開処理は1stを使えないと判定し、2・1・3番だけを保存した。別の例では12番の根拠の誤りを許可範囲内で修正しFIX_APPLIEDとなったのに、同様に12番が外れた。両AIに有効な訂正が届いた場合、両方が採否確定してもNO_RESPONSEで新規公開を作らなかった。公開済みの履歴は以前の馬番のまま画面に返る。
+
+原因と修正
+acceptedHorsesOfは訂正枠が受領済みならresolveCorrectionを呼ぶ。この戻り値にcompleteが無かった一方、W2の公開処理はok=trueかつcomplete=trueの役割だけを統合していた。R15.13は初回が受入検査を通ったとき、初回から取得した完了状態を訂正結果へ引き継ぐ。訂正そのもののcomplete、受領時刻、応答ハッシュ、訂正可能範囲、整合する行と順位は従来の検証を経る。正常な初回に、有効な訂正を適用した場合と、訂正が使えず初回の正常な行に戻した場合を分ける。
+
+受入時に確認する結果
+・FIX_APPLIEDでは、許可した修正を反映し、片側だけで根拠がある馬も枠の条件を満たせば公開する。FIX_PARTIALでは検証できた行を反映して順位を再計算する。証明のない一致加点は0。
+・FIX_REJECTED、FIX_NOT_USABLE、NO_FIX_NEEDEDでは初回で使える行から選ぶ。訂正が未完了・期限後・本文不一致なら、その訂正で不正な根拠を救済しない。初回自体を照合できない役割は使わない。両方で該当馬がいなければ確認済みの空配列を返し、不足枠を記録する。
+・訂正の予約中と、最新の回答について採否が確定する前はジョブが待つ。締切時の判定は従来どおり。公開計算中に訂正を受領した場合は古い計算を確定せず、現在版で計算し直す。以前の公開IDはその時点の馬番を保持する。
+・両AIが許可範囲内で同じ12番の根拠を直し、入替え前後の候補に12番が含まれ、両方の採用原文と順位が照合できる合成例では、12番に5点を加える。12番が正式取消になった後、現在の表示から除き、新しい計算では選出しない。根拠を持つ人気薄がいない枠と購入推奨は従来の扱いとする。
+
+再現用コマンド（W2から実行）
+  python3 validation/verify_release.py --php /path/to/php --submitted-php /path/to/original/AiController.php --stress-seed 301105
+  python3 validation/verify_r1513_corrected_publication.py /path/to/php /path/to/R15.13/AiController.php
+  python3 validation/verify_r1513_corrected_publication.py /path/to/php /path/to/R15.13/AiController.php --boundaries
+  python3 validation/verify_r1513_corrected_publication.py /path/to/php /path/to/R15.13/AiController.php --popularity
+  python3 validation/verify_r1513_corrected_publication.py /path/to/php /path/to/R15.12/AiController.php --observe-r1512
+  python3 validation/verify_r1513_corrected_publication.py /path/to/php /path/to/R15.13/AiController.php --upgrade-from /path/to/R15.12/AiController.php
+標準試験はPHPのpdo_sqliteとPythonのjsonschemaを使う。追加試験はPHPのpdo_sqliteとPython標準ライブラリを用いる。PHP 8.0.30と8.3.6での実行結果はvalidation/実行結果.txtに記載。試験に使う時刻・出馬表・AI返答は合成データ。受領、訂正検証、採否確定、公開、画面読取は提出PHPの実処理を呼ぶ。実データでの予測精度・回収率は別途計測する。
+
+公開前の非公開2レース
+1レースは両AIの通常完了とE3/E5の入替え、もう1レースは片側の訂正を含むケースを照合する。訂正や取消が自然に起きないときは、保存した発走前データの非公開再生で補う。馬番ではなく6分前人気も併記し、片側だけが評価した人気薄の採否と根拠を残す。
+初回・訂正ごとに実送信時のsystemとuserの全文・版・形式・時刻、受領原文とハッシュ、完了状態、訂正許可の範囲と採否、各役割の入替え前後の順位を確認する。適用した公開ID、実MySQLの保存順、APIとFlutterの表示順、取消後の有効馬番が一致することを確認する。公開駆動のQueueとW9の実送信証明・訂正履歴・commitの照合まで接続する。再読込時の追加の有料呼出しは0、購入推奨はfalse。結果を記録してからお客様向けの公開を判断する。

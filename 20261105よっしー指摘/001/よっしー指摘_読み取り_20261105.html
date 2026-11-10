@@ -1,0 +1,58 @@
+<!DOCTYPE html><html lang=ja><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>よっしー 11/5 の資料の読み取り</title><style>body{font-family:-apple-system,'Hiragino Sans',sans-serif;margin:0;background:#f6f6f4;color:#222;font-size:15px;line-height:1.75}
+main{max-width:720px;margin:0 auto;padding:12px}h1{font-size:20px;line-height:1.4}h2{font-size:17px;border-left:4px solid #2a6;padding-left:8px;margin-top:24px}
+.card{background:#fff;border-radius:10px;padding:12px 14px;margin:12px 0;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.ok{color:#176b2c;font-weight:bold}.ng{color:#b00;font-weight:bold}.note{font-size:13px;color:#555}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{border-bottom:1px solid #eee;padding:5px 4px;text-align:left;vertical-align:top}th{background:#fafafa}
+pre{white-space:pre-wrap;font-size:13px;background:#f3f3f3;padding:10px;border-radius:6px}</style></head><body><main>
+<h1>よっしー 11/5 の資料の読み取り<br><span style='font-size:14px;font-weight:normal'>「馬眼力 エンジニア送付版 W2-R15.17」</span></h1>
+<p class=note>2026-11-05（木）作成。読んだのは「00_最初にお読みください.txt」1枚だけです。</p>
+
+<div class=card><b>結論</b><ol>
+<li><span class=ok>今週末（11/7・11/8）には影響ありません。</span>サーバは、10/20 版のプロンプトで新しい予想を出す設定のまま動きます。何もしなくて大丈夫です。</li>
+<li>よっしーが言う「不具合」は、<b>よっしーが今作っている次の版（W2）のプロンプトの中の話</b>です。今サーバで動いている仕組みの不具合ではありません。</li>
+<li>届いたのは説明書きだけで、<b>本体（「馬眼力_W2-R15.17_エンジニア送付一式_20261105.zip」）はまだ届いていません</b>。よっしー本人も「確認したら不具合が有る」と言っているので、直った本体が届くまで待つのがよいです。</li>
+<li>W2 を組み込むのは大きな工事です。<span class=ng>11/7 の前には入れません。</span>本体が届いてから、来週以降に見積もります。</li>
+</ol></div>
+
+<h2>1. よっしーが W2 でやりたいこと（かみくだくと）</h2>
+<div class=card><ol>
+<li><b>E3・E5 という点数を足す。</b>「似た過去のレースで、同じ6分前人気の馬が3着以内（E3）・5着以内（E5）に入った傾向」を0〜100点にしたもの。以前なるさんが作った式を使う。</li>
+<li><b>人気帯ごとに「最後の1枠」を入れ替える。</b>候補の最後の馬と、そのすぐ次の馬を比べて、次の馬の方が E の点数が高ければ入れ替える。
+ <ul><li>人気上位（A帯：1〜6番人気）は E5 を先に見る。</li><li>人気薄（B帯：7〜10番人気、D帯：11番人気以下）は E3 を先に見る。</li><li>入れ替えは、各AI・各帯で1組まで。データが足りない（過去レースが100未満など）ときは入れ替えない。</li></ul></li>
+<li>両方のAI（1st・2nd）が、同じ E の点数を見て、それぞれ別々に選ぶ。そのあと今と同じように統合する。</li>
+<li>購入推奨は今と同じく「検証待ち」のまま。E が高いだけで買わせたりはしない。</li>
+<li>プロンプトの版が変わる：今の <code>baganriki-v041-r12-2-20261020</code> → <code>baganriki-v041-r12-2-w2-e35-r15-20261104</code>。</li>
+</ol>
+<p class=note>説明書きによると、R15.1〜R15.17 の17回分の直しは、ほとんどがサーバ側の扱い（正式取消、発走時刻の変更、公開IDの再実行、訂正の待ち方など）の細かい決まりです。</p></div>
+
+<h2>2. 今の仕組みに入れるとしたら、何が要るか</h2>
+<div class=card><table><tr><th>やること</th><th>大きさ</th></tr>
+<tr><td>プロンプト2本（1st・2nd）を差し替え、版の定数を1行直す</td><td>小</td></tr>
+<tr><td>E3・E5 をサーバで計算して、AIに渡す入力に足す（PHP実装 v0.1.4・式の試験56件が付くらしい）</td><td>大</td></tr>
+<tr><td>AIの返事の検査に、E での入れ替えが決まりどおりかの確認を足す</td><td>中</td></tr>
+<tr><td>差分2本（response_frame_w2.patch・score_evidence_w2.patch）を当てる</td><td>大</td></tr>
+<tr><td>取消・発走時刻変更・公開の再実行などの細かい決まり（R15.1〜R15.17）を、今の作りと照らし合わせる</td><td>大</td></tr>
+<tr><td>実AIで数レース確かめる（費用は今と同じくらい）</td><td>中</td></tr></table>
+<p>本体が届けば、1〜2週間くらいの作業になる見込みです（中身を見ないと確かなことは言えません）。</p></div>
+
+<h2>3. 気になる点（本体を受け取ったら最初に確かめること）</h2>
+<div class=card><ol>
+<li><b>よっしーの差分は、10/30 版の AiController を前提にしている可能性が高いです。</b>11/2 に足した仕組み（帳簿の合わせ直し、頭数の補充、1st 向けの送り方、直しの依頼を止める、今の画面の取得口から返す）とぶつかるかもしれません。11/2 の報告（Q1〜Q7）は、まだよっしー側で読まれていないと思われます。</li>
+<li><b>「圧縮時は SOURCE_TABLE_V1_ADDENDUM_V2 を組込み済み」と書いてあります。</b>これは表の形の説明文です。11/2 の試験で、1st（Claude）は表の形を読み切れず、名前で引ける形（SOURCE_DICT_V3）に変えて解決しました。プロンプト本体に表の形の説明が組み込まれていると、1st には合いません。1st は SOURCE_DICT_V3 の説明に置き換えて送る必要があります。</li>
+<li><b>入力が増えると費用が上がります。</b>E3・E5 の値と根拠が各馬に足されると、1st の入力が料金の境目（10万トークン）を超えるかもしれません。今は18頭のレースで約9万トークンで、余裕は少ないです。</li>
+<li><b>時間。</b>今は 1st 36〜62秒、2nd 55〜85秒で返っています。プロンプトが長くなると、持ち時間（約3分）に収まるか確かめ直しが要ります。</li>
+<li>説明書きの中にある「E を本番で実際に使う」と「購入推奨は別に判断する」の区切りは、今の作りと同じ考え方なので問題ありません。</li>
+</ol></div>
+
+<h2>4. この先の動き</h2>
+<div class=card><ol>
+<li>今週末は、今の設定のまま動かす（何もしない）。</li>
+<li>よっしーから、不具合を直した ZIP 本体が届いたら、同じように KEIBA の下に置いてもらう。</li>
+<li>届いたら、上の3を確かめて、組み込みの手順と日程をまとめる。</li>
+</ol>
+<p>よっしーに返すなら、次くらいで十分です（今すぐ送らなくても大丈夫です。よっしーのChatGPTが使えるようになってからでかまいません）。</p>
+<pre>説明書き、受け取りました。今週末は今の版（10/20 のプロンプト）で動かします。
+W2 は、不具合を直した ZIP 本体が届いたら、来週以降に組み込みを考えます。
+あわせて、11/2 に送った報告の Q1〜Q7 に A か B で返事をもらえると助かります。
+1点だけ先に：1st（Claude）は表の形の圧縮を読み切れなかったので、1st には別の形（SOURCE_DICT_V3）で送っています。W2 のプロンプトに表の形の説明が組み込まれているなら、1st の分は外してください。</pre></div>
+</main></body></html>

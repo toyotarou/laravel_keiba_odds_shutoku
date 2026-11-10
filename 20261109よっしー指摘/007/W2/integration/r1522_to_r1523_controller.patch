@@ -1,0 +1,16 @@
+--- a/AiController.php
++++ b/AiController.php
+@@ -22159,7 +22159,12 @@
+                     ->where('attempt_no',$slot)->lockForUpdate()->first();
+                 if ($attempt === null || $attempt->status !== BaganrikiWorker::SENT || !is_string($attempt->token ?? null)
+                     || $attempt->token === '') { return $refused; }
+-                $format = array_key_exists('source_table',$w2Input) ? 'SOURCE_TABLE_V1' : 'FULL';
++                $format = 'FULL';
++                if (array_key_exists('source_table',$w2Input)) {
++                    $table = $w2Input['source_table'];
++                    $format = is_array($table) ? ($table['encoding'] ?? null) : null;
++                    if (!in_array($format,['SOURCE_TABLE_V1','SOURCE_TABLE_V2'],true)) { return $refused; }
++                }
+                 $request = \App\Services\Baganriki\DispatchW2::requestHash($snap->race_id,$snap->snapshot_hash,$role,$slot,$format,$systemHash,$userHash);
+                 $binding = \App\Services\Baganriki\DispatchW2::sendBinding($snapshotId,$attempt->token,$raw,$request);
+                 if (($attempt->w2_send_proof ?? null) !== 'R' . $binding) { return $refused; }

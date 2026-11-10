@@ -1,3 +1,0 @@
-  jobs         0 行
-  job_batches  0 行
-  failed_jobs  0 行

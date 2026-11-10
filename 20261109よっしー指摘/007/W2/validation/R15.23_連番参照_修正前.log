@@ -1,0 +1,4 @@
+{"role":"1st","case":"named","stage":"send","format":"SOURCE_TABLE_V2","selection_enabled":true}
+{"role":"1st","case":"numeric","stage":"send","error":"W23_WIRE_EXACT_LOSS","cause":null}
+{"role":"2nd","case":"named","stage":"send","format":"SOURCE_TABLE_V2","selection_enabled":true}
+{"role":"2nd","case":"numeric","stage":"send","error":"W23_WIRE_EXACT_LOSS","cause":null}

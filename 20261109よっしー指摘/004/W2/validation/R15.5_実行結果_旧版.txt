@@ -1,0 +1,86 @@
+馬眼力 W2-R15.5　2026年11月4日　再精査の結果
+比較元のR15.4送付ZIPは135項目のSHA-256が一致。R15.4で同時処理・再開68判定、保存・再配信42判定をPHP 8.0.30と8.3.6で再実行し、両環境で合格した。
+追加の精査で、朝の時刻9:40で期限を計算できないことと、公式が発走済み（XXX）でも旧予定では期限前なら送信許可を出すことを両環境で再現した。後者の試験は送信許可で呼んだ試験用カウンターが1回、状態はSENT。外部AI呼び出しは0回。
+修正版はR15.5、サーバーの受入処理はw2-r15.5。プロンプト、スキーマ、E3/E5計算器はR15.4と同じ。提出原本に差分2本を適用したPHPのSHA-256は 1ffc4f551d6391813779339aba1ef58043036d1c3134260083fae243f3cc661f。
+新規の試験は、時刻・締切8,160組（24時間の各分、時の0埋めあり／省略、秒省略・00・17・59）、2つの16頭合成レースの公開・取消・送信・再読込各163判定、SQLiteから別PHPプロセスで実行する20判定。両PHP環境で合格。8,160は時計の表記と境界の組数で、実レース件数ではない。
+全32頭の各1頭取消で古い候補は新規保存を拒否し、正しい取消で再計算した候補は取消馬を含まず公開可能だった。全頭取消・発走済み・発走確認不能は新規公開できない。締切前倒し・発走状態変化・時計の前後1マイクロ秒を組み合わせた。不変の確定済み公開ID・受領は読戻せる。新規送信を許可したあと発走済みに変わった場合、別の有料呼出しは生じず、遅れた応答の新規採用は拒否した。
+R15.4の68判定と既存標準試験を両環境で再実行した。標準試験は標準シード20261101、過去8レース123頭の入力照合、数式56試験、ローカル2レースの保存・再読込42判定、以前の受領時刻・訂正条件1,732判定等を含む。PHP2環境で全標準ログが一致した。
+エンジニア環境のMySQL、Queue、外部有料AI、Flutterの画面・請求は非公開2レースでの実地受入が残る。実装と取得項目は22に記載。
+
+【今回の試験の実行ログ　PHP 8.0.30】
+PASS 8160 independently calculated race clock and deadline combinations; production context/freeze, official started/missing states and historical timing.
+PASS 163 publication, cancellation, dispatch and replay checks for SYNTH_R122_MIXED_N16 (16 horses).
+PASS 163 publication, cancellation, dispatch and replay checks for SYNTH_R9_OTHER_VENUE_N16 (16 horses).
+PASS 20 persistent SQLite/PHP gate and replay checks with status changes between operations; external AI calls 0.
+【今回の試験の実行ログ　PHP 8.3.6】
+PASS 8160 independently calculated race clock and deadline combinations; production context/freeze, official started/missing states and historical timing.
+PASS 163 publication, cancellation, dispatch and replay checks for SYNTH_R122_MIXED_N16 (16 horses).
+PASS 163 publication, cancellation, dispatch and replay checks for SYNTH_R9_OTHER_VENUE_N16 (16 horses).
+PASS 20 persistent SQLite/PHP gate and replay checks with status changes between operations; external AI calls 0.
+【従来68判定　PHP 8.0.30 / 8.3.6】
+PASS 48 worker checks, 2 roles, 3 fixture races, 6 distinct provider authorizations, 4 distinct successful receipts, fresh processes per action, local SQLite; external AI calls 0
+simultaneous deadline sweeps: newly recovered per worker [['1st#0'], []] DB event count 1 revision delta 1 mock calls 1
+PASS 68 worker checks overall across seven simulated races, including concurrent deadline recovery
+PASS 48 worker checks, 2 roles, 3 fixture races, 6 distinct provider authorizations, 4 distinct successful receipts, fresh processes per action, local SQLite; external AI calls 0
+simultaneous deadline sweeps: newly recovered per worker [['1st#0'], []] DB event count 1 revision delta 1 mock calls 1
+PASS 68 worker checks overall across seven simulated races, including concurrent deadline recovery
+
+【標準試験　両PHP共通ログ】
+PASS PHP vs independent FRACTION oracle: 1458 tri-state cases, 576 market books across N=1..18 (seed=20261101), and 8 archived races / 123 actual runners
+PASS previous W1 fixtures: 8 races / 123 runners / 75 old ineligible outsiders / 11 reached top 3; no W2 performance inference
+PASS original formula PHP tests: 56
+PASS 256 independent E3/E5 formula cohorts, including calibration and sparse samples (seed=20261101)
+PASS r12.1 Python/PHP parity: 892 derived values, 518 family/root sets, 960 source-lineage lookups (seed 20261101).
+PASS R6 independent full-packet replay: 10 target races / 98 horses, 63 excluded history rows; 21/6-minute horse IDs, capped neighbours, dead heats, E3/E5 and calibration (seed 20261101).
+PASS R7 independent historical corrections: 36 timelines / 384 horses, including reversed rows, diagnostics, exact selected neighbours, M/K and E3/E5 (seed 20261101).
+PASS archived 21/6-minute odds joined for 123 actual runners in 8 races, 38 changed formula rank; controlled test history only.
+R1 regression checks: 70
+R2 regression checks: 39
+R3 regression checks: 29
+R6 regression checks: 16
+R7 regression checks: 56
+R8 regression checks: 41
+R9 regression checks: 19
+W2 tests passed: 325 (synthetic history; no live AI).
+PASS R8 independent market proof: fixture plus 48 unique six-slot books with missing, null, precise prices and reordered references (seed 20261101).
+PASS JSON Schema Draft 2020-12: 4 full role documents and 40 rejecting cases
+PASS 1st archived SOURCE_TABLE_V1; 304 refs, 304 index keys, 7 coverage groups, 16 expected rows and common hash.
+PASS 2nd archived SOURCE_TABLE_V1; 304 refs, 304 index keys, 7 coverage groups, 16 expected rows and common hash.
+PASS PHP validator agrees with the independent Draft 2020-12 validator on 201 complete/altered JSON documents
+PASS R11 schema identities: 96 real registry checks in both registration orders, 15 stale/missing/mixed release guards and 24 PHP/Python document checks; input/output/recovery and both roles; no deployed registry execution.
+PASS 1st archive strict JSON, transmitted compact bytes, restored input/hash and reply selection.
+PASS 2nd archive strict JSON, transmitted compact bytes, restored input/hash and reply selection.
+PASS 945 cancellation capacity/mode combinations against the submitted Laravel ranking class.
+PASS 36 R2 stored-byte, raw-response proof and transport checks using the submitted backend.
+PASS 96 divergent two-role selections against submitted ranking/fill code; 28 with cross-band fill.
+PASS R3 replays 14 full reference role pairs and rejects 32 independently supplied r12.2 negatives after protocol upgrade.
+PASS 35 R3 exact evidence, publication replay and read-DTO checks; no external AI or live DB.
+PASS 55 R4 derived provenance, recovery lineage, isolated role, receipt sequencing and live deadline checks.
+PASS 36 R5 scoped correction, intact first response, per-horse totals and auditable rank recovery checks.
+PASS 142 R5 cancellations including every one- and two-horse withdrawal; exact ordered candidates match submitted PHP.
+PASS 48 R5 correction permission combinations against the original submitted Laravel acceptance method.
+PASS 77 R6 calculator-to-role proof, exact value, partial receipt and correction checks.
+PASS 78 R7 saved odds provenance, scoped index, full transport and incomplete rank recovery checks.
+PASS 4410 R7 mode, eligibility and withdrawal combinations; 1701 cross-band fills and 1559 remaining shortfalls match the submitted ranking in exact display order.
+PASS 184 R8 market commitments, temporal equivalence, personal signal ownership, DB flags and publication guard checks.
+PASS 14656 R8 independent read pairs for 1- and 2-horse withdrawals; 14520 stale equal-size rosters rejected, 136 matched rosters verified in exact order.
+PASS 138 R9 dispatch, correction-budget, swallowed-wire-field and authoritative journal checks.
+PASS 2401 R9 pairs of authoritative and worker journal reads; 2352 stale pairs rejected, 40 aligned selections and 9 aligned no-role cases.
+PASS 58 R10 original-response, exact marked text, scoped correction, recovery and two-role publication checks.
+PASS 172 R12 score-material, return-source, scope, Unicode, original/correction/recovery checks across both roles.
+PASS 112 R13 evidence families, shared missing values, ordinal finishes, correction boundaries and recovery checks across both roles.
+PASS 342 R14 negative review, bounded past statistics, forecast horizons, correction and isolated-role checks across both roles.
+PASS R9 independent exact-byte dispatch: 4 initial role/format pairs and 32 correction bodies with inclusive or one-byte-short budgets (seed 20261101).
+PASS R10 independent boundary corpus: 329 cases; 140 exact typed JSON payloads kept, 189 malformed frames/JSON rejected (seed 20261101).
+PASS R10 three-site ingress patch: exact application to pinned controller, full PHP syntax and 108 saved-version routing checks; no deployed Laravel execution.
+PASS patched submitted controller SHA-256 1ffc4f551d6391813779339aba1ef58043036d1c3134260083fae243f3cc661f
+PASS R12 both patches on the pinned submitted controller, complete PHP syntax and 12 actual diagnosis/routing/local salvage checks across both roles.
+PASS 12 R13 actual submitted-controller diagnosis, horse/score repair scopes, retained points and historical R12 routing checks across both roles.
+PASS 44 R14 actual submitted-controller framing, envelope, isolation, whole-response ranking, candidate/repair scope and exact inspection checks across both roles.
+PASS 908 R15 actual submitted inspect/resolve, typed raw input, bounded grants, original-to-correction and two-role adoption checks (local rows and deadline).
+PASS 306 R15.1 compound faults, correction status, eligible rankings, independent role, source hashes and validator history.
+PASS 142 R15.2 rank permission, ordered public candidates, score fallback, receipt replay and recovered roles.
+PASS 200 R15.3 receipt window, exact completion, normal entry and legacy input checks.
+PASS 1532 R15.3 two-role corrections, withdrawals, shortened deadlines and commit checks.
+PASS 42 local SQLite/PHP storage and replay checks using two DB connections, two distinct races, saved dispatches, both role journals and the PHP commit guard; no deployed MySQL, external AI call or Flutter client.
+PASS W2 release checks

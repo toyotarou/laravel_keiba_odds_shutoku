@@ -1,0 +1,12 @@
+R10の内部IDと、R9との登録順による参照先の変化（ローカル再現）
+対象R10送付ZIP SHA-256: 207e2899efdede5073146991c6aca2376b06e9f2eb9a4e63fcaeac87ce5bb365
+実際のR9・R10スキーマをreferencing.Registryへ登録し、$refで各properties/prompt_versionを検証した。同じ$idへ後から登録した版だけが通る。稼働環境の障害報告ではない。
+
+input R9_then_R10: R9=False, R10=True, id=urn:baganriki:r12-2-w2-e35-r7:input
+input R10_then_R9: R9=True, R10=False, id=urn:baganriki:r12-2-w2-e35-r7:input
+output R9_then_R10: R9=False, R10=True, id=urn:baganriki:r12-2-w2-e35-r7:output
+output R10_then_R9: R9=True, R10=False, id=urn:baganriki:r12-2-w2-e35-r7:output
+recovery R9_then_R10: R9=False, R10=True, id=urn:baganriki:r12-2-w2-e35-r7:recovery
+recovery R10_then_R9: R9=True, R10=False, id=urn:baganriki:r12-2-w2-e35-r7:recovery
+
+修正後はverify_r11_schema_identity.pyで、IDを分離したR10・R11の全文を両順で登録して検査する。R10の原スキーマはschema_identity_reference_R10.zipに保存。本文版の混在も拒否。

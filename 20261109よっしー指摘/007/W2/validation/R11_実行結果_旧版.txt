@@ -1,0 +1,386 @@
+馬眼力 W2-R11　2026年11月1日／検査記録
+PHP CLI 8.0.30・8.3.6（mbstring有効）の全標準検査で同じ結果を確認。R11で追加したスキーマIDの登録順96件、版整合15件、PHP／Pythonの判定24件も合格。過去版とのレジストリ併用をローカルで再現した検査であり、実運用のレジストリで発生した障害とは主張しない。
+元の方程式とパラメーター、人気帯配分、順位、訂正・回復の計算ロジックはR10と同一。PHP・プロンプト本文の差分は配布版の識別だけ。スキーマは$idと本文版の差分だけであることも照合。
+実装済みのMySQL／Queue、実AI送信と実費、Flutter表示の実行試験ではない。保存試験は独立した2レース・2接続のローカルSQLiteと別PHPプロセスによる。複勝回収率は未測定。
+
+PASS PHP vs independent FRACTION oracle: 1458 tri-state cases, 576 market books across N=1..18 (seed=20261101), and 8 archived races / 123 actual runners
+PASS previous W1 fixtures: 8 races / 123 runners / 75 old ineligible outsiders / 11 reached top 3; no W2 performance inference
+PASS original formula PHP tests: 56
+PASS 256 independent E3/E5 formula cohorts, including calibration and sparse samples (seed=20261101)
+PASS r12.1 Python/PHP parity: 892 derived values, 518 family/root sets, 960 source-lineage lookups (seed 20261101).
+PASS R6 independent full-packet replay: 10 target races / 98 horses, 63 excluded history rows; 21/6-minute horse IDs, capped neighbours, dead heats, E3/E5 and calibration (seed 20261101).
+PASS R7 independent historical corrections: 36 timelines / 384 horses, including reversed rows, diagnostics, exact selected neighbours, M/K and E3/E5 (seed 20261101).
+PASS archived 21/6-minute odds joined for 123 actual runners in 8 races, 38 changed formula rank; controlled test history only.
+R1 regression checks: 70
+R2 regression checks: 39
+R3 regression checks: 29
+R6 regression checks: 16
+R7 regression checks: 56
+R8 regression checks: 41
+R9 regression checks: 19
+W2 tests passed: 325 (synthetic history; no live AI).
+PASS R8 independent market proof: fixture plus 48 unique six-slot books with missing, null, precise prices and reordered references (seed 20261101).
+PASS JSON Schema Draft 2020-12: 4 full role documents and 32 rejecting cases
+PASS 1st archived SOURCE_TABLE_V1; 304 refs, 304 index keys, 7 coverage groups, 16 expected rows and common hash.
+PASS 2nd archived SOURCE_TABLE_V1; 304 refs, 304 index keys, 7 coverage groups, 16 expected rows and common hash.
+PASS PHP validator agrees with the independent Draft 2020-12 validator on 201 complete/altered JSON documents
+PASS R11 schema identities: 96 real registry checks in both registration orders, 15 stale/missing/mixed release guards and 24 PHP/Python document checks; input/output/recovery and both roles; no deployed registry execution.
+PASS 1st archive strict JSON, transmitted compact bytes, restored input/hash and reply selection.
+PASS 2nd archive strict JSON, transmitted compact bytes, restored input/hash and reply selection.
+PASS 945 cancellation capacity/mode combinations against the submitted Laravel ranking class.
+PASS 36 R2 stored-byte, raw-response proof and transport checks using the submitted backend.
+PASS 96 divergent two-role selections against submitted ranking/fill code; 28 with cross-band fill.
+PASS R3 replays 14 full reference role pairs and rejects 32 independently supplied r12.2 negatives after protocol upgrade.
+PASS 35 R3 exact evidence, publication replay and read-DTO checks; no external AI or live DB.
+PASS 55 R4 derived provenance, recovery lineage, isolated role, receipt sequencing and live deadline checks.
+PASS 36 R5 scoped correction, intact first response, per-horse totals and auditable rank recovery checks.
+PASS 142 R5 cancellations including every one- and two-horse withdrawal; exact ordered candidates match submitted PHP.
+PASS 48 R5 correction permission combinations against the original submitted Laravel acceptance method.
+PASS 76 R6 calculator-to-role proof, exact value, partial receipt and correction checks.
+PASS 78 R7 saved odds provenance, scoped index, full transport and incomplete rank recovery checks.
+PASS 4410 R7 mode, eligibility and withdrawal combinations; 1701 cross-band fills and 1559 remaining shortfalls match the submitted ranking in exact display order.
+PASS 184 R8 market commitments, temporal equivalence, personal signal ownership, DB flags and publication guard checks.
+PASS 14656 R8 independent read pairs for 1- and 2-horse withdrawals; 14520 stale equal-size rosters rejected, 136 matched rosters verified in exact order.
+PASS 138 R9 dispatch, correction-budget, swallowed-wire-field and authoritative journal checks.
+PASS 2401 R9 pairs of authoritative and worker journal reads; 2352 stale pairs rejected, 40 aligned selections and 9 aligned no-role cases.
+PASS 58 R10 original-response, exact marked text, scoped correction, recovery and two-role publication checks.
+PASS R9 independent exact-byte dispatch: 4 initial role/format pairs and 32 correction bodies with inclusive or one-byte-short budgets (seed 20261101).
+PASS R10 independent boundary corpus: 329 cases; 140 exact typed JSON payloads kept, 189 malformed frames/JSON rejected (seed 20261101).
+PASS R10 three-site ingress patch: exact application to pinned controller, full PHP syntax and 48 saved-version routing checks; no deployed Laravel execution.
+PASS 42 local SQLite/PHP storage and replay checks using two DB connections, two distinct races, saved dispatches, both role journals and the PHP commit guard; no deployed MySQL, external AI call or Flutter client.
+PASS W2 release checks
+
+合成325件の内訳
+PASS all 16 synthetic horses scored from 120 earlier results
+PASS B cutoff has positive local 3rd-place support
+PASS both independent cutoff comparisons have support
+PASS missing historical class still forms baseline
+PASS verified empty baseline is not 0.5
+PASS unavailable archive distinct from empty archive
+PASS small cohort is not ready
+PASS 6-minute deadline +1s removes scores, preserves all runners
+PASS 6-minute deadline equality accepted
+PASS one missing 21m value stays local
+PASS one missing 6m quote never shrinks N
+PASS duplicate target horse id rejected
+PASS jump racing out of scope
+PASS 21-minute deadline +1s
+PASS duplicate historical race excluded once per duplicate copy
+PASS historical cutoff, 730d equality, scratch/unknown, DNF/DQ/ties and JRA
+PASS equal odds sorted by horse number, independent of row order
+PASS exact odds binding and decimal ties
+PASS 21-minute quotes join by horse ID rather than position
+PASS target outcome injection rejected
+PASS wrong race rejected by bridge
+PASS same-race wrong odds rejected
+PASS pre-existing common synthetic calibrator
+PASS future calibration rejected
+PASS 1st E3 and E5 cause real B/D membership changes
+PASS 1st boundary changes only eligible neighbours
+PASS 1st missing E reproduces base exactly
+PASS 2nd E3 and E5 cause real B/D membership changes
+PASS 2nd boundary changes only eligible neighbours
+PASS 2nd missing E reproduces base exactly
+PASS shared immutable common hash
+PASS A membership changes through E5 with E3 noninferior
+PASS different verified Tier not displaced
+PASS E3 alone cannot displace a runner with stronger E5
+PASS comparison uses unrounded values even when the display ties
+PASS primary E equality holds order
+PASS challenger must exceed own rank baseline strictly
+PASS no leapfrogging a missing next horse
+PASS wrong history cutoff rejected
+PASS unresolved selection returns no candidates
+PASS zero quota cannot receive E swap
+PASS duplicate/missing E row rejected
+PASS false READY rejected
+PASS rounded display cannot replace raw E
+PASS prompt-only mention with old candidate list rejected
+PASS misreported reason rejected
+PASS misordered final D rejected
+PASS cross-race score cannot enter replay
+PASS E-aware selections survive the two-role merge
+PASS common E-only swaps do not create a second bonus
+PASS late cancellation 16 to 15: six slots, frozen E ranks
+PASS cross-snapshot merge rejected
+PASS wire wrapper roundtrip including E, input_indices and coverage
+PASS reference loss rejected
+PASS lost E packet rejected
+PASS R1 active 16: expected structural quota, no cancelled runner
+PASS R1 active 15: expected structural quota, no cancelled runner
+PASS R1 active 14: expected structural quota, no cancelled runner
+PASS R1 active 13: expected structural quota, no cancelled runner
+PASS R1 active 9: expected structural quota, no cancelled runner
+PASS R1 active 8: expected structural quota, no cancelled runner
+PASS R1 active 6: expected structural quota, no cancelled runner
+PASS R1 active 3: expected structural quota, no cancelled runner
+PASS R1 active 1: expected structural quota, no cancelled runner
+PASS R1 rejects stale quota after crossing to 15 runners
+PASS R1 rejects stale quota after crossing to 13 runners
+PASS R1 rejects stale quota after crossing to 8 runners
+PASS R1 rejects 16 requested candidates with C7
+PASS R1 rejects wrong split even when total is seven
+PASS R1 rejects null quota on an active enabled race
+PASS R1 rejects stale quota with all runners cancelled
+PASS R1 all cancelled yields zero public candidates
+PASS R1 three remaining original D runners stay in D
+PASS R1 object-key order and active list order do not change result
+PASS R1 canonical DB string horse numbers retain selections
+PASS R1 ambiguous or unknown active horse "01"
+PASS R1 ambiguous or unknown active horse "1.0"
+PASS R1 ambiguous or unknown active horse "+1"
+PASS R1 ambiguous or unknown active horse true
+PASS R1 ambiguous or unknown active horse 19
+PASS R1 duplicates across DB integer and string formats
+PASS R1 cancelled group data not required
+PASS R1 missing active evidence group rejected
+PASS R1 single verified role has no consensus bonus
+PASS R1 repeated rank rejected at merge
+PASS R1 old release role refused at merger
+PASS R1 duplicate baseline cannot inflate agreement
+PASS R1 E-only candidates cannot be recorded as original agreement
+PASS R1 mismatched original boundary evidence refused
+PASS R1 second role cannot take seven frozen slots
+PASS R1 frozen role quota must match allocation
+PASS R1 inconsistent tendency echo rejected
+PASS R1 rejects changed target_count
+PASS R1 rejects changed role_cap
+PASS R1 rejects changed mode_status
+PASS R1 rejects changed mode_policy_id
+PASS R1 rejects changed quota
+PASS R1 rejects changed learning_stage
+PASS R1 quota object order is irrelevant
+PASS R1 invented shortfall rejected
+PASS R1 true D shortfall leaves one slot unselected within the role
+PASS R1 bad or missing shortfall 0 rejected
+PASS R1 bad or missing shortfall 1 rejected
+PASS R1 bad or missing shortfall 2 rejected
+PASS R1 bad or missing shortfall 3 rejected
+PASS R1 bad or missing shortfall 4 rejected
+PASS R1 rejects factually wrong nonselection code
+PASS R1 EVIDENCE mode requires consistent primary and backup rank
+PASS R1 unresolved input retains full role output with no public picks
+PASS R1 disabled role cannot declare shortfalls
+PASS R1 legitimate provisional mode still selects
+PASS R1 unresolved mode cannot enable selection
+PASS R1 duplicate frozen popularity rank rejected
+PASS R1 known scratch conflict isolated, order 0
+PASS R1 known scratch conflict isolated, order 1
+PASS R1 known unknown conflict isolated, order 0
+PASS R1 known unknown conflict isolated, order 1
+PASS R1 known surface conflict isolated, order 0
+PASS R1 known surface conflict isolated, order 1
+PASS R1 correction visible at JST midnight cannot affect earlier cutoff
+PASS R1 correction one microsecond before midnight counts as conflicting
+PASS R1 one microsecond after final odds deadline rejects late quotes
+PASS R1 malformed UTC offset rejected
+PASS R1 adopted batch must contain a quote list
+PASS R1 keyed object cannot stand in for an adopted JSON array
+R1 regression checks: 70
+PASS R2 unchanged hash with swapped same-race E history refused [W2_SNAPSHOT_HASH]
+PASS R2 response path independently verifies its common input [W2_SNAPSHOT_HASH]
+PASS R2 merge independently verifies its common input [W2_SNAPSHOT_HASH]
+PASS R2 real missing E snapshot receives a different ID and keeps base ranks
+PASS R2 roles from the old version of this same race cannot enter a new merge [W2_MERGE_SOURCE]
+PASS R2 changed source references refused [W2_SNAPSHOT_HASH]
+PASS R2 hash protocol version pinned [W2_SNAPSHOT_HASH]
+PASS R2 impossible n_eff 999 rejected even in newly sealed data [W2_EFFECTIVE_SAMPLE_SIZE]
+PASS R2 impossible n_eff 0 rejected even in newly sealed data [W2_EFFECTIVE_SAMPLE_SIZE]
+PASS R2 impossible n_eff 0.99 rejected even in newly sealed data [W2_EFFECTIVE_SAMPLE_SIZE]
+PASS R2 same race cannot have two baseline sample counts [W2_POOL_SIZE]
+PASS R2 n_eff must also support the published total weight [W2_EFFECTIVE_SAMPLE_SIZE]
+PASS R2 allows floating-point rounding at the mathematical sample cap
+PASS R2 real single-horse 21-minute gap isolates the affected boundary
+PASS R2 SCORE total, V subtotal and horse-number ties follow the prompt
+PASS R2 incorrect SCORE ordering 0 rejected before E can promote any runner [W2_BASE_SCORE_ORDER_A]
+PASS R2 incorrect SCORE ordering 1 rejected before E can promote any runner [W2_BASE_SCORE_ORDER_A]
+PASS R2 incorrect SCORE ordering 2 rejected before E can promote any runner [W2_BASE_SCORE_ORDER_A]
+PASS R2 complete band cannot choose EVIDENCE [W2_BAND_RANK_BASIS_A]
+PASS R2 inconsistent score summary observed_cap [W2_SCORE_TOTAL]
+PASS R2 inconsistent score summary observed_sum [W2_SCORE_TOTAL]
+PASS R2 inconsistent score summary total_score [W2_SCORE_TOTAL]
+PASS R2 inconsistent score summary score_status [W2_SCORE_TOTAL]
+PASS R2 component above cap rejected [W2_SCORE_COMPONENT]
+PASS R2 one missing component switches the band to evidence with no score sort
+PASS R2 agreement carries both stored source hashes
+PASS R2 horse-major proof honors only the documented horse
+PASS R2 missing, stale or conflicting per-horse proof 0 gives no bonus
+PASS R2 missing, stale or conflicting per-horse proof 1 gives no bonus
+PASS R2 missing, stale or conflicting per-horse proof 2 gives no bonus
+PASS R2 missing, stale or conflicting per-horse proof 3 gives no bonus
+PASS R2 missing, stale or conflicting per-horse proof 4 gives no bonus
+PASS R2 a reconstructed role does not inherit original-reply proof
+PASS R2 two E-only promotions cannot create a consensus vote
+PASS R2 two failed roles do not produce a valid empty publication [W2_NO_VERIFIED_ROLE]
+PASS R2 enabled race without replies is distinct from an unresolved race
+PASS R2 divergent roles choose the specified seven by best rank, proof, evidence groups and horse number
+PASS R2 role completion order changes neither public order nor proof audit
+PASS R2 opposing roles plus late cancellation uses frozen ranks and six active slots
+R2 regression checks: 39
+PASS R3 corrupted S_min [W3_MARKET_STATE_S_min]
+PASS R3 corrupted S_max [W3_MARKET_STATE_S_max]
+PASS R3 corrupted S [W3_MARKET_STATE_S]
+PASS R3 corrupted display_rating [W3_MARKET_STATE_display_rating]
+PASS R3 corrupted mode [W3_MARKET_STATE_mode]
+PASS R3 MIXED market cannot borrow FIRM quota [W3_MARKET_STATE_mode]
+PASS R3 corrupted learning_stage [W3_LEARNING_STAGE]
+PASS R3 corrupted model_version [W3_LEARNING_STAGE]
+PASS R3 unlearned X6 cannot be enabled [W3_MARKET_SIGNALS]
+PASS R3 corrupted base_quota [W3_BASE_QUOTA]
+PASS R3 corrupted quota_adjustments [W3_STRUCTURAL_MOVES]
+PASS R3 wrong runner in saved win odds index [W3_ODDS_SOURCE]
+PASS R3 discarded live source cannot disguise a known quote as missing [W3_ODDS_SOURCE]
+PASS R3 one horse cannot borrow another slot commit time [W3_ODDS_TIME]
+PASS R3 late last batch denied before the AI send [W3_BATCH_TIME]
+PASS R3 cannot shift AI deadline to the publication deadline [W3_TIME_CONTRACT]
+PASS R3 all formula ranks checked against true odds and horse numbers [W3_FORMULA_RANK_BINDING]
+PASS R3 cannot label a raw packet with a calibrator [W3_COMMON_CALIBRATION]
+PASS R3 future or unrelated DB columns cannot alter a pre-race fingerprint
+PASS R3 SQL order cannot change E packet identity
+PASS R3 same official labels and quotes produce same history fingerprint
+PASS R3 genuinely different admitted exact odds change the fingerprint
+PASS R3 UTC/JST forms of the same committed instants agree
+PASS R3 leading decimal zeros do not consume significant digit budget
+PASS R3 exponent protocol matches normalized magnitude
+PASS R3 exact market remains rankable when E lacks a finite calculation input
+PASS R3 one extreme early input is local to that horse
+PASS R3 future provider revision cannot be visible before receipt [W3_PROVIDER_FUTURE]
+PASS R3 unfilled hole quotas stay visible and cannot be backfilled by A
+R3 regression checks: 29
+PASS R6 official distinct places
+PASS R6 two and three way dead heats and nonfinishers
+PASS R6 joint first then third place
+PASS R6 competition ranking has no arbitrary cap on a dead heat
+PASS R6 one classified finisher
+PASS R6 contradictory third place after a second-place dead heat excluded
+PASS R6 contradictory second place after joint first excluded
+PASS R6 winner missing from official result held
+PASS R6 unexplained official position gap held
+PASS R6 all unclassified do not contribute sixteen losses
+PASS R6 unresolved outcome still excluded
+PASS R6 calculator emits separate exact original
+PASS R6 internal proof stays out of the AI request
+PASS R6 database row order cannot detach the proof from its horse
+PASS R6 typed roster rejection before array_column [ROSTER_BINDING]
+PASS R6 low PHP precision cannot certify rounded calculator results [W6_E_ENCODE_PRECISION]
+R6 regression checks: 16
+PASS R7 published correction cannot disappear before duplicate check post_at
+PASS R7 published correction cannot disappear before duplicate check post_at
+PASS R7 published correction cannot disappear before duplicate check post_at
+PASS R7 published correction cannot disappear before duplicate check post_at
+PASS R7 published correction cannot disappear before duplicate check jurisdiction
+PASS R7 published correction cannot disappear before duplicate check jurisdiction
+PASS R7 published correction cannot disappear before duplicate check race_type
+PASS R7 published correction cannot disappear before duplicate check post_freeze_scratch
+PASS R7 published correction cannot disappear before duplicate check N
+PASS R7 published correction cannot disappear before duplicate check results
+PASS R7 a version not demonstrably visible by midnight cannot displace known history
+PASS R7 a version not demonstrably visible by midnight cannot displace known history
+PASS R7 a version not demonstrably visible by midnight cannot displace known history
+PASS R7 a version not demonstrably visible by midnight cannot displace known history
+PASS R7 conflicting revision just before cutoff quarantines both
+PASS R7 no occurrence of an ambiguous early quote can win by row order
+PASS R7 unaffected horse keeps identified early quote 1
+PASS R7 unaffected horse keeps identified early quote 2
+PASS R7 unaffected horse keeps identified early quote 3
+PASS R7 unaffected horse keeps identified early quote 4
+PASS R7 unaffected horse keeps identified early quote 5
+PASS R7 unaffected horse keeps identified early quote 6
+PASS R7 unaffected horse keeps identified early quote 7
+PASS R7 unaffected horse keeps identified early quote 8
+PASS R7 unaffected horse keeps identified early quote 9
+PASS R7 unaffected horse keeps identified early quote 10
+PASS R7 unaffected horse keeps identified early quote 11
+PASS R7 unaffected horse keeps identified early quote 12
+PASS R7 unaffected horse keeps identified early quote 13
+PASS R7 unaffected horse keeps identified early quote 14
+PASS R7 unaffected horse keeps identified early quote 15
+PASS R7 unaffected horse keeps identified early quote 16
+PASS R7 no occurrence of an ambiguous early quote can win by row order
+PASS R7 unaffected horse keeps identified early quote 1
+PASS R7 unaffected horse keeps identified early quote 2
+PASS R7 unaffected horse keeps identified early quote 3
+PASS R7 unaffected horse keeps identified early quote 4
+PASS R7 unaffected horse keeps identified early quote 5
+PASS R7 unaffected horse keeps identified early quote 6
+PASS R7 unaffected horse keeps identified early quote 7
+PASS R7 unaffected horse keeps identified early quote 8
+PASS R7 unaffected horse keeps identified early quote 9
+PASS R7 unaffected horse keeps identified early quote 10
+PASS R7 unaffected horse keeps identified early quote 11
+PASS R7 unaffected horse keeps identified early quote 12
+PASS R7 unaffected horse keeps identified early quote 13
+PASS R7 unaffected horse keeps identified early quote 14
+PASS R7 unaffected horse keeps identified early quote 15
+PASS R7 unaffected horse keeps identified early quote 16
+PASS R7 unknown extra owner holds entire early batch, audited once
+PASS R7 ambiguous 6-minute odds cannot enter the baseline
+PASS R7 current input still requires the official adopted batch [QUOTE_OWNER]
+PASS R7 late early batch stays out, fully classified baseline stays in
+PASS R7 calculator and frozen inputs independently commit the same actual market outside AI wire
+PASS R7 visible conflict can correctly disable comparison at the 100-race boundary
+PASS R7 a midnight revision cannot retroactively remove competition readiness
+R7 regression checks: 56
+PASS R8 attach seals six acquisition slots outside AI input
+PASS R8 adopted market identity changes 21 payload_hash
+PASS R8 adopted market identity changes 21 source_updated_at
+PASS R8 adopted market identity changes 21 batch_id
+PASS R8 each place maximum contributes 21
+PASS R8 distinguish missing source, observed null and actual price 21
+PASS R8 market identity neutral to equivalent timezone 21
+PASS R8 adopted market identity changes 18 payload_hash
+PASS R8 adopted market identity changes 18 source_updated_at
+PASS R8 adopted market identity changes 18 batch_id
+PASS R8 each place maximum contributes 18
+PASS R8 distinguish missing source, observed null and actual price 18
+PASS R8 market identity neutral to equivalent timezone 18
+PASS R8 adopted market identity changes 15 payload_hash
+PASS R8 adopted market identity changes 15 source_updated_at
+PASS R8 adopted market identity changes 15 batch_id
+PASS R8 each place maximum contributes 15
+PASS R8 distinguish missing source, observed null and actual price 15
+PASS R8 market identity neutral to equivalent timezone 15
+PASS R8 adopted market identity changes 12 payload_hash
+PASS R8 adopted market identity changes 12 source_updated_at
+PASS R8 adopted market identity changes 12 batch_id
+PASS R8 each place maximum contributes 12
+PASS R8 distinguish missing source, observed null and actual price 12
+PASS R8 market identity neutral to equivalent timezone 12
+PASS R8 adopted market identity changes 9 payload_hash
+PASS R8 adopted market identity changes 9 source_updated_at
+PASS R8 adopted market identity changes 9 batch_id
+PASS R8 each place maximum contributes 9
+PASS R8 distinguish missing source, observed null and actual price 9
+PASS R8 market identity neutral to equivalent timezone 9
+PASS R8 adopted market identity changes 6 payload_hash
+PASS R8 adopted market identity changes 6 source_updated_at
+PASS R8 adopted market identity changes 6 batch_id
+PASS R8 each place maximum contributes 6
+PASS R8 distinguish missing source, observed null and actual price 6
+PASS R8 market identity neutral to equivalent timezone 6
+PASS R8 market witness invariant to retrieval order
+PASS R8 market projection independent of unrelated historical feature
+PASS R8 unindexed market price cannot evade acquisition slot
+PASS R8 exact equivalent quote notation
+R8 regression checks: 41
+PASS R9 independently pinned deployed system 1st FULL
+PASS R9 independently pinned deployed system 1st SOURCE_TABLE_V1
+PASS R9 independently pinned deployed system 2nd FULL
+PASS R9 independently pinned deployed system 2nd SOURCE_TABLE_V1
+PASS R9 unknown wire format refused 1st
+PASS R9 unknown wire format refused 2nd
+PASS R9 unknown system role refused
+PASS R9 canonical both authoritative role states, absence explicit
+PASS R9 canonical both authoritative role states, absence explicit
+PASS R9 canonical both authoritative role states, absence explicit
+PASS R9 canonical both authoritative role states, absence explicit
+PASS R9 absent or ambiguous authoritative read refused [W9_JOURNAL_REQUIRED]
+PASS R9 absent or ambiguous authoritative read refused [W9_JOURNAL_REQUIRED]
+PASS R9 absent or ambiguous authoritative read refused [W9_JOURNAL_REQUIRED]
+PASS R9 absent or ambiguous authoritative read refused [W9_JOURNAL_REQUIRED]
+PASS R9 absent or ambiguous authoritative read refused [W9_JOURNAL_REQUIRED]
+PASS R9 absent or ambiguous authoritative read refused [W9_JOURNAL_REQUIRED]
+PASS R9 absent or ambiguous authoritative read refused [W9_JOURNAL_REQUIRED]
+PASS R9 absent or ambiguous authoritative read refused [W9_JOURNAL_REQUIRED]
+R9 regression checks: 19
+W2 tests passed: 325 (synthetic history; no live AI).

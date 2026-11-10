@@ -1,0 +1,34 @@
+【R4の履歴】現行の送信・受領・公開保存・再試行は02・10・11・12を参照。
+R15.5で追加された現行要件　ライブ状態には正本で確認したrace_startedも必要。DBの読取りと新規公開時の照合は22を参照。
+
+馬眼力 W2-R4　エンジニア実装差分　2026年11月1日
+対象ID　baganriki-v041-r12-2-w2-e35-r4-20261101
+
+1　R3配布物で再現した問題
+・2番の過去指数を親に使い、1番の派生値を999としても通った。式名を未登録名に変更しても通った。R4では派生の親全ての所有馬が結果の所有馬に含まれるかを検証する。identity、ratio_12dp＝後÷前、shortening_12dp＝(前−後)÷前の版1だけを許す。後2式は正の数で計算し、12桁の中間点は絶対値の大きい側へ丸める。親にnullを含む場合の出力はnull。値を確かめた後に根拠として使う。同じ観測の複製も拒否する。
+・根拠の元データが順にX、XとY、Yのとき、R3ではTier Aを認めた。R4は同じ系統または共通の元信号でつながる集合を1と数える。この例はTier B。直接参照した背景情報（CONTEXT）単独は有効根拠にならない。EやAIが付けた名称を独立数に加えない。
+・R3は回復済み行の架空の引用値を通し、逆に馬の行を文字列にすると、もう一方が正常でも統合時に型エラーで停止した。R4では採用した値・説明・反証・採点根拠・順位を保存原応答へ照合する。壊れたroleを除外し、正常なroleの候補と診断を返す。回復したroleの一致加点は0。
+
+2　送信と公開用のサーバー入力
+送信　prepareSend($frozen,$pack,$expand,$withinBudget,$readLiveState,$allowFullFallback=false)
+公開　mergeStored($frozen,$attempts,$liveQuota,$activeHorseNos,$proofHashes,$liveState)
+ライブ状態は race_id、snapshot_hash、now（タイムゾーン付きDB／サーバー時刻）、live_close_at（現行販売締切またはnull）、all_cancelled（公式全頭取消の真偽）。送信関数は圧縮前と費用照合後にこの状態を取り直す。実APIへの接続直前の予約、公開保存直前の短いトランザクションでも時刻・取消・版を再検査する。DBの3つの版、同一intentの冪等性は既存r12.2の責務。
+10月23日提出コードへの接続では、BaganrikiWorker::deadlines がライブ状態とレース正本の発走前倒しを照合する。ok=trueの返値live_closeをタイムゾーン付き時刻に変換して渡す。ok=falseなら期限エラーを保持し、送信・新規公開を止める。live_states.live_closeの列だけを読むと、レース正本が先に更新された場合に期限が遅くなる。
+応答限界は凍結したreply_deadlineと有効公開限界−30秒の早い方。公開限界は凍結したpublish_deadlineと現行販売締切−60秒の早い方。締切の延長で既定限界を越えない。等時刻は許容、1マイクロ秒超過は拒否。送信は入力凍結と全派生値の計算完了の遅い方以後。全頭取消のライブ状態と生存馬ゼロを照合する。
+
+3　初回・訂正版の保存
+$attemptsの1st／2ndそれぞれに、kind、同roleのinput、receiptsを渡す。receiptsは0番（初回）と任意の1番（訂正）を各1件まで。各行は attempt_no・race_id・snapshot_hash・ai_role・status・complete・original_approved・raw・response_hash・sent_at・received_at。rawはBEGIN/ENDを含む保存原文、response_hashはそのSHA-256。status=RECEIVEDかつcomplete=true。DBの真偽はtrue/false、0/1または文字列0/1を受ける。original_approvedは既存r12.2で実効全頭と原公開の完全一致を検証して立てた真のboolを渡す。PHPで文字列を単純にboolキャストしない。
+提出コードではraw_responseをrawへ、complete・status・response_hash・received_atを同試行から対応付ける。sent_atはsnapshot_id、role、attempt_noが一致するR122_USAGEのdiagnostics.sent_at（または同一実送信の不変記録）。送信予約時刻を送信実績へ転記しない。sent_atまたは完了証拠が無ければ選出へ使わず、元の行を監査に保持する。
+訂正は保存済み初回受信以後に送信する。完了しhash・識別子・時刻が正しい初回を要する。採用できる完全原応答を訂正→初回の順に再検証し、不備のある訂正が有効な初回を消さない。理由はattempt_issuesのrole／試行番号、使えないroleはrole_issuesに残す。両roleが使えない場合は新規候補を公開しない。
+
+4　局所回復に足す内部文書
+既存r12.2がrepair_scope内の馬だけを訂正し、範囲外の正常行を保持した確定時点で、回復JSONの原文とそのSHA-256を同じ版・同じ取引で保存する。公開側は新たにhashを作らず、保存されたrecovery_jsonとrecovery_hashを読み出す。AIの入出力契約は36／23必須キー。次の9項目はサーバー内の回復文書専用。
+schema_version・prompt_version・race_id・ai_role・snapshot_hashは同一入力を指す。horsesは正規化した全頭、base_ranksはE適用前の帯別順位。row_sourcesは馬番をキーとするJSONオブジェクト。値はその馬の採用内容が実際に載っている原応答SHAの配列（0～2件）。原文が使えず作ったUNVERIFIED行だけ空配列を許す。rank_sourcesはA/B/Dごとに根拠順位を証明する原応答SHA、または参照できないときのnull。
+schemas/recovery_schema.jsonのhorses.items.propertiesに定義されたキーだけを投影する。verified_roots、表示文・公開フラグ、内部診断等は除く。型・精密な十進数・空配列と空オブジェクトを保つ。実装は元の厳密JSONエンコーダーで出力し、検査用r4_fixtures.phpの通常のJSON変換は精密な実データに使用しない。
+根拠と反証は馬・引用値・ID・出典・文を照合する。根拠順位を引き継ぐ帯は元の予備順位、所属帯、順位理由・根拠ID、有効馬の根拠と反証も照合する。全頭採点完備なら総合点、V小計、馬番で再計算し、根拠順位の出典がなければ根拠群数の多い順、同数なら馬番順。旧サーバーの局所回復・縮退診断も監査に保持する。
+初回の正当な馬を、回復文書の欠落だけで不適格へ落とさない。完備した検証済み採点も保護する。根拠群数・馬番の順に縮退した帯は戻り値rank_fallback_bandsにrole別で記録する。
+既存のDB受入・採用済み訂正範囲、原文・回復文書の獲得元を信頼境界とする。APIからHashやoriginal_approvedを受け付けない。公開の馬番を事前計算値で渡さず、mergeStoredの結果を保存する。
+
+5　受入で照合するもの
+validation/verify_release.pyを実行し、元の10月23日AiController.phpを明示して提出クラスとの統合検査も実行する。PHP 8.0.30・8.3.6での実行記録はvalidation/実行結果.txt。10月17日のr12.1から参照用に6ファイルを抜き出して固定し、派生式・独立群・親参照をPHPと照合する。以前のE3/E5式・人気帯枠・週末8実レースの記録も同時検査に含む。
+非公開2レースで、本番相当のDB・Queue・AI初回／訂正・費用、取消前後とFlutter再読込までを照合する。旧版で開始したジョブとR4を混ぜず、既存の許可条件を満たした版だけ公開する。実費と購入条件を伴う複勝回収率は別集計。

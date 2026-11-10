@@ -1,0 +1,21 @@
+PASS 108 cases; original/fixed responses written for independent integration checks.
+PASS 607 independent Fraction arithmetic cases
+PASS 82 cross-process version, correction and tamper cases
+{"role": "1st", "case": "false_missing", "repair": null, "initial_codes": ["W19_FALSE_MISSING_ability", "W19_FALSE_MISSING_market", "W19_FALSE_MISSING_win_place"], "after_code": null, "candidates": [16, 15, 14, 10], "duplicate_side_effects": 0}
+{"role": "1st", "case": "false_acceleration", "repair": null, "initial_codes": ["W19_FALSE_ACCELERATION"], "after_code": null, "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "1st", "case": "mixed_evidence", "repair": null, "initial_codes": ["W19_FALSE_ACCELERATION"], "after_code": null, "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "1st", "case": "fullwidth", "repair": null, "initial_codes": ["W15_SCHEMA"], "after_code": null, "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "1st", "case": "false_missing", "repair": "good", "initial_codes": ["W19_FALSE_MISSING_ability", "W19_FALSE_MISSING_market", "W19_FALSE_MISSING_win_place"], "after_code": "FIX_APPLIED", "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "1st", "case": "fullwidth", "repair": "good", "initial_codes": ["W15_SCHEMA"], "after_code": "FIX_APPLIED", "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "1st", "case": "wrong_quote", "repair": "false_acceleration", "initial_codes": ["W3_FACT_VALUE"], "after_code": "FIX_REJECTED", "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "1st", "case": "ascii_blank", "repair": "fullwidth", "initial_codes": ["W15_SCHEMA"], "after_code": "FIX_REJECTED", "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "2nd", "case": "false_missing", "repair": null, "initial_codes": ["W19_FALSE_MISSING_ability", "W19_FALSE_MISSING_market", "W19_FALSE_MISSING_win_place"], "after_code": null, "candidates": [16, 15, 14, 10], "duplicate_side_effects": 0}
+{"role": "2nd", "case": "false_acceleration", "repair": null, "initial_codes": ["W19_FALSE_ACCELERATION"], "after_code": null, "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "2nd", "case": "mixed_evidence", "repair": null, "initial_codes": ["W19_FALSE_ACCELERATION"], "after_code": null, "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "2nd", "case": "fullwidth", "repair": null, "initial_codes": ["W15_SCHEMA"], "after_code": null, "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "2nd", "case": "false_missing", "repair": "good", "initial_codes": ["W19_FALSE_MISSING_ability", "W19_FALSE_MISSING_market", "W19_FALSE_MISSING_win_place"], "after_code": "FIX_APPLIED", "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "2nd", "case": "fullwidth", "repair": "good", "initial_codes": ["W15_SCHEMA"], "after_code": "FIX_APPLIED", "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "2nd", "case": "wrong_quote", "repair": "false_acceleration", "initial_codes": ["W3_FACT_VALUE"], "after_code": "FIX_REJECTED", "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+{"role": "2nd", "case": "ascii_blank", "repair": "fullwidth", "initial_codes": ["W15_SCHEMA"], "after_code": "FIX_REJECTED", "candidates": [16, 15, 14, 10, 5], "duplicate_side_effects": 0}
+PASS 16 SQL/Queue/GET semantic cases
+PASS R15.19 targeted suite; patched controller SHA-256 09bc7c85181696e373c1c8f4266aec0c676c45348c2910897781ad6434aa68a4

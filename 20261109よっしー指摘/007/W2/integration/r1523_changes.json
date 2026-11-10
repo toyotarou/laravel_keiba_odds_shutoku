@@ -1,0 +1,254 @@
+{
+  "source_zip_sha256": "96602131585caa2e353527834e78a1de7420bf8034fffe852ae8d3ac0e99070d",
+  "release": "w2-r15.23",
+  "text_revision": "COMPACT_TEXT_20261109_06",
+  "transport_format": "SOURCE_TABLE_V2",
+  "deployment_verified": false,
+  "changes": [
+    {
+      "path": "00_最初にお読みください.txt",
+      "previous_sha256": "2906aca89952bff2026894c40c36c351881fdb8357d8a07f63d25df2c517cc46",
+      "sha256": "3571b4c44527e8e34a9d95b306a3a884d6435a4b4f911ba097d2c018213624a2"
+    },
+    {
+      "path": "40_R15.23_参照順序と索引の保持.txt",
+      "previous_sha256": null,
+      "sha256": "81bb0c6c3375e7f53f6b72a80851e6cefc272f12f91b6251097e908736d1a00f"
+    },
+    {
+      "path": "config/w2_contract.json",
+      "previous_sha256": "33085ea11fd61cdf4dcdf9d7d1cd9ba8803a56ea197f6d2272255bf15fbb3040",
+      "sha256": "5ca53e63ef8090bd67548fe27e48948a5edcbcd87e3f0957329557afec1d46c0"
+    },
+    {
+      "path": "examples/synthetic_revision06/1st_frozen_input.json",
+      "previous_sha256": null,
+      "sha256": "7b8d43bd5b70de8f4f593bd8b4b0335a945df38a4d8fcbfff5265e96cde36233"
+    },
+    {
+      "path": "examples/synthetic_revision06/1st_send_record.json",
+      "previous_sha256": null,
+      "sha256": "88af7ef98326db492af593a37aedf7cdf8192a7d2639e26c0f5df6de6d6eeae9"
+    },
+    {
+      "path": "examples/synthetic_revision06/1st_system.txt",
+      "previous_sha256": null,
+      "sha256": "0071d5ef0cec03813106f2569b43f711bd57daa8f805e78c90b320474c173c1f"
+    },
+    {
+      "path": "examples/synthetic_revision06/1st_user.json",
+      "previous_sha256": null,
+      "sha256": "093d952b1194698ff0780bd785d825d86a9f9a1a03cb83c63232aa58e98bd701"
+    },
+    {
+      "path": "examples/synthetic_revision06/2nd_frozen_input.json",
+      "previous_sha256": null,
+      "sha256": "f3bd75c8a8b8c6c4b2f614c7470675d11b58dc8718535c2fd0a3a24edb34e907"
+    },
+    {
+      "path": "examples/synthetic_revision06/2nd_send_record.json",
+      "previous_sha256": null,
+      "sha256": "2953d0211f274f1801a4a5f53620e243b049ea10459b235b1a0f47de576aba6b"
+    },
+    {
+      "path": "examples/synthetic_revision06/2nd_system.txt",
+      "previous_sha256": null,
+      "sha256": "8597205cbbe24de6c084b8faf17d26fea76beff7cd32b7bc9eb273030c18797e"
+    },
+    {
+      "path": "examples/synthetic_revision06/2nd_user.json",
+      "previous_sha256": null,
+      "sha256": "e0adf1a1544af60480d402005f8ba2bd0aca573a15881ce7ad487c7ed29fbc1b"
+    },
+    {
+      "path": "examples/synthetic_revision06/README.txt",
+      "previous_sha256": null,
+      "sha256": "83e8498b4cbf8e3b8391490d4130fede7b24d951fef17485e2b78427115fda7c"
+    },
+    {
+      "path": "examples/synthetic_revision06/expected_proof.json",
+      "previous_sha256": null,
+      "sha256": "176b4ab2c9e2b810b1bc4840ef5e6842d068a6f2e14800da67e26e1da0be8f7e"
+    },
+    {
+      "path": "integration/controller_bases.json",
+      "previous_sha256": "14ca48efefea8657c1e5e5874396ebbf1dd82783efa92e14c8bc33a443c71d05",
+      "sha256": "805f3087a0799b98fea352389d344428cb97911f9590151b30872bc12b0180a6"
+    },
+    {
+      "path": "integration/patched/AiController.php",
+      "previous_sha256": "d0d6e926e37ea62655355bf54751031bdcd360d2b603b5bf08b01050d7193aa3",
+      "sha256": "674a448861e3f3d2ab843b57108a84a6df4016491f786154e1c2edb2d37fb50a"
+    },
+    {
+      "path": "integration/r1522_to_r1523_controller.patch",
+      "previous_sha256": null,
+      "sha256": "a2a2068861cfbeaf35dd69ae04869ecac0863626cde2338e4c729c6f0d2a52fe"
+    },
+    {
+      "path": "integration/r1522_to_r1523_review_only.diff",
+      "previous_sha256": null,
+      "sha256": "4608900df45768fa8a7b9e1b4d80124cc658387401136c249347074395e74b5b"
+    },
+    {
+      "path": "integration/score_evidence_w2.patch",
+      "previous_sha256": "ddf17b6d1b0b27b046f9dbe58dddb8db1afb0777d6ea97462a5ab4979ba213b0",
+      "sha256": "4586a9a8111bca61576718c2c0df8fb3e520f514632124fb03dc86e7306819d1"
+    },
+    {
+      "path": "php/DispatchW2.php",
+      "previous_sha256": "d853c8b3c201242150e5b78e0514977fab8997bb2814afbacc120f35b2f387c3",
+      "sha256": "4d5aafbd157b8442c27cd5f212808e19d7fc30e519b1926ffe1000e3720f4dba"
+    },
+    {
+      "path": "php/ExpectedBridgeW2.php",
+      "previous_sha256": "7c0d041853c9da6fb8ca903232cd18e5cc09b5c2db95f2bd3ba456f692455f15",
+      "sha256": "a28a156a89a2bea17b0ae809a3ff0e737693ba882e0a456a7e701084bd65ae75"
+    },
+    {
+      "path": "php/RaceMetricsW2.php",
+      "previous_sha256": "3b0644ed06b5668ca08320b8b4b744cc2f4ec61833d2572d5bf27d353121fe45",
+      "sha256": "bdb5f104fa1e91e75c387aa83340d8bbadb22f483087763a032a558a26706b13"
+    },
+    {
+      "path": "php/ResponseInspectionW2.php",
+      "previous_sha256": "b3e47db9d36853406b2fd823fbdd35f8ce0538e5adb87352cd679f2415e4037a",
+      "sha256": "0eff9cad13ee0680d83fb44374ce91a009bcf0f6847727992277ade23a010270"
+    },
+    {
+      "path": "php/SourceTableV2W2.php",
+      "previous_sha256": null,
+      "sha256": "9459b2fa7ad358c0d03d0bf9bda5e173982ee1d5261edd7a9b51680528fb4f1d"
+    },
+    {
+      "path": "prompts/SOURCE_TABLE_V2_ADDENDUM_V1.txt",
+      "previous_sha256": null,
+      "sha256": "1295a6f7eb9efc9e374fa43b2097b54e903dc7bb967811c085a1aaa3c5cf0a6e"
+    },
+    {
+      "path": "prompts/common_prompt.txt",
+      "previous_sha256": "b0bddf354d9bcc0927c991cf6ab9586fe9dfdaea26325804ad5f7c84e6756b20",
+      "sha256": "f0301913ec74952cd73d8a65ea2163eb1f9f78fac660f7bb33b7b434852c5883"
+    },
+    {
+      "path": "prompts/prompt_1st.txt",
+      "previous_sha256": "cd66c9100f7e1a82a328bbc60749bf6c193e204c20be48a7727d405e070f4351",
+      "sha256": "ef518ebc909f909bde760bd69352059464124d9c91bd3aeecbfab29aa9d58f90"
+    },
+    {
+      "path": "prompts/prompt_2nd.txt",
+      "previous_sha256": "ccc3f0742f64584e3922e463cb9d2852ced30f43c9bd51f61a4ca8b1a8c65c33",
+      "sha256": "ee8cbb545b4834d571cddbcd12da80d87ab6879615d2d1cc52d28b12883a736d"
+    },
+    {
+      "path": "prompts/versions/COMPACT_TEXT_20261109_05/SOURCE_TABLE_V1_ADDENDUM_V2.txt",
+      "previous_sha256": null,
+      "sha256": "fb7b4434dc488860c4611345fb59eca760bdad5bf8cf5d1bede8c9596782da9b"
+    },
+    {
+      "path": "prompts/versions/COMPACT_TEXT_20261109_05/prompt_1st.txt",
+      "previous_sha256": null,
+      "sha256": "cd66c9100f7e1a82a328bbc60749bf6c193e204c20be48a7727d405e070f4351"
+    },
+    {
+      "path": "prompts/versions/COMPACT_TEXT_20261109_05/prompt_2nd.txt",
+      "previous_sha256": null,
+      "sha256": "ccc3f0742f64584e3922e463cb9d2852ced30f43c9bd51f61a4ca8b1a8c65c33"
+    },
+    {
+      "path": "schemas/input_schema.json",
+      "previous_sha256": "a4bc2ac3fb58019cd39da2369f956616bd2e6aa141e438cb240f2fd36aa4086f",
+      "sha256": "14f54138dc48ad4b691b319a09acb13a5c9ced9bdb1b3e3bbfc3645075d74fba"
+    },
+    {
+      "path": "schemas/output_schema.json",
+      "previous_sha256": "26914170ae76e344aca98fe249497e1bc48f45b3f4e2d4cf68d8767e40b3cec7",
+      "sha256": "4a6a5ecbf72abb8299da917baec4c9b3282f5f7ce202868594ace43e2e31cae9"
+    },
+    {
+      "path": "schemas/recovery_schema.json",
+      "previous_sha256": "351f8e2991a4d364bd8470b47189d5e11b28d117f2df6b7796d66244e8f07d12",
+      "sha256": "dee83a06756dc08735129651cd7e1184c0f409924ca1856017f77f96df08d562"
+    },
+    {
+      "path": "validation/R15.22_追加点検_修正前.log",
+      "previous_sha256": null,
+      "sha256": "5919975ff3994b811a01f3d66495fa9024427012a710664370a26aadf43b9f4c"
+    },
+    {
+      "path": "validation/R15.22実行結果_旧版.txt",
+      "previous_sha256": null,
+      "sha256": "0f3f81c7982ebf51a3d938563a20ab17a9e058b14047925b32d9b5cb24595903"
+    },
+    {
+      "path": "validation/R15.23_archive.log",
+      "previous_sha256": null,
+      "sha256": "f51b297cb45c8ba7d4b0f0e7c701561b5b598a0adaf6e4554d46a7f43df89e9b"
+    },
+    {
+      "path": "validation/R15.23_release.log",
+      "previous_sha256": null,
+      "sha256": "20c332a69c1d52a1ab10e48791a37fe9cb49d0b3bbf78aeea9e9dd9e502ee812"
+    },
+    {
+      "path": "validation/R15.23_sender.log",
+      "previous_sha256": null,
+      "sha256": "0a0796381609970349de888faa9b1057c034bc172f85b1d8c6e79e199edacb5a"
+    },
+    {
+      "path": "validation/R15.23_targeted.log",
+      "previous_sha256": null,
+      "sha256": "64730a83fa9fec71fdb682f0dd5f02f9917ed022d2cae7d36867032147e72f10"
+    },
+    {
+      "path": "validation/R15.23_送信部修正前の中断ログ.log",
+      "previous_sha256": null,
+      "sha256": "c70f896d40b6cf1aeb41f3e29d845d46bbd2ad4498d4695f7923823c9d8ae705"
+    },
+    {
+      "path": "validation/export_r1523_example.php",
+      "previous_sha256": null,
+      "sha256": "18315381cdfac6b4e411e5cba32b5505945fb12e5174c8d072e4cc5997064314"
+    },
+    {
+      "path": "validation/r1518_persistent.php",
+      "previous_sha256": "a61de2986e489d4e78eac6d962771a2d62c9207212bf370dab84ccd7ecef0eaa",
+      "sha256": "e4decfa617ac62bb6bc23fba0b51b29f78dd349cdbe2c7c07529d1cd5cf6ecf4"
+    },
+    {
+      "path": "validation/r1519_revision.php",
+      "previous_sha256": "8aa2c5f9d08c873010396e8cc2f66a3eadd1ba326b103f17a07b9ec4e148b521",
+      "sha256": "fddc6561074574f9c140f706d1c4b88c01468a43c6f32b446fc3028af28b226b"
+    },
+    {
+      "path": "validation/r1523_probe.php",
+      "previous_sha256": null,
+      "sha256": "2268240e9f398bdd9ccacaa0c0ed411bbc25768f69eaa1fd9b5bd41069e5302e"
+    },
+    {
+      "path": "validation/run_release.py",
+      "previous_sha256": "55f20418444a666da1d800c33c5a8ea98cacc521950dafda1486a4870a405f16",
+      "sha256": "4df1aeb692a9743bcc611fed2212f9e4608a8f0edf49dff9d2f5f1b87d582129"
+    },
+    {
+      "path": "validation/verify_r1522.py",
+      "previous_sha256": "247f73d433dde89945b6c545480204faebad4f6104bc1e31edc0ba6fc35f8b3b",
+      "sha256": "f3bc4557bbb38d15546d7be8527f0d90374e423f4a4a3220fdb9105a6a4be117"
+    },
+    {
+      "path": "validation/verify_r1523.py",
+      "previous_sha256": null,
+      "sha256": "bd7262ce02d06cb9ab9fd29c1392fb01a9b6bda8c603fa434ed44b98fcd31d69"
+    },
+    {
+      "path": "validation/実行結果.txt",
+      "previous_sha256": "0f3f81c7982ebf51a3d938563a20ab17a9e058b14047925b32d9b5cb24595903",
+      "sha256": "4503047c939969ce4bcfb1245eba4ec87422fac8c734d0f18f49d55028c6baaf"
+    },
+    {
+      "path": "validation/数値名親参照_修正前.log",
+      "previous_sha256": null,
+      "sha256": "bc604545fd4ef54fa121660ff645b817cd6312748531a85178f5ab1421ad4290"
+    }
+  ]
+}

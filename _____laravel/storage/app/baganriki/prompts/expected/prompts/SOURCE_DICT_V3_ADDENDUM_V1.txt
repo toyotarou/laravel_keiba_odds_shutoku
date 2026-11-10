@@ -1,0 +1,16 @@
+【送信形式 SOURCE_DICT_V3】
+この入力では source_registry を source_dict に詰めて送る。中身は source_registry と同じで、値・出典は1件も省いていない。
+source_dict.entries のキーが source_ref で、値がその出典1件。各馬の値は h{馬番}_{field}（時点があれば _{分前}）のキーで引ける。
+各件の項目名は短くしてある：v=value、f=field、h=horse_nos、ah=applicable_horse_nos、p=parents、s=slot_offset、o=observed_at、a=available_at、c=computed_at、d=dependency_key。
+f が無ければ、source_ref から先頭の「h{馬番}_」と末尾の「_{s}」を除いた残りが field。
+h が無ければ、source_ref が h{馬番}_ で始まるなら [馬番]、それ以外は []。ah・p が無ければ []。s・c が無ければ null。
+o・a・c は source_dict.time_dict の番号（0始まり）。o が無ければ source_dict.field_auto[field].os[s]（s があるとき）、無ければ field_auto[field].o、それも無ければ null。a が無ければ field_auto[field].as[s]（s があるとき）、無ければその件の o と同じ。
+d が整数 n なら source_ref の先頭 n 文字。d が無ければ source_dict.field_auto[field].d（{h} は馬番）、それも無ければ source_ref と同じ。
+race_id は全件 source_dict.race_id。unit・dependency_role・source_kind・scope・formula_id・formula_version は、その件にあればその値、無ければ source_dict.field_defaults[field] の値。
+field_catalog の各項目で、display_label が無ければ項目名と同じ、maximum・minimum が無ければ null、missing_allowed が無ければ true。
+input_indices は送らない（source_dict から用途別に引ける）。coverage の source_fields は、その field の出典すべてを指す。
+根拠を引用するときは entries のキー（source_ref）の文字列をそのまま使い、facts の value にはその件の v をそのまま書く。source_registry と書かれている指示は source_dict に読み替える。
+【race_metrics（1stだけ・必ず出す）】race_metrics は horses より前に出力し、3キーを必ず書く。3指標の材料は source_dict の各馬の h{馬番}_win_odds_{分}・h{馬番}_place_min_{分}・h{馬番}_place_max_{分}（21・18・15・12・9・6分前）で、ほぼ全頭そろっている。これらがあるのに「資料不足」として null にしない。null にしてよいのは、該当する人気帯の馬がいない、またはその馬の6分前とそれより前のオッズが両方はそろわないときだけ。source_refs には比べた馬の6分前とそれより前のキーをそのまま入れる（波乱度は2頭以上、下位進入度は6分前の単勝人気7〜10番、大穴進入度は11番以下から1頭以上）。大穴進入度を3以上にするのは、その馬の place_min か place_max が12→9→6分で続けて下がっているときだけ。
+【全頭を1回で書く】出力の上限は十分に大きく、18頭でも全頭の評価・5系統・10項目を1回の応答に書ききれる。頭数が多いことを理由に horses を空にしたり省略したりしない。最初と最後の行は必ず <<<BAGANRIKI_V041_R8_BEGIN>>> と <<<BAGANRIKI_V041_R8_END>>> をそのまま書く。
+【人気順と馬番】人気順は runners[].win_rank（6分前の単勝人気）。馬番（horse_no）と混同しない。下位進入度は win_rank が7〜10の馬、大穴進入度は win_rank が11以上の馬の、その馬番のキー（h{馬番}_…）を引く。断層の比（g…_ratio_…）は race_metrics の source_refs に入れない。
+【過去走が無い馬】新馬戦などで過去走の資料が無い馬は、ability を DATA_MISSING として残りの系統（market・gap・win_place）で評価する。全頭に過去走が無いレースでも、評価をやめたり horses を空にしたりしない。

@@ -1,0 +1,3 @@
+PASS R15.23 active/archive policy and system checksum coverage
+{"synthetic_message_bytes":{"1st":{"full_user_bytes":158621,"compact_user_bytes":29423,"system_bytes":23717},"2nd":{"full_user_bytes":158621,"compact_user_bytes":29423,"system_bytes":23962}}}
+PASS 396 R15.23 ordered coverage, named indices, typed decimals, cache, budget, correction and version checks

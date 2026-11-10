@@ -1,0 +1,35 @@
+馬眼力 W2-R15.5　発走状態と公開前の照合
+2026年11月4日　エンジニアに渡すファイルは「馬眼力_W2-R15.5_エンジニア送付一式_20261104.zip」1本
+
+1　再現した2件
+・元データの9:40と09:40は同じ発走時刻。R15.4では、朝の1桁時刻で秒が省略されると、正本からの締切読取りがSTART_TIME_UNREADABLEになり処理が止まった。凍結前の確認、取得時の前倒し反映、巡回にも別々の文字数処理があった。
+・送信枠の予約後に公式時刻が発走済み表示「XXX」へ変わっても、R15.4は古い予定の締切まで時間があれば送信許可を出した。15:50に公式が発走済み、保存上の締切は15:59という合成例で、試験用の呼出しが1回、送信状態がSENTになった。実課金は行っていない。
+
+2　修正
+・BaganrikiTime::normalizeRaceStartClockは、H:MM、HH:MM、H:MM:SS、HH:MM:SSを秒までの表記にそろえる。従来の厳密な時計・日付の検証を通し、24:00や09:60を翌日・翌時刻へ繰り上げない。予想入力の取得、凍結前の確認（指定時刻／DB正本）、取得時の前倒し、凍結巡回、送信・公開の期限計算で共用する。
+・新規の予約、送信許可、受領、予算待ち後の送信直前、新規公開の書込み直前は、発走済みならRACE_STARTEDで止める。W2新規処理で正本の状態が分からない場合はRACE_STATUS_UNAVAILABLE。時刻・日付の破損は従来どおり理由付きで拒否する。送信許可前に止めた場合は未送信として扱う。
+・保存済みの公開IDと本文の照合、同一受領の再通知、および期限を過ぎた送信の後処理には、それぞれ既存の読戻し・後処理の経路を使用する。新しいAIを呼ばない。
+
+3　Laravelの接続
+・両AIの入力や送信済みプロンプトに発走状態を加えない。W2のサーバー側ライブ状態にrace_startedを追加する。SDK用のリクエストを用意する前、予算確認後、新規公開を保存する直前に、正本からその都度作る。キュー投入時の値を再利用しない。
+・送信・新規公開用の期限取得はBaganrikiWorker::deadlines($snap, $live, $lockRace, true)。新規公開時は現行の書込トランザクションでlive_stateとintentをロックし、$lockRaceをtrueとする。成功した返値のrace_startedとlive_closeを同じ読取りから使う。元のスナップショットには02に記した対象IDをrelease_versionとして保存する。
+  $deadline = BaganrikiWorker::deadlines($snap, $live, $lockRace, true);
+  if (!$deadline['ok']) { throw new \RuntimeException($deadline['code']); }
+  $state['race_started'] = $deadline['race_started'];
+  $state['live_close_at'] = $deadline['live_close'] === null
+      ? null : BaganrikiTime::toJst($deadline['live_close']);
+・上記は既存アダプターに追加する部分。従来のrace_id、snapshot_hash、now、all_cancelledと、公開時の取消一覧・3版・role_journalは02の手順どおり構成する。例外はその処理の保留・ロールバックに渡し、予算枠を確保済みなら既存の未送信精算を使う。
+・状態フラグの有効値は真偽値、整数0/1、PDOの文字列「0」「1」。欠落・null・曖昧な値をfalseに置き換えない。発走済みを認めた時点で新規送信・公開を止める。過去の保存済み公開は、同一intentの記録をreplayIdで照合して読み出す。
+・受領検査と新規ジョブの版はw2-r15.5。R15.4までの保存済み本文・証跡・診断と新規処理を区別する。両AIのプロンプト・スキーマはR15、E3/E5計算器はv0.1.4。
+
+4　適用と再実行
+10月23日の提出原本（SHA-256 1e8f0fbfe732fd24639c6b1f40c40b384e5956accd969a5aea3ff838159ed7ae）に、integration/response_frame_w2.patch、次にintegration/score_evidence_w2.patchを、原本のあるディレクトリでpatch --batch --fuzz=0 -p1 -i /差分の絶対パスの順に適用する。固定原本に適用したAiController.phpのSHA-256は 1ffc4f551d6391813779339aba1ef58043036d1c3134260083fae243f3cc661f。サーバー独自変更がある場合はこの参照版と比較し、独自の変更も含むデプロイ対象のハッシュを記録する。php/、config/と上記アダプターを同じ切替で反映する。
+W2ディレクトリから実行する。対象のPHP CLIにはPDO SQLiteとmbstring、標準試験のPython依存は02を参照。
+  python3 validation/verify_release.py --php /path/to/php --submitted-php /path/to/original/AiController.php
+  python3 validation/verify_r154_recovery.py /path/to/php /path/to/patched/AiController.php
+  python3 validation/verify_r155_live.py /path/to/php /path/to/patched/AiController.php
+PHP 8.0.30と8.3.6で、8,160組の時刻表記と締切を独立計算と比較する。合成2レースそれぞれ163判定は、全馬の個別取消、再計算後の候補、全頭取消、締切・発走状態がまたがる送信と公開、公開期限の前後1マイクロ秒と同時刻、保存済み公開IDの読戻しを含む。別途20判定はSQLiteで予約・許可・受領の間に正本を変え、試験用の呼び出し回数、受領状態と後処理を照合する。以前の68判定と標準試験も実行する。
+
+5　エンジニアの非公開2レースで確認すること
+・実際の正本から発走状態と期限を取得し、朝の時刻と前倒しが正しく反映されること。テスト用の同一枠で、発走済みへの変更を予約後・公開前に重ね、新規AI呼び出し件数と新規公開行が増えないこと。
+・検証済みの予想を1件保存し、サーバーの公開候補・順位とFlutterの馬番・表示順を照合する。取消直後と画面の再読込前後で、同一の公開ID、正しい取消表示、追加の有料呼び出しがないことを記録する。MySQLのロック、Queue、外部AI・Flutterを含む実環境の結果をもって、お客様向けの公開を判断する。

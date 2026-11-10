@@ -1,0 +1,138 @@
+[
+  {
+    "id": "2026-10-31_京都1R",
+    "N": 16,
+    "signals": {
+      "X1": false,
+      "X2": false,
+      "X3": false,
+      "X4": false,
+      "X5": false,
+      "X6": null,
+      "Z": false
+    },
+    "S_min": 0,
+    "S_max": 1,
+    "mode_status": "CONFIRMED",
+    "allocation_mode": "FIRM"
+  },
+  {
+    "id": "2026-10-31_京都6R",
+    "N": 16,
+    "signals": {
+      "X1": false,
+      "X2": false,
+      "X3": false,
+      "X4": false,
+      "X5": false,
+      "X6": null,
+      "Z": false
+    },
+    "S_min": 0,
+    "S_max": 1,
+    "mode_status": "CONFIRMED",
+    "allocation_mode": "FIRM"
+  },
+  {
+    "id": "2026-10-31_京都11R",
+    "N": 11,
+    "signals": {
+      "X1": true,
+      "X2": true,
+      "X3": false,
+      "X4": false,
+      "X5": true,
+      "X6": null,
+      "Z": false
+    },
+    "S_min": 4,
+    "S_max": 5,
+    "mode_status": "CONFIRMED",
+    "allocation_mode": "VOLATILE"
+  },
+  {
+    "id": "2026-10-31_京都12R",
+    "N": 18,
+    "signals": {
+      "X1": false,
+      "X2": false,
+      "X3": false,
+      "X4": true,
+      "X5": false,
+      "X6": null,
+      "Z": false
+    },
+    "S_min": 1,
+    "S_max": 2,
+    "mode_status": "PROVISIONAL",
+    "allocation_mode": "MIXED"
+  },
+  {
+    "id": "2026-10-31_東京8R",
+    "N": 13,
+    "signals": {
+      "X1": true,
+      "X2": true,
+      "X3": false,
+      "X4": false,
+      "X5": false,
+      "X6": null,
+      "Z": false
+    },
+    "S_min": 3,
+    "S_max": 4,
+    "mode_status": "PROVISIONAL",
+    "allocation_mode": "VOLATILE"
+  },
+  {
+    "id": "2026-11-01_京都6R",
+    "N": 16,
+    "signals": {
+      "X1": false,
+      "X2": true,
+      "X3": false,
+      "X4": false,
+      "X5": false,
+      "X6": null,
+      "Z": false
+    },
+    "S_min": 1,
+    "S_max": 2,
+    "mode_status": "PROVISIONAL",
+    "allocation_mode": "MIXED"
+  },
+  {
+    "id": "2026-11-01_東京10R",
+    "N": 16,
+    "signals": {
+      "X1": false,
+      "X2": true,
+      "X3": false,
+      "X4": false,
+      "X5": true,
+      "X6": null,
+      "Z": false
+    },
+    "S_min": 2,
+    "S_max": 3,
+    "mode_status": "CONFIRMED",
+    "allocation_mode": "MIXED"
+  },
+  {
+    "id": "2026-11-01_東京11R",
+    "N": 17,
+    "signals": {
+      "X1": false,
+      "X2": false,
+      "X3": false,
+      "X4": false,
+      "X5": false,
+      "X6": null,
+      "Z": true
+    },
+    "S_min": -2,
+    "S_max": -1,
+    "mode_status": "CONFIRMED",
+    "allocation_mode": "FIRM"
+  }
+]

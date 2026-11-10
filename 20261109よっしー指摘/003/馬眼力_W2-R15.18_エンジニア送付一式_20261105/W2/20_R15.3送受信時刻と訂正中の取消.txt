@@ -1,0 +1,26 @@
+馬眼力 W2-R15.3　受領を採用する条件と公開前の検証
+2026年11月4日　プロンプトR15　サーバーの検査版 w2-r15.3
+
+1　R15.2の送付ZIPで再現したこと
+正常な16頭の応答を使い、受領記録だけを変えた。入力がそろう1マイクロ秒前の受領や、確認時のサーバー時計より未来の受領を、提出PHPの途中処理が正常と扱った。実送信前に受け取ったことになっている応答、必要なデータがそろう前の送信、完了欄が文字列「1oops」の場合にも、途中ではファーストが7頭、セカンドが5頭を返した。保存した受領記録から行う公開前検査は、これらを拒否した。別の試験では過去版の入力が欠けると未定義変数の警告が出て、警告を例外扱いする設定で診断が中断した。
+
+2　受領の照合
+・基準はレースの凍結時刻と、その入力に含まれる派生値の最終計算時刻のうち遅い方。SourceEvidenceW2::readyAtを、提出PHPの途中診断とFrozenInputW2の最終検証で共用する。
+・初回・訂正とも、入力準備完了 ≤ 実送信 ≤ 受領 ≤ 確認時刻を要求する。有効な応答期限（凍結時と現在の早い方）の超過も不可。いずれの境界も時刻が等しければ受理できる。未来の受領は現在時計が追いついてから再検査できる。訂正は初回の受領時刻以後に送る。
+・通常入口のacceptedHorsesOf、inspectAiResponse、訂正選択と候補の使用、保存後のmergeStoredで確認した。条件を外れた当該応答は採用せず、有効な他のAIと確認済みの馬行には従来の採否規則を適用する。完了印はtrue、整数1、文字列「1」のみを完了と扱う。未完了、曖昧な値の初回では、既存Queueの訂正枠予約も止まる。
+・開始時刻より早い受領はRESPONSE_BEFORE_INPUT_READY、入力準備前の送信はSENT_BEFORE_INPUT_READY、送信と受領の逆転はRECEIVED_BEFORE_SENT、未来の受領はRESPONSE_IN_FUTURE、期限超過はREPLY_DEADLINE_EXCEEDED。訂正を初回受領より前に送った場合はCORRECTION_SENT_BEFORE_FIRST_RECEIVED。過去版で入力列が欠けた場合は、該当の列名を付けてNO_INPUTを返す。
+
+3　既存の記録を接続する
+・同じ試行の実送信時刻を保存する。試行行sent_atは、タイムゾーン付きRFC3339、または既存PHPと同じ日本時間のDB日時（小数秒6桁まで）。原本にこの列がない構成では、既存のbaganriki_audit_eventsのR122_USAGEを使える。snapshot_id、race_id、kind、related_id（例 2nd#1）が一致する1件を取得し、diagnostics内のrole・attempt_no・sent_atも照合する。日付のみ、時刻欠損、該当イベントの重複等では推測しない。SEND_TIME_MISSING／INVALID／AMBIGUOUSを監査に残す。
+・外部AIを呼ばない経路や独自アダプターでは、送付用テストと同様、実際に送った試行のsent_atを対応させる。予約時刻、送信許可イベントの時刻や処理終了時刻を実送信時刻に転用しない。締切を確かめるための現在時刻はサーバー側で読み直す。採用できなかった応答・診断は監査に残す。
+・10月23日の提出原本にresponse_frame_w2.patch、次に累積のscore_evidence_w2.patchを適用。動作中の旧ジョブは開始時の版で完了させ、R15.3の新規ジョブで設定・PHPを一組にして使う。両役割の全文、数式、スキーマは前版と同一。
+・W2を作業ディレクトリとして次を実行する。PHP CLIのctype、mbstring、PDO SQLite、Pythonのjsonschemaが必要。
+  python3 validation/verify_release.py --php /path/to/php --submitted-php /path/to/original/AiController.php
+  python3 validation/verify_release.py --php /path/to/php --submitted-php /path/to/original/AiController.php --stress-seed 20261107
+・時刻の独立検算（UTCと日本時間、5時刻の全3,125組）は追加で実行できる。
+  python3 validation/verify_r153_clock.py --php /path/to/php
+・新しい試験はvalidation/r153_receipts.php（途中診断、予約、時刻、過去版の入力）とr153_mixed_matrix.php（独立した役割の組合せ、取消・締切の更新、保存直前の再検査）。実行結果と試験の範囲はvalidation/実行結果.txt。
+
+4　非公開2レースで受け取る項目
+両AIについて実送信全文・版・ハッシュ、入力準備完了時刻、実送信と受領、訂正の許可範囲・採否、実効期限、race_id・snapshot_hashを対応させる。訂正がなければその旨を記録する。DBの時刻をどの欄から読み取ったかも添える。PHPの採用順位・統合後の候補馬番順、Flutterに出た順序を比較し、再読込前後で有料AIの呼出し件数が増えないことを確認する。実レースで都合よく取消や時計のずれが起きない場合は、上の合成試験の記録を使う。
+担当者環境のMySQL・Queue・Flutter、外部AIの呼出しと実表示はこのローカル試験の対象外。公開は2レースの照合後に判断する。購入推奨と複勝回収率は別途、実運用成績で検証する。

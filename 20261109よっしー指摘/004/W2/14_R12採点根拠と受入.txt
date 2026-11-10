@@ -1,0 +1,61 @@
+馬眼力 W2-R12　採点根拠と実装時の受入
+2026年11月4日　対象はファースト・セカンド共通
+prompt_version　baganriki-v041-r12-2-w2-e35-r12-20261104
+schema_version　baganriki-v041-r12-2-w2-e35-r12
+
+1　何を直したか
+R11では、16頭の見本で1番の単勝11倍を引用するだけでV3の8点を受理できた。同じ参照を10項目へ使えば100点にもできた。R12では、点を付けた項目の馬番・項目・必要な参照の組を照合する。0点にも資料が必要。資料が欠けた項目はnullとし、observed_sumとobserved_capを残った項目から計算し、一つでもnullならtotal_scoreもnullにする。既知の点を100点へ引き伸ばさない。
+E3/E5を比較するときは、当該帯の境界2頭をhorse_noでexpected_v01.rowsに結び、その各行のbasisを照合する。訂正はfix_request.repair_scopeに実際に載る4配列と診断から処理する。圧縮時のdependency_keyの整数はUTF-8のバイト数として展開する。単独の全文、送信時のsystem、設定のSHA-256を同じ版にそろえた。
+訂正時にも変更を加えた。元の回答で9項目が確認できて1項目だけが不正な場合、9項目を一緒に消す訂正は受け入れない。summary_horsesだけの許可では、元から有効だった点・理由・出典を保持する。根拠や候補資格は別に検査し、有効なら残す。
+
+2　各項目で採点できる材料
+H1　能力・適性18点。当該馬の過去成績・評価の数値。過去着順、評価済みの能力・距離・馬場・展開・ローテ・コース適性等。単なる日付、人気、馬場名だけで加点しない。
+H2　時系列15点。同馬のwin_odds、place_min、place_maxのいずれか一指標について、正式採用枠の異なる2時点。派生短縮率からは、検算済みの元観測も参照できる。
+H3　断層12点。6分前単勝順で隣接する固定ペア。上側→下側の順、同じ観測枠、同じwin_oddsまたはplace_minの2頭の値に基づくratio_12dp。式と親データを凍結時に検算する。
+H4　類似統計9点。同じ対象群・集計識別子・観測枠・観測時刻のsimilar_top3_rateまたはsimilar_top5_rate（百分率）と、正の整数similar_sample_count（件数）の組。
+H5　単複差6点。同馬・同時点の単勝と複勝の下限または上限。検算済みの比では親観測を照合する。
+V1　OPI・市場評価12点。当該馬のopi、fuku_opi、estimated_opiのうち実在する正の倍率。
+V2　能力と価格の乖離10点。H1の資料と、同じ馬の6分前の単勝・複勝またはOPI資料を併用する。
+V3　回収率と母数8点。次節で定める、対象馬に適用できる過去の回収率と母数の組。
+V4　推定確定オッズと誤差6点。当該馬のestimated_final_oddsと適用可能なwin_final_odds_error、またはestimated_final_place_minとplace_final_odds_error。誤差は過去に測定済みで倍率単位の非負値。同レースの確定オッズ・払戻を発走前資料に混ぜない。
+V5　情報・価格の信頼性4点。同馬・同時点の複勝下限と上限、またはH4と同じ検証済みの成績率・標本数の組。
+各点は資料の強さを評価する。条件をそろえただけで満点にしない。項目別の正式名・単位・受入可能な値はphp/ScoreMaterialsW2.phpが正本。正規化する数値は、サーバーに既に記録されていた値または許可された式の検算結果に限る。古い形式のDERIVEDの名前だけからOBSERVEDを新設しない。類似成績や回収率をその馬自身の利益・的中確率として表示しない。
+
+3　V3の入力と時間条件
+実装先で、券種・母数・集計範囲・利用可能時刻までたどれる過去の行だけを選ぶ。race_idとrosterが一致する対象馬群をサーバーが決定する。券種不明の従来集計は読み替えない。return_pctは同じ券種・同じ集計単位で求めた過去払戻総額÷過去購入総額×100。欠測、無効、購入総額0は未提供。sample_countはその分母を構成した有効な観測件数。旧集計の別の件数を同じものとして移さない。
+例（以下は架空値）。source_idは同じ集計版を一意に再取得できる、DBの種別・主キー・版の組。日付はJST、時刻はタイムゾーン付き。period_endは対象レース日より前、available_atは集計終了日以後かつ凍結時刻以下。odds_slotは過去標本の選定時点を示す文字列 S／21／18／15／12／9／6／3／FINAL。過去のFINALは対象レースの確定オッズを意味しない。
+
+[
+  {
+    "source_id": "example_return:42:rev3",
+    "ticket": "PLACE",
+    "odds_slot": "6",
+    "period_start": "2025-01-01",
+    "period_end": "2026-10-15",
+    "horse_nos": [2, 7],
+    "return_pct": "84.25",
+    "sample_count": 40,
+    "available_at": "2026-10-16T08:00:00+09:00"
+  }
+]
+
+凍結前の接続点
+  $built = ExpectedBridgeW2::attach($base, $current, $history, $calibration, $returnStatistics);
+  $common = $built['common'];
+  $returnAudit = $built['audit']['return_statistics'];
+
+第5引数の既定値は空配列。出典が確認できる行がなければ従来の4引数で動作し、V3は未算出となる。元の出典、入力索引、他の資料は保持する。空文字の識別子、重複した版、券種不明、1以上の整数でない母数、期間／対象馬／時刻の不正は当該集計を除外し、理由を記録する。同じsource_idの複数行は採用しない。既に正規化したV3行が$baseにある場合は接続順の誤りとして停止する。入力を二重加工せず、同じ原資料から再構築する。
+採用行から券種別のreturn_pctとsample_countを同一グループのCOHORT／CONTEXTとして登録し、対象馬、DB行を識別するSHA-256、券種・集計期間・観測時点、coverageと索引を結ぶ。2件とも同じ馬へ適用できる場合だけV3の点を受け入れる。有効な母数と実測0％がそろえば0点を受け入れる。母数0や数値なしはnull。過去回収率の登録を好走根拠の独立系統に加えない。
+audit.return_statisticsのincluded、skipped、sourcesをサーバーの凍結レコードに保存する。sourcesで元のsource_idと版を再照会できるようにする。この管理用台帳はAI・公開画面の本文に含めない。
+
+4　実装への組込みと確認
+(a) 02のW2接続を適用し、php・config・schemas・promptsを一組として配置する。R12以外の保存データはその版の処理器へ渡す。既に本番にある実装へは、同じ意味の差分をローカルで照合して適用する。
+(b) integration/response_frame_w2.patchに加え、integration/score_evidence_w2.patchを適用する。前者は新規R12と、既に同じ厳密な囲み規則を使っていた保存版R10・R11を識別して読む。採点は各保存版の正本に従う。後者は初回診断、採点だけの不良を識別する一覧、該当点と出典を局所修復する処理をつなぐ。PHPクラスやプロンプトだけを置き換えると、診断や訂正生成に旧判定が残る。パッチは提出済み10/23版AiController.php用。履歴を再生するサーバーには版別処理を保持する。
+(c) 新規の正本は凍結入力と両AIの受領原文。verifyOriginalで本文・根拠を検証し、訂正時は原応答との比較、回復時はRecoveryW2の保存出典照合に通す。配列だけのverifyReply、apply、mergeは内部の順位計算用。これらの戻り値やAIの自己申告を公開許可に使わない。
+(d) 訂正本文の4配列はhorses（馬の評価）、summary_horses（採点・集計）、presentation_horses（表示）、rank_bands（順位）。許可のない馬や帯を直さない。正常な採点根拠まで消した訂正は拒否する。実送信messages・再読込み時の課金回数を保存して照合する。
+(e) 圧縮は既存codecで展開して索引・coverage・値・型を照合する。h1_能力_6の先頭9バイトはh1_能力。圧縮往復に失敗したときの予算・送信条件は02と11に従う。
+(f) 全体試験はPythonのjsonschema・referencing、PHP CLIのmbstring・pdo_sqlite、patchと、対象の提出済みコントローラーを用意して下記を実行。作業場所はW2のルート。合格した実行記録はvalidation/実行結果.txt。
+  python3 -B validation/verify_release.py --php /path/to/php --submitted-php /path/to/submitted/AiController.php
+提出原本のSHA-256　1e8f0fbfe732fd24639c6b1f40c40b384e5956accd969a5aea3ff838159ed7ae
+validation/reference_r121.zip等は過去仕様の照合用。現行の採点受入には使わない。現行の検査はvalidation/r12_backend.phpとverify_r12_adapter.pyを含む。
+(g) 本番接続後に非公開2レースで、①同じ凍結入力 ②両AIの実送信全文と採用された応答 ③PHPで再計算した候補・順位 ④Flutterに出る馬番・理由を一致させる。候補に入った馬と購入推奨は別欄。購入推奨はPENDING_VALIDATION、学習はCOLLECT_ONLY。高配当レースかどうかを見てから当日の入力を変更しない。複勝回収率は、その後の同条件・時系列の成績で評価する。

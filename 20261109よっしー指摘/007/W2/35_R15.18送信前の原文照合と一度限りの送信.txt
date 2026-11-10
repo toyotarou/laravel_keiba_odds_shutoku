@@ -1,0 +1,30 @@
+馬眼力 W2-R15.18　エンジニア受渡し　2026年11月5日
+送付ファイル　馬眼力_W2-R15.18_エンジニア送付一式_20261105.zip
+
+1　R15.17で再現したこと
+送信原文をW2/11の手順で用意した後、予算予約中にDBの役割別入力を反対側と交換しても、外部送信を模した入口を1回呼んだ。対象行の欠落、枠数の書き換え、SDKの指示文取り違えでも同様。レースIDと共通ハッシュは同じだった。1st・2nd、初回・訂正、圧縮・FULLで確認した。実運用での発生件数は未確認。
+
+2　導入順
+① integration/2026_11_05_000018_add_w2_send_proof.php をLaravelの database/migrations に配置し、既存の baganriki_ai_attempts に nullable CHAR(65) の w2_send_proof を追加する。この表は token が一意、(snapshot_id,role,attempt_no) が一意であることを確認する。既存行はNULLのまま。旧版の進行中ジョブは開始時の実装で完了させる。旧稼働分の送信許可を新たに作らない。ロールバック時はコードを戻し、この監査列を残す。
+② W2/php 一式と、W2/02指定の2差分を10月23日の固定原本へ順に適用する。他の変更がある環境は統合する。適用後 AiController.php SHA-256 は 9c699826de660552b879a0b535d62f74f58b60921b5315251994d866c002da80。
+③ すべてのW2送信経路（初回・再開・訂正）を次節へ接続してから対象レースのジョブを開始する。W2/02・11の独立した凍結入力、初回診断、予算、全文記録、対象レースの制御を使う。過去版の本文送信や既存の公開履歴はその版の扱いを継続する。
+
+3　W2を送る箇所
+各roleの初回はattemptNo=0、サーバーが許した訂正は1。W2/11の通り、保存された role 原文、共通原文、独立した expected_proof から $frozen を作り、$prepared = ExpectedBridgeW2::prepareSend(...) で2通を用意する。訂正では同じrole・同じ形式の初回と確定済みの診断を渡す。許可された範囲と初回原文を含む。予約した番号・tokenを使用し、既存の正本へ DispatchW2::recordSent($frozen,$prepared,$prepared['messages']) の返値（全文・SHA・版）を保存する。準備・予算・記録が不成立なら送信を行わない。
+予約済み、まだallowSendしていない段階で、W2初回・訂正の両呼出側の「allowSend→callPredictionAi」を以下の呼出1回に置き換える。メソッド内部でstage、allowSend、実送信直前の照合を行う。
+    $call = $this->sendReservedW2Request($snapshotId, $role, $attemptNo, $token, $frozen, $prepared, $timeout);
+戻り値の skip_attempt_update が true なら、その呼出側は試行状態・受領・usageの記録を更新せず終了する。同じ予約を正しく取得した別処理の結果を保護するためである。送信許可前に正式な全頭取消・締切超過が判明したときは、ALL_CANCELLED・DEADLINE_PASSEDをそのまま返す。それ以外は受領記録、usage精算、採否と公開を既存経路へ戻す。OUTBOUND_MISMATCHはNOT_SENT_CODESに含まれる。自動で再送しない。既存処理が別ワーカーに分かれる場合は、予約中に stagePreparedW2Request(...) を行い、送信側が一度だけ allowSend した後、保存済みsent_requestのsystem_textとuser_jsonをcallPredictionAiへ直接渡してよい。ステージ済みの予約へ別の計画を書き込むと拒否される。中断後は実DBの予約状態を先に確認する。
+
+4　送信直前の判定
+許可は、スナップショットID、予約token、当該roleの保存原文全バイト、W9のrequest_sha256を結ぶ。W9はリリース、レース、共通ハッシュ、role、試行番号、形式、system／user全文のSHAを含む。R＋64桁は予約に登録済み。送信時に出走状態・公式時刻と照合し、対象のSENT行だけR→Uを1回更新する。Uは許可を消費した印。通信の成功や課金の有無は受領・usage・費用記録から確認する。通信前にロックを解放し、残り時間を再計算する。許可を消費した後に期限切れ・通信結果不明となった処理も同じ許可では再送しない。改変、欠損、他の役割、正しいが別の形式、訂正の初回文・対象馬・診断の差し替えは全体の照合に失敗する。送信前に止めた予算の予約は解放する。
+この変更は選出基準に手を加えない。根拠がある片側独自の人気薄は既存の公開手順で評価する。購入推奨はPENDING_VALIDATION。
+
+5　検証と非公開2レース
+validation/verify_release.py の --submitted-php 検査と、validation/r1518_send.php の送信照合、validation/verify_r1518_persistent.py の予約から送信・実DB記録を模した競合試験を行う。例は次の通り。
+    php W2/validation/r1518_migration.php
+    php W2/validation/verify_w2.php --examples /tmp/w2examples --sdk-fixture
+    php W2/validation/r1518_send.php /path/to/patched/AiController.php /tmp/w2examples
+    python3 W2/validation/verify_r1518_persistent.py /path/to/php /path/to/patched/AiController.php
+    python3 W2/validation/verify_r1518_candidates.py /path/to/php /path/to/patched/AiController.php response
+    python3 W2/validation/verify_r1518_candidates.py /path/to/php /path/to/patched/AiController.php correction
+エンジニア環境の非公開2レースで実MySQL、実Queue、実際のAI、Flutterを通す。予約／R→Uの件数、初回・訂正の版と実送信SHA、各roleの受領・採否、DBと画面の馬番順、再読込による追加有料呼出し0を照合する。正式取消・時刻変更が当日に起きなかった場合は条件を記録し、保存原文で非公開再生する。実戦回収率は別に計測する。

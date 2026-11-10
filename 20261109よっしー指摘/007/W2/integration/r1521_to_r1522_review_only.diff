@@ -1,0 +1,282 @@
+--- a/php/DispatchW2.php
++++ b/php/DispatchW2.php
+@@ -55,6 +55,23 @@
+         return $revision;
+     }
+ 
++    /** The frozen text revision owns both the initial choice and any mandatory wire format. */
++    public static function transportPolicy(array $input):array
++    {
++        $revision=$input['prompt_text_revision']??null;
++        // Receipts created before the revision pin retain their original format.
++        if ($revision===null) return ['initial'=>null,'required'=>null];
++        $role=$input['ai_role']??null;$cfg=self::config();
++        self::need(is_string($revision) && in_array($role,['1st','2nd'],true),'W22_TRANSPORT_POLICY');
++        $rule=$cfg['transport_policy'][$revision][$role]??null;
++        self::need(is_array($rule) && count($rule)===2 && array_key_exists('initial',$rule) && array_key_exists('required',$rule),
++            'W22_TRANSPORT_POLICY');
++        self::need(in_array($rule['initial'],['FULL','SOURCE_TABLE_V1'],true) &&
++            in_array($rule['required'],[null,'FULL','SOURCE_TABLE_V1'],true) &&
++            ($rule['required']===null || $rule['required']===$rule['initial']),'W22_TRANSPORT_POLICY');
++        return $rule;
++    }
++
+     /** New snapshots carry an explicit revision inside the common hash. Legacy receipts use approved archives. */
+     public static function systemFor(array $input,string $format):string
+     {
+@@ -146,7 +163,8 @@
+     public static function record(FrozenInputW2 $frozen,string $format,int $number,string $system,string $user):array
+     {
+         $policyInput=FrozenInputW2::checked($frozen);
+-        if (RaceMetricsW2::enabled($policyInput) && $policyInput['ai_role']==='1st' && $format!=='FULL') throw new InvalidArgumentException('W20_SEND_POLICY');
++        $required=self::transportPolicy($policyInput)['required'];
++        if ($required!==null && $format!==$required) throw new InvalidArgumentException('W20_SEND_POLICY');
+         self::need(in_array($number,[0,1],true) && strlen($user)<=4194304,'W9_SENT_RECORD');
+         $in=FrozenInputW2::checked($frozen);$systemHash=hash('sha256',$system);$userHash=hash('sha256',$user);
+         self::need(self::knownSystem($in,$format,$system),'W9_SENT_SYSTEM');
+--- a/php/ExpectedBridgeW2.php
++++ b/php/ExpectedBridgeW2.php
+@@ -17,7 +17,10 @@
+         if (!array_key_exists('prompt_text_revision',$base)) $base['prompt_text_revision']=DispatchW2::activeRevision();
+         if (!is_string($base['prompt_text_revision'])) throw new InvalidArgumentException('W19_TEXT_REVISION');
+         // Validate the pinned revision before either role is frozen or sent.
+-        foreach (['1st','2nd'] as $role) DispatchW2::system($role,'FULL',$base['prompt_text_revision']);
++        foreach (['1st','2nd'] as $role) {
++            $policy=DispatchW2::transportPolicy(['ai_role'=>$role,'prompt_text_revision'=>$base['prompt_text_revision']]);
++            DispatchW2::system($role,$policy['initial'],$base['prompt_text_revision']);
++        }
+         foreach (['snapshot_hash','ai_role','role_cap','role_quota','expected_v01'] as $key)
+             if (array_key_exists($key,$base)) throw new InvalidArgumentException('EXPECTED_PRE_HASH_COMMON');
+         if (($base['prompt_version']??null)!==CandidateSelectionW2::VERSION || ($base['schema_version']??null)!==CandidateSelectionW2::SCHEMA ||
+@@ -113,9 +116,10 @@
+         $start=AttemptWindowW2::dispatch($frozen,$liveState());$input=FrozenInputW2::checked($frozen);
+         $first=null;$scope=null;$required=null;
+         if ($preferredFormat!==null && !in_array($preferredFormat,['FULL','SOURCE_TABLE_V1'],true)) throw new InvalidArgumentException('W20_SEND_FORMAT');
+-        $pinnedFull=RaceMetricsW2::enabled($input) && $input['ai_role']==='1st';
+-        if ($pinnedFull && $preferredFormat==='SOURCE_TABLE_V1') throw new InvalidArgumentException('W20_SEND_POLICY');
+-        $preferredFormat=$pinnedFull?'FULL':$preferredFormat;
++        $policy=DispatchW2::transportPolicy($input);$pinnedFormat=$policy['required'];
++        if ($pinnedFormat!==null && $preferredFormat!==null && $preferredFormat!==$pinnedFormat)
++            throw new InvalidArgumentException('W20_SEND_POLICY');
++        $preferredFormat=$pinnedFormat??$preferredFormat??($repair===null?$policy['initial']:null);
+         if ($repair!==null) {
+             [$initial]=AttemptWindowW2::receipts($frozen,[$repair['first_receipt']??null],$start);
+             if (!isset($initial[0])) throw new InvalidArgumentException('W9_FIX_SOURCE');
+@@ -139,7 +143,8 @@
+                 if ($packed!==DispatchW2::inputBody($frozen,'SOURCE_TABLE_V1')) throw new InvalidArgumentException('W9_WIRE_SURPLUS');
+                 $kind='SOURCE_TABLE_V1';$body=$packed;
+             } catch (\RuntimeException | \InvalidArgumentException | \JsonException $e) {
+-                if (!$allowFullFallback || $required==='SOURCE_TABLE_V1') throw new InvalidArgumentException('W2_FULL_NOT_ALLOWED',0,$e);
++                if (!$allowFullFallback || $required==='SOURCE_TABLE_V1' || $pinnedFormat==='SOURCE_TABLE_V1')
++                    throw new InvalidArgumentException('W2_FULL_NOT_ALLOWED',0,$e);
+                 $reason=$e->getMessage();
+             }
+         }
+--- a/php/RaceMetricsW2.php
++++ b/php/RaceMetricsW2.php
+@@ -8,14 +8,15 @@
+ /** Display-only assessments. Never consulted by ranking, quotas, E3/E5 or purchase policy. */
+ final class RaceMetricsW2
+ {
+-    public const REVISION='COMPACT_TEXT_20261109_04';
++    public const REVISION='COMPACT_TEXT_20261109_05';
++    public const SUPPORTED_REVISIONS=['COMPACT_TEXT_20261109_04',self::REVISION];
+     public const POLICY='RACE_METRICS_V1';
+     public const KEYS=['wave_level','lower_entry','big_gap_entry'];
+     public const LABELS=['wave_level'=>'波乱度','lower_entry'=>'下位進入度','big_gap_entry'=>'大穴進入度'];
+ 
+     public static function enabled(array $in):bool
+     {
+-        return ($in['prompt_text_revision']??null)===self::REVISION;
++        return in_array($in['prompt_text_revision']??null,self::SUPPORTED_REVISIONS,true);
+     }
+ 
+     /** Validate one assessment independently so an invalid neighbour cannot erase it. */
+--- a/php/ResponseInspectionW2.php
++++ b/php/ResponseInspectionW2.php
+@@ -8,7 +8,7 @@
+ /** An early inspection suggests corrections. Only the independent saved-input/original-response check can authorize publication. */
+ final class ResponseInspectionW2
+ {
+-    public const REVISION='w2-r15.21';
++    public const REVISION='w2-r15.22';
+ 
+     /** Keep independently valid evidence on a mixed row. Never promote a local salvage to a full AI answer. */
+     public static function salvageMarket(array $in,array $horse,int $index,array $inputMap,array $responseMap):?array
+--- a/config/w2_contract.json
++++ b/config/w2_contract.json
+@@ -1,6 +1,6 @@
+ {
+   "prompt_version": "baganriki-v041-r12-2-w2-e35-r15-20261104",
+-  "validator_version": "w2-r15.21",
++  "validator_version": "w2-r15.22",
+   "schema_version": "baganriki-v041-r12-2-w2-e35-r15",
+   "base_quota": {
+     "4": {
+@@ -141,13 +141,13 @@
+     "buy_recommended": false
+   },
+   "system_file_sha256": {
+-    "prompt_1st.txt": "afc266a96173efd8d43bfd4410ef7a662d95f7788bbffa2567b3dab8eb5716de",
+-    "prompt_2nd.txt": "14fcb394c86201eeca6c79b5bccc9e2b690743e7750999da4c6497115a42b30a",
++    "prompt_1st.txt": "cd66c9100f7e1a82a328bbc60749bf6c193e204c20be48a7727d405e070f4351",
++    "prompt_2nd.txt": "ccc3f0742f64584e3922e463cb9d2852ced30f43c9bd51f61a4ca8b1a8c65c33",
+     "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "fb7b4434dc488860c4611345fb59eca760bdad5bf8cf5d1bede8c9596782da9b"
+   },
+   "score_evidence_policy": "W2_R14_SCORE_MATERIALS_V1",
+   "family_evidence_policy": "W2_R14_FAMILY_MATERIALS_V1",
+-  "active_text_revision": "COMPACT_TEXT_20261109_04",
++  "active_text_revision": "COMPACT_TEXT_20261109_05",
+   "archived_text_revisions": {
+     "ORIGINAL_R15_18": {
+       "prompt_1st.txt": "fc73c229618a7d2ba1c5462bddafaa08b61a760395c0b165d325914b187660fb",
+@@ -163,15 +163,14 @@
+       "prompt_1st.txt": "e2d23b58a8382b13762871b0344816d7c75915f948621c9f46ce83b3c41ede21",
+       "prompt_2nd.txt": "c2d883526ea36d487b158e31da8838f5995d5d5939f980bfc0f883d73835bd9d",
+       "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "fb7b4434dc488860c4611345fb59eca760bdad5bf8cf5d1bede8c9596782da9b"
++    },
++    "COMPACT_TEXT_20261109_04": {
++      "prompt_1st.txt": "afc266a96173efd8d43bfd4410ef7a662d95f7788bbffa2567b3dab8eb5716de",
++      "prompt_2nd.txt": "14fcb394c86201eeca6c79b5bccc9e2b690743e7750999da4c6497115a42b30a",
++      "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "fb7b4434dc488860c4611345fb59eca760bdad5bf8cf5d1bede8c9596782da9b"
+     }
+   },
+-  "validation_contract_revision": "w2-r15.21",
+-  "initial_transport": {
+-    "COMPACT_TEXT_20261109_04": {
+-      "1st": "FULL",
+-      "2nd": "SOURCE_TABLE_V1"
+-    }
+-  },
++  "validation_contract_revision": "w2-r15.22",
+   "race_metrics_policy": {
+     "id": "RACE_METRICS_V1",
+     "producer": "1st",
+@@ -182,5 +181,57 @@
+     "missing": null,
+     "ranking_effect": false,
+     "publication_bound": true
++  },
++  "transport_policy": {
++    "ORIGINAL_R15_18": {
++      "1st": {
++        "initial": "SOURCE_TABLE_V1",
++        "required": null
++      },
++      "2nd": {
++        "initial": "SOURCE_TABLE_V1",
++        "required": null
++      }
++    },
++    "COMPACT_TEXT_20261109_02": {
++      "1st": {
++        "initial": "SOURCE_TABLE_V1",
++        "required": null
++      },
++      "2nd": {
++        "initial": "SOURCE_TABLE_V1",
++        "required": null
++      }
++    },
++    "COMPACT_TEXT_20261109_03": {
++      "1st": {
++        "initial": "SOURCE_TABLE_V1",
++        "required": null
++      },
++      "2nd": {
++        "initial": "SOURCE_TABLE_V1",
++        "required": null
++      }
++    },
++    "COMPACT_TEXT_20261109_04": {
++      "1st": {
++        "initial": "FULL",
++        "required": "FULL"
++      },
++      "2nd": {
++        "initial": "SOURCE_TABLE_V1",
++        "required": null
++      }
++    },
++    "COMPACT_TEXT_20261109_05": {
++      "1st": {
++        "initial": "SOURCE_TABLE_V1",
++        "required": "SOURCE_TABLE_V1"
++      },
++      "2nd": {
++        "initial": "SOURCE_TABLE_V1",
++        "required": "SOURCE_TABLE_V1"
++      }
++    }
+   }
+ }
+--- a/prompts/common_prompt.txt
++++ b/prompts/common_prompt.txt
+@@ -53,7 +53,7 @@
+ 選出停止時はpublic_candidates=[]、全馬公開false、全馬nonselect_reason.code=SELECTION_DISABLED、shortfalls=[]、selection_ranksは基礎順位、全帯expected_reviewsはSELECTION_DISABLED。
+ 全ての必須理由・解釈・explanationは短く具体的な日本語。空文字、空白・改行・全角空白・ゼロ幅文字だけは禁止。explanationは肯定材料と主要反証、不足時は確認済み範囲と不足資料を記す。反復・前置き・長い言い換えを避ける。
+ 
+-【1stの表示指標（本文版COMPACT_TEXT_20261109_04のみ）】
++【1stの表示指標（本文版COMPACT_TEXT_20261109_05）】
+ 1stはトップレベルにrace_metricsを追加し、wave_level（波乱度）、lower_entry（下位進入度）、big_gap_entry（大穴進入度）の3キーを必ず返す。2ndはrace_metricsを出さない。各値は{value:1～5の整数またはnull,source_refs:参照ID配列,reason:500文字以内の具体的な理由}。資料不足や対象人気帯がない場合value=nullとし、0・固定の中間値で補わない。これは表示用の段階評価で、確率・配当・購入推奨ではない。mode・枠・候補・E3/E5・点数に影響させない。
+ wave_levelはレース全体の予測困難度。単複二重の上位断層は1～2、上位断層は2～3、中間は3、断層なし・単複不一致は4～5を目安に、断層の拡縮、上位の支持安定、下位への複勝支持を見て説明する。未確認の断層や支持を作らない。波乱度の補正は各条件1段階、同方向の複数該当でも最大2段階まで、最終値は1～5に収める。上げる条件は6分前へ向けた断層の縮小、断層下の複数馬への複勝支持、7～10番人気の複勝支持順位の継続上昇、単複断層位置の不一致、1番人気の複勝支持低下。下げる条件は断層の継続維持、単複断層位置の一致、断層拡大、上位6番人気内の二重断層、下位への明確な複勝支持がないこと。資料不足と支持がないことを区別する。
+ lower_entryは凍結単勝7～10番人気の馬が5着以内に入る可能性の段階、大穴進入度は11番人気以下が5着以内に入る可能性の段階。3着以内や馬番7～10と混同しない。大穴進入度3以上には対象馬の同じ複勝指標（place_minまたはplace_max）が12→9→6分で連続して短縮している参照3件が必要。確認できなければ1～2の根拠ある評価、資料自体が不足ならnull。これは継続支持の最低確認条件であり、支持加速や実投票額流入を意味しない。
+--- a/prompts/prompt_1st.txt
++++ b/prompts/prompt_1st.txt
+@@ -56,7 +56,7 @@
+ 選出停止時はpublic_candidates=[]、全馬公開false、全馬nonselect_reason.code=SELECTION_DISABLED、shortfalls=[]、selection_ranksは基礎順位、全帯expected_reviewsはSELECTION_DISABLED。
+ 全ての必須理由・解釈・explanationは短く具体的な日本語。空文字、空白・改行・全角空白・ゼロ幅文字だけは禁止。explanationは肯定材料と主要反証、不足時は確認済み範囲と不足資料を記す。反復・前置き・長い言い換えを避ける。
+ 
+-【1stの表示指標（本文版COMPACT_TEXT_20261109_04のみ）】
++【1stの表示指標（本文版COMPACT_TEXT_20261109_05）】
+ 1stはトップレベルにrace_metricsを追加し、wave_level（波乱度）、lower_entry（下位進入度）、big_gap_entry（大穴進入度）の3キーを必ず返す。2ndはrace_metricsを出さない。各値は{value:1～5の整数またはnull,source_refs:参照ID配列,reason:500文字以内の具体的な理由}。資料不足や対象人気帯がない場合value=nullとし、0・固定の中間値で補わない。これは表示用の段階評価で、確率・配当・購入推奨ではない。mode・枠・候補・E3/E5・点数に影響させない。
+ wave_levelはレース全体の予測困難度。単複二重の上位断層は1～2、上位断層は2～3、中間は3、断層なし・単複不一致は4～5を目安に、断層の拡縮、上位の支持安定、下位への複勝支持を見て説明する。未確認の断層や支持を作らない。波乱度の補正は各条件1段階、同方向の複数該当でも最大2段階まで、最終値は1～5に収める。上げる条件は6分前へ向けた断層の縮小、断層下の複数馬への複勝支持、7～10番人気の複勝支持順位の継続上昇、単複断層位置の不一致、1番人気の複勝支持低下。下げる条件は断層の継続維持、単複断層位置の一致、断層拡大、上位6番人気内の二重断層、下位への明確な複勝支持がないこと。資料不足と支持がないことを区別する。
+ lower_entryは凍結単勝7～10番人気の馬が5着以内に入る可能性の段階、大穴進入度は11番人気以下が5着以内に入る可能性の段階。3着以内や馬番7～10と混同しない。大穴進入度3以上には対象馬の同じ複勝指標（place_minまたはplace_max）が12→9→6分で連続して短縮している参照3件が必要。確認できなければ1～2の根拠ある評価、資料自体が不足ならnull。これは継続支持の最低確認条件であり、支持加速や実投票額流入を意味しない。
+--- a/prompts/prompt_2nd.txt
++++ b/prompts/prompt_2nd.txt
+@@ -57,7 +57,7 @@
+ 選出停止時はpublic_candidates=[]、全馬公開false、全馬nonselect_reason.code=SELECTION_DISABLED、shortfalls=[]、selection_ranksは基礎順位、全帯expected_reviewsはSELECTION_DISABLED。
+ 全ての必須理由・解釈・explanationは短く具体的な日本語。空文字、空白・改行・全角空白・ゼロ幅文字だけは禁止。explanationは肯定材料と主要反証、不足時は確認済み範囲と不足資料を記す。反復・前置き・長い言い換えを避ける。
+ 
+-【1stの表示指標（本文版COMPACT_TEXT_20261109_04のみ）】
++【1stの表示指標（本文版COMPACT_TEXT_20261109_05）】
+ 1stはトップレベルにrace_metricsを追加し、wave_level（波乱度）、lower_entry（下位進入度）、big_gap_entry（大穴進入度）の3キーを必ず返す。2ndはrace_metricsを出さない。各値は{value:1～5の整数またはnull,source_refs:参照ID配列,reason:500文字以内の具体的な理由}。資料不足や対象人気帯がない場合value=nullとし、0・固定の中間値で補わない。これは表示用の段階評価で、確率・配当・購入推奨ではない。mode・枠・候補・E3/E5・点数に影響させない。
+ wave_levelはレース全体の予測困難度。単複二重の上位断層は1～2、上位断層は2～3、中間は3、断層なし・単複不一致は4～5を目安に、断層の拡縮、上位の支持安定、下位への複勝支持を見て説明する。未確認の断層や支持を作らない。波乱度の補正は各条件1段階、同方向の複数該当でも最大2段階まで、最終値は1～5に収める。上げる条件は6分前へ向けた断層の縮小、断層下の複数馬への複勝支持、7～10番人気の複勝支持順位の継続上昇、単複断層位置の不一致、1番人気の複勝支持低下。下げる条件は断層の継続維持、単複断層位置の一致、断層拡大、上位6番人気内の二重断層、下位への明確な複勝支持がないこと。資料不足と支持がないことを区別する。
+ lower_entryは凍結単勝7～10番人気の馬が5着以内に入る可能性の段階、大穴進入度は11番人気以下が5着以内に入る可能性の段階。3着以内や馬番7～10と混同しない。大穴進入度3以上には対象馬の同じ複勝指標（place_minまたはplace_max）が12→9→6分で連続して短縮している参照3件が必要。確認できなければ1～2の根拠ある評価、資料自体が不足ならnull。これは継続支持の最低確認条件であり、支持加速や実投票額流入を意味しない。
+--- a/schemas/input_schema.json
++++ b/schemas/input_schema.json
+@@ -2015,7 +2015,8 @@
+         "COMPACT_TEXT_20261109_03",
+         "ORIGINAL_R15_18",
+         "COMPACT_TEXT_20261109_02",
+-        "COMPACT_TEXT_20261109_04"
++        "COMPACT_TEXT_20261109_04",
++        "COMPACT_TEXT_20261109_05"
+       ]
+     }
+   },
+@@ -2396,5 +2397,5 @@
+       }
+     }
+   ],
+-  "$id": "urn:baganriki:r12-2-w2-e35-r15:input:w2-r15.21"
++  "$id": "urn:baganriki:r12-2-w2-e35-r15:input:w2-r15.22"
+ }
+--- a/schemas/output_schema.json
++++ b/schemas/output_schema.json
+@@ -1932,5 +1932,5 @@
+       }
+     }
+   ],
+-  "$id": "urn:baganriki:r12-2-w2-e35-r15:output:w2-r15.21"
++  "$id": "urn:baganriki:r12-2-w2-e35-r15:output:w2-r15.22"
+ }
+--- a/schemas/recovery_schema.json
++++ b/schemas/recovery_schema.json
+@@ -1,5 +1,5 @@
+ {
+-  "$id": "urn:baganriki:r12-2-w2-e35-r15:recovery:w2-r15.21",
++  "$id": "urn:baganriki:r12-2-w2-e35-r15:recovery:w2-r15.22",
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "type": "object",
+   "properties": {

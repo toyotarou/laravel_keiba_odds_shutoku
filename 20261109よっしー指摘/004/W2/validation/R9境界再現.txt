@@ -1,0 +1,14 @@
+R9原配布物で再現した結果（架空の16頭・ファースト。実レース予想ではない）
+送付ZIP SHA-256: 1ce431995e0e6c5c61388d821867d831682b061c11a2944bb3fa983ed7f3b935
+説明の文字列以外の値は同じ。正常な説明文字列はoutput_schemaを通してから原応答検査を行った。00=NUL、0b=垂直タブ。
+
+plain ACCEPT [1,2,4,7,8,10,12]
+begin-literal REJECT W2_RESPONSE_JSON
+end-literal REJECT W2_RESPONSE_FRAME
+both-literal REJECT W2_RESPONSE_FRAME
+00 before INVALID-JSON ACCEPT [1,2,4,7,8,10,12]
+00 after INVALID-JSON ACCEPT [1,2,4,7,8,10,12]
+0b before INVALID-JSON ACCEPT [1,2,4,7,8,10,12]
+0b after INVALID-JSON ACCEPT [1,2,4,7,8,10,12]
+
+R10の受入結果とその後の検査は実行結果.txt、再現する試験はr10_backend.phpとverify_r10_frames.py。

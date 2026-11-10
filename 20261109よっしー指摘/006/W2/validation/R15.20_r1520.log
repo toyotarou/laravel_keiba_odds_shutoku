@@ -1,0 +1,16 @@
+PASS 93 R15.20 format, budget, metric, correction and source checks
+{"case": "normal", "values": {"wave_level": 3, "lower_entry": 2, "big_gap_entry": 2}, "candidates": [16, 15, 14, 10, 5], "correction": null}
+{"case": "missing", "values": {"wave_level": null, "lower_entry": null, "big_gap_entry": null}, "candidates": [16, 15, 14, 10, 5], "correction": null}
+{"case": "range", "values": {"wave_level": 3, "lower_entry": null, "big_gap_entry": 2}, "candidates": [16, 15, 14, 10, 5], "correction": null}
+{"case": "type", "values": {"wave_level": 3, "lower_entry": null, "big_gap_entry": 2}, "candidates": [16, 15, 14, 10, 5], "correction": null}
+{"case": "reference", "values": {"wave_level": 3, "lower_entry": null, "big_gap_entry": 2}, "candidates": [16, 15, 14, 10, 5], "correction": null}
+{"case": "unknown", "values": {"wave_level": 3, "lower_entry": null, "big_gap_entry": 2}, "candidates": [16, 15, 14, 10, 5], "correction": null}
+{"case": "second_field", "values": {"wave_level": 3, "lower_entry": 2, "big_gap_entry": 2}, "candidates": [16, 15, 14, 10, 5], "correction": null}
+{"case": "fix_metric", "values": {"wave_level": 3, "lower_entry": 2, "big_gap_entry": 2}, "candidates": [16, 15, 14, 10, 5], "correction": "FIX_APPLIED"}
+{"case": "fix_outside", "values": {"wave_level": 3, "lower_entry": 2, "big_gap_entry": 2}, "candidates": [16, 15, 14, 10], "correction": "FIX_REJECTED"}
+{"case": "first_absent", "values": {"wave_level": null, "lower_entry": null, "big_gap_entry": null}, "candidates": [16, 15, 14, 10], "correction": null}
+{"case": "first_unreadable", "values": {"wave_level": null, "lower_entry": null, "big_gap_entry": null}, "candidates": [16, 15, 14, 10], "correction": null}
+PASS 11 R15.20 SQLite/Queue/publication/GET cases; no external provider or deployed DB
+PASS corrected 1st, exact original/repair hashes, 12th favourite +5 and historical publication kept.
+PASS corrected 2nd, exact original/repair hashes, 12th favourite +5 and historical publication kept.
+PASS 2 R15.20 actual sender/repair/SQL/GET flows: 1st FULL, 2nd SOURCE_TABLE_V1, three calls each

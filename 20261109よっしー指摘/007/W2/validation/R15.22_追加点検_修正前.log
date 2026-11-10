@@ -1,0 +1,10 @@
+{"case":"normal","stage":"send","result":"SOURCE_TABLE_V1","metrics_enabled":true,"system_requires_metrics":true}
+{"case":"coverage_sorted_full_field","stage":"send","result":"SOURCE_TABLE_V1","metrics_enabled":true,"system_requires_metrics":true}
+{"case":"coverage_reversed_full_field","stage":"send","errors":["W2_FULL_NOT_ALLOWED","INVALID_CODEC_OUTPUT"]}
+{"case":"coverage_reversed_partial_field","stage":"send","result":"SOURCE_TABLE_V1","metrics_enabled":true,"system_requires_metrics":true}
+{"case":"extra_named_index","stage":"send","errors":["W2_FULL_NOT_ALLOWED","INVALID_CODEC_OUTPUT"]}
+{"case":"legacy_without_text_revision","stage":"send","result":"SOURCE_TABLE_V1","metrics_enabled":false,"system_requires_metrics":true}
+{"case":"empty_dependency_key","stage":"input","error":"W3_SCHEMA_input [\"source_registry\",\"h10_past_performance_None\",\"dependency_key\"]"}
+{"case":"decimal_1.000000000000000000001","stage":"send","result":"SOURCE_TABLE_V1","number_token_retained":true}
+{"case":"decimal_9007199254740993","stage":"send","result":"SOURCE_TABLE_V1","number_token_retained":true}
+{"case":"decimal_1e-100","stage":"send","result":"SOURCE_TABLE_V1","number_token_retained":false}

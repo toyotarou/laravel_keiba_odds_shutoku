@@ -1,0 +1,14 @@
+{
+  "patch_checks": [
+    "fixed_exact_bytes",
+    "r1519_exact_bytes",
+    "r1520_exact_bytes",
+    "unknown_base_refused",
+    "existing_destination_preserved"
+  ],
+  "php_lint_files": 89,
+  "python_syntax_files": 41,
+  "formula_and_prompts_unchanged": true,
+  "selection_time_purchase_config_unchanged": true,
+  "controller_sha256": "d0d6e926e37ea62655355bf54751031bdcd360d2b603b5bf08b01050d7193aa3"
+}

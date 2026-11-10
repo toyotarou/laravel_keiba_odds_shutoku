@@ -1,0 +1,35 @@
+--- a/AiController.php
++++ b/AiController.php
+@@ -17694,7 +17694,9 @@
+         }
+ 
+         // ── ① 原文から封筒を取り出す ────────────────────────────────
+-        $ex = BaganrikiResponse::extract((string) $a->raw_response);
++        $ex = \App\Services\Baganriki\ResponseFrameW2::supportsVersion($src['prompt_version'] ?? null)
++                ? \App\Services\Baganriki\ResponseFrameW2::extract((string) $a->raw_response)
++                : BaganrikiResponse::extract((string) $a->raw_response);
+         if (!$ex['ok']) {
+             $out['stage'] = 'extract';
+             $out['code']  = (string) ($ex['code'] ?? 'AI_FAILURE');
+@@ -18692,7 +18694,9 @@
+             if ($a === null) { continue; }
+             // @ANCHOR-20261020-R122-COMPLETE  未完了は順位にも使いません
+             if ((int) ($a->complete ?? 0) !== 1) { continue; }
+-            $ex = BaganrikiResponse::extract((string) $a->raw_response);
++            $ex = \App\Services\Baganriki\ResponseFrameW2::supportsVersion($src1['prompt_version'] ?? null)
++                ? \App\Services\Baganriki\ResponseFrameW2::extract((string) $a->raw_response)
++                : BaganrikiResponse::extract((string) $a->raw_response);
+             if (!$ex['ok']) { continue; }
+             $insp = $this->inspectAiResponse($snapshotId, $role, (int) $no);
+             if (!$insp['ok']) { continue; }
+@@ -18746,7 +18750,9 @@
+                    ->where('attempt_no', BaganrikiWorker::FIRST)
+                    ->where('status', BaganrikiWorker::RECEIVED)->first();
+             if ($p !== null && (int) ($p->complete ?? 0) === 1) {
+-                $pe = BaganrikiResponse::extract((string) $p->raw_response);
++                $pe = \App\Services\Baganriki\ResponseFrameW2::supportsVersion($src1['prompt_version'] ?? null)
++                    ? \App\Services\Baganriki\ResponseFrameW2::extract((string) $p->raw_response)
++                    : BaganrikiResponse::extract((string) $p->raw_response);
+                 if ($pe['ok']) {
+                     $prevSeen = true;
+                     $pi = $this->inspectAiResponse($snapshotId, $role,

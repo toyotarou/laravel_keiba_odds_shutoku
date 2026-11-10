@@ -1,0 +1,12 @@
+【送信形式 SOURCE_TABLE_V2】
+この入力では source_registry を source_table に詰めて送る。値・出典・参照関係は1件も省いていない。source_table.encoding は SOURCE_TABLE_V2。
+source_table.rows の1行が出典1件。各行の値の並びは source_table.columns の並びと同じ。race_id は全件 source_table.race_id。
+observed_at・available_at・computed_at の整数は source_table.time_dict の番号（0始まり）。null は null のまま。
+unit・dependency_role・source_kind・scope・formula_id・formula_version は、columns にあればその行の値を使う（null も行の値として扱う）。columns に無い項目だけ source_table.field_defaults[field] の値を使う。
+dependency_key は、null なら source_ref と同じ、整数 n なら source_ref をUTF-8で表した先頭 n バイトを文字列に戻した値（例 h1_能力_6 の先頭9バイトは h1_能力）、文字列ならその文字列。
+parents の要素は、整数なら rows の行番号（0始まり）の source_ref、文字列ならその名前のまま。
+input_indices がある場合は、その名前と参照一覧を並び順も含めてそのまま使う。表から作り直して追加の名前や参照を削らない。
+input_indices_derived:true の場合だけ input_indices を省いている。この場合は出典の scope・馬番・field・slot_offset で引く。索引のキーは HORSE が horse/馬番/field/slot、PAIR が pair/昇順の馬番を-で連結/field/slot、COHORT が cohort/昇順のapplicable_horse_nosを-で連結/field/slot、RACE が race/field/slot。slot_offset が null のときの slot は None。同じキーの source_ref は重複を除き文字列昇順に並べる。引用する名前自体を組み立てず、rows の元の source_ref を使う。
+coverage は元のまま送る。source_refs の範囲・順序・status・reasonを変えず、同じfieldの全件へ勝手に広げない。SOURCE_TABLE_V2では source_fields に置換しない。
+値は元のJSON型のまま。数値を文字列にしたり丸めたりせず、null・0・空配列・空オブジェクトを同一視しない。expected_v01 とその他の入力項目も元のまま保持する。
+source_registry と書かれている指示はこの規則で読み替える。根拠の引用は rows の source_ref をそのまま使う。訂正でも user本文のinputに同じ規則を適用する。

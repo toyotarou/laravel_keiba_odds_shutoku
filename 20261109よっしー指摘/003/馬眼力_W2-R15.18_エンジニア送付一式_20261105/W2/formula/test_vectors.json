@@ -1,0 +1,6310 @@
+{
+  "formula_version": "baganriki-expected-v0.1-draft-20261025",
+  "all_data_synthetic": true,
+  "cases": [
+    {
+      "id": "main_example_14_and_32",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "synthetic_000",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_001",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_002",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_003",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_004",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_005",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_006",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_007",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_008",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_009",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_010",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_011",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_012",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_013",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_014",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_015",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_016",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_017",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_018",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_019",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_020",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_021",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_022",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_023",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_024",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_025",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_026",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_027",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_028",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_029",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_030",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_031",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_032",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_033",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_034",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_035",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_036",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_037",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_038",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_039",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_040",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_041",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_042",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_043",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_044",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_045",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_046",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_047",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_048",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_049",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_050",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_051",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_052",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_053",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_054",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_055",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_056",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_057",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_058",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_059",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_060",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_061",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_062",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_063",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_064",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_065",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_066",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_067",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_068",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_069",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_070",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_071",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_072",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_073",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_074",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_075",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_076",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_077",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_078",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_079",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_080",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_081",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_082",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_083",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_084",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_085",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_086",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_087",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_088",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_089",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_090",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_091",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_092",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_093",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_094",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_095",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_096",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_097",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_098",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_099",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expected": {
+        "W": 80.0,
+        "A3": 12.0,
+        "A5": 28.0,
+        "n_eff": 99.99999999999997,
+        "neighbour_count": 100,
+        "local_weight_share": 0.8,
+        "comparison_only": true,
+        "validated_for_live": false,
+        "calibration_applied": false,
+        "baseline": {
+          "m": 198,
+          "b3": 19,
+          "b5": 39,
+          "p0_3": 0.1,
+          "p0_5": 0.2
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "p3_cal": null,
+        "p5_cal": null,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "COMPARISON_READY"
+      }
+    },
+    {
+      "id": "four_weighted_neighbours",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "a",
+            "w": 1.0,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "b",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "c",
+            "w": 0.6,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "d",
+            "w": 0.4,
+            "y3": 1,
+            "y5": 1
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expected": {
+        "W": 2.8,
+        "A3": 1.4,
+        "A5": 2.2,
+        "n_eff": 3.629629629629629,
+        "neighbour_count": 4,
+        "local_weight_share": 0.12280701754385964,
+        "comparison_only": true,
+        "validated_for_live": false,
+        "calibration_applied": false,
+        "baseline": {
+          "m": 198,
+          "b3": 19,
+          "b5": 39,
+          "p0_3": 0.1,
+          "p0_5": 0.2
+        },
+        "p3_raw": 0.14912280701754385,
+        "p5_raw": 0.2719298245614035,
+        "p3_cal": null,
+        "p5_cal": null,
+        "trial_score_3": 14.9,
+        "trial_score_5": 27.2,
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "LOW_SUPPORT"
+      }
+    },
+    {
+      "id": "baseline_only",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expected": {
+        "W": 0.0,
+        "A3": 0.0,
+        "A5": 0.0,
+        "n_eff": 0.0,
+        "neighbour_count": 0,
+        "local_weight_share": 0.0,
+        "comparison_only": true,
+        "validated_for_live": false,
+        "calibration_applied": false,
+        "baseline": {
+          "m": 198,
+          "b3": 19,
+          "b5": 39,
+          "p0_3": 0.1,
+          "p0_5": 0.2
+        },
+        "p3_raw": 0.1,
+        "p5_raw": 0.2,
+        "p3_cal": null,
+        "p5_cal": null,
+        "trial_score_3": 10.0,
+        "trial_score_5": 20.0,
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "BASELINE_ONLY"
+      }
+    },
+    {
+      "id": "no_baseline_returns_null",
+      "method": "calculate",
+      "arguments": {
+        "m": 0,
+        "b3": 0,
+        "b5": 0,
+        "samples": [],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expected": {
+        "W": 0.0,
+        "A3": 0.0,
+        "A5": 0.0,
+        "n_eff": 0.0,
+        "neighbour_count": 0,
+        "local_weight_share": 0.0,
+        "comparison_only": true,
+        "validated_for_live": false,
+        "calibration_applied": false,
+        "support_status": "UNAVAILABLE_BASELINE",
+        "p3_raw": null,
+        "p5_raw": null,
+        "p3_cal": null,
+        "p5_cal": null,
+        "trial_score_3": null,
+        "trial_score_5": null,
+        "score_basis": "UNAVAILABLE"
+      }
+    },
+    {
+      "id": "identity_calibration",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "synthetic_000",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_001",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_002",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_003",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_004",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_005",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_006",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_007",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_008",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_009",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_010",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_011",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_012",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_013",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_014",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_015",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_016",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_017",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_018",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_019",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_020",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_021",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_022",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_023",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_024",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_025",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_026",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_027",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_028",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_029",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_030",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_031",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_032",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_033",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_034",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_035",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_036",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_037",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_038",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_039",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_040",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_041",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_042",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_043",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_044",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_045",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_046",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_047",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_048",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_049",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_050",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_051",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_052",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_053",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_054",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_055",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_056",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_057",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_058",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_059",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_060",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_061",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_062",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_063",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_064",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_065",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_066",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_067",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_068",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_069",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_070",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_071",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_072",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_073",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_074",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_075",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_076",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_077",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_078",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_079",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_080",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_081",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_082",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_083",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_084",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_085",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_086",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_087",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_088",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_089",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_090",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_091",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_092",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_093",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_094",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_095",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_096",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_097",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_098",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_099",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20,
+        "calibration": {
+          "a": 1.0,
+          "b": 0.0
+        }
+      },
+      "expected": {
+        "W": 80.0,
+        "A3": 12.0,
+        "A5": 28.0,
+        "n_eff": 99.99999999999997,
+        "neighbour_count": 100,
+        "local_weight_share": 0.8,
+        "comparison_only": true,
+        "validated_for_live": false,
+        "calibration_applied": true,
+        "baseline": {
+          "m": 198,
+          "b3": 19,
+          "b5": 39,
+          "p0_3": 0.1,
+          "p0_5": 0.2
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "p3_cal": 0.13999999999999999,
+        "p5_cal": 0.32,
+        "trial_score_3": 14.0,
+        "trial_score_5": 32.0,
+        "score_basis": "CALIBRATION_APPLIED",
+        "support_status": "COMPARISON_READY"
+      }
+    },
+    {
+      "id": "monotone_calibration",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "synthetic_000",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_001",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_002",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_003",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_004",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_005",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_006",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_007",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_008",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_009",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_010",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_011",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_012",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_013",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_014",
+            "w": 0.8,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_015",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_016",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_017",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_018",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_019",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_020",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_021",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_022",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_023",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_024",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_025",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_026",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_027",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_028",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_029",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_030",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_031",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_032",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_033",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_034",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "synthetic_035",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_036",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_037",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_038",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_039",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_040",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_041",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_042",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_043",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_044",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_045",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_046",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_047",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_048",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_049",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_050",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_051",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_052",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_053",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_054",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_055",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_056",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_057",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_058",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_059",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_060",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_061",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_062",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_063",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_064",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_065",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_066",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_067",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_068",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_069",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_070",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_071",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_072",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_073",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_074",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_075",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_076",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_077",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_078",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_079",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_080",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_081",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_082",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_083",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_084",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_085",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_086",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_087",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_088",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_089",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_090",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_091",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_092",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_093",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_094",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_095",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_096",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_097",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_098",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "synthetic_099",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20,
+        "calibration": {
+          "a": 1.3,
+          "b": -0.2
+        }
+      },
+      "expected": {
+        "W": 80.0,
+        "A3": 12.0,
+        "A5": 28.0,
+        "n_eff": 99.99999999999997,
+        "neighbour_count": 100,
+        "local_weight_share": 0.8,
+        "comparison_only": true,
+        "validated_for_live": false,
+        "calibration_applied": true,
+        "baseline": {
+          "m": 198,
+          "b3": 19,
+          "b5": 39,
+          "p0_3": 0.1,
+          "p0_5": 0.2
+        },
+        "p3_raw": 0.14,
+        "p5_raw": 0.32,
+        "p3_cal": 0.07176573841731973,
+        "p5_cal": 0.23506957585107302,
+        "trial_score_3": 7.2,
+        "trial_score_5": 23.5,
+        "score_basis": "CALIBRATION_APPLIED",
+        "support_status": "COMPARISON_READY"
+      }
+    },
+    {
+      "id": "baseline_only_does_not_apply_calibration",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [],
+        "lambda": 20,
+        "calibration": {
+          "a": 1.3,
+          "b": -0.2
+        }
+      },
+      "expected": {
+        "W": 0.0,
+        "A3": 0.0,
+        "A5": 0.0,
+        "n_eff": 0.0,
+        "neighbour_count": 0,
+        "local_weight_share": 0.0,
+        "comparison_only": true,
+        "validated_for_live": false,
+        "calibration_applied": false,
+        "baseline": {
+          "m": 198,
+          "b3": 19,
+          "b5": 39,
+          "p0_3": 0.1,
+          "p0_5": 0.2
+        },
+        "p3_raw": 0.1,
+        "p5_raw": 0.2,
+        "p3_cal": null,
+        "p5_cal": null,
+        "trial_score_3": 10.0,
+        "trial_score_5": 20.0,
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "BASELINE_ONLY"
+      }
+    },
+    {
+      "id": "zero_weight_keeps_baseline",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "z",
+            "w": 0.0,
+            "y3": 1,
+            "y5": 1
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expected": {
+        "W": 0.0,
+        "A3": 0.0,
+        "A5": 0.0,
+        "n_eff": 0.0,
+        "neighbour_count": 0,
+        "local_weight_share": 0.0,
+        "comparison_only": true,
+        "validated_for_live": false,
+        "calibration_applied": false,
+        "baseline": {
+          "m": 198,
+          "b3": 19,
+          "b5": 39,
+          "p0_3": 0.1,
+          "p0_5": 0.2
+        },
+        "p3_raw": 0.1,
+        "p5_raw": 0.2,
+        "p3_cal": null,
+        "p5_cal": null,
+        "trial_score_3": 10.0,
+        "trial_score_5": 20.0,
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "BASELINE_ONLY"
+      }
+    },
+    {
+      "id": "tiny_support_is_shrunk",
+      "method": "calculate",
+      "arguments": {
+        "m": 1000,
+        "b3": 100,
+        "b5": 200,
+        "samples": [
+          {
+            "race_id": "tiny",
+            "w": 0.0001,
+            "y3": 1,
+            "y5": 1
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expected": {
+        "W": 0.0001,
+        "A3": 0.0001,
+        "A5": 0.0001,
+        "n_eff": 1.0,
+        "neighbour_count": 1,
+        "local_weight_share": 4.9999750001249995e-06,
+        "comparison_only": true,
+        "validated_for_live": false,
+        "calibration_applied": false,
+        "baseline": {
+          "m": 1000,
+          "b3": 100,
+          "b5": 200,
+          "p0_3": 0.10079840319361277,
+          "p0_5": 0.20059880239520958
+        },
+        "p3_raw": 0.10080289917911689,
+        "p5_raw": 0.20060279938121267,
+        "p3_cal": null,
+        "p5_cal": null,
+        "trial_score_3": 10.1,
+        "trial_score_5": 20.1,
+        "score_basis": "RAW_UNCALIBRATED",
+        "support_status": "LOW_SUPPORT"
+      }
+    },
+    {
+      "id": "duplicate_race",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "same",
+            "w": 1.0,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "same",
+            "w": 0.5,
+            "y3": 0,
+            "y5": 1
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "impossible_nested_outcome",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "bad",
+            "w": 1.0,
+            "y3": 1,
+            "y5": 0
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "weight_above_one",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "bad",
+            "w": 1.1,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "negative_weight",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "bad",
+            "w": -0.1,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "zero_lambda",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [],
+        "lambda": 0,
+        "calibration": null
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "invalid_baseline_counts",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 40,
+        "b5": 39,
+        "samples": [],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "neighbour_not_subset_of_baseline",
+      "method": "calculate",
+      "arguments": {
+        "m": 100,
+        "b3": 0,
+        "b5": 1,
+        "samples": [
+          {
+            "race_id": "bad",
+            "w": 1.0,
+            "y3": 1,
+            "y5": 1
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "non_monotone_calibration",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "a",
+            "w": 1.0,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "b",
+            "w": 0.8,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "c",
+            "w": 0.6,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "d",
+            "w": 0.4,
+            "y3": 1,
+            "y5": 1
+          }
+        ],
+        "lambda": 20,
+        "calibration": {
+          "a": 0.0,
+          "b": 0.0
+        }
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "too_many_neighbours",
+      "method": "calculate",
+      "arguments": {
+        "m": 400,
+        "b3": 50,
+        "b5": 100,
+        "samples": [
+          {
+            "race_id": "e0",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e1",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e2",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e3",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e4",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e5",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e6",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e7",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e8",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e9",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e10",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e11",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e12",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e13",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e14",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e15",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e16",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e17",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e18",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e19",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e20",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e21",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e22",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e23",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e24",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e25",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e26",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e27",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e28",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e29",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e30",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e31",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e32",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e33",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e34",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e35",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e36",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e37",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e38",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e39",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e40",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e41",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e42",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e43",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e44",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e45",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e46",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e47",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e48",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e49",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e50",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e51",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e52",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e53",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e54",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e55",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e56",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e57",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e58",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e59",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e60",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e61",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e62",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e63",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e64",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e65",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e66",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e67",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e68",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e69",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e70",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e71",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e72",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e73",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e74",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e75",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e76",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e77",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e78",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e79",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e80",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e81",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e82",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e83",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e84",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e85",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e86",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e87",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e88",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e89",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e90",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e91",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e92",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e93",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e94",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e95",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e96",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e97",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e98",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e99",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e100",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e101",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e102",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e103",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e104",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e105",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e106",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e107",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e108",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e109",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e110",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e111",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e112",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e113",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e114",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e115",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e116",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e117",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e118",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e119",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e120",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e121",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e122",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e123",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e124",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e125",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e126",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e127",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e128",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e129",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e130",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e131",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e132",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e133",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e134",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e135",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e136",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e137",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e138",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e139",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e140",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e141",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e142",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e143",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e144",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e145",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e146",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e147",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e148",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e149",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e150",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e151",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e152",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e153",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e154",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e155",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e156",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e157",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e158",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e159",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e160",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e161",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e162",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e163",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e164",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e165",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e166",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e167",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e168",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e169",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e170",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e171",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e172",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e173",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e174",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e175",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e176",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e177",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e178",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e179",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e180",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e181",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e182",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e183",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e184",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e185",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e186",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e187",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e188",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e189",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e190",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e191",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e192",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e193",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e194",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e195",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e196",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e197",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e198",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e199",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "e200",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "float_label_rejected",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "bad",
+            "w": 1.0,
+            "y3": 1.0,
+            "y5": 1
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "baseline_formula",
+      "method": "baseline",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39
+      },
+      "expected": {
+        "p0_3": 0.1,
+        "p0_5": 0.2
+      }
+    },
+    {
+      "id": "year_half_life",
+      "method": "weight",
+      "arguments": {
+        "distance_squared": 0,
+        "age_days": 365,
+        "bandwidth": 1,
+        "half_life_days": 365
+      },
+      "expected": 0.5
+    },
+    {
+      "id": "distance_decay",
+      "method": "weight",
+      "arguments": {
+        "distance_squared": 2,
+        "age_days": 0,
+        "bandwidth": 1,
+        "half_life_days": 365
+      },
+      "expected": 0.36787944117144233
+    },
+    {
+      "id": "combined_decay",
+      "method": "weight",
+      "arguments": {
+        "distance_squared": 2,
+        "age_days": 365,
+        "bandwidth": 1,
+        "half_life_days": 365
+      },
+      "expected": 0.18393972058572117
+    },
+    {
+      "id": "negative_age",
+      "method": "weight",
+      "arguments": {
+        "distance_squared": 0,
+        "age_days": -1,
+        "bandwidth": 1,
+        "half_life_days": 365
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "identical_features",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": 3
+      },
+      "expected": 0.0
+    },
+    {
+      "id": "common_odds_scale_keeps_profile_but_changes_price",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            4.0,
+            6.0,
+            12.0,
+            24.0
+          ],
+          "odds21_at_rank": 14.4,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": 3
+      },
+      "expected": 0.19610327098702102
+    },
+    {
+      "id": "distance_400_metres",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 2000,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": 3
+      },
+      "expected": 0.2
+    },
+    {
+      "id": "class_mismatch",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C3",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": 3
+      },
+      "expected": 0.2
+    },
+    {
+      "id": "movement_one_scale",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 10.217286349871452,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": 3
+      },
+      "expected": 0.2
+    },
+    {
+      "id": "profile_only",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            4.0
+          ],
+          "odds21_at_rank": 2.0,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            8.0
+          ],
+          "odds21_at_rank": 2.0,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": 1
+      },
+      "expected": 0.7844130839480841
+    },
+    {
+      "id": "unsorted_odds",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            6.0,
+            3.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": 3
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "missing_21_minute_odds",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": 3
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "field_size_mismatch",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": 3
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "surface_mismatch",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "DIRT",
+          "race_type": "FLAT"
+        },
+        "rank": 3
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "unknown_class",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "UNKNOWN",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": 3
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "zero_odds",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            0.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": 3
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "tiny_bandwidth_zero_distance",
+      "method": "weight",
+      "arguments": {
+        "distance_squared": 0,
+        "age_days": 0,
+        "bandwidth": 1e-200,
+        "half_life_days": 365
+      },
+      "expected": 1.0
+    },
+    {
+      "id": "tiny_bandwidth_nonzero_distance",
+      "method": "weight",
+      "arguments": {
+        "distance_squared": 1,
+        "age_days": 0,
+        "bandwidth": 1e-200,
+        "half_life_days": 365
+      },
+      "expected": 0.0
+    },
+    {
+      "id": "tiny_equal_weights_effective_n",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "x",
+            "w": 1e-200,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "y",
+            "w": 1e-200,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expected": {
+        "n_eff": 2.0,
+        "p3_raw": 0.1,
+        "p5_raw": 0.2,
+        "trial_score_3": 10.0,
+        "trial_score_5": 20.0
+      }
+    },
+    {
+      "id": "zero_neighbours_tiny_lambda_keeps_baseline",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [],
+        "lambda": 1e-320,
+        "calibration": null
+      },
+      "expected": {
+        "p3_raw": 0.1,
+        "p5_raw": 0.2,
+        "trial_score_3": 10.0,
+        "trial_score_5": 20.0,
+        "support_status": "BASELINE_ONLY"
+      }
+    },
+    {
+      "id": "invalid_surface",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "UNKNOWN",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "UNKNOWN",
+          "race_type": "FLAT"
+        },
+        "rank": 3
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "unsupported_jumps",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "JUMPS"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "JUMPS"
+        },
+        "rank": 3
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "tiny_positive_prior_is_preserved",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "loss",
+            "w": 1.0,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 1e-20,
+        "calibration": null
+      },
+      "expected": {
+        "p3_raw": 1e-21,
+        "p5_raw": 2e-21,
+        "trial_score_3": 0.0,
+        "trial_score_5": 0.0
+      }
+    },
+    {
+      "id": "baseline_rejects_float_counts",
+      "method": "baseline",
+      "arguments": {
+        "m": 198.7,
+        "b3": 19,
+        "b5": 39
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "baseline_rejects_string_counts",
+      "method": "baseline",
+      "arguments": {
+        "m": "198",
+        "b3": 19,
+        "b5": 39
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "baseline_rejects_boolean_counts",
+      "method": "baseline",
+      "arguments": {
+        "m": true,
+        "b3": 19,
+        "b5": 39
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "calculate_rejects_fractional_count",
+      "method": "calculate",
+      "arguments": {
+        "m": 198.7,
+        "b3": 19,
+        "b5": 39,
+        "samples": [],
+        "lambda": 20,
+        "calibration": null
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "distance_rejects_fractional_rank",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": 3.7
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "distance_rejects_boolean_rank",
+      "method": "distanceSquared",
+      "arguments": {
+        "current": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "historical": {
+          "odds6_by_rank": [
+            2.0,
+            3.0,
+            6.0,
+            12.0
+          ],
+          "odds21_at_rank": 7.2,
+          "distance_metres": 1600,
+          "class_group": "C2",
+          "surface": "TURF",
+          "race_type": "FLAT"
+        },
+        "rank": true
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "calculate_rejects_boolean_lambda",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [],
+        "lambda": true,
+        "calibration": null
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "calculate_rejects_string_lambda",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [],
+        "lambda": "20",
+        "calibration": null
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "weight_rejects_boolean_age",
+      "method": "weight",
+      "arguments": {
+        "distance_squared": 0,
+        "age_days": true,
+        "bandwidth": 1,
+        "half_life_days": 365
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "weight_rejects_string_age",
+      "method": "weight",
+      "arguments": {
+        "distance_squared": 0,
+        "age_days": "365",
+        "bandwidth": 1,
+        "half_life_days": 365
+      },
+      "expect_error": "InvalidArgumentException"
+    },
+    {
+      "id": "support_weight_below_threshold",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "boundary_000",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_001",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_002",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_003",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_004",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_005",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_006",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_007",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_008",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_009",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_010",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_011",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_012",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_013",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_014",
+            "w": 0.09999999999999,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_015",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_016",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_017",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_018",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_019",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_020",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_021",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_022",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_023",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_024",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_025",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_026",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_027",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_028",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_029",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_030",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_031",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_032",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_033",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_034",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_035",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_036",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_037",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_038",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_039",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_040",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_041",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_042",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_043",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_044",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_045",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_046",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_047",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_048",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_049",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_050",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_051",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_052",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_053",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_054",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_055",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_056",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_057",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_058",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_059",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_060",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_061",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_062",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_063",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_064",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_065",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_066",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_067",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_068",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_069",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_070",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_071",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_072",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_073",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_074",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_075",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_076",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_077",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_078",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_079",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_080",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_081",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_082",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_083",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_084",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_085",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_086",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_087",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_088",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_089",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_090",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_091",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_092",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_093",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_094",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_095",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_096",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_097",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_098",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_099",
+            "w": 0.09999999999999,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20.0,
+        "calibration": null
+      },
+      "expected": {
+        "baseline": {
+          "m": 198,
+          "b3": 19,
+          "b5": 39,
+          "p0_3": 0.1,
+          "p0_5": 0.2
+        },
+        "W": 9.999999999999,
+        "A3": 1.49999999999985,
+        "A5": 3.49999999999965,
+        "n_eff": 100.0,
+        "neighbour_count": 100,
+        "local_weight_share": 0.3333333333333111,
+        "comparison_only": true,
+        "validated_for_live": false,
+        "calibration_applied": false,
+        "support_status": "LOW_SUPPORT",
+        "score_basis": "RAW_UNCALIBRATED",
+        "p3_raw": 0.11666666666666556,
+        "p3_cal": null,
+        "trial_score_3": 11.7,
+        "p5_raw": 0.24999999999999667,
+        "p5_cal": null,
+        "trial_score_5": 25.0
+      }
+    },
+    {
+      "id": "support_weight_exact_threshold",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "boundary_000",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_001",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_002",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_003",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_004",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_005",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_006",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_007",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_008",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_009",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_010",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_011",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_012",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_013",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_014",
+            "w": 0.1,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_015",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_016",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_017",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_018",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_019",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_020",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_021",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_022",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_023",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_024",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_025",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_026",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_027",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_028",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_029",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_030",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_031",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_032",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_033",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_034",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_035",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_036",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_037",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_038",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_039",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_040",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_041",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_042",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_043",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_044",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_045",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_046",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_047",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_048",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_049",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_050",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_051",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_052",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_053",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_054",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_055",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_056",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_057",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_058",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_059",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_060",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_061",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_062",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_063",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_064",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_065",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_066",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_067",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_068",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_069",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_070",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_071",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_072",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_073",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_074",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_075",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_076",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_077",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_078",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_079",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_080",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_081",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_082",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_083",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_084",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_085",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_086",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_087",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_088",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_089",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_090",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_091",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_092",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_093",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_094",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_095",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_096",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_097",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_098",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_099",
+            "w": 0.1,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20.0,
+        "calibration": null
+      },
+      "expected": {
+        "baseline": {
+          "m": 198,
+          "b3": 19,
+          "b5": 39,
+          "p0_3": 0.1,
+          "p0_5": 0.2
+        },
+        "W": 10.0,
+        "A3": 1.5,
+        "A5": 3.5,
+        "n_eff": 100.0,
+        "neighbour_count": 100,
+        "local_weight_share": 0.3333333333333333,
+        "comparison_only": true,
+        "validated_for_live": false,
+        "calibration_applied": false,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "p3_raw": 0.11666666666666667,
+        "p3_cal": null,
+        "trial_score_3": 11.7,
+        "p5_raw": 0.25,
+        "p5_cal": null,
+        "trial_score_5": 25.0
+      }
+    },
+    {
+      "id": "support_weight_above_threshold",
+      "method": "calculate",
+      "arguments": {
+        "m": 198,
+        "b3": 19,
+        "b5": 39,
+        "samples": [
+          {
+            "race_id": "boundary_000",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_001",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_002",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_003",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_004",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_005",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_006",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_007",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_008",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_009",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_010",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_011",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_012",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_013",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_014",
+            "w": 0.10000000000001,
+            "y3": 1,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_015",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_016",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_017",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_018",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_019",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_020",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_021",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_022",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_023",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_024",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_025",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_026",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_027",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_028",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_029",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_030",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_031",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_032",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_033",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_034",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 1
+          },
+          {
+            "race_id": "boundary_035",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_036",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_037",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_038",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_039",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_040",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_041",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_042",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_043",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_044",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_045",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_046",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_047",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_048",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_049",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_050",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_051",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_052",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_053",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_054",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_055",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_056",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_057",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_058",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_059",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_060",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_061",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_062",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_063",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_064",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_065",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_066",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_067",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_068",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_069",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_070",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_071",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_072",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_073",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_074",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_075",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_076",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_077",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_078",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_079",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_080",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_081",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_082",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_083",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_084",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_085",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_086",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_087",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_088",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_089",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_090",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_091",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_092",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_093",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_094",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_095",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_096",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_097",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_098",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          },
+          {
+            "race_id": "boundary_099",
+            "w": 0.10000000000001,
+            "y3": 0,
+            "y5": 0
+          }
+        ],
+        "lambda": 20.0,
+        "calibration": null
+      },
+      "expected": {
+        "baseline": {
+          "m": 198,
+          "b3": 19,
+          "b5": 39,
+          "p0_3": 0.1,
+          "p0_5": 0.2
+        },
+        "W": 10.000000000001,
+        "A3": 1.50000000000015,
+        "A5": 3.50000000000035,
+        "n_eff": 100.0,
+        "neighbour_count": 100,
+        "local_weight_share": 0.3333333333333556,
+        "comparison_only": true,
+        "validated_for_live": false,
+        "calibration_applied": false,
+        "support_status": "COMPARISON_READY",
+        "score_basis": "RAW_UNCALIBRATED",
+        "p3_raw": 0.11666666666666778,
+        "p3_cal": null,
+        "trial_score_3": 11.7,
+        "p5_raw": 0.25000000000000333,
+        "p5_cal": null,
+        "trial_score_5": 25.0
+      }
+    }
+  ],
+  "implementation_version": "baganriki-expected-impl-v0.1.4",
+  "float_relative_tolerance": 1e-09,
+  "float_absolute_tolerance": 0.0,
+  "tolerance_note": "verify.php compares abs(actual-expected) <= 1e-9 * abs(expected), with no absolute floor; expected zero requires actual zero. These fields document the fixed runner behavior."
+}

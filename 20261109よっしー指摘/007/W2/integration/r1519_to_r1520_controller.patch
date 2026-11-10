@@ -1,0 +1,53 @@
+--- a/AiController.php
++++ b/AiController.php
+@@ -15945,6 +15945,11 @@
+         ]);
+         if ($w2 !== null) {
+             $dto['live_state']['available_candidate_nos'] = $pubDto !== null ? $w2['available'] : null;
++            $dto['race_metrics'] = $pubDto !== null && ($dto['state']??null)==='PUBLISHED' ? $w2['race_metrics'] : null;
++            if ($pubDto !== null) {
++                $dto['publication']['race_metrics']=$dto['race_metrics'];
++                unset($dto['publication']['evidence']['race_metrics']);
++            }
+         }
+         return response()->json($dto, 200, $headers);
+     }
+@@ -18738,7 +18743,7 @@
+ 
+         // ── ④ 検証完了時刻と intent ─────────────────────────────────
+         $t1 = BaganrikiWorker::nowUs();                     // 検証完了時刻
+-        $canon = BaganrikiPrompt::canonical([
++        $intentData = [
+             'snapshot_hash' => (string) $snap->snapshot_hash,
+             'quota'         => $quota,
+             'candidates'    => array_map(static fn($c) => [
+@@ -18752,7 +18757,9 @@
+             //   「同じintentの再実行は同じpublication_id」が守れません。
+             'revisions'     => ['state'    => $readRev['state'],
+                                 'response' => $readRev['response']],
+-        ]);
++        ];
++        if (isset($selection) && array_key_exists('race_metrics',$selection)) $intentData['race_metrics']=$selection['race_metrics'];
++        $canon=BaganrikiPrompt::canonical($intentData);
+         if ($canon === null) {
+             $out['code'] = 'CANON_FAILED'; $out['reason'] = 'intentの正本を作れません';
+             return $out;
+@@ -18892,7 +18899,7 @@
+                     'evidence'   => $j(['shortfalls' => $publicationData['shortfalls'],
+                                         'proof_roles' => $publicationData['proof'],
+                                         'cancelled' => $cancelled] + array_intersect_key($publicationData,array_flip(BaganrikiWorker::isW2Snapshot($snap)
+-                                            ? ['actual_quota','fill','role_issues','rank_source','rank_fallback','rank_notes']
++                                            ? ['actual_quota','fill','role_issues','rank_source','rank_fallback','rank_notes','race_metrics']
+                                             : ['actual_quota','fill','role_issues']))),
+                     'shortfalls' => $j($publicationData['shortfalls']),
+                     'used_state_revision'    => $readRev['state'],
+@@ -19250,6 +19257,9 @@
+                     if ($current) $o['public_proof_hash'] = (string) $useRow->response_hash;
+                 }
+             }
++        }
++        if ($current && $role==='1st' && \App\Services\Baganriki\RaceMetricsW2::enabled($rankInput)) {
++            $o['race_metrics']=\App\Services\Baganriki\RaceMetricsW2::fromResponse($rankInput,$useRes,(string)$useRow->response_hash);
+         }
+         return $o;
+     }

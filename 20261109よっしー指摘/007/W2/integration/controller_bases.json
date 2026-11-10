@@ -1,0 +1,22 @@
+{
+  "accepted_bases": {
+    "1e8f0fbfe732fd24639c6b1f40c40b384e5956accd969a5aea3ff838159ed7ae": [
+      "response_frame_w2.patch",
+      "score_evidence_w2.patch"
+    ],
+    "09bc7c85181696e373c1c8f4266aec0c676c45348c2910897781ad6434aa68a4": [
+      "r1519_to_r1520_controller.patch",
+      "r1520_to_r1521_controller.patch",
+      "r1522_to_r1523_controller.patch"
+    ],
+    "457e94a5b1400dc31d6d578c6b27e084568406a3df46a33fcda816cb073409dc": [
+      "r1520_to_r1521_controller.patch",
+      "r1522_to_r1523_controller.patch"
+    ],
+    "d0d6e926e37ea62655355bf54751031bdcd360d2b603b5bf08b01050d7193aa3": [
+      "r1522_to_r1523_controller.patch"
+    ]
+  },
+  "result_sha256": "674a448861e3f3d2ab843b57108a84a6df4016491f786154e1c2edb2d37fb50a",
+  "note": "The current engineer-refactored controller has not been supplied. Do not overwrite it with the reference controller."
+}

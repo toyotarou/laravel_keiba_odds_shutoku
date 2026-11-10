@@ -1,0 +1,33 @@
+馬眼力　W2-R15.15　取消後の枠数と公開時の集計
+2026年11月5日　エンジニア向け
+
+適用と連絡
+送付ファイル　馬眼力_W2-R15.15_エンジニア送付一式_20261105.zip
+W2/02の順で10月23日提出原本に2差分を適用し、W2/phpのクラスを同じ版で配置する。適用後のAiController.php SHA-256は 517afc3a7939400397516c5c3facc942e72ca31bae687168ce3ede128c59e0f7。現行システムに独自の差分があれば固定原本からの適用結果と突き合わせる。DBスキーマ追加は不要。AI入力は従来のW2-R15、受入処理はw2-r15.5、期待値数の数式はv0.1.4。
+
+通常の取消で再現した問題
+混戦の16頭立てで公開。公開時の要求はA3/B3/D1の計7枠。11～16番の6頭が正式取消になると、再公開処理は正しくA3/B2/D0の5枠を使ったが、R15.14のライブ保存列と顧客APIの現在欄は7枠のままだった。全頭取消後も現在の目標は7だった。16番の1頭だけが取り消された場合も、再公開は6枠、R15.14の現在目標は7だった。残頭数、実際の候補馬番、購入推奨とは別の欄で起きた問題。
+R15.15は出走取消と同じ取引で残頭数と最新の要求枠を保存し、読取APIでも凍結人気帯と正式な取消から計算する。以前の行に古い表示用数値が残っていても、最初のGETから正しい現在欄を返す。GETはDBを書き換えない。次の正式取消で保存列も更新する。公式取消の履歴だけ検証できて枠の資料が足りない場合は、取消自体を保存し、判定できない枠は未算出とする。
+
+保存した公開集計の不整合
+検証用DBで公開時16頭を99頭に変えても、R15.14は候補と一緒に99頭を公開し、再実行も成功扱いだった。別の試験では、W9が正常に確定した馬番・加点のまま、表示用の要求枠をD99に変えてもそのまま返した。R15.15では再実行と読取APIが同じ検査を通る。
+公開時の出走馬、対象の版、凍結時の人気帯、公開時と予想時それぞれの要求枠と頭数、選ばれた実頭数、補充先、残った不足を照合する。W9形式は確定選出の補充・不足とも照合する。旧正規化形式の公開枠は元の確定記録にも照合する。以前の形式で不足の書き方が異なる正当な履歴はその形式を保つ。省略された補助的な頭数は、根拠から一意に復元できれば返す。保存済みの値が根拠と食い違う場合は公開を保留する。現在の残頭数と予想・公開の目標頭数はPHPのPDO設定によらず整数で返す。
+
+表示する値の対応
+・publication.prediction_target_count と prediction_quota　凍結した予想時点の目標と要求枠。
+・publication.active_count、publication_target_count、publication_quota　その公開IDが使用した時点の頭数と要求枠。後日の公式取消後もそのIDの履歴に残す。
+・live_state.active_count、live_target_count、live_quota　現在の出走頭数と頭数に応じた構造上の目標・人気帯枠。全頭取消は0頭・目標0・帯別配分null。配分未確定のレースも帯別枠はnull。
+・live_state.available_candidate_nos、available_candidate_count、actual_quota　最後の公開候補のうち、今も出走する馬の馬番・頭数・所属帯別の内訳。新しい予想を公開するまでは、現在の目標と有効候補数が異なる場合がある。
+・fill と shortfalls　別の帯の適格馬で埋めた枠と、最後まで埋まらなかった枠。候補は実際の所属帯に数える。例としてDの空き1をBの馬が埋めると、要求A3/B3/D1に対して実際はA3/B4/D0。片側だけが根拠を持つ人気薄が従来の選出条件を満たせば候補に残る。購入推奨はfalse。
+
+再現（W2ディレクトリで実行）
+  python3 validation/verify_release.py --php /path/to/php --submitted-php /path/to/original/AiController.php --stress-seed 321105
+  python3 validation/verify_r1515_allocation.py /path/to/php /path/to/R15.15/AiController.php
+  python3 validation/verify_r1515_allocation.py /path/to/php /path/to/R15.14/AiController.php --observe-r1514 /path/to/R15.14/W2
+  python3 validation/verify_r1515_allocation.py /path/to/php /path/to/R15.15/AiController.php --upgrade-from /path/to/R15.14/AiController.php /path/to/R15.14/W2
+  python3 validation/verify_r1515_allocation.py /path/to/php /path/to/R15.15/AiController.php --legacy-from /path/to/R15.11/AiController.php /path/to/R15.11/W2
+標準環境はW2/00・02。検査に使ったPHP、合成レース、SQLiteでの実行出力はvalidation/実行結果.txt。
+
+非公開2レースの受入
+① 通常レースで、6分前の全頭・1stと2ndの原応答・訂正の採否、W9の公開馬番順と一致加点、DBとFlutterの表示、購入推奨falseを照合する。W2/31と同じく送信記録・採否履歴・書込直前の照合を実配線し、画面を開き直したときの追加有料呼出し0件を確認する。
+② 片側だけが人気薄を評価したレースで、取消の前、正式取消の反映後、再公開後の公開ID、上記3種類の頭数・配分、選出馬の所属帯と不足を照合する。取消が起きなければ当日は未観測と記録し、同レースの原文を使って隔離した環境で取消を再生する。実MySQLで同時更新時の版と、実Queueから画面までの一致を確かめてからお客様向け公開を判断する。実戦回収率は別途集計する。

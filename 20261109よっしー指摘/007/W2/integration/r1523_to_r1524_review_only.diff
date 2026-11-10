@@ -1,0 +1,254 @@
+--- R15.23/php/DispatchW2.php
++++ R15.24/php/DispatchW2.php
+@@ -6,6 +6,7 @@
+ use App\Http\Controllers\Api\BaganrikiPrompt;
+ use InvalidArgumentException;
+ require_once __DIR__.'/SourceTableV2W2.php';
++require_once __DIR__.'/ExactSourceTableW2.php';
+ 
+ /** Exactly the two message texts sent by the R9 worker; both stay on the server for replay. */
+ final class DispatchW2
+@@ -98,6 +99,10 @@
+         $cached=$cache[$frozen]??[];
+         if (isset($cached[$format])) return $cached[$format];
+         if ($format===SourceTableV2W2::FORMAT) {
++            if ((FrozenInputW2::checked($frozen)['prompt_text_revision']??null)===ExactSourceTableW2::REVISION) {
++                $bytes=ExactSourceTableW2::inputBody($frozen);
++                $cached[$format]=$bytes;$cache[$frozen]=$cached;return $bytes;
++            }
+             $wire=SourceTableV2W2::pack(FrozenInputW2::checked($frozen));$bytes=$frozen->transportJson($wire);
+             $decoded=BaganrikiJson::decode($bytes);self::need($decoded['ok'],'W23_WIRE_JSON');
+             $full=SourceTableV2W2::expand(FrozenInputW2::typedValues($decoded));
+--- R15.23/php/ExactSourceTableW2.php
++++ R15.24/php/ExactSourceTableW2.php
+@@ -0,0 +1,74 @@
++<?php
++declare(strict_types=1);
++namespace App\Services\Baganriki;
++
++use App\Http\Controllers\Api\BaganrikiJson;
++use InvalidArgumentException;
++require_once __DIR__.'/SourceTableV2W2.php';
++
++/** Revision 07 projects JSON type maps along with the V2 values. Older receipts keep their original codec. */
++final class ExactSourceTableW2
++{
++    public const REVISION='COMPACT_TEXT_20261109_07';
++    // These columns are encoded as dictionary/prefix references, not copied as source values.
++    private const TRANSFORMED=['observed_at','available_at','computed_at','dependency_key'];
++
++    private static function need(bool $ok,string $why):void { if (!$ok) throw new InvalidArgumentException($why); }
++
++    /** Remap only unchanged source cells; never apply the original number map to restored wire values. */
++    private static function project(array $map,array $table,bool $packing,bool $derived):array
++    {
++        $columns=$table['columns'];$refs=[];$positions=[];
++        $refColumn=array_search('source_ref',$columns,true);
++        foreach ($table['rows'] as $i=>$row) { $refs[$i]=$row[$refColumn];$positions[$row[$refColumn]]=$i; }
++        $out=BaganrikiJson::emptyMap();
++        foreach (['num','kind'] as $section) foreach ($map[$section]??[] as $key=>$value) {
++            $path=json_decode($key,true,512,JSON_THROW_ON_ERROR);$head=$path[0]??null;
++            if ($packing && $head==='source_registry') {
++                if (count($path)<3) continue; // registry and row objects become the table's row arrays
++                $field=$path[2];$column=array_search($field,$columns,true);
++                if ($column===false || in_array($field,self::TRANSFORMED,true)) continue;
++                $path=['source_table','rows',$positions[$path[1]],$column,...array_slice($path,3)];
++            } elseif (!$packing && $head==='source_table') {
++                if (count($path)<4 || $path[1]!=='rows') continue;
++                $field=$columns[$path[3]];
++                if (in_array($field,self::TRANSFORMED,true)) continue;
++                $path=['source_registry',$refs[$path[2]],$field,...array_slice($path,4)];
++            } elseif (($derived && $head==='input_indices') || $head==='input_indices_derived') continue;
++            $out[$section][BaganrikiJson::pathKey($path)]=$value;
++        }
++        if (!$packing) {
++            // Both are required JSON objects in the already-validated frozen schema.
++            $out=BaganrikiJson::mapWithKind($out,['source_registry'],'obj');
++            foreach ($refs as $ref) $out=BaganrikiJson::mapWithKind($out,['source_registry',$ref],'obj');
++            if ($derived) $out=BaganrikiJson::mapWithKind($out,['input_indices'],'obj');
++        }
++        return $out;
++    }
++
++    /** Serialize V2 without losing exponent tokens or object keys that resemble PHP list indices. */
++    public static function pack(FrozenInputW2 $frozen):string
++    {
++        $decoded=BaganrikiJson::decode($frozen->raw());self::need($decoded['ok'],'W24_FROZEN_JSON');
++        $wire=SourceTableV2W2::pack(FrozenInputW2::typedValues($decoded));
++        $map=self::project($decoded['map'],$wire['source_table'],true,isset($wire['input_indices_derived']));
++        return BaganrikiJson::encode($wire,$map);
++    }
++
++    /** Reconstruct from the transmitted JSON's own map; this method has no access to the original input. */
++    public static function expand(string $raw):string
++    {
++        $decoded=BaganrikiJson::decode($raw);self::need($decoded['ok'],'W24_WIRE_JSON');
++        $wire=FrozenInputW2::typedValues($decoded);$full=SourceTableV2W2::expand($wire);
++        $map=self::project($decoded['map'],$wire['source_table'],false,isset($wire['input_indices_derived']));
++        return BaganrikiJson::encode($full,$map);
++    }
++
++    public static function inputBody(FrozenInputW2 $frozen):string
++    {
++        $bytes=self::pack($frozen);$restored=self::expand($bytes);
++        $same=BaganrikiJson::sameJson($frozen->raw(),$restored,true);
++        self::need($same['ok'] && $same['same'],'W24_WIRE_EXACT_LOSS');
++        return $bytes;
++    }
++}
+--- R15.23/php/RaceMetricsW2.php
++++ R15.24/php/RaceMetricsW2.php
+@@ -8,8 +8,8 @@
+ /** Display-only assessments. Never consulted by ranking, quotas, E3/E5 or purchase policy. */
+ final class RaceMetricsW2
+ {
+-    public const REVISION='COMPACT_TEXT_20261109_06';
+-    public const SUPPORTED_REVISIONS=['COMPACT_TEXT_20261109_04','COMPACT_TEXT_20261109_05',self::REVISION];
++    public const REVISION='COMPACT_TEXT_20261109_07';
++    public const SUPPORTED_REVISIONS=['COMPACT_TEXT_20261109_04','COMPACT_TEXT_20261109_05','COMPACT_TEXT_20261109_06',self::REVISION];
+     public const POLICY='RACE_METRICS_V1';
+     public const KEYS=['wave_level','lower_entry','big_gap_entry'];
+     public const LABELS=['wave_level'=>'波乱度','lower_entry'=>'下位進入度','big_gap_entry'=>'大穴進入度'];
+--- R15.23/php/ResponseInspectionW2.php
++++ R15.24/php/ResponseInspectionW2.php
+@@ -8,7 +8,7 @@
+ /** An early inspection suggests corrections. Only the independent saved-input/original-response check can authorize publication. */
+ final class ResponseInspectionW2
+ {
+-    public const REVISION='w2-r15.23';
++    public const REVISION='w2-r15.24';
+ 
+     /** Keep independently valid evidence on a mixed row. Never promote a local salvage to a full AI answer. */
+     public static function salvageMarket(array $in,array $horse,int $index,array $inputMap,array $responseMap):?array
+--- R15.23/prompts/common_prompt.txt
++++ R15.24/prompts/common_prompt.txt
+@@ -53,7 +53,7 @@
+ 選出停止時はpublic_candidates=[]、全馬公開false、全馬nonselect_reason.code=SELECTION_DISABLED、shortfalls=[]、selection_ranksは基礎順位、全帯expected_reviewsはSELECTION_DISABLED。
+ 全ての必須理由・解釈・explanationは短く具体的な日本語。空文字、空白・改行・全角空白・ゼロ幅文字だけは禁止。explanationは肯定材料と主要反証、不足時は確認済み範囲と不足資料を記す。反復・前置き・長い言い換えを避ける。
+ 
+-【1stの表示指標（本文版COMPACT_TEXT_20261109_06）】
++【1stの表示指標（本文版COMPACT_TEXT_20261109_07）】
+ 1stはトップレベルにrace_metricsを追加し、wave_level（波乱度）、lower_entry（下位進入度）、big_gap_entry（大穴進入度）の3キーを必ず返す。2ndはrace_metricsを出さない。各値は{value:1～5の整数またはnull,source_refs:参照ID配列,reason:500文字以内の具体的な理由}。資料不足や対象人気帯がない場合value=nullとし、0・固定の中間値で補わない。これは表示用の段階評価で、確率・配当・購入推奨ではない。mode・枠・候補・E3/E5・点数に影響させない。
+ wave_levelはレース全体の予測困難度。単複二重の上位断層は1～2、上位断層は2～3、中間は3、断層なし・単複不一致は4～5を目安に、断層の拡縮、上位の支持安定、下位への複勝支持を見て説明する。未確認の断層や支持を作らない。波乱度の補正は各条件1段階、同方向の複数該当でも最大2段階まで、最終値は1～5に収める。上げる条件は6分前へ向けた断層の縮小、断層下の複数馬への複勝支持、7～10番人気の複勝支持順位の継続上昇、単複断層位置の不一致、1番人気の複勝支持低下。下げる条件は断層の継続維持、単複断層位置の一致、断層拡大、上位6番人気内の二重断層、下位への明確な複勝支持がないこと。資料不足と支持がないことを区別する。
+ lower_entryは凍結単勝7～10番人気の馬が5着以内に入る可能性の段階、大穴進入度は11番人気以下が5着以内に入る可能性の段階。3着以内や馬番7～10と混同しない。大穴進入度3以上には対象馬の同じ複勝指標（place_minまたはplace_max）が12→9→6分で連続して短縮している参照3件が必要。確認できなければ1～2の根拠ある評価、資料自体が不足ならnull。これは継続支持の最低確認条件であり、支持加速や実投票額流入を意味しない。
+--- R15.23/prompts/prompt_1st.txt
++++ R15.24/prompts/prompt_1st.txt
+@@ -56,7 +56,7 @@
+ 選出停止時はpublic_candidates=[]、全馬公開false、全馬nonselect_reason.code=SELECTION_DISABLED、shortfalls=[]、selection_ranksは基礎順位、全帯expected_reviewsはSELECTION_DISABLED。
+ 全ての必須理由・解釈・explanationは短く具体的な日本語。空文字、空白・改行・全角空白・ゼロ幅文字だけは禁止。explanationは肯定材料と主要反証、不足時は確認済み範囲と不足資料を記す。反復・前置き・長い言い換えを避ける。
+ 
+-【1stの表示指標（本文版COMPACT_TEXT_20261109_06）】
++【1stの表示指標（本文版COMPACT_TEXT_20261109_07）】
+ 1stはトップレベルにrace_metricsを追加し、wave_level（波乱度）、lower_entry（下位進入度）、big_gap_entry（大穴進入度）の3キーを必ず返す。2ndはrace_metricsを出さない。各値は{value:1～5の整数またはnull,source_refs:参照ID配列,reason:500文字以内の具体的な理由}。資料不足や対象人気帯がない場合value=nullとし、0・固定の中間値で補わない。これは表示用の段階評価で、確率・配当・購入推奨ではない。mode・枠・候補・E3/E5・点数に影響させない。
+ wave_levelはレース全体の予測困難度。単複二重の上位断層は1～2、上位断層は2～3、中間は3、断層なし・単複不一致は4～5を目安に、断層の拡縮、上位の支持安定、下位への複勝支持を見て説明する。未確認の断層や支持を作らない。波乱度の補正は各条件1段階、同方向の複数該当でも最大2段階まで、最終値は1～5に収める。上げる条件は6分前へ向けた断層の縮小、断層下の複数馬への複勝支持、7～10番人気の複勝支持順位の継続上昇、単複断層位置の不一致、1番人気の複勝支持低下。下げる条件は断層の継続維持、単複断層位置の一致、断層拡大、上位6番人気内の二重断層、下位への明確な複勝支持がないこと。資料不足と支持がないことを区別する。
+ lower_entryは凍結単勝7～10番人気の馬が5着以内に入る可能性の段階、大穴進入度は11番人気以下が5着以内に入る可能性の段階。3着以内や馬番7～10と混同しない。大穴進入度3以上には対象馬の同じ複勝指標（place_minまたはplace_max）が12→9→6分で連続して短縮している参照3件が必要。確認できなければ1～2の根拠ある評価、資料自体が不足ならnull。これは継続支持の最低確認条件であり、支持加速や実投票額流入を意味しない。
+--- R15.23/prompts/prompt_2nd.txt
++++ R15.24/prompts/prompt_2nd.txt
+@@ -57,7 +57,7 @@
+ 選出停止時はpublic_candidates=[]、全馬公開false、全馬nonselect_reason.code=SELECTION_DISABLED、shortfalls=[]、selection_ranksは基礎順位、全帯expected_reviewsはSELECTION_DISABLED。
+ 全ての必須理由・解釈・explanationは短く具体的な日本語。空文字、空白・改行・全角空白・ゼロ幅文字だけは禁止。explanationは肯定材料と主要反証、不足時は確認済み範囲と不足資料を記す。反復・前置き・長い言い換えを避ける。
+ 
+-【1stの表示指標（本文版COMPACT_TEXT_20261109_06）】
++【1stの表示指標（本文版COMPACT_TEXT_20261109_07）】
+ 1stはトップレベルにrace_metricsを追加し、wave_level（波乱度）、lower_entry（下位進入度）、big_gap_entry（大穴進入度）の3キーを必ず返す。2ndはrace_metricsを出さない。各値は{value:1～5の整数またはnull,source_refs:参照ID配列,reason:500文字以内の具体的な理由}。資料不足や対象人気帯がない場合value=nullとし、0・固定の中間値で補わない。これは表示用の段階評価で、確率・配当・購入推奨ではない。mode・枠・候補・E3/E5・点数に影響させない。
+ wave_levelはレース全体の予測困難度。単複二重の上位断層は1～2、上位断層は2～3、中間は3、断層なし・単複不一致は4～5を目安に、断層の拡縮、上位の支持安定、下位への複勝支持を見て説明する。未確認の断層や支持を作らない。波乱度の補正は各条件1段階、同方向の複数該当でも最大2段階まで、最終値は1～5に収める。上げる条件は6分前へ向けた断層の縮小、断層下の複数馬への複勝支持、7～10番人気の複勝支持順位の継続上昇、単複断層位置の不一致、1番人気の複勝支持低下。下げる条件は断層の継続維持、単複断層位置の一致、断層拡大、上位6番人気内の二重断層、下位への明確な複勝支持がないこと。資料不足と支持がないことを区別する。
+ lower_entryは凍結単勝7～10番人気の馬が5着以内に入る可能性の段階、大穴進入度は11番人気以下が5着以内に入る可能性の段階。3着以内や馬番7～10と混同しない。大穴進入度3以上には対象馬の同じ複勝指標（place_minまたはplace_max）が12→9→6分で連続して短縮している参照3件が必要。確認できなければ1～2の根拠ある評価、資料自体が不足ならnull。これは継続支持の最低確認条件であり、支持加速や実投票額流入を意味しない。
+--- R15.23/schemas/input_schema.json
++++ R15.24/schemas/input_schema.json
+@@ -2017,7 +2017,8 @@
+         "COMPACT_TEXT_20261109_02",
+         "COMPACT_TEXT_20261109_04",
+         "COMPACT_TEXT_20261109_05",
+-        "COMPACT_TEXT_20261109_06"
++        "COMPACT_TEXT_20261109_06",
++        "COMPACT_TEXT_20261109_07"
+       ]
+     }
+   },
+@@ -2398,5 +2399,5 @@
+       }
+     }
+   ],
+-  "$id": "urn:baganriki:r12-2-w2-e35-r15:input:w2-r15.23"
++  "$id": "urn:baganriki:r12-2-w2-e35-r15:input:w2-r15.24"
+ }
+--- R15.23/schemas/output_schema.json
++++ R15.24/schemas/output_schema.json
+@@ -1932,5 +1932,5 @@
+       }
+     }
+   ],
+-  "$id": "urn:baganriki:r12-2-w2-e35-r15:output:w2-r15.23"
++  "$id": "urn:baganriki:r12-2-w2-e35-r15:output:w2-r15.24"
+ }
+--- R15.23/schemas/recovery_schema.json
++++ R15.24/schemas/recovery_schema.json
+@@ -1,5 +1,5 @@
+ {
+-  "$id": "urn:baganriki:r12-2-w2-e35-r15:recovery:w2-r15.23",
++  "$id": "urn:baganriki:r12-2-w2-e35-r15:recovery:w2-r15.24",
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "type": "object",
+   "properties": {
+--- R15.23/config/w2_contract.json
++++ R15.24/config/w2_contract.json
+@@ -1,6 +1,6 @@
+ {
+   "prompt_version": "baganriki-v041-r12-2-w2-e35-r15-20261104",
+-  "validator_version": "w2-r15.23",
++  "validator_version": "w2-r15.24",
+   "schema_version": "baganriki-v041-r12-2-w2-e35-r15",
+   "base_quota": {
+     "4": {
+@@ -141,14 +141,14 @@
+     "buy_recommended": false
+   },
+   "system_file_sha256": {
+-    "prompt_1st.txt": "ef518ebc909f909bde760bd69352059464124d9c91bd3aeecbfab29aa9d58f90",
+-    "prompt_2nd.txt": "ee8cbb545b4834d571cddbcd12da80d87ab6879615d2d1cc52d28b12883a736d",
++    "prompt_1st.txt": "26ee30494b3f3b2bea51ab438145f9e7516b85936f10fee52ffeab813f23d6b6",
++    "prompt_2nd.txt": "5cec97ed98bcacd52a3244338489ca8a618d5001ed5881bdb4ffa23f2f739424",
+     "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "fb7b4434dc488860c4611345fb59eca760bdad5bf8cf5d1bede8c9596782da9b",
+     "SOURCE_TABLE_V2_ADDENDUM_V1.txt": "1295a6f7eb9efc9e374fa43b2097b54e903dc7bb967811c085a1aaa3c5cf0a6e"
+   },
+   "score_evidence_policy": "W2_R14_SCORE_MATERIALS_V1",
+   "family_evidence_policy": "W2_R14_FAMILY_MATERIALS_V1",
+-  "active_text_revision": "COMPACT_TEXT_20261109_06",
++  "active_text_revision": "COMPACT_TEXT_20261109_07",
+   "archived_text_revisions": {
+     "ORIGINAL_R15_18": {
+       "prompt_1st.txt": "fc73c229618a7d2ba1c5462bddafaa08b61a760395c0b165d325914b187660fb",
+@@ -174,9 +174,15 @@
+       "prompt_1st.txt": "cd66c9100f7e1a82a328bbc60749bf6c193e204c20be48a7727d405e070f4351",
+       "prompt_2nd.txt": "ccc3f0742f64584e3922e463cb9d2852ced30f43c9bd51f61a4ca8b1a8c65c33",
+       "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "fb7b4434dc488860c4611345fb59eca760bdad5bf8cf5d1bede8c9596782da9b"
++    },
++    "COMPACT_TEXT_20261109_06": {
++      "prompt_1st.txt": "ef518ebc909f909bde760bd69352059464124d9c91bd3aeecbfab29aa9d58f90",
++      "prompt_2nd.txt": "ee8cbb545b4834d571cddbcd12da80d87ab6879615d2d1cc52d28b12883a736d",
++      "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "fb7b4434dc488860c4611345fb59eca760bdad5bf8cf5d1bede8c9596782da9b",
++      "SOURCE_TABLE_V2_ADDENDUM_V1.txt": "1295a6f7eb9efc9e374fa43b2097b54e903dc7bb967811c085a1aaa3c5cf0a6e"
+     }
+   },
+-  "validation_contract_revision": "w2-r15.23",
++  "validation_contract_revision": "w2-r15.24",
+   "race_metrics_policy": {
+     "id": "RACE_METRICS_V1",
+     "producer": "1st",
+@@ -248,6 +254,16 @@
+         "initial": "SOURCE_TABLE_V2",
+         "required": "SOURCE_TABLE_V2"
+       }
++    },
++    "COMPACT_TEXT_20261109_07": {
++      "1st": {
++        "initial": "SOURCE_TABLE_V2",
++        "required": "SOURCE_TABLE_V2"
++      },
++      "2nd": {
++        "initial": "SOURCE_TABLE_V2",
++        "required": "SOURCE_TABLE_V2"
++      }
+     }
+   }
+ }

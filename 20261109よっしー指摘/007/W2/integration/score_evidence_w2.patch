@@ -1,0 +1,2172 @@
+--- a/AiController.php
++++ b/AiController.php
+@@ -201,6 +201,9 @@
+ 
+     /** @ANCHOR-20261004-AUDIT-MERGE  直近の _mergeAiResults() の監査データ（DB保存用） */
+     private array $lastMergeAudit = [];
++
++    /** Snapshot and effective deadlines used only while this controller inspects a W2 publication. */
++    private ?array $publicationReadWindowW2 = null;
+ 
+     /**
+      * ═══════════════════════════════════════════════════════════════════════
+@@ -15704,6 +15707,7 @@
+         //
+         //   artisan（コマンド）からは素通りします。外から叩けないので
+         //   止める意味がなく、止めると試験が全部落ちます。
++        $headers = ['Cache-Control' => 'private, no-store'];
+         $gate = self::checkPredictionReadAccess();
+         if (!$gate['ok']) {
+             return response()->json(BaganrikiPublicView::build([
+@@ -15711,7 +15715,7 @@
+                 'state'       => 'UNAVAILABLE',
+                 'diagnostics' => [['code' => (string) $gate['code'],
+                                    'message' => (string) $gate['reason']]],
+-            ]), 200);
++            ]), 200, $headers);
+         }
+ 
+         $parts = explode('-', $race_id);
+@@ -15723,7 +15727,7 @@
+                 'diagnostics'    => [['code' => 'ENTRY_SET_MISMATCH',
+                                       'message' => 'race_id の形が違います（YYYYMMDD-回-場-日-R）']],
+                 'buy_recommended' => false,
+-            ], 400);
++            ], 400, $headers);
+         }
+         [$ymd, $kaisuu, $basho, $day, $race] = $parts;
+         $date = substr($ymd, 0, 4) . '-' . substr($ymd, 4, 2) . '-' . substr($ymd, 6, 2);
+@@ -15738,7 +15742,7 @@
+                 'state'       => 'UNAVAILABLE',
+                 'diagnostics' => [['code' => 'ENTRY_MISSING',
+                                    'message' => 'このレースは正本に存在しません']],
+-            ]), 404);
++            ]), 404, $headers);
+         }
+ 
+         // ── 保存済みの r12.2 の記録を読む ───────────────────────────────
+@@ -15755,17 +15759,24 @@
+         //
+         //   3つの版と公開履歴は<b>ひとつの読取取引</b>でそろえて取ります。
+         //   書込ロックは持ちません（契約8章）。
+-        $snap = null; $live = null; $pub = null; $slots = null;
++        $snap = null; $live = null; $pub = null; $slots = null; $w2 = null; $closeSrc = null;
+         if (\Schema::hasTable('baganriki_snapshots')) {
+-            [$snap, $live, $pub, $slots] = \DB::transaction(function () use ($race_id) {
++            [$snap, $live, $pub, $slots, $w2, $closeSrc] = \DB::transaction(function () use ($race_id) {
+                 $s = \DB::table('baganriki_snapshots')->where('race_id', $race_id)
+                        ->where('generation', 0)->first();
+-                $l = null; $p = null; $w = null;
++                $l = null; $p = null; $w = null; $view = null; $source = null;
+                 if ($s !== null && \Schema::hasTable('baganriki_live_states')) {
+                     $l = \DB::table('baganriki_live_states')
+                            ->where('snapshot_id', $s->id)->first();
+                 }
+-                if ($s !== null && \Schema::hasTable('baganriki_publications')) {
++                if ($s !== null && BaganrikiWorker::isW2Snapshot($s)) {
++                    try {
++                        $view = \App\Services\Baganriki\PublishedReadW2::load($s, $l);
++                        $p = $view['pub'];
++                    } catch (\InvalidArgumentException $error) {
++                        $view = ['error' => $error->getMessage()];
++                    }
++                } elseif ($s !== null && \Schema::hasTable('baganriki_publications')) {
+                     $p = \DB::table('baganriki_publications')
+                            ->where('snapshot_id', $s->id)
+                            ->orderByDesc('published_at')->first();
+@@ -15773,19 +15784,47 @@
+                 if ($s !== null && \Schema::hasTable('baganriki_ai_attempts')) {
+                     $w = BaganrikiWorker::slots((int) $s->id);
+                 }
+-                return [$s, $l, $p, $w];
++                if (\Schema::hasTable('baganriki_audit_events') && $s !== null) {
++                    $ce = \DB::table('baganriki_audit_events')
++                            ->where('snapshot_id', $s->id)
++                            ->where('kind', 'SALES_CLOSE_SOURCE')
++                            ->orderByDesc('id')->first();
++                    if ($ce !== null) {
++                        $cd = json_decode((string) $ce->diagnostics, true);
++                        if (is_array($cd)) { $source = $cd; }
++                    }
++                }
++                return [$s, $l, $p, $w, $view, $source];
+             });
+         }
+ 
+-        $cancellations = ($live !== null && $live->cancellations !== null)
+-            ? (json_decode((string) $live->cancellations, true) ?: []) : [];
+-        $activeCount   = ($live !== null) ? $live->active_count : null;
++        if (isset($w2['error'])) {
++            $code = $w2['error'];
++            $reasons = [
++                'LIVE_STATE_UNAVAILABLE' => '取消馬と残りの頭数を確認できないため、現在の候補は表示を保留しています',
++                'W8_LIVE_REVISION' => '公開に使った記録の版を確認しています',
++                'PUBLICATION_REFERENCE_MISMATCH' => '最新の公開記録を確認しています',
++                'PUBLICATION_DATA_INVALID' => '公開した候補の記録を確認しています',
++                'TIME_UNCOMPUTABLE' => '凍結時の締切と正式な変更履歴を確認しています',
++                'PUBLICATION_CLOCK_UNAVAILABLE' => '正式な発走時刻と締切を確認しています',
++            ];
++            $dto = BaganrikiPublicView::build(['race_id' => $race_id, 'state' => 'UNAVAILABLE',
++                'diagnostics' => [['code' => $code, 'message' => $reasons[$code] ?? '公開記録を確認しています']]]);
++            $dto['live_state']['available_candidate_nos'] = null;
++            return response()->json($dto, 200, $headers);
++        }
++        $cancellations = $w2 !== null ? $w2['roster']['withdrawn'] : (($live !== null && $live->cancellations !== null)
++            ? (json_decode((string) $live->cancellations, true) ?: []) : []);
++        $activeCount   = $w2 !== null ? $w2['allocation']['active_count'] : ($live->active_count ?? null);
+         $allCancelled  = ($activeCount !== null && (int) $activeCount === 0);
+ 
+         // 実効公開期限。投票締切の正本が無ければ期限を作らず、推測もしません。
+         $effPublish = null; $pastDeadline = false;
+         $salesClose = $snap->sales_close_at ?? null;
+-        if ($salesClose !== null) {
++        if ($w2 !== null) {
++            $effPublish = BaganrikiTime::toJst($w2['clock']['publish']);
++            $pastDeadline = $w2['clock']['race_started'] || BaganrikiWorker::nowUs() > $w2['clock']['publish'];
++        } elseif ($salesClose !== null) {
+             // @ANCHOR-20261020-R122-API  DBの日時はDBの日時として読みます
+             $sc = BaganrikiWorker::dbUs($salesClose);
+             if ($sc !== null) {
+@@ -15810,6 +15849,7 @@
+                        'message' => (string) ($snap->input_invalid_reason ?? '')];
+         }
+ 
++        if ($w2 !== null && $inputInvalid) { $pub = null; }
+         $state = BaganrikiPublicView::state(
+             $pub !== null, $allCancelled, $inputInvalid, $pastDeadline);
+         if ($snap === null) { $state = 'PENDING'; }
+@@ -15826,7 +15866,7 @@
+                 // @ANCHOR-20261023-R122-COUNTS  正式公開したときの頭数（変更計画書8章「正式公開時の頭数と現在頭数を区別」）
+                 //   公開時に baganriki_publications.active_count へ保存してある値です。いまの頭数は live_state.active_count。
+                 'active_count'             => isset($pub->active_count) ? (int) $pub->active_count : null,
+-                'candidates'               => json_decode((string) ($pub->candidates ?? '[]'), true),
++                'candidates'               => $w2['candidates'] ?? json_decode((string) ($pub->candidates ?? '[]'), true),
+                 'evidence'                 => json_decode((string) ($pub->evidence ?? '[]'), true),
+             ];
+         }
+@@ -15835,7 +15875,10 @@
+         //   正式公開のリストは動かしません（取消だけで再選出しません）。
+         //   取消になった馬を除いた数だけを、別の欄として返します。
+         $actualQuota = null; $availableCount = null;
+-        if ($pubDto !== null) {
++        if ($w2 !== null && $pubDto !== null) {
++            $actualQuota = $w2['quota'];
++            $availableCount = count($w2['available']);
++        } elseif ($pubDto !== null) {
+             $cans = (array) ($pubDto['candidates'] ?? []);
+             $actualQuota = ['A' => 0, 'B' => 0, 'D' => 0];
+             $availableCount = 0;
+@@ -15848,19 +15891,10 @@
+             }
+         }
+         // @ANCHOR-20261020-R122-CLOSE  締切の出どころ（凍結のときの監査から）
+-        $closeSrc = null;
+-        if (\Schema::hasTable('baganriki_audit_events') && $snap !== null) {
+-            $ce = \DB::table('baganriki_audit_events')
+-                    ->where('snapshot_id', $snap->id)
+-                    ->where('kind', 'SALES_CLOSE_SOURCE')
+-                    ->orderByDesc('id')->first();
+-            if ($ce !== null) {
+-                $cd = json_decode((string) $ce->diagnostics, true);
+-                if (is_array($cd)) { $closeSrc = $cd; }
+-            }
+-        }
+         $effReply = null;
+-        if ($salesClose !== null) {
++        if ($w2 !== null) {
++            $effReply = BaganrikiTime::toJst($w2['clock']['reply']);
++        } elseif ($salesClose !== null) {
+             $sc2 = BaganrikiWorker::dbUs($salesClose);
+             if ($sc2 !== null) {
+                 $lc2 = ($live !== null && $live->live_close !== null)
+@@ -15870,7 +15904,7 @@
+             }
+         }
+ 
+-        return response()->json(BaganrikiPublicView::build([
++        $dto = BaganrikiPublicView::build([
+             'race_id'         => $race_id,
+             'state'           => $state,
+             'response_revision'     => $live->response_revision ?? null,
+@@ -15892,9 +15926,10 @@
+             'state_revision'  => $live->state_revision ?? null,
+             'cancellations'   => $cancellations,
+             'active_count'    => $activeCount,
+-            'live_target_count' => $live->live_target_count ?? null,
+-            'live_quota'      => ($live !== null && ($live->live_quota ?? null) !== null)
+-                                 ? json_decode((string) $live->live_quota, true) : null,
++            'live_target_count' => $w2 !== null ? $w2['allocation']['target_count'] : ($live->live_target_count ?? null),
++            'live_quota'      => $w2 !== null ? $w2['allocation']['quota']
++                                 : (($live !== null && ($live->live_quota ?? null) !== null)
++                                    ? json_decode((string) $live->live_quota, true) : null),
+             'effective_publish_deadline' => $effPublish,
+             'collection_audit' => ($snap !== null && ($snap->collection_audit ?? null) !== null)
+                                   ? json_decode((string) $snap->collection_audit, true) : null,
+@@ -15907,7 +15942,16 @@
+             'diagnostics'     => $diag,
+             'shortfalls'      => ($pub !== null && ($pub->shortfalls ?? null) !== null)
+                                  ? json_decode((string) $pub->shortfalls, true) : [],
+-        ]));
++        ]);
++        if ($w2 !== null) {
++            $dto['live_state']['available_candidate_nos'] = $pubDto !== null ? $w2['available'] : null;
++            $dto['race_metrics'] = $pubDto !== null && ($dto['state']??null)==='PUBLISHED' ? $w2['race_metrics'] : null;
++            if ($pubDto !== null) {
++                $dto['publication']['race_metrics']=$dto['race_metrics'];
++                unset($dto['publication']['evidence']['race_metrics']);
++            }
++        }
++        return response()->json($dto, 200, $headers);
+     }
+ 
+     /**
+@@ -15965,8 +16009,7 @@
+         if (!preg_match('/^\d{1,2}:\d{2}(?::\d{2})?$/', $st)) {
+             return $ng('TIME_CONTRACT_INVALID', '発走時刻を読めません: ' . $st);
+         }
+-        if (strlen($st) === 5) $st .= ':00';
+-        if (strlen($st) === 7) $st = '0' . $st;
++        $st = BaganrikiTime::normalizeRaceStartClock($st);
+         $anchorAt = (string) $date . 'T' . $st . '+09:00';
+         $anchorUs = BaganrikiTime::us($anchorAt);
+         if ($anchorUs === null) {
+@@ -16840,7 +16883,7 @@
+             $st = (string) ($override['start_time'] ?? '');
+             $anchorAt = null;
+             if ($st !== '') {
+-                if (strlen($st) === 5) { $st .= ':00'; }
++                $st = BaganrikiTime::normalizeRaceStartClock($st);
+                 $anchorAt = substr((string) $date, 0, 10) . 'T' . $st . '+09:00';
+             } else {
+                 $rowR = \DB::table('t_horse_odds_finder_races')
+@@ -16849,7 +16892,7 @@
+                           ->where('race', (int) $race)->first();
+                 if ($rowR !== null && ($rowR->start_time ?? '') !== '') {
+                     $s2 = (string) $rowR->start_time;
+-                    if (strlen($s2) === 5) { $s2 .= ':00'; }
++                    $s2 = BaganrikiTime::normalizeRaceStartClock($s2);
+                     $anchorAt = substr((string) $rowR->date, 0, 10) . 'T' . $s2 . '+09:00';
+                 }
+             }
+@@ -17631,6 +17674,31 @@
+      * @return array ['ok','stage','code','reason','accepted','needs_fix',
+      *                'repair_scope','normal','row_valid','diag']
+      */
++    /** Actual SDK send time for one role and slot. Earlier storage uses the submitted R122_USAGE event. */
++    private function inspectionSentAt(object $attempt,int $snapshotId,string $race,string $role,int $slot): \DateTimeImmutable
++    {
++        $value=$attempt->sent_at ?? null;
++        if ($value===null) {
++            if (!\Schema::hasTable('baganriki_audit_events')) throw new \InvalidArgumentException('SEND_TIME_MISSING');
++            $rows=\DB::table('baganriki_audit_events')->where('snapshot_id',$snapshotId)->where('race_id',$race)
++                ->where('kind','R122_USAGE')->where('related_id',$role.'#'.$slot)->get();
++            $found=false;
++            foreach ($rows as $row) {
++                $d=json_decode((string)($row->diagnostics ?? ''),true);
++                if ($found || !is_array($d) || ($d['role'] ?? null)!==$role || ($d['attempt_no'] ?? null)!==$slot)
++                    throw new \InvalidArgumentException('SEND_TIME_AMBIGUOUS');
++                $found=true;$value=$d['sent_at'] ?? null;
++            }
++        }
++        if ($value===null) throw new \InvalidArgumentException('SEND_TIME_MISSING');
++        if (!is_string($value)) throw new \InvalidArgumentException('SEND_TIME_INVALID');
++        try {
++            return \App\Services\Baganriki\ExpectedPacketW2::instant(self::dbTimeToRfc3339($value) ?? $value);
++        } catch (\InvalidArgumentException $error) {
++            throw new \InvalidArgumentException('SEND_TIME_INVALID',0,$error);
++        }
++    }
++
+     /**
+      * @ANCHOR-20261020-R122-SALVAGE  採点まわりだけの指摘コード
+      *   この範囲の指摘しか無い馬は、採点欄だけを落として行は残します。
+@@ -17642,7 +17710,7 @@
+         'SCORE_EVIDENCE_TYPE', 'SCORE_EVIDENCE_UNKNOWN_KEY',
+         'SCORE_EVIDENCE_MISSING', 'SCORE_WITHOUT_EVIDENCE',
+         'SCORE_NULL_WITHOUT_REASON', 'SCORE_EVIDENCE_REF_UNKNOWN',
+-        'SCORE_EVIDENCE_REF_NOT_OWNED',
++        'SCORE_EVIDENCE_REF_NOT_OWNED', 'W12_SCORE_MATERIAL', 'W13_SCORE_PROOF_FIELDS',
+     ];
+ 
+     public function inspectAiResponse(int $snapshotId, string $role,
+@@ -17670,6 +17738,7 @@
+             return $out;
+         }
+         $out['attempt_id'] = (int) $a->id;
++        $out['validator_version'] = BaganrikiDiagnose::revision($snap->release_version ?? null);
+         // ══════════════════════════════════════════════════════════════
+         // @ANCHOR-20261020-R122-COMPLETE  10月20日006のご指摘2-1（本物の不具合）
+         // ══════════════════════════════════════════════════════════════
+@@ -17678,20 +17747,39 @@
+         //   「加点しない」だけでは足りず、順位点にも候補にも入れてはいけません。
+         //   ここでは本文の検証は続け（保持するため）、
+         //   選出に使ってよいかの印だけを別に返します。
+-        $out['complete'] = ((int) ($a->complete ?? 0) === 1);
++        $current = $out['validator_version'] === \App\Services\Baganriki\ResponseInspectionW2::REVISION;
++        $out['complete'] = $current ? \App\Services\Baganriki\AttemptWindowW2::isComplete($a->complete ?? null)
++            : ((int) ($a->complete ?? 0) === 1);
+         if ((string) $a->status !== BaganrikiWorker::RECEIVED) {
+             $out['stage'] = 'attempt'; $out['code'] = 'NOT_RECEIVED';
+             $out['reason'] = '原応答を受け取っていません（' . $a->status . '）';
+             return $out;
+         }
+ 
+-        $col = ($role === '2nd') ? 'input_json_2nd' : 'input_json_1st';
+-        $src = json_decode((string) $snap->{$col}, true);
++        $inputTypes = null;
++        try {
++            $src = \App\Services\Baganriki\FrozenInputW2::forInspection($snap, $role, $inputTypes);
++        } catch (\InvalidArgumentException $error) {
++            $out['stage'] = 'snapshot'; $out['code'] = 'INVALID_SAVED_INPUT';
++            $out['reason'] = '保存入力を照合できません ' . $error->getMessage();
++            $this->saveValidationResult((int) $a->id, null, $out, null, null, null);
++            return $out;
++        }
+         if (!is_array($src)) {
+             $out['stage'] = 'snapshot'; $out['code'] = 'NO_INPUT';
+-            $out['reason'] = '固定入力（' . $col . '）を読めません';
++            $out['reason'] = '固定入力（' . ($role === '1st' ? 'input_json_1st' : 'input_json_2nd') . '）を読めません';
+             return $out;
+         }
++
++        if ($current && (!is_string($a->response_hash ?? null) || !is_string($a->raw_response ?? null)
++                || !hash_equals($a->response_hash, hash('sha256', $a->raw_response)))) {
++            $out['stage'] = 'attempt'; $out['code'] = 'RESPONSE_HASH_MISMATCH';
++            $out['reason'] = '受領時に保存した応答原文とSHA-256が一致しません';
++            $this->saveValidationResult((int) $a->id, null, $out, null, null, null);
++            return $out;
++        }
++
++        $out['response_hash'] = $a->response_hash ?? null;
+ 
+         // ── ① 原文から封筒を取り出す ────────────────────────────────
+         $ex = \App\Services\Baganriki\ResponseFrameW2::supportsVersion($src['prompt_version'] ?? null)
+@@ -17736,7 +17824,7 @@
+         $iso = BaganrikiResponse::isolateHorses((array) ($res['horses'] ?? []), $frozen);
+ 
+         // ── ④ 診断（inspect と resolve で同じ関数）──────────────────
+-        $d = BaganrikiDiagnose::run($res, $src);
++        $d = BaganrikiDiagnose::run($res, $src, $ex['map'] ?? null, $inputTypes);
+ 
+         // 正常部分＝隔離に残り、かつ row_valid が true の行
+         // ══════════════════════════════════════════════════════════════
+@@ -17752,11 +17840,14 @@
+         //   根拠・5系統・帯・順位の指摘がある行は、これまでどおり外します。
+         $bad = [];                       // 馬番 => その馬に付いた指摘コード
+         foreach ((array) $d['findings'] as $fd) {
++            // A presentation error still needs its own fix but cannot invalidate independently salvageable scores.
++            if (($src['prompt_version'] ?? null) === \App\Services\Baganriki\CandidateSelectionW2::VERSION &&
++                ($fd['scope'] ?? null) === 'presentation_horses') { continue; }
+             $t = $fd['target'] ?? null;
+             if (!is_int($t) && !(is_string($t) && ctype_digit($t))) { continue; }
+             $bad[(int) $t][] = (string) ($fd['code'] ?? '');
+         }
+-        $salvaged = []; $salvageDetail = [];
++        $salvaged = []; $salvageDetail = []; $marketSalvageMaps = [];
+         $normal = [];
+         // ══════════════════════════════════════════════════════════════
+         // @ANCHOR-20261021-R122-TYPEMAP  並べ替えに型の地図を追従させます
+@@ -17785,6 +17876,18 @@
+                 $only  = ($codes !== [])
+                       && array_diff($codes, array_merge(self::SCORE_ONLY_ERROR_CODES,
+                           ['EVIDENCE_REF_UNKNOWN', 'EVIDENCE_REF_NOT_OWNED'])) === [];
++                if (($src['prompt_version'] ?? null) === \App\Services\Baganriki\CandidateSelectionW2::VERSION &&
++                    $codes === ['W19_FALSE_ACCELERATION'] && isset($idxOf[$no])) {
++                    $marketSalvage = \App\Services\Baganriki\ResponseInspectionW2::salvageMarket(
++                        $src, $h, $idxOf[$no], $inputTypes, $resMap);
++                    if ($marketSalvage !== null) {
++                        $normal[$no] = $marketSalvage['row'];
++                        $marketSalvageMaps[$no] = $marketSalvage['map'];
++                        $salvageDetail[$no] = ['removed_evidence_ids' => $marketSalvage['removed_evidence_ids']];
++                        $salvaged[] = $no;
++                        continue;
++                    }
++                }
+                 // 自分のSIGNALが1系統も無い馬は、採点を外しても資格が立ちません
+                 $own = (int) (($d['ref_stats'][$no]['own_signal'] ?? 0));
+                 // Valid own-horse evidence can coexist with an invalid score reference.
+@@ -17802,6 +17905,14 @@
+                 //     集計欄だけの誤り（observed_sum が合わない等）なら、
+                 //     採点は1項目も消えません。計算し直すだけです。
+                 if (!is_array($h['scores'] ?? null)) { $h['scores'] = []; }
++                if (\App\Services\Baganriki\ScoreMaterialsW2::handlesFamilies($src['prompt_version'] ?? null) && is_array($h['score_evidence'] ?? null)) {
++                    foreach ($h['score_evidence'] as &$proofItem) {
++                        if (is_array($proofItem)) {
++                            $proofItem = array_intersect_key($proofItem, ['reason' => true, 'source_refs' => true]);
++                        }
++                    }
++                    unset($proofItem);
++                }
+                 // 採点辞書に無い項目は落とします（残すと再計算が狂います）
+                 foreach (array_keys($h['scores']) as $sk) {
+                     if (!array_key_exists($sk, BaganrikiDiagnose::SCORE_CAP)) {
+@@ -17811,6 +17922,12 @@
+                 foreach ($badKeys as $sk) {
+                     if (array_key_exists($sk, BaganrikiDiagnose::SCORE_CAP)) {
+                         $h['scores'][$sk] = null;
++                        if (\App\Services\Baganriki\ScoreMaterialsW2::handlesVersion($src['prompt_version'] ?? null)) {
++                            $refs = is_array($h['score_evidence'][$sk] ?? null) ? ($h['score_evidence'][$sk]['source_refs'] ?? []) : [];
++                            if (!is_array($h['score_evidence'] ?? null)) { $h['score_evidence'] = []; }
++                            $h['score_evidence'][$sk] = ['reason' => $sk . 'は出典または採点内容を検証できず未算出',
++                                'source_refs' => \App\Services\Baganriki\SourceEvidenceW2::retainedRefs($src['source_registry'], $no, $refs)];
++                        }
+                     }
+                 }
+                 // 残った項目から合計を出し直します
+@@ -17861,6 +17978,8 @@
+                 ];
+                 $salvaged[] = $no;
+             }
++            if (($src['prompt_version'] ?? null) === \App\Services\Baganriki\CandidateSelectionW2::VERSION)
++                $h = array_intersect_key($h, array_flip(BaganrikiDiagnose::HORSE_KEYS));
+             $normal[$no] = $h;
+         }
+         ksort($normal);
+@@ -17885,19 +18004,52 @@
+         }
+         // A confirmed earlier live close can move the reply deadline behind an
+         // already RECEIVED response. Recheck on every inspection/publication.
+-        $live = \DB::table('baganriki_live_states')->where('snapshot_id',$snapshotId)->first();
+-        $deadline = BaganrikiWorker::deadlines($snap,$live);
++        $window = $this->publicationReadWindowW2 ?? null;
++        if ($current && $window !== null && $window['snapshot_id'] === $snapshotId) {
++            $deadline = $window['deadlines'];
++        } else {
++            $live = \DB::table('baganriki_live_states')->where('snapshot_id',$snapshotId)->first();
++            $deadline = BaganrikiWorker::deadlines($snap,$live);
++        }
+         $receivedAt = BaganrikiWorker::dbUs($a->received_at ?? null);
+-        $timely = $deadline['ok'] && $receivedAt !== null && $receivedAt <= $deadline['reply'];
++        $timeIssue = null;
++        if (!$deadline['ok']) $timeIssue = $deadline['code'];
++        elseif ($receivedAt === null) $timeIssue = 'RECEIVE_TIME_INVALID';
++        elseif ($receivedAt > $deadline['reply']) $timeIssue = 'REPLY_DEADLINE_EXCEEDED';
++        elseif ($current) {
++            try {
++                $got = \App\Services\Baganriki\ExpectedPacketW2::instant(BaganrikiTime::toJst($receivedAt));
++                $now = \App\Services\Baganriki\ExpectedPacketW2::instant(BaganrikiTime::toJst(BaganrikiWorker::nowUs()));
++                $ready = \App\Services\Baganriki\SourceEvidenceW2::readyAt($src);
++                $frozenLimit = \App\Services\Baganriki\ExpectedPacketW2::instant($src['time_contract']['reply_deadline']);
++                $sent = $this->inspectionSentAt($a,$snapshotId,$src['race_id'],$role,$attemptNo);
++                $timeIssue = \App\Services\Baganriki\AttemptWindowW2::receiveTimeIssue($sent,$got,$ready,$now,$frozenLimit);
++                if ($timeIssue===null && $attemptNo===BaganrikiWorker::FIX) {
++                    $prior = \DB::table('baganriki_ai_attempts')->where('snapshot_id',$snapshotId)->where('role',$role)
++                        ->where('attempt_no',BaganrikiWorker::FIRST)->where('status',BaganrikiWorker::RECEIVED)->first();
++                    $priorTime = self::dbTimeToRfc3339($prior->received_at ?? null);
++                    if ($priorTime===null || !\App\Services\Baganriki\AttemptWindowW2::isComplete($prior->complete ?? null))
++                        $timeIssue = 'CORRECTION_SOURCE_TIME_INVALID';
++                    elseif ($sent < \App\Services\Baganriki\ExpectedPacketW2::instant($priorTime))
++                        $timeIssue = 'CORRECTION_SENT_BEFORE_FIRST_RECEIVED';
++                }
++            } catch (\InvalidArgumentException $e) {
++                $timeIssue = $e->getMessage();
++            }
++        }
++        $timely = $timeIssue === null;
+         $out['within_reply_deadline'] = $timely;
+         if (!$timely) {
+             $out['ok'] = false;
+             $out['accepted'] = false;
+             $out['normal'] = [];
+             $out['stage'] = 'deadline';
+-            $out['code'] = !$deadline['ok'] ? $deadline['code']
+-                : ($receivedAt === null ? 'RECEIVE_TIME_INVALID' : 'REPLY_DEADLINE_EXCEEDED');
+-            $out['reason'] = '現在の実効応答期限内の受領を確認できないため選出に使いません。本文・正常部分は監査用に保持します。';
++            $out['code'] = $timeIssue;
++            $out['reason'] = '入力確定から現在時刻・応答期限までの受領を確認できません。本文・正常部分を監査用に保持します。';
++        }
++        if ($timely && !$out['complete'] && $current) {
++            $out['ok'] = $out['accepted'] = $out['needs_fix'] = false;
++            $out['stage'] = 'attempt'; $out['code'] = 'INCOMPLETE_RESPONSE';
+         }
+         $out['row_valid']    = $d['row_valid'];
+         // Locally recomputed rows may be retained, but are not fully validated fixes.
+@@ -17933,6 +18085,7 @@
+         foreach (array_keys($normal) as $noN) {
+             if (!isset($idxOf[(int) $noN])) { continue; }
+             $normalMap = BaganrikiJson::mapMerge($normalMap,
++                isset($marketSalvageMaps[$noN]) ? BaganrikiJson::mapMove($marketSalvageMaps[$noN], [], [(string) $noN]) :
+                 BaganrikiJson::mapMove($resMap,
+                     ['horses', (int) $idxOf[(int) $noN]], [(string) $noN]));
+         }
+@@ -17963,6 +18116,11 @@
+                            . $first['code'] . '）';
+             return $out;
+         }
++        $current = ($first['validator_version'] ?? null) === \App\Services\Baganriki\ResponseInspectionW2::REVISION;
++        // Correction results carry the completeness of the inspected initial receipt.
++        // A rejected or incomplete correction can only leave its previously verified rows in use.
++        if ($current) $out['complete'] = ($first['complete'] ?? false) === true;
++        $out['merged_map'] = $first['normal_map'] ?? BaganrikiJson::emptyMap();
+         $out['merged'] = $first['normal'];        // 何があっても初回の正常部分は残します
+         if (!$first['needs_fix']) {
+             $out['ok'] = true; $out['code'] = 'NO_FIX_NEEDED';
+@@ -17994,9 +18152,48 @@
+         // @ANCHOR-20261021-R122-TYPEMAP  型の地図も渡します（010の3-2）
+         //   どちらも「馬番をキーにした入れ物」の地図なので、
+         //   経路の先頭が馬番でそろいます。
++        $validRows = $fix['row_valid'];
++        if ($current && $fix['needs_fix']) {
++            // A presentation finding does not invalidate its initial scores, but this corrected row is still unresolved.
++            foreach (['horses','summary_horses','presentation_horses'] as $scope) {
++                foreach ($fix['repair_scope'][$scope] as $no) $validRows[$no] = false;
++            }
++        }
++        $compareScope = $first['repair_scope'];
++        if ($current) {
++            if ($snap === null || !isset($rowsA[BaganrikiWorker::FIRST])
++                || ($rowsA[BaganrikiWorker::FIRST]->response_hash ?? null) !== $first['response_hash']) {
++                $out['code'] = 'FIRST_NOT_USABLE'; $out['merged'] = []; $out['merged_map'] = BaganrikiJson::emptyMap();
++                $out['reason'] = '初回の受領記録が診断時と一致しません'; return $out;
++            }
++            if (!isset($rowsA[BaganrikiWorker::FIX]) || ($rowsA[BaganrikiWorker::FIX]->response_hash ?? null) !== $fix['response_hash']) {
++                $out['ok'] = true; $out['code'] = 'FIX_NOT_USABLE'; $out['reason'] = '訂正の受領記録が診断時と一致しません'; return $out;
++            }
++            try {
++                $types = null; $bound = \App\Services\Baganriki\FrozenInputW2::forInspection($snap,$role,$types);
++                if ($bound === null || $types === null) throw new \InvalidArgumentException('W15_STORED_VERSION');
++            } catch (\InvalidArgumentException $ex) {
++                $out['code'] = 'FIRST_NOT_USABLE'; $out['merged'] = []; $out['merged_map'] = BaganrikiJson::emptyMap();
++                $out['reason'] = '凍結した役割の原文を照合できません '.$ex->getMessage(); return $out;
++            }
++            $receipt = static fn($row) => ['raw'=>$row->raw_response,'hash'=>$row->response_hash];
++            $from = $receipt($rowsA[BaganrikiWorker::FIRST]); $to = $receipt($rowsA[BaganrikiWorker::FIX]);
++            $missing = array_diff(array_keys(array_filter($validRows)),array_keys($first['normal']),$compareScope['horses']);
++            if ($missing) {
++                try {
++                    $checked = \App\Services\Baganriki\RecoveryW2::scopedRescues($bound,$from,$to,$compareScope,$missing);
++                    // Local comparator only. The persisted grant and the final original-response check keep the narrow field scope.
++                    $compareScope['horses'] = array_merge($compareScope['horses'],$checked);
++                } catch (\InvalidArgumentException $e) {
++                    $out['ok'] = true; $out['code'] = 'FIX_REJECTED';
++                    $out['reason'] = '初回で除外した馬の訂正が許可範囲と一致しません '.$e->getMessage();
++                    return $out;
++                }
++            }
++        }
+         $acc = BaganrikiResponse::acceptCorrection(
+             $first['normal'], $fix['normal'], $firstAt, $fixAt,
+-            $frozen, $first['repair_scope'], $fix['row_valid'],
++            $frozen, $compareScope, $validRows,
+             (array) ($first['normal_map'] ?? BaganrikiJson::emptyMap()),
+             (array) ($fix['normal_map']   ?? BaganrikiJson::emptyMap()));
+         if (($acc['ok'] ?? false) !== true) {
+@@ -18004,6 +18201,21 @@
+             $out['reason'] = '訂正を採用しません（' . (string) ($acc['reason'] ?? '')
+                            . '）。初回の正常部分を残します';
+             return $out;
++        }
++        $rankRejected = false; $rankReceipts = null;
++        if ($current && !$fix['needs_fix'] && empty($acc['skipped'])) {
++            try {
++                \App\Services\Baganriki\RecoveryW2::inspectCorrection($bound,$types,$from,$to,$first['repair_scope']);
++                $rankReceipts = [$from['hash'],$to['hash']];
++            } catch (\InvalidArgumentException $ex) {
++                if ($ex->getMessage() !== 'W5_REPAIR_RANK_SCOPE') {
++                    $out['ok'] = true; $out['code'] = 'FIX_REJECTED';
++                    $out['reason'] = '保存した初回と訂正を照合できません '.$ex->getMessage();
++                    return $out;
++                }
++                // A valid row can still be recovered. An unauthorized order cannot supply raw candidates or a proof.
++                $rankRejected = true;
++            }
+         }
+         $out['merged']  = BaganrikiResponse::applyCorrection(
+                               $first['normal'], $fix['normal'], $acc);
+@@ -18025,6 +18237,32 @@
+         $out['rescued'] = (array) ($acc['rescued'] ?? []);
+         $out['skipped'] = (array) ($acc['skipped'] ?? []);
+         $out['ok']   = true;
++        if ($current && ($fix['needs_fix'] || $out['skipped'] || $rankRejected)) {
++            $changed = $out['rescued'] !== [];
++            // Display-only corrections do not need a rescued horse to count as a partial repair.
++            try {
++                $firstParsed=\App\Services\Baganriki\CandidateSelectionW2::parseOriginal($from['raw'],$from['hash']);
++                $fixParsed=\App\Services\Baganriki\CandidateSelectionW2::parseOriginal($to['raw'],$to['hash']);
++                $out['metric_repairs']=\App\Services\Baganriki\RaceMetricsW2::repairedKeys(
++                    $bound,$firstParsed['json'],$fixParsed['json'],$firstParsed['map'],$fixParsed['map']);
++                if ($out['metric_repairs']!==[]) $out['metric_receipts']=[$from['hash'],$to['hash']];
++                $changed=$changed || $out['metric_repairs']!==[];
++            } catch (\InvalidArgumentException $e) { $out['metric_repairs']=[]; }
++            foreach ($out['applied'] as $no) {
++                if (!isset($first['normal'][$no]) || !BaganrikiResponse::sameHorseRow($first['normal'][$no], $fix['normal'][$no],
++                     $first['normal_map'], $fix['normal_map'], [(string)$no])) { $changed = true; break; }
++            }
++            if (!$changed) {
++                $out['merged'] = $first['normal']; $out['merged_map'] = $first['normal_map'];
++                $out['applied'] = [];
++            }
++            if ($rankRejected) $out['rank_issue'] = 'W5_REPAIR_RANK_SCOPE';
++            $out['code'] = $changed ? 'FIX_PARTIAL' : 'FIX_REJECTED';
++            $out['reason'] = $changed ? '訂正を検証できた馬・表示指標だけ反映しました。順位と候補を再計算します'
++                                      : '訂正に指摘が残ったため、初回の正常部分を残します';
++            return $out;
++        }
++        if ($current) $out['rank_receipts'] = $rankReceipts;
+         $out['code'] = 'FIX_APPLIED';
+         $out['reason'] = '訂正を反映しました（適用 ' . count($out['applied'])
+                        . '頭・救済 ' . count($out['rescued'])
+@@ -18088,6 +18326,7 @@
+                                         ?array $normalMap = null): void
+     {
+         if (!\Schema::hasTable('baganriki_validation_results')) { return; }
++        $validator = $out['validator_version'] ?? BaganrikiDiagnose::VERSION;
+         $j = static fn($v) => ($v === null) ? null : (string) json_encode($v,
+             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+         // ══════════════════════════════════════════════════════════════
+@@ -18118,12 +18357,12 @@
+             //   検証は同じ入力なら同じ結果なので、最初の1件を正とし、2回目以降は書きません。
+             if (\DB::table('baganriki_validation_results')
+                     ->where('attempt_id', $attemptId)
+-                    ->where('validator_version', BaganrikiDiagnose::VERSION)->exists()) {
++                    ->where('validator_version', $validator)->exists()) {
+                 return;
+             }
+             \DB::table('baganriki_validation_results')->insert([
+                 'attempt_id'        => $attemptId,
+-                'validator_version' => BaganrikiDiagnose::VERSION,
++                'validator_version' => $validator,
+                 'normal_part'       => $jn($normal),
+                 'diagnostics'       => $j(['stage' => $out['stage'], 'code' => $out['code'],
+                                            'reason' => $out['reason'],
+@@ -18155,7 +18394,7 @@
+      *
+      * @return array ['ok','code','reason','value','map','raw']
+      */
+-    public function normalizedPartOf(int $attemptId): array
++    public function normalizedPartOf(int $attemptId, ?string $validator = null): array
+     {
+         $out = ['ok' => false, 'code' => null, 'reason' => null,
+                 'value' => null, 'map' => BaganrikiJson::emptyMap(), 'raw' => null];
+@@ -18163,8 +18402,15 @@
+             $out['code'] = 'TABLE_MISSING';
+             return $out;
+         }
++        if ($validator === null) {
++            $release = \DB::table('baganriki_ai_attempts as a')
++                ->join('baganriki_snapshots as s','s.id','=','a.snapshot_id')
++                ->where('a.id',$attemptId)->value('s.release_version');
++            $validator = BaganrikiDiagnose::revision($release);
++        }
+         $r = \DB::table('baganriki_validation_results')
+                ->where('attempt_id', $attemptId)
++               ->where('validator_version', $validator)
+                ->orderByDesc('id')->first(['normal_part']);
+         if ($r === null) {
+             $out['code'] = 'NO_ROW';
+@@ -18201,9 +18447,9 @@
+      * @return array ['ok','same','where','reason']
+      */
+     public function checkNormalizedRoundTrip(int $attemptId, array $normal,
+-                                        array $normalMap): array
++                                        array $normalMap, ?string $validator = null): array
+     {
+-        $rd = $this->normalizedPartOf($attemptId);
++        $rd = $this->normalizedPartOf($attemptId, $validator);
+         if (!$rd['ok']) {
+             return ['ok' => false, 'same' => false, 'where' => null,
+                     'reason' => '読み戻せません（' . (string) $rd['code'] . '）'];
+@@ -18285,7 +18531,25 @@
+         // 呼出側が整合した読取取引で3つの版を取っているときは、その値を使います。
+         //   （読取→検証→保存を分けて行う呼び方のためです。保存の直前に
+         //     もう一度見比べて、古ければ保存しません）
+-        if (isset($opt['read_revisions']) && is_array($opt['read_revisions'])) {
++        if (BaganrikiWorker::isW2Snapshot($snap)) {
++            // A caller's expected revision may check the read, never substitute for the observed state.
++            $expected=$opt['read_revisions']??[];
++            if (!is_array($expected) || array_diff_key($expected,$readRev)) {
++                return array_replace($out,['code'=>'STALE','reason'=>'指定された読取版を確認できません']);
++            }
++            foreach ($readRev as $k=>$observed) {
++                try {
++                    $column=$k.'_revision';
++                    $actual=\App\Services\Baganriki\AttemptWindowW2::revision($live->$column??null);
++                    if ($actual!==(string)$observed || (array_key_exists($k,$expected)
++                        && \App\Services\Baganriki\AttemptWindowW2::revision($expected[$k])!==$actual)) {
++                        return array_replace($out,['code'=>'STALE','reason'=>'指定された版と実際に読んだ版が一致しません']);
++                    }
++                } catch (\InvalidArgumentException $error) {
++                    return array_replace($out,['code'=>'STALE','reason'=>'公開に使う版を照合できません']);
++                }
++            }
++        } else if (isset($opt['read_revisions']) && is_array($opt['read_revisions'])) {
+             foreach (['state', 'response', 'publication'] as $k) {
+                 if (array_key_exists($k, $opt['read_revisions'])) {
+                     $readRev[$k] = (int) $opt['read_revisions'][$k];
+@@ -18306,160 +18570,189 @@
+             return $out;
+         }
+ 
+-        // ── 全頭取消 ────────────────────────────────────────────────
+-        $cancelled = (array) json_decode((string) ($live->cancellations ?? '[]'), true);
+-        $cancelled = array_map('intval', $cancelled);
+-        $frozenBand = [];
+-        $src1 = json_decode((string) $snap->input_json_1st, true);
+-        foreach ((array) ($src1['runners'] ?? []) as $r) {
+-            $frozenBand[(int) $r['horse_no']] = (string) ($r['band'] ?? '');
+-        }
+-        $activeNums = array_values(array_diff(array_keys($frozenBand), $cancelled));
+-        if ($activeNums === []) {
+-            $out['code'] = 'ALL_CANCELLED'; $out['reason'] = '全頭取消です';
+-            return $out;
+-        }
+-
+-        // ── ① 両roleの検証済み全頭評価（読取だけ）────────────────────
+-        $per = []; $proofHash = []; $accepted = [];
+-        foreach (['1st', '2nd'] as $role) {
+-            $a = $this->acceptedHorsesOf($snapshotId, $role);
+-            if (!($a['ok'] ?? false) || ($a['merged'] ?? []) === []) { continue; }
+-            // @ANCHOR-20261020-R122-COMPLETE  未完了は選出に使いません（契約10章）
+-            if (($a['complete'] ?? null) === false) { continue; }
+-            $accepted[$role] = $a;
+-            $srcCol = ($role === '2nd') ? 'input_json_2nd' : 'input_json_1st';
+-            $src = json_decode((string) $snap->{$srcCol}, true);
+-            $resUsed = $this->markResponseUsed($snapshotId, $role, $a);
+-            if ($resUsed['proof'] !== null) { $proofHash[$role] = $resUsed['proof']; }
+-            // @ANCHOR-20261020-R122-BANDKEEP  帯ごとの順位の出どころを残します
+-            $out['rank_source'][$role] = (array) ($resUsed['rank_source'] ?? []);
+-            if ((array) ($resUsed['fallback'] ?? []) !== []) {
+-                $out['rank_fallback'][$role] = (array) $resUsed['fallback'];
+-            }
+-            foreach ((array) ($resUsed['rank_notes'] ?? []) as $rn) {
+-                $out['rank_notes'][] = $role . '：' . (string) $rn;
+-            }
+-            $rows = [];
+-            foreach ((array) $a['merged'] as $num => $h) {
+-                $num = (int) $num;
+-                if (in_array($num, $cancelled, true)) { continue; }   // 取消は入れません
+-                // ══════════════════════════════════════════════════════
+-                // @ANCHOR-20261020-R122-ELIG  10月20日006のご指摘2-2
+-                // ══════════════════════════════════════════════════════
+-                //   【本物の不具合でした】取消は除いていたのに、
+-                //   <b>資格の検査がありませんでした。</b>
+-                //   NO_EVIDENCE や UNVERIFIED の馬も band_ranks に馬番さえ
+-                //   あれば順位点に入り、「適格馬の数」として不足判定にも
+-                //   使われていました。全頭 NO_EVIDENCE のレースで
+-                //   候補7頭が出てしまいます（本来は候補0です）。
+-                //
+-                //   ここで見るのは<b>意味検証を通ったあとの資格</b>です。
+-                //   診断が eligibility と family_review・自分のSIGNALの整合を
+-                //   見たうえで残した行なので、この値が実効資格になります。
+-                //   採点が partial でも、個別SIGNALが1系統あれば ELIGIBLE が
+-                //   立つので落ちません（新しい下限や複数系統必須は足しません）。
+-                $elig = (string) ($h['eligibility'] ?? '');
+-                if ($elig !== 'ELIGIBLE') { continue; }
+-                $band = $frozenBand[$num] ?? ($h['band'] ?? '');
+-                // ══════════════════════════════════════════════════════
+-                // @ANCHOR-20261020-R122-FROZENK  10月20日006のご指摘3-4
+-                // ══════════════════════════════════════════════════════
+-                //   【本物の不具合でした】Kを残存頭数で数え直し、
+-                //   順位配列からも取消馬を抜いて r を詰めていました。
+-                //   凍結A帯6頭の2位は 100×5/6＝83.33点ですが、
+-                //   上位が取消になると5頭の1位＝100点に変わっていました。
+-                //   契約7章は「凍結帯頭数Kと帯内順位rで統合し、
+-                //   統合後に取消馬を除き、最新頭数で公開枠を調整する」です。
+-                //   <b>Kとrは凍結時のまま。</b>取消で動かすのは公開枠だけです。
+-                $K = 0;
+-                foreach ($frozenBand as $n2 => $b2) {
+-                    if ($b2 === $band) { $K++; }          // 取消で減らしません
++        if (BaganrikiWorker::isW2Snapshot($snap)) {
++            $roster=BaganrikiWorker::verifiedLiveRoster($snap,$live,true,$issue);
++            if ($roster===null) return array_replace($out,BaganrikiWorker::liveStateFailure($issue));
++            $cancelled=$roster['withdrawn'];
++            $activeNums=array_values(array_diff($roster['roster'],$cancelled));
++            if (!$activeNums) return array_replace($out,['code'=>'ALL_CANCELLED','reason'=>'全頭取消です']);
++            if (($opt['require_settled_w2'] ?? false) === true) {
++                $waiting = $this->pendingPublicationRoles($snap, $dl, $t0);
++                if ($waiting !== null) { return array_replace($out, $waiting); }
++            }
++            // Both roles and any corrections must be inspected against the same effective window.
++            $previousWindow = $this->publicationReadWindowW2;
++            $this->publicationReadWindowW2 = ['snapshot_id' => $snapshotId, 'deadlines' => $dl];
++            try {
++                $selection=\App\Services\Baganriki\CandidateSelectionW2::submittedPublication($snap,$activeNums,function($role)use($snapshotId){
++                    $accepted=$this->acceptedHorsesOf($snapshotId,$role);
++                    $rank=(($accepted['ok']??false) && ($accepted['complete']??false)===true)
++                        ? $this->markResponseUsed($snapshotId,$role,$accepted) : null;
++                    return [$accepted,$rank];
++                });
++            } catch (\InvalidArgumentException $error) {
++                $code=['W2_NO_VERIFIED_ROLE'=>'NO_RESPONSE','W2_SELECTION_DISABLED'=>'SELECTION_DISABLED'][$error->getMessage()]??'INVALID_SAVED_INPUT';
++                return array_replace($out,['code'=>$code,'reason'=>'W2の選出を確認できません '.$error->getMessage()]);
++            } finally {
++                $this->publicationReadWindowW2 = $previousWindow;
++            }
++            $cands=$selection['candidates'];$quota=$selection['quota'];
++        } else {
++            // ── 全頭取消 ────────────────────────────────────────────────
++            $cancelled = (array) json_decode((string) ($live->cancellations ?? '[]'), true);
++            $cancelled = array_map('intval', $cancelled);
++            $frozenBand = [];
++            $src1 = json_decode((string) $snap->input_json_1st, true);
++            foreach ((array) ($src1['runners'] ?? []) as $r) {
++                $frozenBand[(int) $r['horse_no']] = (string) ($r['band'] ?? '');
++            }
++            $activeNums = array_values(array_diff(array_keys($frozenBand), $cancelled));
++            if ($activeNums === []) {
++                $out['code'] = 'ALL_CANCELLED'; $out['reason'] = '全頭取消です';
++                return $out;
++            }
++
++            // ── ① 両roleの検証済み全頭評価（読取だけ）────────────────────
++            $per = []; $proofHash = []; $accepted = [];
++            foreach (['1st', '2nd'] as $role) {
++                $a = $this->acceptedHorsesOf($snapshotId, $role);
++                if (!($a['ok'] ?? false) || ($a['merged'] ?? []) === []) { continue; }
++                // @ANCHOR-20261020-R122-COMPLETE  未完了は選出に使いません（契約10章）
++                if (($a['complete'] ?? null) === false) { continue; }
++                $accepted[$role] = $a;
++                $srcCol = ($role === '2nd') ? 'input_json_2nd' : 'input_json_1st';
++                $src = json_decode((string) $snap->{$srcCol}, true);
++                $resUsed = $this->markResponseUsed($snapshotId, $role, $a);
++                if ($resUsed['proof'] !== null) { $proofHash[$role] = $resUsed['proof']; }
++                // @ANCHOR-20261020-R122-BANDKEEP  帯ごとの順位の出どころを残します
++                $out['rank_source'][$role] = (array) ($resUsed['rank_source'] ?? []);
++                if ((array) ($resUsed['fallback'] ?? []) !== []) {
++                    $out['rank_fallback'][$role] = (array) $resUsed['fallback'];
+                 }
+-                $order = array_map('intval',
+-                    (array) ($resUsed['band_ranks'][$band] ?? []));
+-                // 取消馬を抜いて詰め直すことはしません（rは凍結時の位置）
+-                $r = array_search($num, $order, true);
+-                if ($r === false) { continue; }    // 順位の分からない馬は入れません
+-                $sup = 0;
+-                foreach ((array) ($h['family_review'] ?? []) as $fam) {
+-                    if (($fam['status'] ?? '') === 'SUPPORTED') { $sup++; }
++                foreach ((array) ($resUsed['rank_notes'] ?? []) as $rn) {
++                    $out['rank_notes'][] = $role . '：' . (string) $rn;
+                 }
+-                $rows[$num] = [
+-                    'r' => (int) $r + 1, 'K' => max(1, $K),
+-                    'public' => in_array($num,
+-                        array_map('intval', (array) ($resUsed['public_candidates'] ?? [])), true),
+-                    'groups' => $sup,
+-                ];
+-            }
+-            if ($rows !== []) { $per[$role] = $rows; }
+-        }
+-        if ($per === []) {
+-            $out['code'] = 'NO_RESPONSE';
+-            $out['reason'] = '検証を通った応答がありません';
+-            return $out;
+-        }
+-
+-        // ── ② 統合 ─────────────────────────────────────────────────
+-        $merged = BaganrikiRanking::merge($per, $proofHash);
+-        $out['proof'] = array_keys($proofHash);
+-
+-        // ── ③ 枠（先に全帯ぶん予約し、不足を規則どおりに移す）─────────
+-        //   構造上の不足（取消で実在しなくなった帯）と、
+-        //   評価後の適格馬不足は別の規則なので、2段に分けます。
+-        $q0 = (array) json_decode((string) $snap->quota_1st, true);
+-        $quota1st = isset($q0[0])
+-            ? ['A' => (int) $q0[0], 'B' => (int) $q0[1], 'D' => (int) $q0[2]]
+-            : ['A' => (int) ($q0['A'] ?? 0), 'B' => (int) ($q0['B'] ?? 0),
+-               'D' => (int) ($q0['D'] ?? 0)];
+-        $afterC = BaganrikiRanking::afterCancellation($frozenBand, $cancelled,
+-                      $quota1st, $snap->allocation_mode);
+-        if (($afterC['all_cancelled'] ?? false) === true) {
+-            $out['code'] = 'ALL_CANCELLED'; $out['reason'] = '全頭取消です';
+-            return $out;
+-        }
+-        $quota = (array) ($afterC['live_quota'] ?? $quota1st);
+-        if ($quota === []) { $quota = ['A' => 0, 'B' => 0, 'D' => 0]; }
+-        if (isset($quota[0])) {
+-            $quota = ['A' => (int) $quota[0], 'B' => (int) $quota[1], 'D' => (int) $quota[2]];
+-        }
+-        // 評価後の適格馬（統合に乗った馬）の帯ごとの数
+-        $avail = ['A' => 0, 'B' => 0, 'D' => 0];
+-        foreach ($merged as $m) {
+-            $b = $frozenBand[$m['num']] ?? '';
+-            if (isset($avail[$b])) { $avail[$b]++; }
+-        }
+-        $fill = BaganrikiRanking::fillShortfall($quota, $avail);
+-        $quota = (array) $fill['quota'];
+-        $out['shortfalls'] = array_merge((array) ($afterC['shortfalls'] ?? []),
+-                                         (array) $fill['shortfalls']);
+-
+-        $taken = []; $cands = [];
+-        foreach (['A', 'B', 'D'] as $b) {
+-            $want = (int) ($quota[$b] ?? 0);
+-            $got = 0;
++                $rows = [];
++                foreach ((array) $a['merged'] as $num => $h) {
++                    $num = (int) $num;
++                    if (in_array($num, $cancelled, true)) { continue; }   // 取消は入れません
++                    // ══════════════════════════════════════════════════════
++                    // @ANCHOR-20261020-R122-ELIG  10月20日006のご指摘2-2
++                    // ══════════════════════════════════════════════════════
++                    //   【本物の不具合でした】取消は除いていたのに、
++                    //   <b>資格の検査がありませんでした。</b>
++                    //   NO_EVIDENCE や UNVERIFIED の馬も band_ranks に馬番さえ
++                    //   あれば順位点に入り、「適格馬の数」として不足判定にも
++                    //   使われていました。全頭 NO_EVIDENCE のレースで
++                    //   候補7頭が出てしまいます（本来は候補0です）。
++                    //
++                    //   ここで見るのは<b>意味検証を通ったあとの資格</b>です。
++                    //   診断が eligibility と family_review・自分のSIGNALの整合を
++                    //   見たうえで残した行なので、この値が実効資格になります。
++                    //   採点が partial でも、個別SIGNALが1系統あれば ELIGIBLE が
++                    //   立つので落ちません（新しい下限や複数系統必須は足しません）。
++                    $elig = (string) ($h['eligibility'] ?? '');
++                    if ($elig !== 'ELIGIBLE') { continue; }
++                    $band = $frozenBand[$num] ?? ($h['band'] ?? '');
++                    // ══════════════════════════════════════════════════════
++                    // @ANCHOR-20261020-R122-FROZENK  10月20日006のご指摘3-4
++                    // ══════════════════════════════════════════════════════
++                    //   【本物の不具合でした】Kを残存頭数で数え直し、
++                    //   順位配列からも取消馬を抜いて r を詰めていました。
++                    //   凍結A帯6頭の2位は 100×5/6＝83.33点ですが、
++                    //   上位が取消になると5頭の1位＝100点に変わっていました。
++                    //   契約7章は「凍結帯頭数Kと帯内順位rで統合し、
++                    //   統合後に取消馬を除き、最新頭数で公開枠を調整する」です。
++                    //   <b>Kとrは凍結時のまま。</b>取消で動かすのは公開枠だけです。
++                    $K = 0;
++                    foreach ($frozenBand as $n2 => $b2) {
++                        if ($b2 === $band) { $K++; }          // 取消で減らしません
++                    }
++                    $order = array_map('intval',
++                        (array) ($resUsed['band_ranks'][$band] ?? []));
++                    // 取消馬を抜いて詰め直すことはしません（rは凍結時の位置）
++                    $r = array_search($num, $order, true);
++                    if ($r === false) { continue; }    // 順位の分からない馬は入れません
++                    $sup = 0;
++                    foreach ((array) ($h['family_review'] ?? []) as $fam) {
++                        if (($fam['status'] ?? '') === 'SUPPORTED') { $sup++; }
++                    }
++                    $rows[$num] = [
++                        'r' => (int) $r + 1, 'K' => max(1, $K),
++                        'public' => in_array($num,
++                            array_map('intval', (array) ($resUsed['public_candidates'] ?? [])), true),
++                        'groups' => $sup,
++                    ];
++                }
++                if ($rows !== []) { $per[$role] = $rows; }
++            }
++            if ($per === []) {
++                $out['code'] = 'NO_RESPONSE';
++                $out['reason'] = '検証を通った応答がありません';
++                return $out;
++            }
++
++            // ── ② 統合 ─────────────────────────────────────────────────
++            $merged = BaganrikiRanking::merge($per, $proofHash);
++            $out['proof'] = array_keys($proofHash);
++
++            // ── ③ 枠（先に全帯ぶん予約し、不足を規則どおりに移す）─────────
++            //   構造上の不足（取消で実在しなくなった帯）と、
++            //   評価後の適格馬不足は別の規則なので、2段に分けます。
++            $q0 = (array) json_decode((string) $snap->quota_1st, true);
++            $quota1st = isset($q0[0])
++                ? ['A' => (int) $q0[0], 'B' => (int) $q0[1], 'D' => (int) $q0[2]]
++                : ['A' => (int) ($q0['A'] ?? 0), 'B' => (int) ($q0['B'] ?? 0),
++                   'D' => (int) ($q0['D'] ?? 0)];
++            $afterC = BaganrikiRanking::afterCancellation($frozenBand, $cancelled,
++                          $quota1st, $snap->allocation_mode);
++            if (($afterC['all_cancelled'] ?? false) === true) {
++                $out['code'] = 'ALL_CANCELLED'; $out['reason'] = '全頭取消です';
++                return $out;
++            }
++            $quota = (array) ($afterC['live_quota'] ?? $quota1st);
++            if ($quota === []) { $quota = ['A' => 0, 'B' => 0, 'D' => 0]; }
++            if (isset($quota[0])) {
++                $quota = ['A' => (int) $quota[0], 'B' => (int) $quota[1], 'D' => (int) $quota[2]];
++            }
++            // 評価後の適格馬（統合に乗った馬）の帯ごとの数
++            $avail = ['A' => 0, 'B' => 0, 'D' => 0];
+             foreach ($merged as $m) {
+-                if ($got >= $want) { break; }
+-                $num = (int) $m['num'];
+-                if (isset($taken[$num])) { continue; }          // 馬番は重複させません
+-                if (($frozenBand[$num] ?? '') !== $b) { continue; }
+-                $taken[$num] = true; $got++;
+-                $cands[] = [
+-                    'horse_no' => $num, 'band' => $b,
+-                    'score' => $m['score'], 'bonus' => $m['bonus'],
+-                    'both_public' => $m['both_public'],
+-                    'bonus_proven' => $m['bonus_proven'],
+-                    'independent_groups' => $m['groups'],
+-                    'public_proof_hash' => $m['public_proof_hash'],
+-                ];
+-            }
+-        }
+-        $out['candidates'] = $cands;
+-        $out['quota'] = $quota;
++                $b = $frozenBand[$m['num']] ?? '';
++                if (isset($avail[$b])) { $avail[$b]++; }
++            }
++            $fill = BaganrikiRanking::fillShortfall($quota, $avail);
++            $quota = (array) $fill['quota'];
++            $out['shortfalls'] = array_merge((array) ($afterC['shortfalls'] ?? []),
++                                             (array) $fill['shortfalls']);
++
++            $taken = []; $cands = [];
++            foreach (['A', 'B', 'D'] as $b) {
++                $want = (int) ($quota[$b] ?? 0);
++                $got = 0;
++                foreach ($merged as $m) {
++                    if ($got >= $want) { break; }
++                    $num = (int) $m['num'];
++                    if (isset($taken[$num])) { continue; }          // 馬番は重複させません
++                    if (($frozenBand[$num] ?? '') !== $b) { continue; }
++                    $taken[$num] = true; $got++;
++                    $cands[] = [
++                        'horse_no' => $num, 'band' => $b,
++                        'score' => $m['score'], 'bonus' => $m['bonus'],
++                        'both_public' => $m['both_public'],
++                        'bonus_proven' => $m['bonus_proven'],
++                        'independent_groups' => $m['groups'],
++                        'public_proof_hash' => $m['public_proof_hash'],
++                    ];
++                }
++            }
++            $out['candidates'] = $cands;
++            $out['quota'] = $quota;
++        }
+ 
+         // ── ④ 検証完了時刻と intent ─────────────────────────────────
+         $t1 = BaganrikiWorker::nowUs();                     // 検証完了時刻
+-        $canon = BaganrikiPrompt::canonical([
++        $intentData = [
+             'snapshot_hash' => (string) $snap->snapshot_hash,
+             'quota'         => $quota,
+             'candidates'    => array_map(static fn($c) => [
+@@ -18473,7 +18766,9 @@
+             //   「同じintentの再実行は同じpublication_id」が守れません。
+             'revisions'     => ['state'    => $readRev['state'],
+                                 'response' => $readRev['response']],
+-        ]);
++        ];
++        if (isset($selection) && array_key_exists('race_metrics',$selection)) $intentData['race_metrics']=$selection['race_metrics'];
++        $canon=BaganrikiPrompt::canonical($intentData);
+         if ($canon === null) {
+             $out['code'] = 'CANON_FAILED'; $out['reason'] = 'intentの正本を作れません';
+             return $out;
+@@ -18494,10 +18789,12 @@
+         }
+ 
+         // ── ⑤ 短いトランザクション（ここだけロックします）─────────────
++        $readDeadlines = $dl;
++        $publicationData = $selection ?? $out;
+         try {
+             $res = \DB::transaction(function () use ($snapshotId, $snap, $intentHash,
+-                    $jobId, $readRev, $cands, $quota, $out, $t0, $t1, $cancelled,
+-                    $activeNums) {
++                    $jobId, $readRev, $cands, $quota, $publicationData, $t0, $t1, $cancelled,
++                    $activeNums, $readDeadlines) {
+                 $live = \DB::table('baganriki_live_states')
+                           ->where('snapshot_id', $snapshotId)->lockForUpdate()->first();
+                 $now = $readRev;
+@@ -18510,9 +18807,33 @@
+                 $same = \DB::table('baganriki_publication_intents')
+                           ->where('snapshot_id', $snapshotId)
+                           ->where('intent_hash', $intentHash)->lockForUpdate()->first();
++                if ($same !== null && BaganrikiWorker::isW2Snapshot($snap)) {
++                    try {
++                        $stored = \App\Services\Baganriki\PublishedReadW2::replay($snap,$live,$same,$intentHash,$readRev);
++                    } catch (\InvalidArgumentException $error) {
++                        return ['ok'=>false,'code'=>$error->getMessage(),'reason'=>'保存済みの公開記録を照合できません',
++                            'stored'=>['candidates'=>[],'proof'=>[]]];
++                    }
++                    return ['ok'=>true,'code'=>'ALREADY','reused'=>true,'publication_id'=>(string)$same->publication_id,'stored'=>$stored];
++                }
+                 if ($same !== null && $same->publication_id !== null) {
+                     return ['ok' => true, 'code' => 'ALREADY', 'reused' => true,
+                             'publication_id' => (string) $same->publication_id];
++                }
++                if (BaganrikiWorker::isW2Snapshot($snap)) {
++                    $saved = BaganrikiWorker::verifiedLiveRoster($snap, $live, true, $issue);
++                    if ($saved === null) {
++                        return BaganrikiWorker::liveStateFailure($issue);
++                    }
++                    $currentActive = array_values(array_diff($saved['roster'], $saved['withdrawn']));
++                    if ($currentActive === []) {
++                        return ['ok' => false, 'code' => 'ALL_CANCELLED', 'reason' => '全頭取消です'];
++                    }
++                    $usedActive = $activeNums;
++                    sort($usedActive, SORT_NUMERIC);
++                    if ($currentActive !== $usedActive) {
++                        return ['ok' => false, 'code' => 'STALE', 'reason' => '公開候補を計算した後に出走馬が変わりました'];
++                    }
+                 }
+                 // 読んだあとに版が変わっていたら、古い計算は保存しません
+                 if ($now !== $readRev) {
+@@ -18526,7 +18847,7 @@
+                 }
+                 // 期限と時刻をもう一度
+                 // @ANCHOR-20261023-NARU-RACELOCK  ロックした実状態の中で、レース正本の発走時刻も FOR UPDATE で読みます（なる 10/23 4通目 4章）
+-                $dl = BaganrikiWorker::deadlines($snap, $live, true);
++                $dl = BaganrikiWorker::deadlines($snap, $live, true, true);
+                 if (!$dl['ok']) {
+                     return ['ok' => false, 'code' => (string) $dl['code'],
+                             'reason' => (string) $dl['reason']];
+@@ -18542,6 +18863,18 @@
+                             'reason' => '時刻が逆行しています'];
+                 }
+ 
++                if (BaganrikiWorker::isW2Snapshot($snap)) {
++                    // The official start can change before the live-state revision is updated.
++                    if ($readDeadlines['reply'] !== $dl['reply'] || $readDeadlines['publish'] !== $dl['publish']) {
++                        return ['ok' => false, 'code' => 'STALE',
++                                'window_changed' => true, 'reason' => '計算中に実効期限が変わりました。最新の締切で保存済みの回答を再判定してください'];
++                    }
++                    try { \App\Services\Baganriki\PublishedReadW2::checkPrevious($snap,$live); }
++                    catch (\InvalidArgumentException $error) {
++                        return ['ok'=>false,'code'=>$error->getMessage(),'reason'=>'直前の公開記録を照合できません',
++                            'stored'=>['candidates'=>[],'proof'=>[]]];
++                    }
++                }
+                 $pubId = 'pub-' . $snap->race_id . '-' . $snap->generation . '-'
+                        . substr($intentHash, 0, 12);
+                 $intentId = \DB::table('baganriki_publication_intents')->insertGetId([
+@@ -18566,16 +18899,18 @@
+                     'publication_id' => $pubId, 'snapshot_id' => $snapshotId,
+                     'intent_id' => $intentId,
+                     'published_at' => BaganrikiWorker::toDb($t2),
+-                    'prediction_target_count'  => array_sum($quota),
+-                    'prediction_quota'         => $j($quota),
++                    'prediction_target_count'  => array_sum($publicationData['prediction_quota'] ?? $quota),
++                    'prediction_quota'         => $j($publicationData['prediction_quota'] ?? $quota),
+                     'publication_target_count' => array_sum($quota),
+                     'publication_quota'        => $j($quota),
+                     'active_count'             => count($activeNums),
+                     'candidates' => $j($cands),
+-                    'evidence'   => $j(['shortfalls' => $out['shortfalls'],
+-                                        'proof_roles' => $out['proof'],
+-                                        'cancelled' => $cancelled]),
+-                    'shortfalls' => $j($out['shortfalls']),
++                    'evidence'   => $j(['shortfalls' => $publicationData['shortfalls'],
++                                        'proof_roles' => $publicationData['proof'],
++                                        'cancelled' => $cancelled] + array_intersect_key($publicationData,array_flip(BaganrikiWorker::isW2Snapshot($snap)
++                                            ? ['actual_quota','fill','role_issues','rank_source','rank_fallback','rank_notes','race_metrics']
++                                            : ['actual_quota','fill','role_issues']))),
++                    'shortfalls' => $j($publicationData['shortfalls']),
+                     'used_state_revision'    => $readRev['state'],
+                     'used_response_revision' => $readRev['response'],
+                     'public_proof_hash'      => $j($proofs),
+@@ -18613,7 +18948,11 @@
+         $out['reason'] = $res['reason'] ?? null;
+         $out['reused'] = (bool) ($res['reused'] ?? false);
+         $out['publication_id'] = $res['publication_id'] ?? null;
+-        return $out;
++        if ($res['window_changed'] ?? false) { $out['window_changed'] = true; }
++        if ($out['ok'] && isset($selection)) {
++            $out = array_replace($out, $selection);
++        }
++        return array_replace($out,$res['stored'] ?? []);
+     }
+ 
+     /**
+@@ -18656,15 +18995,21 @@
+         $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+         if ($snap === null) { return $o; }
+ 
+-        // 凍結入力の帯（これが正本です）
++        $rankTypes = null;
++        try { $rankInput = \App\Services\Baganriki\FrozenInputW2::forInspection($snap, $role, $rankTypes); }
++        catch (\InvalidArgumentException $e) { return $o; }
++        $current = ($rankInput['prompt_version'] ?? null) === \App\Services\Baganriki\CandidateSelectionW2::VERSION;
++        if ($current && ($accepted['ok'] ?? false) !== true) return $o;
++        $src1 = $current ? $rankInput : json_decode((string)$snap->input_json_1st,true);
++        $partial = ($accepted['code'] ?? null) === 'FIX_PARTIAL';
++        $merged = (array) ($accepted['merged'] ?? []);
+         $frozenBand = []; $bandMembers = ['A' => [], 'B' => [], 'D' => []];
+-        $src1 = json_decode((string) $snap->input_json_1st, true);
+         foreach ((array) ($src1['runners'] ?? []) as $r) {
+             $n = (int) ($r['horse_no'] ?? 0);
+             $b = (string) ($r['band'] ?? '');
+             if ($n <= 0 || !isset($bandMembers[$b])) { continue; }
+             $frozenBand[$n] = $b;
+-            $bandMembers[$b][] = $n;
++            if (!$current || ($merged[$n]['eligibility'] ?? null) === 'ELIGIBLE') $bandMembers[$b][] = $n;
+         }
+         foreach ($bandMembers as $b => $v) { sort($v); $bandMembers[$b] = $v; }
+ 
+@@ -18700,12 +19045,16 @@
+             if (!$ex['ok']) { continue; }
+             $insp = $this->inspectAiResponse($snapshotId, $role, (int) $no);
+             if (!$insp['ok']) { continue; }
++            if ($current && ($insp['response_hash'] ?? null) !== hash('sha256',(string)$a->raw_response)) continue;
+             $useNo = (int) $no; $useRes = (array) $ex['json'];
+             $useInsp = $insp; $useRow = $a;
+             break;
+         }
+         if ($useNo === null) { return $o; }
+-        $o['attempt_no'] = $useNo;
++        $wholeFix = $current && ($accepted['code'] ?? null) === 'FIX_APPLIED';
++        if ($wholeFix && ($useNo !== BaganrikiWorker::FIX || ($useInsp['needs_fix'] ?? true)
++            || ($accepted['rank_receipts'][1] ?? null) !== ($useRow->response_hash ?? null))) return $o;
++
+ 
+         // ── ② 初回の順位（②の縮退と、対象外の帯の保持に使います）────
+         // ══════════════════════════════════════════════════════════════
+@@ -18721,9 +19070,6 @@
+         //   だけを、訂正の並びで上書きできます。
+         //   それ以外の帯は<b>初回の並びを保持</b>します。
+         //   変えようとしていた場合は、そのことを記録に残します。
+-        $merged = (array) ($accepted['merged'] ?? []);
+-        $rankCol = $role === '2nd' ? 'input_json_2nd' : 'input_json_1st';
+-        $rankInput = json_decode((string) $snap->{$rankCol}, true);
+         $badForMerged = static function (array $candidate) use ($merged, $rankInput): array {
+             $effective = $candidate;
+             $effective['horses'] = array_values($merged);
+@@ -18757,6 +19103,16 @@
+                     $prevSeen = true;
+                     $pi = $this->inspectAiResponse($snapshotId, $role,
+                               BaganrikiWorker::FIRST);
++                    if ($wholeFix && (!($pi['ok'] ?? false) || !($pi['needs_fix'] ?? false)
++                        || ($accepted['rank_receipts'][0] ?? null) !== ($p->response_hash ?? null)
++                        || ($pi['response_hash'] ?? null) !== hash('sha256',(string)$p->raw_response))) return $o;
++                    if ($wholeFix) {
++                        try {
++                            \App\Services\Baganriki\RecoveryW2::inspectCorrection($rankInput,$rankTypes,
++                                ['raw'=>$p->raw_response,'hash'=>$p->response_hash],
++                                ['raw'=>$useRow->raw_response,'hash'=>$useRow->response_hash],$pi['repair_scope']);
++                        } catch (\InvalidArgumentException $ex) { return $o; }
++                    }
+                     $pBad = self::invalidBandsOf($pi['repair_scope'] ?? null);
+                     // @ANCHOR-20261021-R122-BANDSCOPE  直してよい帯はこれだけ
+                     $allowBands = $pBad;
+@@ -18773,6 +19129,9 @@
+             }
+         }
+ 
++        if ($wholeFix && !$prevSeen) return $o;
++        $o['attempt_no'] = $useNo;
++
+         // ── ③ 帯ごとに順位を決めます ─────────────────────────────────
+         $badBands = self::invalidBandsOf($useInsp['repair_scope'] ?? null);
+         $resBands = (array) ($useRes['band_ranks'] ?? []);
+@@ -18784,7 +19143,10 @@
+         }
+ 
+         foreach (['A', 'B', 'D'] as $b) {
+-            if ($bandMembers[$b] === []) { continue; }   // その帯に馬が居ません
++            if ($bandMembers[$b] === []) {
++                if ($current) { $o['band_ranks'][$b] = []; $o['rank_source'][$b] = 'NONE'; }
++                continue;
++            }
+ 
+             // ══════════════════════════════════════════════════════════
+             // @ANCHOR-20261021-R122-BANDSCOPE  訂正で直してよい帯だけ
+@@ -18793,7 +19155,7 @@
+             //   初回の並びが使えるなら、初回の並びを保持します。
+             //   訂正が違う並びを返していたら、そのことを残します
+             //   （採用はしません）。
+-            if ($useNo === BaganrikiWorker::FIX && $prevSeen
++            if (!$wholeFix && $useNo === BaganrikiWorker::FIX && $prevSeen
+                 && !in_array($b, $allowBands, true)
+                 && isset($prevRanks[$b])) {
+                 $o['band_ranks'][$b]  = $prevRanks[$b];
+@@ -18860,7 +19222,11 @@
+         $rs = (array) ($useInsp['repair_scope'] ?? []);
+         $presOk = (((array) ($rs['presentation_horses'] ?? [])) === [])
+                && (($rs['public_candidates'] ?? false) !== true);
+-        if ($presOk) {
++        $sameRanks = true;
++        if ($current) foreach (['A','B','D'] as $band) {
++            if (($o['band_ranks'][$band] ?? []) !== ($resBands[$band] ?? null)) { $sameRanks = false; break; }
++        }
++        if ($presOk && !$partial && $sameRanks) {
+             $o['public_candidates'] = (array) ($useRes['public_candidates'] ?? []);
+         } else {
+             $o['rank_notes'][] = '公開リストに指摘があるので原公開候補は採りません';
+@@ -18869,7 +19235,7 @@
+         // ── ⑤ 加点の証明（ここは緩めません）──────────────────────────
+         //   complete で、直すところが無く、公開に使う全頭がその応答の
+         //   中身と一致しているときだけです。縮退した帯があるときも出しません。
+-        if (($useInsp['needs_fix'] ?? true) === false
++        if (!$partial && $sameRanks && ($useInsp['needs_fix'] ?? true) === false
+             && $o['fallback'] === []
+             && !($mixed && $useNo === BaganrikiWorker::FIRST)) {
+             $want = array_keys($merged);
+@@ -18897,6 +19263,30 @@
+                         $proof[(int) $num] = (string) $useRow->response_hash;
+                     }
+                     $o['proof'] = $proof;
++                    if ($current) $o['public_proof_hash'] = (string) $useRow->response_hash;
++                }
++            }
++        }
++        if ($current && $role==='1st' && \App\Services\Baganriki\RaceMetricsW2::enabled($rankInput)) {
++            $o['race_metrics']=\App\Services\Baganriki\RaceMetricsW2::fromResponse($rankInput,$useRes,(string)$useRow->response_hash,$useInsp['map']);
++            // Partial horse recovery keeps the original ranks. Display repairs have their own
++            // receipt binding and must not silently fall back to those original, invalid fields.
++            if ($partial && !empty($accepted['metric_repairs'])) {
++                $metricFix=\DB::table('baganriki_ai_attempts')->where('snapshot_id',$snapshotId)
++                    ->where('role',$role)->where('attempt_no',BaganrikiWorker::FIX)
++                    ->where('status',BaganrikiWorker::RECEIVED)->first();
++                if ($metricFix!==null && ($accepted['metric_receipts']??null)===[$useRow->response_hash,$metricFix->response_hash]) {
++                    $metricInspection=$this->inspectAiResponse($snapshotId,$role,BaganrikiWorker::FIX);
++                    if (($metricInspection['ok']??false) && ($metricInspection['complete']??false)===true &&
++                        ($metricInspection['response_hash']??null)===$metricFix->response_hash) {
++                        try {
++                            $fixedMetric=\App\Services\Baganriki\CandidateSelectionW2::parseOriginal($metricFix->raw_response,$metricFix->response_hash);
++                            \App\Services\Baganriki\RaceMetricsW2::checkCorrection($rankInput,$useRes,$fixedMetric['json'],$useInsp['map'],$fixedMetric['map']);
++                            $metricIssues=\App\Services\Baganriki\RaceMetricsW2::issues($rankInput,$fixedMetric['json'],$fixedMetric['map']);
++                            if (!isset($metricIssues['race_metrics']))
++                                $o['race_metrics']=\App\Services\Baganriki\RaceMetricsW2::fromResponse($rankInput,$fixedMetric['json'],$metricFix->response_hash,$fixedMetric['map']);
++                        } catch (\InvalidArgumentException $e) { /* Keep verified initial display values. */ }
++                    }
+                 }
+             }
+         }
+@@ -20427,8 +20817,7 @@
+             $closeUs = null;
+             $st = trim((string) ($race->start_time ?? ''));
+             if (preg_match('/^\d{1,2}:\d{2}(?::\d{2})?$/', $st)) {
+-                if (strlen($st) === 5) { $st .= ':00'; }
+-                if (strlen($st) === 7) { $st = '0' . $st; }
++                $st = BaganrikiTime::normalizeRaceStartClock($st);
+                 $anchor   = BaganrikiTime::us(substr((string) $race->date, 0, 10) . 'T' . $st . '+09:00');
+                 $newClose = ($anchor === null) ? null : BaganrikiTime::salesCloseFromPost($anchor);
+                 $curClose = BaganrikiWorker::dbUs($snap->sales_close_at ?? null);
+@@ -20439,8 +20828,14 @@
+ 
+             // ── いまの実状態と比べて、新しいものだけ渡します ─────────────
+             $live = \DB::table('baganriki_live_states')->where('snapshot_id', (int) $snap->id)->first();
+-            $curCancel = ($live === null) ? []
+-                : array_map('intval', (array) json_decode((string) ($live->cancellations ?? '[]'), true));
++            if (BaganrikiWorker::isW2Snapshot($snap)) {
++                $saved = BaganrikiWorker::verifiedLiveRoster($snap, $live, true, $issue);
++                if ($saved === null) { return array_replace($out, BaganrikiWorker::liveStateFailure($issue)); }
++                $curCancel = $saved['withdrawn'];
++            } else {
++                $curCancel = ($live === null) ? []
++                    : array_map('intval', (array) json_decode((string) ($live->cancellations ?? '[]'), true));
++            }
+             $newCancel = array_values(array_diff($cancel, $curCancel));
+             $curLive = ($live === null) ? null : BaganrikiWorker::dbUs($live->live_close ?? null);
+             if ($closeUs !== null && $curLive !== null && $closeUs >= $curLive) { $closeUs = null; }
+@@ -20451,7 +20846,9 @@
+             $out['cancellations'] = $newCancel;
+             $out['live_close_us'] = $closeUs;
+             //   同期の経路（SYNC）で動いているレースは Job 側が触らないので、その場で入れます。
+-            if (BaganrikiWorker::jobs() && class_exists(\App\Jobs\PredictionUpdateRaceLiveJob::class)
++            // W2の新しい正式取消を、後続の送信・公開が待ち行列より先に読めるようにする。
++            $applyNow = BaganrikiWorker::isW2Snapshot($snap) && $newCancel !== [];
++            if (!$applyNow && BaganrikiWorker::jobs() && class_exists(\App\Jobs\PredictionUpdateRaceLiveJob::class)
+                 && self::processingPathOf((int) $snap->id) !== 'SYNC') {
+                 \App\Jobs\PredictionUpdateRaceLiveJob::dispatch((int) $snap->id, $change);
+                 $out['code'] = 'JOB_DISPATCHED';
+@@ -20499,11 +20896,27 @@
+                 $changed = [];
+ 
+                 // ── ① 正式取消（足すだけ）────────────────────────────
+-                $cur = (array) json_decode((string) ($live->cancellations ?? '[]'), true);
+-                $cur = array_values(array_unique(array_map('intval', $cur)));
+-                sort($cur);
+-                $add = array_values(array_unique(array_map('intval',
+-                           (array) ($change['cancellations'] ?? []))));
++                $isW2 = BaganrikiWorker::isW2Snapshot($snap);
++                if ($isW2) {
++                    $saved = BaganrikiWorker::verifiedLiveRoster($snap, $live, true, $issue);
++                    if ($saved === null) {
++                        return BaganrikiWorker::liveStateFailure($issue);
++                    }
++                    $cur = $saved['withdrawn'];
++                    $delta = array_key_exists('cancellations', $change) ? $change['cancellations'] : [];
++                    $invalid = ['ok' => false, 'code' => 'INVALID_LIVE_CHANGE', 'reason' => '取消馬番または変更締切を照合できません'];
++                    if (!is_array($delta) || !array_is_list($delta)) { return $invalid; }
++                    try {
++                        $add = \App\Services\Baganriki\AttemptWindowW2::horseSet($delta, $saved['roster'], true);
++                    } catch (\InvalidArgumentException $e) {
++                        return $invalid;
++                    }
++                } else {
++                    $cur = (array) json_decode((string) ($live->cancellations ?? '[]'), true);
++                    $cur = array_values(array_unique(array_map('intval', $cur)));
++                    sort($cur);
++                    $add = array_values(array_unique(array_map('intval', (array) ($change['cancellations'] ?? []))));
++                }
+                 $new = $cur;
+                 foreach ($add as $n) {
+                     if ($n > 0 && !in_array($n, $new, true)) { $new[] = $n; }
+@@ -20517,6 +20930,14 @@
+                 $curClose = BaganrikiWorker::dbUs($live->live_close ?? null);
+                 $want = $change['live_close_us'] ?? null;
+                 $newClose = $curClose;
++                if ($isW2) {
++                    if ((($live->live_close ?? null) !== null && $curClose === null)
++                        || ($want !== null && BaganrikiWorker::dbUs($snap->sales_close_at ?? null) === null)) {
++                        return ['ok' => false, 'code' => 'TIME_UNCOMPUTABLE', 'reason' => '既存の締切を確認できません'];
++                    }
++                    if ($want !== null && ((!is_int($want) && !is_string($want))
++                        || (string) (int) $want !== (string) $want || (int) $want <= 0)) { return $invalid; }
++                }
+                 if ($want !== null) {
+                     $want = (int) $want;
+                     $sales = BaganrikiWorker::dbUs($snap->sales_close_at ?? null);
+@@ -20550,9 +20971,22 @@
+                         //   いまの頭数（active_count）が凍結時のままで、全頭取消の判定（ALL_CANCELLED）と
+                         //   画面の「いまの頭数」が動きませんでした。
+                         //   【いま】凍結集合から累積取消を引いた頭数を入れます（BaganrikiSnapshot と同じ数え方）。
+-                        $frozenL = json_decode((string) ($snap->frozen_nums ?? 'null'), true);
++                        $frozenL = $isW2 ? $saved['roster'] : json_decode((string) ($snap->frozen_nums ?? 'null'), true);
+                         if (is_array($frozenL)) {
+                             $upd['active_count'] = count(array_diff(array_map('intval', $frozenL), $new));
++                            if ($isW2 && (property_exists($live,'live_target_count') || property_exists($live,'live_quota'))) {
++                                try {
++                                    \App\Services\Baganriki\PublishedReadW2::frozenSales($snap,$frozenInput);
++                                    $allocation = \App\Services\Baganriki\PublishedReadW2::allocation($frozenInput,$frozenL,$new);
++                                } catch (\InvalidArgumentException $invalid) {
++                                    // Keep the official withdrawal even when the frozen allocation source is incomplete.
++                                    $allocation = ['target_count'=>null,'quota'=>null];
++                                }
++                                if (property_exists($live,'live_target_count')) { $upd['live_target_count']=$allocation['target_count']; }
++                                if (property_exists($live,'live_quota')) {
++                                    $upd['live_quota']=$allocation['quota'] === null ? null : self::encodeJson($allocation['quota']);
++                                }
++                            }
+                         }
+                     }
+                     if (isset($changed['live_close'])) {
+@@ -21329,7 +21763,8 @@
+     /** 送る前に止めたときのコード（外部へは何も送っていない） */
+     public const NOT_SENT_CODES = ['BUDGET_EXCEEDED', 'MODEL_NOT_PRICED', 'BUDGET_CONN_IN_TX',
+                                    'BUDGET_LOCK_TIMEOUT', 'DEADLINE_AFTER_WAIT', 'NO_SNAPSHOT',
+-                                   'TIME_UNCOMPUTABLE', 'START_TIME_UNREADABLE'];
++                                   'TIME_UNCOMPUTABLE', 'START_TIME_UNREADABLE', 'RACE_STARTED', 'RACE_STATUS_UNAVAILABLE',
++                                   'ALL_CANCELLED', 'LIVE_STATE_UNAVAILABLE', 'SNAPSHOT_MISMATCH', 'OUTBOUND_MISMATCH'];
+ 
+     public static function budgetUsdDay(): ?float
+     {
+@@ -21640,6 +22075,108 @@
+         }
+     }
+ 
++    /** Stage the already prepared W2 request on its RESERVED row. A retry can only repeat identical bytes. */
++    public static function stagePreparedW2Request(int $snapshotId, string $role, int $attemptNo, string $token,
++                \App\Services\Baganriki\FrozenInputW2 $frozen, array $prepared): array
++    {
++        $refused = ['ok'=>false, 'code'=>'OUTBOUND_MISMATCH', 'skip_attempt_update'=>true, 'reason'=>'予約枠と照合できる送信原文がありません'];
++        try {
++            $in = \App\Services\Baganriki\FrozenInputW2::checked($frozen);
++            $record = \App\Services\Baganriki\DispatchW2::recordSent($frozen, $prepared, $prepared['messages'] ?? []);
++            if ($role !== $in['ai_role'] || $record['attempt_no'] !== $attemptNo || $token === '') { return $refused; }
++            $ready = 'R' . \App\Services\Baganriki\DispatchW2::sendBinding($snapshotId,$token,$frozen->raw(),$record['request_sha256']);
++            return \DB::transaction(static function () use ($snapshotId,$role,$attemptNo,$token,$frozen,$in,$record,$ready,$refused) {
++                $snap = \DB::table('baganriki_snapshots')->where('id',$snapshotId)->first();
++                $column = 'input_json_' . $role;
++                if ($snap === null || !BaganrikiWorker::isW2Snapshot($snap) || $snap->race_id !== $in['race_id']
++                    || $snap->snapshot_hash !== $in['snapshot_hash'] || ($snap->$column ?? null) !== $frozen->raw()
++                    || !is_string($snap->common_json ?? null) || hash('sha256',$snap->common_json) !== $snap->snapshot_hash) { return $refused; }
++                $slot = \DB::table('baganriki_ai_attempts')->where('token',$token)->where('snapshot_id',$snapshotId)
++                    ->where('role',$role)->where('attempt_no',$attemptNo)->lockForUpdate()->first();
++                if ($slot === null || $slot->status !== BaganrikiWorker::RESERVED) { return $refused; }
++                $saved = $slot->w2_send_proof ?? null;
++                if ($saved === null) {
++                    $updated = \DB::table('baganriki_ai_attempts')->where('token',$token)->where('status',BaganrikiWorker::RESERVED)
++                        ->whereNull('w2_send_proof')->update(['w2_send_proof'=>$ready]);
++                    if ($updated !== 1) { return $refused; }
++                } elseif ($saved !== $ready) { return $refused; }
++                return ['ok'=>true,'code'=>'OK','sent_request'=>$record];
++            });
++        } catch (\Throwable $error) { return $refused; }
++    }
++
++    /** Use the same W2 entry for the first request and its one authorized correction. */
++    public function sendReservedW2Request(int $snapshotId, string $role, int $attemptNo, string $token,
++            \App\Services\Baganriki\FrozenInputW2 $frozen, array $prepared, int $timeout): array
++    {
++        $stage = self::stagePreparedW2Request($snapshotId,$role,$attemptNo,$token,$frozen,$prepared);
++        if (!$stage['ok']) { return $stage + ['raw'=>'','complete'=>false]; }
++        $allow = BaganrikiWorker::allowSend($token,BaganrikiWorker::nowUs());
++        if (!$allow['ok']) {
++            return $allow + ['skip_attempt_update'=>true, 'raw'=>'', 'complete'=>false];
++        }
++        $record = $stage['sent_request'];
++        return $this->callPredictionAi($role,$record['system_text'],$record['user_json'],$timeout,$snapshotId);
++    }
++
++    /** 予算を確保したあと、同じレースの正本・取消・期限を再取得する。 */
++    private static function finalAiSendWindow(int $snapshotId, string $role, ?array $w2Input, int $slot, string $systemHash, string $userHash): array
++    {
++        try {
++            // 取消と公式時刻を同じ判断にそろえる。通信前にロックを解放する。
++            return \DB::transaction(static function () use ($snapshotId, $role, $w2Input, $slot, $systemHash, $userHash) {
++                $live = null;
++                $query = \DB::table('baganriki_snapshots')->where('id', $snapshotId);
++                if ($w2Input !== null) {
++                    $live = \DB::table('baganriki_live_states')->where('snapshot_id', $snapshotId)->lockForUpdate()->first();
++                    $query->lockForUpdate();
++                }
++                $snap = $query->first();
++                if ($snap === null) {
++                    return ['ok' => false, 'code' => 'NO_SNAPSHOT', 'reason' => '凍結入力がありません'];
++                }
++                $current = BaganrikiWorker::isW2Snapshot($snap);
++                if ($current || $w2Input !== null) {
++                    $hash = $w2Input['snapshot_hash'] ?? null;
++                    if (!$current || !is_string($hash) || !preg_match('/^[a-f0-9]{64}$/D', $hash)
++                        || $hash !== ($snap->snapshot_hash ?? null) || ($w2Input['race_id'] ?? null) !== $snap->race_id
++                        || !in_array($role, ['1st','2nd'], true) || ($w2Input['ai_role'] ?? null) !== $role) {
++                        return ['ok' => false, 'code' => 'SNAPSHOT_MISMATCH', 'reason' => '送信本文と凍結入力が一致しません'];
++                    }
++                }
++                if ($w2Input === null) {
++                    $live = \DB::table('baganriki_live_states')->where('snapshot_id', $snapshotId)->lockForUpdate()->first();
++                }
++                $deadline = BaganrikiWorker::deadlines($snap, $live, true, true);
++                if (!$deadline['ok']) { return $deadline; }
++                $issue = BaganrikiWorker::sendRosterIssue($snap, $live);
++                if ($issue !== null || !$current) { return $issue ?? $deadline; }
++                $column = 'input_json_' . $role;
++                $raw = $snap->$column ?? null;
++                $refused = ['ok'=>false,'code'=>'OUTBOUND_MISMATCH','reason'=>'予約枠・実送信原文・役割別の凍結原文を照合できません'];
++                if (!is_string($raw) || $raw === '') { return $refused; }
++                $attempt = \DB::table('baganriki_ai_attempts')->where('snapshot_id',$snapshotId)->where('role',$role)
++                    ->where('attempt_no',$slot)->lockForUpdate()->first();
++                if ($attempt === null || $attempt->status !== BaganrikiWorker::SENT || !is_string($attempt->token ?? null)
++                    || $attempt->token === '') { return $refused; }
++                $format = 'FULL';
++                if (array_key_exists('source_table',$w2Input)) {
++                    $table = $w2Input['source_table'];
++                    $format = is_array($table) ? ($table['encoding'] ?? null) : null;
++                    if (!in_array($format,['SOURCE_TABLE_V1','SOURCE_TABLE_V2'],true)) { return $refused; }
++                }
++                $request = \App\Services\Baganriki\DispatchW2::requestHash($snap->race_id,$snap->snapshot_hash,$role,$slot,$format,$systemHash,$userHash);
++                $binding = \App\Services\Baganriki\DispatchW2::sendBinding($snapshotId,$attempt->token,$raw,$request);
++                if (($attempt->w2_send_proof ?? null) !== 'R' . $binding) { return $refused; }
++                $n = \DB::table('baganriki_ai_attempts')->where('token',$attempt->token)->where('status',BaganrikiWorker::SENT)
++                    ->where('w2_send_proof','R'.$binding)->update(['w2_send_proof'=>'U'.$binding]);
++                return $n === 1 ? $deadline : $refused;
++            });
++        } catch (\Throwable $e) {
++            return ['ok' => false, 'code' => 'LIVE_STATE_UNAVAILABLE', 'reason' => '送信直前のレース状態を取得できません'];
++        }
++    }
++
+     // public function callPredictionAi(string $role, string $system, string $user,
+     //                            int $timeout): array   // 旧
+     // @ANCHOR-20261023-NARU-BUDGET2  $snapshotId を渡すと、予算の待ちのあとで期限を確かめ直します
+@@ -21665,7 +22202,17 @@
+                 'wire_encoding' => null, 'wire_bytes' => null, 'wire_sha256' => null];
+         // @ANCHOR-20261023-COMPACT  送信本文を詰めます（BAGANRIKI_R122_COMPACT=1 のときだけ。既定は詰めない）
+         //   凍結した本文（snapshot_hash の元）と検証は元のままです。ここで変えるのは、送る文字列だけです。
+-        $cw = self::compactUserForSend($user);
++        $ju = json_decode($user, true);
++        $input = $ju['input'] ?? $ju;
++        $w2Input = class_exists(\App\Services\Baganriki\CandidateSelectionW2::class)
++            && ($input['prompt_version'] ?? null) === \App\Services\Baganriki\CandidateSelectionW2::VERSION ? $input : null;
++        if ($w2Input !== null && $snapshotId === null) {
++            $out['code'] = 'NO_SNAPSHOT';
++            $out['reason'] = 'W2の送信には凍結入力のIDが必要です';
++            return $out;
++        }
++        // W2のsystemとuserはprepareSendが費用と原文を既に照合している。
++        $cw = $w2Input === null ? self::compactUserForSend($user) : ['applied' => false];
+         if ($cw['applied']) {
+             $user   = $cw['user'];
+             $system = $system . "\n\n" . self::COMPACT_PROMPT_ADDENDUM;
+@@ -21720,7 +22267,6 @@
+         if ($t2 <= 0) { $t2 = 8192; }
+         // @ANCHOR-20261023-NARU-BUDGET  送る前に予算を確かめ、最悪額を予約します
+         $rid0 = '';
+-        $ju = json_decode($user, true);
+         if (is_array($ju)) { $rid0 = (string) ($ju['race_id'] ?? ($ju['input']['race_id'] ?? ($ju['fix_request']['race_id'] ?? ''))); }
+         $bModel = ($role === '2nd') ? $m2 : (($m1 !== '') ? $m1 : 'claude-haiku-4-5');
+         $bg = self::budgetReserve($role, $bModel, $rid0, strlen($system) + strlen($user),
+@@ -21735,22 +22281,25 @@
+         $out['budget_worst_usd'] = ($bg['worst'] === null) ? null : round((float) $bg['worst'], 6);
+         // @ANCHOR-20261023-NARU-BUDGET2  予算の待ち（最大10秒）と圧縮のあとで、期限と待ち時間を確かめ直します
+         //   （なる 10/23 4通目 4-2）。期限の直前・過ぎていれば送らず、予約は0ドルで精算します。
++        $replyDeadline = null;
++        if ($snapshotId !== null) {
++            $dlB = self::finalAiSendWindow($snapshotId, $role, $w2Input, isset($ju['fix_request']) ? 1 : 0,
++                                           hash('sha256',$system), hash('sha256',$user));
++            if (!$dlB['ok']) {
++                self::budgetRelease($bg['hold'], $rid0, '送信直前の状態を確認できないか、送信対象外になりました');
++                $out['code'] = (string) $dlB['code'];
++                if ($out['code'] === 'OUTBOUND_MISMATCH') { $out['skip_attempt_update'] = true; }
++                $out['reason'] = (string) $dlB['reason'];
++                return $out;
++            }
++            $replyDeadline = (int) $dlB['reply'];
++        }
++        // 正本・取消の取得待ちも、呼び出しと応答期限の両方の残り時間から引く。
+         $nowB = BaganrikiWorker::nowUs();
+-        $elapsedSec = (int) ceil(($nowB - $callStartUs) / 1000000);
+-        $timeout = $timeout - $elapsedSec;
+-        if ($snapshotId !== null) {
+-            $snapB = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+-            $liveB = ($snapB === null) ? null
+-                   : \DB::table('baganriki_live_states')->where('snapshot_id', $snapshotId)->first();
+-            $dlB = ($snapB === null) ? ['ok' => false, 'code' => 'NO_SNAPSHOT', 'reason' => '凍結入力がありません']
+-                                     : BaganrikiWorker::deadlines($snapB, $liveB);
+-            if (!$dlB['ok']) {
+-                self::budgetRelease($bg['hold'], $rid0, '期限を確かめ直せないので送りませんでした');
+-                $out['code'] = (string) $dlB['code'];
+-                $out['reason'] = '送る直前に期限を確かめ直せません：' . (string) $dlB['reason'];
+-                return $out;
+-            }
+-            $timeout = min($timeout, (int) floor(((int) $dlB['reply'] - $nowB) / 1000000));
++        $elapsedUs = $nowB - $callStartUs;
++        $timeout = $elapsedUs < 0 ? 0 : $timeout - (int) ceil($elapsedUs / 1000000);
++        if ($replyDeadline !== null) {
++            $timeout = min($timeout, intdiv(max(0, $replyDeadline - $nowB), 1000000));
+         }
+         if ($timeout < 5) {
+             self::budgetRelease($bg['hold'], $rid0, '期限の直前なので送りませんでした');
+@@ -21759,7 +22308,7 @@
+             return $out;
+         }
+         $out['requested_model'] = $bModel;
+-        $out['sent_at']         = BaganrikiTime::toJst(BaganrikiWorker::nowUs());
++        $out['sent_at']         = BaganrikiTime::toJst($nowB);
+         $out['system_sha256']   = hash('sha256', $system);
+         $out['user_sha256']     = hash('sha256', $user);
+         $out['timeout_sec']     = $timeout;
+@@ -21792,12 +22341,14 @@
+                     return $out;
+                 }
+                 $j   = $res->json();
+-                $raw = trim((string) ($j['choices'][0]['message']['content'] ?? ''));
++                $content = $j['choices'][0]['message']['content'] ?? null;
++                // W2 verifies and archives the exact provider text, including its outer bytes.
++                $raw = $w2Input === null ? trim((string) ($content ?? '')) : (is_string($content) ? $content : '');
+                 $fin = $j['choices'][0]['finish_reason'] ?? null;
+                 $out['ok']       = true;
+                 $out['code']     = 'OK';
+                 $out['raw']      = $raw;
+-                $out['complete'] = (($fin === 'stop') && $raw !== '');   // @ANCHOR-20261023-NARU-011  終了理由が無い応答は未完了（011再精査）
++                $out['complete'] = (($fin === 'stop') && trim($raw) !== '');   // @ANCHOR-20261023-NARU-011  終了理由が無い応答は未完了（011再精査）
+                 // @ANCHOR-20261021-R122-USAGE  応答が名乗ったモデルと使用量
+                 $out['model'] = (string) ($j['model'] ?? '');
+                 $out['stop']  = ($fin === null) ? null : (string) $fin;
+@@ -21857,17 +22408,25 @@
+             //   空になります。text の塊だけを順につなぎます。
+             //   【旧】$raw  = trim((string) $this->anthropic->extractText($res));
+             $raw = '';
+-            foreach ((array) ($res->json('content') ?? []) as $blk) {
++            $blocks = $res->json('content');
++            $validBlocks = $w2Input === null || (is_array($blocks)
++                && \App\Services\Baganriki\ExpectedPacketW2::isList($blocks));
++            foreach ((array) $blocks as $blk) {
++                if ($w2Input !== null && (!is_array($blk) || !is_string($blk['type'] ?? null)
++                    || $blk['type'] === '' || ($blk['type'] === 'text' && !is_string($blk['text'] ?? null)))) {
++                    $validBlocks = false;
++                    continue;
++                }
+                 if (is_array($blk) && ($blk['type'] ?? '') === 'text') {
+                     $raw .= (string) ($blk['text'] ?? '');
+                 }
+             }
+-            $raw = trim($raw);
++            if ($w2Input === null) { $raw = trim($raw); }
+             $stop = $res->json('stop_reason');
+             $out['ok']       = true;
+             $out['code']     = 'OK';
+             $out['raw']      = $raw;
+-            $out['complete'] = (($stop === 'end_turn') && $raw !== '');   // @ANCHOR-20261023-NARU-011  終了理由が無い応答は未完了（011再精査）
++            $out['complete'] = (($stop === 'end_turn') && $validBlocks && trim($raw) !== '');   // @ANCHOR-20261023-NARU-011  終了理由が無い応答は未完了（011再精査）
+             // @ANCHOR-20261021-R122-USAGE  応答が名乗ったモデルと使用量
+             $out['model'] = (string) ($res->json('model') ?? '');
+             $out['stop']  = ($stop === null) ? null : (string) $stop;
+@@ -22021,6 +22580,10 @@
+         $call = $this->callPredictionAi($role, (string) $asm['system'], (string) $asm['user'],
+                                   $wait, $snapshotId);
+         // @ANCHOR-20261023-NARU-BUDGET2  予算・期限で送る前に止めたときは「送っていない」
++        if (!empty($call['skip_attempt_update'])) {
++            $out['code'] = $call['code']; $out['reason'] = $call['reason'];
++            return $out;
++        }
+         $out['sent'] = !in_array((string) ($call['code'] ?? ''), self::NOT_SENT_CODES, true);
+         // @ANCHOR-20261021-R122-USAGE  実モデルと使用量を残します（010の7章⑤）
+         self::recordAiUsage($snapshotId, $role, BaganrikiWorker::FIX, $call);
+@@ -22363,6 +22926,10 @@
+         // $call = $this->callPredictionAi($role, (string) $sys['body'], $user, $wait);   // 旧
+         $call = $this->callPredictionAi($role, (string) $sys['body'], $user, $wait, $snapshotId);
+         // $out['sent'] = true;   // 旧
++        if (!empty($call['skip_attempt_update'])) {
++            $out['code'] = $call['code']; $out['reason'] = $call['reason'];
++            return $out;
++        }
+         $out['sent'] = !in_array((string) ($call['code'] ?? ''), self::NOT_SENT_CODES, true);
+         // @ANCHOR-20261021-R122-USAGE  実モデルと使用量を残します（010の7章⑤）
+         self::recordAiUsage($snapshotId, $role, BaganrikiWorker::FIRST, $call);
+@@ -22411,16 +22978,39 @@
+      */
+     public function publishWhenReady(int $snapshotId, array $opt = []): array
+     {
++        $result = $this->publishReadyOnce($snapshotId, $opt);
++        if (($result['window_changed'] ?? false) === true) {
++            // Recheck pending roles as well as saved receipts, with a fresh server clock.
++            unset($opt['now_us']);
++            return $this->publishReadyOnce($snapshotId, $opt);
++        }
++        return $result;
++    }
++
++    private function publishReadyOnce(int $snapshotId, array $opt): array
++    {
+         $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+         if ($snap === null) {
+             return ['ok' => false, 'code' => 'NO_SNAPSHOT',
+                     'reason' => '凍結入力がありません'];
+         }
++        if (BaganrikiWorker::isW2Snapshot($snap)) {
++            // The queue decision belongs to the same revision and deadlines as its selection.
++            $opt['require_settled_w2'] = true;
++            return $this->publishPrediction($snapshotId, $opt);
++        }
+         $live = \DB::table('baganriki_live_states')
+                   ->where('snapshot_id', $snapshotId)->first();
+         $dl   = BaganrikiWorker::deadlines($snap, $live);
+         $now  = (int) ($opt['now_us'] ?? BaganrikiWorker::nowUs());
+ 
++        return $this->pendingPublicationRoles($snap, $dl, $now)
++            ?? $this->publishPrediction($snapshotId, $opt);
++    }
++
++    private function pendingPublicationRoles(object $snap, array $dl, int $now): ?array
++    {
++        $snapshotId = (int) $snap->id;
+         $settled = 0; $waiting = [];
+         foreach (['1st', '2nd'] as $role) {
+             $f = \DB::table('baganriki_ai_attempts')
+@@ -22479,7 +23069,7 @@
+                 'race_id' => (string) $snap->race_id, 'waiting' => $waiting,
+             ]);
+         }
+-        return $this->publishPrediction($snapshotId, $opt);
++        return null;
+     }
+ 
+     /**
+@@ -22856,8 +23446,7 @@
+                     $out['skipped'][$rid] = '発走時刻を読めません';
+                     continue;
+                 }
+-                if (strlen($st) === 5) { $st .= ':00'; }
+-                if (strlen($st) === 7) { $st = '0' . $st; }
++                $st = BaganrikiTime::normalizeRaceStartClock($st);
+                 $anchorUs = BaganrikiTime::us($d . 'T' . $st . '+09:00');
+                 if ($anchorUs === null) {
+                     $out['skipped'][$rid] = '発走時刻を組み立てられません';
+@@ -24109,6 +24698,15 @@
+         }
+         $n = (int) $v;
+         return ($n < 0) ? self::SALES_CLOSE_BEFORE_POST_SEC : $n;
++    }
++
++    /** 正本の H:MM / HH:MM（秒は任意）を、時刻検証に渡す表記にそろえます。 */
++    public static function normalizeRaceStartClock(string $clock): string
++    {
++        if (!preg_match('/^([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?\z/', $clock, $m)) {
++            return $clock;
++        }
++        return str_pad($m[1], 2, '0', STR_PAD_LEFT) . ':' . $m[2] . ':' . ($m[3] ?? '00');
+     }
+ 
+     /**
+@@ -30369,7 +30967,8 @@
+                  ->where('snapshot_id', $snapshotId)->exists();
+         if ($has) { return; }
+         $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first();
+-        if ($snap === null) { return; }
++        // W2のライブ行は凍結時に作る。欠落時に正式取消を空として再作成しない。
++        if ($snap === null || self::isW2Snapshot($snap)) { return; }
+         $frozen = json_decode((string) $snap->frozen_nums, true);
+         \DB::table('baganriki_live_states')->insertOrIgnore([
+             'snapshot_id'          => $snapshotId,
+@@ -30401,14 +31000,22 @@
+      *   どちらの順でも、保存・送信の最終確認が古い発走時刻を使うことはありません。
+      * @ANCHOR-20261023-NARU-STARTREAD  正本を読めないとき（DBの例外・時刻の形が読めない）は
+      *   「変更なし」と区別し、期限を出しません（START_TIME_UNREADABLE）。送信・公開は止まります。
+-     *   発走済みの印（XXX）と、正本にレースの行が無いとき（試験の凍結入力など）は、読み飛ばします。
++     *   発走済み（XXX）は新規の送受信・公開を止めます。履歴や後処理には保存済みの期限を返します。
++     *   正本が無いときは発走状態をnullとし、W2の新規処理は保留します。
+      */
+-    public static function deadlines(object $snap, ?object $live, bool $lockRace = false): array
++    public static function deadlines(object $snap, ?object $live, bool $lockRace = false,
++                                     bool $forLiveAction = false): array
+     {
+-        $sales = self::dbUs($snap->sales_close_at ?? null);
++        if (self::isW2Snapshot($snap)) {
++            try {
++                $sales = \App\Services\Baganriki\PublishedReadW2::frozenSales($snap);
++            } catch (\InvalidArgumentException $invalid) { $sales = null; }
++        } else {
++            $sales = self::dbUs($snap->sales_close_at ?? null);
++        }
+         if ($sales === null) {
+             return ['ok' => false, 'code' => 'TIME_UNCOMPUTABLE',
+-                    'reason' => '凍結した投票締切が無いので期限を出せません',
++                    'reason' => '凍結した投票締切を照合できないので期限を出せません',
+                     'reply' => null, 'publish' => null, 'sales' => null];
+         }
+         $liveValue = $live->live_close ?? null;
+@@ -30435,6 +31042,19 @@
+                     'reason' => 'レース正本の発走時刻を確かめられないので実効期限を出せません（' . (string) $rs['reason'] . '）',
+                     'reply' => null, 'publish' => null, 'sales' => $sales, 'live_close' => $liveClose];
+         }
++        $raceStarted = null;
++        if ($rs['state'] === 'STARTED') {
++            $raceStarted = true;
++        } elseif ($rs['state'] === 'EARLIER' || $rs['state'] === 'UNCHANGED') {
++            $raceStarted = false;
++        }
++        if ($forLiveAction && ($raceStarted === true || ($raceStarted === null
++            && self::isW2Snapshot($snap)))) {
++            return ['ok' => false, 'code' => $raceStarted ? 'RACE_STARTED' : 'RACE_STATUS_UNAVAILABLE',
++                    'reason' => $raceStarted ? '発走済みです' : '正本の発走状態を確認できません',
++                    'race_started' => $raceStarted, 'reply' => null, 'publish' => null,
++                    'sales' => $sales, 'live_close' => $liveClose];
++        }
+         $raceClose = ($rs['state'] === 'EARLIER') ? $rs['close'] : null;
+         $startTimeUsed = false;
+         if ($raceClose !== null && $raceClose < $sales
+@@ -30445,7 +31065,7 @@
+         $d = BaganrikiTime::effectiveDeadlines($sales, $liveClose);
+         return ['ok' => true, 'code' => null, 'reason' => null,
+                 'reply' => $d['reply'], 'publish' => $d['publish'], 'sales' => $sales,
+-                'live_close' => $liveClose, 'start_time_used' => $startTimeUsed];
++                'live_close' => $liveClose, 'start_time_used' => $startTimeUsed, 'race_started' => $raceStarted];
+     }
+ 
+     /**
+@@ -30488,8 +31108,7 @@
+         if (!preg_match('/^\d{1,2}:\d{2}(?::\d{2})?$/', $st)) {
+             return ['state' => 'UNREADABLE', 'close' => null, 'reason' => '発走時刻の形が読めません: ' . $st];
+         }
+-        if (strlen($st) === 5) { $st .= ':00'; }
+-        if (strlen($st) === 7) { $st = '0' . $st; }
++        $st = BaganrikiTime::normalizeRaceStartClock($st);
+         $anchor = BaganrikiTime::us($date . 'T' . $st . '+09:00');
+         $close  = ($anchor === null) ? null : BaganrikiTime::salesCloseFromPost($anchor);
+         $sales  = self::dbUs($snap->sales_close_at ?? null);
+@@ -30523,6 +31142,63 @@
+         return $out;
+     }
+ 
++    public static function isW2Snapshot(object $snap): bool
++    {
++        return class_exists(\App\Services\Baganriki\CandidateSelectionW2::class)
++            && ($snap->release_version ?? null) === \App\Services\Baganriki\CandidateSelectionW2::VERSION;
++    }
++
++    /** 凍結馬番・累積取消・残頭数を同じ読取りから照合する。欠損を空集合にしない。 */
++    public static function verifiedLiveRoster(object $snap, ?object $live, bool $verifyAudit = true, ?string &$issue = null): ?array
++    {
++        $issue = 'LIVE_STATE_UNAVAILABLE';
++        $count = $live->active_count ?? null;
++        if (!is_int($count) && !is_string($count)) { return null; }
++        $nums = $snap->frozen_nums ?? null;
++        $gone = $live->cancellations ?? null;
++        if (is_string($nums)) { $nums = json_decode($nums); }
++        if (is_string($gone)) { $gone = json_decode($gone); }
++        if (!is_array($nums) || !array_is_list($nums) || !is_array($gone) || !array_is_list($gone)) { return null; }
++        try {
++            $roster = \App\Services\Baganriki\AttemptWindowW2::horseSet($nums, range(1, 18));
++            $withdrawn = \App\Services\Baganriki\AttemptWindowW2::horseSet($gone, $roster);
++        } catch (\InvalidArgumentException $e) {
++            return null;
++        }
++        if ((string) (count($roster) - count($withdrawn)) !== (string) $count) { return null; }
++        $result = ['roster' => $roster, 'withdrawn' => $withdrawn];
++        if ($verifyAudit) {
++            try {
++                \App\Services\Baganriki\PublishedReadW2::checkHistory($snap, $live, $result);
++            } catch (\InvalidArgumentException $invalid) {
++                if ($invalid->getMessage() === 'TIME_UNCOMPUTABLE') { $issue = 'TIME_UNCOMPUTABLE'; }
++                return null;
++            }
++        }
++        $issue = null;
++        return $result;
++    }
++
++    public static function liveStateFailure(string $issue): array
++    {
++        return self::fin(false, $issue, $issue === 'TIME_UNCOMPUTABLE'
++            ? '凍結時の締切・正式な前倒し履歴・保存時刻を照合できません'
++            : '凍結馬番・正式取消・残頭数を照合できません');
++    }
++
++    /** 正式取消または締切の正本と照合できない場合は新しい送受信を保留する。 */
++    public static function sendRosterIssue(object $snap, ?object $live): ?array
++    {
++        $count = $live->active_count ?? null;
++        if (self::isW2Snapshot($snap) && self::verifiedLiveRoster($snap, $live, true, $issue) === null) {
++            return self::liveStateFailure($issue);
++        }
++        if ($count !== null && (int) $count === 0) {
++            return self::fin(false, 'ALL_CANCELLED', '全頭が取消になっています');
++        }
++        return null;
++    }
++
+     /** そのroleの枠を attempt_no をキーにして返します（内部用） */
+     private static function rowsOf(int $snapshotId, string $role): array
+     {
+@@ -30562,7 +31238,7 @@
+             return self::fin(false, 'FIRST_NOT_RECEIVED',
+                 '初回が未受領（' . $st . '）なので訂正は予約しません');
+         }
+-        if ((int) $f->complete !== 1) {
++        if (!\App\Services\Baganriki\AttemptWindowW2::isComplete($f->complete ?? null)) {
+             return self::fin(false, 'FIRST_NOT_COMPLETE',
+                 '初回が complete=false なので訂正は予約しません');
+         }
+@@ -30618,14 +31294,12 @@
+                 }
+ 
+                 // ② 全頭取消なら予約しません
+-                if ($live !== null && $live->active_count !== null
+-                    && (int) $live->active_count === 0) {
+-                    return self::fin(false, 'ALL_CANCELLED', '全頭取消なので予約しません');
+-                }
++                $issue = self::sendRosterIssue($snap, $live);
++                if ($issue !== null) { return $issue; }
+ 
+                 // ③ 期限（同時刻は可、1マイクロ秒でも超えたら不可）
+                 // @ANCHOR-20261023-NARU-RACELOCK  ロックした実状態の中で、レース正本の発走時刻も FOR UPDATE で読みます（なる 10/23 4通目 4章）
+-                $dl = self::deadlines($snap, $live, true);
++                $dl = self::deadlines($snap, $live, true, true);
+                 if (!$dl['ok']) {
+                     return self::fin(false, (string) $dl['code'], (string) $dl['reason']);
+                 }
+@@ -30759,11 +31433,10 @@
+             if ($snap === null) {
+                 return self::fin(false, 'NO_SNAPSHOT', '凍結入力がありません');
+             }
+-            if ($live !== null && $live->active_count !== null && (int) $live->active_count === 0) {
+-                return self::fin(false, 'ALL_CANCELLED', '全頭が取消になっています');
+-            }
++            $issue = self::sendRosterIssue($snap, $live);
++            if ($issue !== null) { return $issue; }
+             // @ANCHOR-20261023-NARU-RACELOCK  ロックした実状態の中で、レース正本の発走時刻も FOR UPDATE で読みます（なる 10/23 4通目 4章）
+-            $dl = self::deadlines($snap, $live, true);
++            $dl = self::deadlines($snap, $live, true, true);
+             if (!$dl['ok']) {
+                 return self::fin(false, (string) $dl['code'], (string) $dl['reason']);
+             }
+@@ -30830,15 +31503,24 @@
+                     'まだ送信許可を出していません');
+             }
+ 
++            if ($st !== self::SENT) {
++                return self::fin(false, 'INVALID_STATUS', '送信許可済みの枠だけが新たに受領できます');
++            }
++
+             $snap = \DB::table('baganriki_snapshots')
+                       ->where('id', $a->snapshot_id)->first();
+             if ($snap === null) {
+                 return self::fin(false, 'NO_SNAPSHOT', '凍結入力がありません');
+             }
+             // @ANCHOR-20261023-NARU-RACELOCK  ロックした実状態の中で、レース正本の発走時刻も FOR UPDATE で読みます（なる 10/23 4通目 4章）
+-            $dl = self::deadlines($snap, $live, true);
++            $dl = self::deadlines($snap, $live, true, true);
+             if (!$dl['ok']) {
+                 return self::fin(false, (string) $dl['code'], (string) $dl['reason']);
++            }
++            // W2の新規受領では、送信後に確定した取消も同じ取引のライブ行から照合する。
++            if (self::isW2Snapshot($snap)) {
++                $issue = self::sendRosterIssue($snap, $live);
++                if ($issue !== null) { return $issue; }
+             }
+             if ($nowUs > $dl['reply']) {
+                 return self::fin(false, 'DEADLINE_PASSED',
+@@ -30943,10 +31625,13 @@
+             $st = (string) $a->status;
+             $label = $a->role . '#' . $a->attempt_no;
+             if ($st === self::SENT) {
+-                self::fail((string) $a->token,
++                $result = self::fail((string) $a->token,
+                     '再起動をまたいだため結果が分かりません（再送しません）',
+                     $nowUs, true);
+-                $unknown[] = $label;
++                // 集計するのは、この処理が結果不明に変更した枠だけです。
++                if ($result['ok']) {
++                    $unknown[] = $label;
++                }
+             } elseif ($st === self::RESERVED) {
+                 $kept[] = $label;
+             }
+@@ -31011,6 +31696,12 @@
+ {
+     public const VERSION = 'r122-diagnose-v1';
+ 
++    public static function revision(mixed $release):string
++    {
++        return $release === \App\Services\Baganriki\CandidateSelectionW2::VERSION
++            ? \App\Services\Baganriki\ResponseInspectionW2::REVISION : self::VERSION;
++    }
++
+     /** 採点辞書（満点） */
+     public const SCORE_CAP = ['H1' => 18, 'H2' => 15, 'H3' => 12, 'H4' => 9, 'H5' => 6,
+                               'V1' => 12, 'V2' => 10, 'V3' => 8,  'V4' => 6, 'V5' => 4];
+@@ -31059,7 +31750,7 @@
+         return true;
+     }
+ 
+-    public static function run(array $res, array $src): array
++    public static function run(array $res, array $src, ?array $responseMap = null, ?array $inputMap = null): array
+     {
+         $find = [];
+         $scope = ['horses' => [], 'rank_bands' => [], 'presentation_horses' => [],
+@@ -31103,6 +31794,12 @@
+         }
+         sort($frozenNums);
+ 
++        $w2Projection = \App\Services\Baganriki\ScoreMaterialsW2::usesR14Rules($src['prompt_version'] ?? null);
++        $w15 = ($src['prompt_version'] ?? null) === \App\Services\Baganriki\CandidateSelectionW2::VERSION;
++        $typedInvalid = $unsafeNested = [];
++        if ($w15 && $responseMap !== null && $inputMap !== null) {
++            [$typedInvalid, $unsafeNested] = \App\Services\Baganriki\ResponseInspectionW2::raw($src, $res, $inputMap, $responseMap, $add, $markScore);
++        }
+         // ═══ ① 最上位項目 ═══════════════════════════════════════════
+         foreach (['target_count', 'role_cap', 'quota', 'role_quota', 'learning_stage',
+                   'selection_enabled'] as $k) {
+@@ -31177,7 +31874,11 @@
+             // $okRow = true;   // 旧
+             // @ANCHOR-20261023-NARU-011  重複した馬の行は正常扱いしない。evidence／counterevidence は
+             //   object の配列、source_refs は文字列の配列でなければ行を不正にします
+-            $okRow = !in_array($no, $dup, true);
++            $okRow = !in_array($no, $dup, true) && !isset($typedInvalid[$no]);
++            if (isset($unsafeNested[$no])) {
++                $rowValid[$no] = $rankEligible[$no] = $scoreComplete[$no] = false;
++                continue;
++            }
+             foreach (['evidence', 'counterevidence'] as $field) {
+                 $entries = $h[$field] ?? null;
+                 $shape = is_array($entries) && array_is_list($entries);
+@@ -31315,6 +32016,21 @@
+                         if (is_string($x)) { $srf[] = $x; }
+                     }
+                     $v = is_array($sc) ? ($sc[$k] ?? null) : null;
++                    if (\App\Services\Baganriki\ScoreMaterialsW2::handlesFamilies($src['prompt_version'] ?? null) && array_diff(array_keys($ent), ['reason','source_refs']) !== []) {
++                        $add('summary_horses', $no, 'W13_SCORE_PROOF_FIELDS', $k . 'の出典欄に未定義の項目があります');
++                        $okRow = false;
++                    }
++                    if ($v !== null && \App\Services\Baganriki\ScoreMaterialsW2::handlesVersion($src['prompt_version'] ?? null)) {
++                        $w2ScoreCache ??= [];
++                        try {
++                            $material = \App\Services\Baganriki\SourceEvidenceW2::scoreKnown($src, $no, $k, $v, $ent, $w2ScoreCache);
++                        } catch (\InvalidArgumentException $invalidSource) { $material = false; }
++                        if (!$material) {
++                            $add('summary_horses', $no, 'W12_SCORE_MATERIAL', $k . 'の採点に対応する資料が不足しています');
++                            $markScore($no, [$k]);
++                            $okRow = false;
++                        }
++                    }
+                     // Zero also claims that the item was observed and scored.
+                     // Without a source it must stay unknown, not make the band complete.
+                     if (is_int($v) && $v >= 0 && $srf === []) {
+@@ -31388,6 +32104,23 @@
+                         continue;
+                     }
+                     if ($st === 'SUPPORTED') { $sup = true; }
++                    if ($st === 'NO_SUPPORT' && \App\Services\Baganriki\ScoreMaterialsW2::usesR14Rules($src['prompt_version'] ?? null)) {
++                        $w2ScoreCache ??= [];
++                        if (!\App\Services\Baganriki\SourceEvidenceW2::familyKnown(
++                            $src, $no, $fam, $fr[$fam]['source_refs'] ?? null, $w2ScoreCache, false
++                        )) {
++                            // If this decision removed the horse, allow a supported row to be restored and the same band's display to follow.
++                            $scopeName = ($h['eligibility'] ?? null) === 'ELIGIBLE' ? 'summary_horses' : 'horses';
++                            $add($scopeName, $no, 'W14_NO_SUPPORT_MATERIAL', $fam . 'の見送りを判定する資料が足りません');
++                            if ($scopeName === 'horses' && isset($frozenBand[$no])) {
++                                foreach ($frozenBand as $peer => $band) {
++                                    if ($band === $frozenBand[$no] && !in_array($peer, $scope['presentation_horses'], true))
++                                        $scope['presentation_horses'][] = $peer;
++                                }
++                            }
++                            $okRow = false;
++                        }
++                    }
+                 }
+                 $extraFam = array_values(array_diff(array_keys($fr), self::FAMILIES));
+                 if ($extraFam !== []) {
+@@ -31468,6 +32201,17 @@
+                      . (count($notOwned) > 3
+                         ? '…ほか' . (count($notOwned) - 3) . '件' : '') . '）');
+             }
++            if (\App\Services\Baganriki\ScoreMaterialsW2::handlesFamilies($src['prompt_version'] ?? null)) {
++                $w2ScoreCache ??= [];
++                foreach ((array) ($h['evidence'] ?? []) as $item) {
++                    if (!is_array($item) || !\App\Services\Baganriki\SourceEvidenceW2::familyKnown(
++                        $src, $no, $item['family'] ?? null, $item['source_refs'] ?? null, $w2ScoreCache
++                    )) {
++                        $add('horses', $no, 'W13_EVIDENCE_FAMILY', '根拠系統に対応するこの馬の資料がありません');
++                        $okRow = false;
++                    }
++                }
++            }
+             // ③ 資格を名乗るなら、自分のSIGNALが1系統は要ります
+             if ($elig === 'ELIGIBLE' && $ownSignal === 0) {
+                 $add('summary_horses', $no, 'EVIDENCE_NO_OWN_SIGNAL',
+@@ -31517,7 +32261,7 @@
+             foreach (self::BANDS as $b) {
+                 $want = [];
+                 foreach ($frozenBand as $no => $bb) {
+-                    if ($bb === $b) { $want[] = (int) $no; }
++                    if ($bb === $b && (!$w2Projection || ($byNo[$no]['eligibility'] ?? null) === 'ELIGIBLE')) { $want[] = (int) $no; }
+                 }
+                 sort($want);
+                 $list = $br[$b] ?? null;
+@@ -31587,6 +32331,7 @@
+         }
+ 
+         // ═══ ④ 公開リスト ═══════════════════════════════════════════
++        $projectionReady = $w2Projection && $find === [];
+         $pc = $res['public_candidates'] ?? null;
+         if (!is_array($pc) || !array_is_list($pc) || count(array_filter($pc,'is_int')) !== count($pc)) {
+             $add('public_candidates', 'public_candidates', 'PC_TYPE',
+@@ -31608,7 +32353,11 @@
+                 $add('public_candidates', 'public_candidates', 'PC_NOT_EMPTY',
+                      '選出しない状態なので公開リストは空です');
+             }
+-            if ($selEnabled) {
++            if ($w2Projection) {
++                if (!$w15 && $projectionReady) {
++                    \App\Services\Baganriki\CandidateSelectionW2::diagnoseSelection($src, $res, $add);
++                }
++            } elseif ($selEnabled) {
+                 // 帯の先頭から枠数ぶん、適格馬だけを取ります（飛ばし取りはしません）
+                 $q = (array) ($res['role_quota'] ?? []);
+                 $want = [];
+@@ -31630,6 +32379,9 @@
+             }
+         }
+ 
++        if ($w15) {
++            \App\Services\Baganriki\CandidateSelectionW2::inspectSelection($src, $res, $find, $add);
++        }
+         // ═══ ⑤ 公開フラグと非選出理由 ═══════════════════════════════
+         //   ここでの不一致では horses を広げません（契約6章）。
+         foreach ($byNo as $no => $h) {
+@@ -31668,12 +32420,24 @@
+                 $add('presentation_horses', $no, 'NSR_REASON',
+                      '非選出理由の説明が空です');
+             }
++            if ($w15 && $selEnabled && is_string($h['eligibility'] ?? null) &&
++                $code !== \App\Services\Baganriki\CandidateSelectionW2::nonselectCode($src, $h['eligibility'])) {
++                $add('presentation_horses', $no, 'W15_NONSELECT_CODE', '枠外、根拠なし、資料不足を当該馬の資格に合わせてください');
++            }
+             if (!$selEnabled && $code !== 'SELECTION_DISABLED') {
+                 $add('presentation_horses', $no, 'NSR_DISABLED',
+                      '選出しない状態の非選出理由は SELECTION_DISABLED です');
+             }
+         }
+ 
++        if ($w15) {
++            // Keep the problem in findings, but never issue a grant for an unknown horse or a dictionary name.
++            $scope['horses'] = array_values(array_intersect($frozenNums, $scope['horses']));
++            if (in_array('BANDS_TYPE', array_column($find, 'code'), true)) $scope['rank_bands'] = self::BANDS;
++            else $scope['rank_bands'] = array_values(array_intersect(self::BANDS, $scope['rank_bands']));
++            foreach (['presentation_horses','summary_horses'] as $kind)
++                $scope[$kind] = array_values(array_intersect($frozenNums, $scope[$kind]));
++        }
+         sort($scope['horses']);
+         sort($scope['presentation_horses']);
+         sort($scope['summary_horses']);
+@@ -31681,7 +32445,7 @@
+         sort($unknown);
+         return [
+             'ok' => ($find === []),
+-            'validator_version' => self::VERSION,
++            'validator_version' => self::revision($src['prompt_version'] ?? null),
+             'row_valid'    => $rowValid,
+             'repair_scope' => $scope,
+             'findings'     => $find,

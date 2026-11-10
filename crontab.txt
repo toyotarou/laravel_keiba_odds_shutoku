@@ -57,12 +57,13 @@
 * 9-16 * * * /usr/bin/flock -n /tmp/keiba_aiPrewarm.lock sudo -u apache php /var/www/horse_odds_finder/artisan keiba:ai-analysis-compensate --quiet-skip >> /var/www/horse_odds_finder/storage/logs/aiPrewarm.log 2>&1
 
 # 毎日9:00〜17:59 毎分起動・AI予想 --prediction-sweep（1st）
+# 20261110：E3・E5版（新しいプロンプト）は凍結のときに過去レースの資料も読むので、PHPのメモリ上限を1024MBにする（既定128MBだと複数レースが重なると足りない。11/9の試験で確認）
 # ※sudo -u apache 必須
-* 9-17 * * * /usr/bin/flock -n /tmp/keiba_r122Sweep.lock sudo -u apache php /var/www/horse_odds_finder/artisan keiba:ai-analysis-compensate --prediction-sweep --prediction-sweep-role=1st --prediction-sweep-watch=55 --prediction-sweep-interval=5 >> /var/www/horse_odds_finder/storage/logs/r122Sweep.log 2>&1
+* 9-17 * * * /usr/bin/flock -n /tmp/keiba_r122Sweep.lock sudo -u apache php -d memory_limit=1024M /var/www/horse_odds_finder/artisan keiba:ai-analysis-compensate --prediction-sweep --prediction-sweep-role=1st --prediction-sweep-watch=55 --prediction-sweep-interval=5 >> /var/www/horse_odds_finder/storage/logs/r122Sweep.log 2>&1
 
 # 毎日9:00〜17:59 毎分起動・AI予想 --prediction-sweep（2nd）
 # ※sudo -u apache 必須
-* 9-17 * * * /usr/bin/flock -n /tmp/keiba_r122Sweep2nd.lock sudo -u apache php /var/www/horse_odds_finder/artisan keiba:ai-analysis-compensate --prediction-sweep --prediction-sweep-role=2nd --prediction-sweep-watch=55 --prediction-sweep-interval=5 >> /var/www/horse_odds_finder/storage/logs/r122Sweep2nd.log 2>&1
+* 9-17 * * * /usr/bin/flock -n /tmp/keiba_r122Sweep2nd.lock sudo -u apache php -d memory_limit=1024M /var/www/horse_odds_finder/artisan keiba:ai-analysis-compensate --prediction-sweep --prediction-sweep-role=2nd --prediction-sweep-watch=55 --prediction-sweep-interval=5 >> /var/www/horse_odds_finder/storage/logs/r122Sweep2nd.log 2>&1
 
 
 # ════════════════════════════════════════════════════════════════════

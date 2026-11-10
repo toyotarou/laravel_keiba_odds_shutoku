@@ -1,0 +1,141 @@
+W2-R15.18　実装担当者への引継ぎ
+対象ID　baganriki-v041-r12-2-w2-e35-r15-20261104
+schema_version　baganriki-v041-r12-2-w2-e35-r15
+
+受入処理の版　w2-r15.5（config/w2_contract.json の validator_version）
+エンジニア用ZIPの版はR15.18。上の対象IDとスキーマ版は両AIの送受信に使うR15の値。スナップショットのrelease_versionには対象IDを保存する。サーバーの検査履歴はattempt_idとvalidator_versionの組で保存・読戻しする。R15.18の新規ジョブを別経路で起動し、旧版の進行中ジョブは開始時の実装で完了させる。同じ受信原文を再精査する場合も旧診断と訂正許可を上書きしない。
+10月23日の提出原本にintegration/response_frame_w2.patch、続いてintegration/score_evidence_w2.patch。R15～R15.17を適用済みの場合は、固定原本から両差分を適用した結果と現行の変更を比較して統合する。受領時にraw_responseと、その全バイトのSHA-256をresponse_hashに保存する。役割ごとの保存入力・応答ハッシュが合わなければ保留する。
+R15.18の現行参照PHP SHA-256は 9c699826de660552b879a0b535d62f74f58b60921b5315251994d866c002da80。W2/35のマイグレーションを先に実行し、1st・2ndの初回／訂正で予約後・送信許可前にW2の確定済み送信原文を結び付ける。通常公開はpublishWhenReady。
+R15.17当時の参照PHP SHA-256は 19e8b70996ce1929d1f68b2f6b62992afd39a31328c7ab97ebbe6fcf358a3f31。W2の通常公開はpublishWhenReadyを通す。受付確認と候補計算は同じ版・同じ締切を使い、未採否の訂正は期限内なら待つ。再現と非公開受入はW2/34。
+R15.16当時の参照PHP SHA-256は 307de288f521ac1573b37131ff081ef22e35ed3c8ff13c4cf441d8f9fe847d1d。通常の公開はpublishWhenReadyを通す。公式時刻が計算中に変わったら、保存済み回答を新しい時計で一度だけ再判定する。10月23日の原本への両差分の適用順は本章、非公開での確認手順は33。
+R15.15当時の参照PHP SHA-256は 517afc3a7939400397516c5c3facc942e72ca31bae687168ce3ede128c59e0f7。同梱のCandidateSelectionW2.php・PublishedReadW2.phpと両差分を同じ版で適用する。W2/32の手順で、取消前の公開・取消後の現在・再公開の3時点を照合する。
+R15.14当時の参照PHP SHA-256は 21042fcabb5ec85be470e2e2eda34ed36df3f2a756a974d719e83b892c8a812e。W2/php/PublishedReadW2.phpもこのZIPから一緒に適用する。既存IDの公開本文・確定intent・人気帯・馬番順・一致加点と根拠を照合してから再実行の成功を返す。履歴とお客様向けの現在表示の確認は31。
+R15.13当時の参照PHP SHA-256は 3f8e42b2f9b5bf12a25b99805b5410c9365cc2dacc8d681092b154257a2a6544。訂正を受け取った役割は検証済み初回の完了状態を公開に渡す。30の試験は初回の保存、訂正の許可、採否の確定、公開ジョブ、DBと顧客向けAPIまで通す。
+R15.12当時の参照PHP SHA-256は 29caf003896cd7bd8ec8e52820da819895710978adb9b02ce7d99753d25a6a9f。W2向けの提出済みpublishPredictionでも、採用した各AIの基礎順位からE3/E5適用後の帯内順位を再計算し、CandidateSelectionW2の共通の統合計算を呼ぶ。呼出元から渡る版は、実際に読んだ版との一致条件としてのみ受ける。未回答、片側有効、確認済み0頭、取消前後の判定と実レース受入は29。
+R15.11当時の参照PHP SHA-256は f0e394f8bde573ae2fedba3c4843453324b31a0ab2f957c06b2e7f949897885a。同版のW2/php一式と両差分を適用する。凍結原文の投票締切、正式に前倒しした履歴、保存欄を照合し、時刻に不一致があれば新規のAI送信・受領・公開を保留する。締切だけでなく、穴馬の好走根拠が片側のAIにだけある場合の選出経路も28で試す。
+R15.10当時の参照PHP SHA-256は 3e85872492422ae4e0a6d2b05e6ffad7a035ff0bcc9cd2314360c0eb37304e2e。W2/php一式と両差分を同版で適用する。公開の読取でも、同一の読取トランザクションで凍結時の出走表・累積取消の監査・現在の版・最新公開ID・確定intentを照合する。送受信と新規公開・取消追記の前にも同じ公式履歴に照合し、誤った取消の引継ぎを止める。Flutterで現在の候補に使う馬番はlive_state.available_candidate_nos。「表示保留」のnull、「確認できた候補ゼロ」の空リストを区別し、以前の画面の候補を消す。27を参照。
+R15.9当時の参照PHP SHA-256は afb338450c012d4b8145de1b7336b45bc144c5fb7953412a690f854580b1bcac。新しい正式取消を取得した場合はJOB構成でも、オッズ取得の処理内でapplyLiveChangeを完了させる。検証済みのライブ行をロック下で再読込し、凍結馬番・既存取消・残頭数を照合してから、取消の和集合・残頭数・版を同じ取引で確定する。ロック前の差分だけで保存内容を再構成しない。時刻前倒しだけのジョブは従来どおり処理し、送信・新規公開直前にも正本から締切を読む。26の実装・再現手順を参照。
+公開アダプターでも公式の取消と残頭数を読み、BaganrikiWorker::sendRosterIssue($snap, $live)で異常時は新規公開を保留する。全頭取消時は候補なし。再計算した候補には書込直前のassertPublicationCommitを適用する。過去の公開IDの履歴読戻しと、現在有効な馬番の表示は分ける。
+R15.8では、両AIの返答を加工せず、同じ本文で原文ハッシュ、受領、厳密な形式検査を照合する。初回・訂正、圧縮・非圧縮に共通。ファーストのテキスト部分が壊れているとき、またはセカンドの本文が文字列でないときは未完了にする。詳細と非公開2レースの受入は25。R15.8当時の参照PHP SHA-256は 3497f17e089f823d50dfb9deaacaee767f80eba0cb460cd68c2dc3ea2f96c4b0。
+R15.7の受領時の出走状態・通知重複の扱いは24を参照。旧章の適用後ハッシュと記録版は各版当時の値。
+R15.6ではW2のライブ行を凍結と同じ取引で作成する。後から欠けた行は正式取消の正本から担当側で復元する。予約や送信のために取消ゼロの行を補わない。予算を確保した後の最終照合には、同じsnapshot_id、prepareSendのsystem/user原文、roleを渡す。取消と公式時刻を読む短い取引を終えた時刻で、呼出しの残り時間と応答期限を照合する。R15.6時点の実装手順と判定例は23、同版の固定原本への差分適用後SHA-256は 4a0de832d2699bff91c9f9047b5bd523f762ed13406169488bb19aa5aaf8ee5a。以下の旧章に記した適用後SHAは各版当時の値。
+R15.5の新規処理には、正本で確認した発走状態race_startedを都度渡す。発走済み、欠落、不明は送信・新規公開を保留する。朝の時刻は9:40と09:40を同一に扱う。W2/22に接続例と試験手順を収録した。R15.4で導入した同一送信枠の二重集計防止は21に記載。
+訂正の採否は18の表記に従う。FIX_PARTIALは初回と訂正から有効な行を取り出したもの。採用元を保存してRECOVEREDで全面照合し、公開候補・順位はサーバー側で再計算する。FIX_APPLIEDでも公開時には保存原文の独立検査を必須とする。
+
+初回の診断・訂正は17_R15初回診断と訂正の再精査.txtを参照。見送り・能力統計・予測時点は16_R14見送りと採点の再精査.txtを、肯定根拠と訂正の扱いは15を参照。回収率集計の接続手順は14を併読する。末尾のR11までの章は導入経緯。章内の旧仕様書ページ番号はPDFの「参考資料 R11当時の原本」内で数える。当版のスキーマIDは urn:baganriki:r12-2-w2-e35-r15 の各用途。
+
+R15.2では採用時と公開検査時に、保存した初回・訂正の原文と初回に許可した範囲を照合する。FIX_APPLIEDの順位と公開候補は同じ採用原文から得る。FIX_PARTIALでは使用可能な馬行だけを保持し、RECOVEREDの出典から順位・候補を再計算する。実装後は19の非公開2レースの確認を行う。
+
+R15.3の新規ジョブは、同じsnapshot_id・レース・role・attempt_noの実送信時刻を保持する。受領の許可条件は「入力と派生値がそろう時刻 ≤ 実送信 ≤ 受領 ≤ 確認時のサーバー時刻」かつ「受領 ≤ 凍結・ライブの早い方の応答期限」。訂正は初回受領以後に送信する。実送信は試行行sent_at、または既存のR122_USAGEに記録された該当1件のdiagnostics.sent_atから読む。下記の導入と20の非公開2レースで、担当者環境で記録されることを確かめる。
+
+1　送信と検証の境界
+今回の納品物は両roleの完全なsystem、既存の数式本体、W2用PHPサービス、入出力schema、検査と根拠。既存アプリのデータ取得・Queue・認証・公開トランザクションには既存実装を使う。配布したコードを新しい名前の試験経路で読み込む。W1およびR15.2までのW2で保存済みの行・版・スナップショットは比較用に保つ。このR15.3に同梱したR15のsystem・スキーマと、R15.3の設定・PHPを一組で切り替え、旧版の応答は別の実行として扱う。PHPから参照できる同じ相対位置に config/w2_contract.json を置く。
+W2入力は36必須キー（W1の35＋expected_v01）、応答は23必須キー（W1の21＋selection_ranks・expected_reviews）。実装側の版・許可キー・実行ハッシュ検査・再試行の対象フィールドを同時に更新する。追加キーを黙って捨てる旧serializerに通さない。BEGIN/END形式は継承。管理鍵と有料AIの呼び出しはサーバーだけで扱い、画面の再読込は保存済みの結果を読む。
+
+初回の入力照合には、サーバーが予約したroleと、同一のbaganriki_snapshots行のrace_id、release_version、snapshot_hash、common_json、input_json_1st／input_json_2ndを使う。release_versionにはプロンプト版の対象IDを保存する。取引内で確定した当時の原文を読み、訂正時も同じ入力を使う。入力不一致はINVALID_SAVED_INPUTとして止め、他のroleの回答を流用しない。送信・公開の最終許可には従来どおり独立して保存した計算の証拠とサーバーの検証を要する。
+受入試験はPHP CLIにctype、mbstring、PDO SQLiteを用意する。R15の試験・再実行方法と試験環境の範囲は17を参照。
+
+2　正本の読み出しと計算
+W1と同じpost_at（JSTの正式発走時刻T）、input_freeze_at=T−330秒、取消反映済みのN頭と馬ID・馬番を使用する。出走予定の16頭中1頭の6分前単勝が欠けた場合、15頭で計算し直さず16頭全員のEを未算出にする。21分前の欠損はその馬に局所化。投票後の再取得・時刻補完をしない。取消や乗替は実際に利用可能になった時刻で扱う。
+DBアダプターで用意するcurrentの形（型の例、値は説明用の略記）
+  race_id、N、post_at、input_freeze_at、jurisdiction=JRA、race_type=FLAT、
+  surface=TURF/DIRT、distance_metres（正整数）、class_group（固定対応コード）、
+  roster=[{horse_no:馬番, horse_id:不変IDの文字列}, …]、
+  batches={6:採用バッチ, 21:採用バッチ}
+各採用バッチは batch_id、requested_at、received_at、available_at と、quotes=[{horse_id:文字列, win:単勝元値}, …]。時刻はタイムゾーン付きISO 8601。未取得はnullまたは当該馬の行欠損。−1など出典の欠損符号はDBの意味を確認してnullに正規化する。凍結後戻り値をrace_idだけで上書きしない。各バッチは既存の初回有効コミット規則で選び、source_hashと対応づけ済みのものを渡す。単勝の元の精度は維持する。完全な実行例はvalidation/verify_w2.phpにある。
+
+履歴は同じ形に post_freeze_scratch（真偽）、result_available_at、results=[{horse_id, finish}, …] を加えたレースの配列。finishは公式の正整数着順または確定DNF（中止）/DQ（失格）。同着は公式着順を共用し、不明−1・結果欠落・凍結後取消はレース全体を除外する。履歴取得は対象日JST午前0時より前に結果が利用可能な1～730日前の全対象レースを同一条件で行う。範囲の一部を失っている場合や照会不能なら「履歴未提供」のnull。正しく照会して比較対象0件なら空配列。この区別を計算ログに保存する。距離・クラス・21分値のない過去例でも、Pの要件を満たせば基準集団に含み、近傍からだけ外す。
+
+履歴の版を比較するとき、result_available_atはその結果版・取消訂正を実際に利用できた時刻とする。訂正版に初版の時刻を移さない。対象日午前0時ちょうど・以後の版は除外し、その後に一意なrace_idを照合する。締切前に対象となる同一IDが複数あれば、取消・不明着順・異なる馬場条件を含め全版を除き、DUPLICATE_HISTORY_IDに行数を記録する。版を復元できない履歴は利用しない。
+
+ExpectedBridgeW2::attach($commonBeforeHash, $current, $historyOrNull, $calibrationOrNull)
+  ・commonBeforeHashはW2の新しい共通ツリー。4つの除外キー（ai_role、role_quota、role_cap、snapshot_hash）を付ける前に1回呼ぶ。
+  ・既存race_id、N、発走・凍結時刻、採用バッチ、馬IDに対応する馬番、6/21の馬別オッズ参照と元値を照合する。
+  ・戻り値commonにexpected_v01が付く。この全体を既存の厳密な十進・型保持serializerで1回凍結し、共通UTF-8本文のSHA-256を計算する。両roleには同じhash、各role用のquotaとcapを付ける。
+  ・auditはDB専用。対象の原レコード・SHA、過去集団の参照、履歴hash、B3/B5、A3/A5、各過去race_id、D²、w、版、校正器、欠損/除外理由を保存する。過去結果の履歴本体や当該レースの着順をAIに送らない。履歴の抽出・固定クラス対応表、公式出馬表の馬ID結合、元バイト保存は実DB側の担当。
+  ・校正未学習ならnull。使う場合は同一の事前校正器（formula_version, scope=JRA_FLAT_TURF_DIRT, id, a, b, trained_through, approved_at）を監査済みの登録簿から取得する。学習・承認時刻が対象日午前0時以後のものは拒否する。係数の学習・適用範囲の妥当性はオフラインで審査する。
+  ・計算はphp/ExpectedPacketW2.phpからformula/ExpectedValueV01.phpを呼ぶ。数学仕様v0.1、数値実装v0.1.4、λ=20を使用。100×pの小数丸め前をpacketのE3・E5へ入れる。trial_score_3/5は表示用に丸めた値であり選出に使わない。式の同値オッズ処理でr12.2側の人気帯を動かさない。
+  ・formula/parameters.jsonのCOMPARE_ONLY、元コードのcomparison_onlyは元の計算器の由来・評価状況を表す。W2の非公開選出ではconfig/w2_contract.jsonのexpected_score_policyを適用し、数式本体の定数・式・検証済みフラグは変更しない。
+
+3　凍結した入力と送信本文
+既存のr12.2で正規化し、情報上限を満たす共通JSONの原文を1回生成する。サーバーが保存したcommon_json、そのSHA-256、role別のrole_json、予約したroleを同じsnapshot_idから読み出す。
+  $frozen = FrozenInputW2::fromStored($commonJson, $roleJson, $storedHash, $jobRole, $storedExpectedProof);
+共通原文のバイト単位SHA-256を保存値と照合したうえで、両原文を既存のBaganrikiJsonで読み、4つのrole専用キーを除いた全項目の値・型・配列順・参照を照合する。role・cap・quotaは各roleの規則で別途照合する。Eが欠損した別版や、同じレースの別の履歴母集団を、古いhashのまま使わない。DBからの凍結原文を正本にする。PHP配列だけを渡す簡易検査は、精度を失わないネイティブ値の合成試験などに使う。
+  $send = ExpectedBridgeW2::prepareSend($frozen, $pack, $expand, $withinBudget, $readLiveState, $allowFullFallback, $repair);
+$packは既存BaganrikiPrompt::compactWireの成功時のwire、$expandはexpandWireの成功時のinputを返す。codec失敗は例外にする。R3は実際に送る圧縮JSONを厳密に読み戻し、展開結果の値・型を保存role_jsonと比較する。例として11.00000000000000000001という数値と、同じ字面の文字列とを区別する。馬番、出典・索引、coverage、Eの診断値、空のオブジェクトと配列を照合する。
+$repairは初回null。訂正は11の初回受領行・許可範囲・診断・診断時のSHAを渡す。$withinBudget($format, $userJson, $systemText)で実際に送る全文とモデルの単価・トークン、既使用額・残り予算、訂正枠を照合する。$allowFullFallbackの既定はfalse。圧縮で原文を復元できない場合はその送信を止める。既存の運用設定が明示的に非圧縮を許可し、非圧縮の費用判定にも合格したときだけ、保存したrole_json原文をそのまま返す。再取得・再生成はしない。
+返るmessagesには実際のsystemとuserが役割順にそろい、SOURCE_TABLE_V1なら付録V2を組込み済み。SDKへ渡す直前にDispatchW2::recordSentで照合する。両方の実送信原文、format、request_sha256、版、fallback_reason、見積・実費・送信回数を記録する。DB内の原文・実送信原文は監査用。AI・Flutterに管理鍵や過去結果を出さない。
+
+4　応答の受入・局所訂正・統合
+現行版の受信・訂正・初回順位の読戻しはResponseFrameW2::extractで外側のBEGIN/END行だけを検査する。JSON文字列内の同じ字面を区切り扱いしない。一般的なtrimでNUL等を消さず、元の本文を既存の厳密JSONデコーダーに渡す。保存されたサーバー側のprompt_versionで経路を分ける。10月23日提出コードの3か所の切替差分はintegration/response_frame_w2.patch、接続箇所と失敗時の扱いは12を参照。下流だけ差し替えて旧抽出器で先に落とす実装にしない。
+既存の全頭・参照・Tier・H/V・帯内方式の検証を先に通し、band_ranks・evidence_band_ranksをE抜きの基礎順位として扱う。同梱のscore_evidence_w2.patchを適用し、R15の初回診断は当該帯の適格馬だけを基礎順位の集合とする。E3/E5適用後の順位・比較記録・公開馬番をサーバーで再計算し、申告と照合する。旧版の入替前チェックをR14へ重ねない。初回診断に通った回答も、保存原文・型・スナップショットを用いて独立に検証する。Eの有無で短縮率、能力採点、適格資格や配分を変更しない。
+ExpectedPacketW2::buildの出力、または同じhash・計算版に結び付いたサーバー保存値がEの正本。AIが説明中に作った値でpacketを置換しない。PHPに渡すE数値は計算器が返した有限の数値型。精密JSONデコーダーの内部十進オブジェクトを使う場合は、保存済み計算結果そのものと完全照合したE専用数値だけを元の型に戻す。全source_registryをfloatに変換しない。
+  (a) 受入判定　CandidateSelectionW2::verifyReply($frozen, $completeReply)。既存r12.2で全頭・根拠の正当性を照合してから呼ぶ。返すpublic_proof_hashはnull。
+  (b) 回復後の再現　CandidateSelectionW2::apply($frozen,$effectiveHorses,$effectiveBaseBandRanks)。元応答の証明は持たない。
+  (c) 原応答の証明　既存r12.2で採用した初回／訂正版が回復後の全頭・根拠・フラグ・順位と全面一致した場合のみ CandidateSelectionW2::verifyOriginal($frozen,$savedRawResponse,$storedResponseSha256) を呼ぶ。元のBEGIN/ENDを含む原文のSHA、囲み、厳密JSON、版・role・全頭・候補を照合した戻り値をそのroleの統合に使う。AIの申告や回復後に書き直したJSONから、原応答の証明を作らない。
+  (d) 公開直前　CandidateSelectionW2::mergeStored($frozen,$acceptedAttempts,$liveQuota,$activeHorseNos,$proofHashes,$liveState)。同一の整合読取で取得した採用試行から再計算する。両roleのrole_journalを照合し、保存直前に10・11のassertPublicationCommitを呼ぶ。mergeは検証済み結果の順位計算に使う内部向けの入口。すでに生成した候補リストを公開経路の入力にしない。
+$acceptedAttemptsは1st／2ndごとの保存済みレコード。ORIGINALはkind・input・receiptsの3項目。RECOVEREDはこの3項目とrecovery_json・recovery_hashの5項目。inputは同roleのFrozenInputW2。受信行・回復JSON・出典の基本形は06、訂正権限と初回の引継ぎは07。検査用の組立例はvalidation/r4_fixtures.phpとr5_backend.php。回復文書は候補と一致加点を自称できない。
+戻り値のselection_stateを公開ポリシーに渡す。CANDIDATES_READYは候補が得られた状態。VERIFIED_NO_CANDIDATESは有効な評価からの候補0・不足記録。SELECTION_DISABLEDは正式傾向未解決、CANCELLEDは全頭取消を表す。片側欠落・失敗はrole_issuesに残して有効な相手を使う。選出可能なのに有効な提出0件ならW2_NO_VERIFIED_ROLEで新規公開を止める。shortfallsには補充後も埋まらなかった要求帯と不足頭数。既存のDBロック下で期限・live revision・公開許可を確かめて保存し、合成結果や単にCANDIDATES_READYという値だけで本番公開しない。
+$proofHashesは既存のサーバーが検証した［role］［馬番］または［馬番］［role］のSHA-256。各roleの戻り値のpublic_proof_hashと同じ馬で一致することを確認する。単にtrueやfalseを渡す経路は廃止。Eの前後とも両AIの公開候補に残り、両者の異なる証拠がそろう馬だけ＋5。戻り値のpublic_proof_hashesに馬別・role別の根拠を残す。独立根拠群数は、mergeStoredが採用できた各roleの根拠から算出し、馬番ごとに最大値を採る。Eを加算しない。
+verifyReplyでも、返答に転記する15項目、各帯の不足、馬別フラグ、根拠順位を照合する。全適格馬に10項目の点がそろう帯は、各馬の合計点→V小計→H小計の降順、最後に馬番昇順で基礎順位を照合する。適格馬に欠損があればEVIDENCEで比較し、基礎・予備の両根拠順位の対応を確認する。一部の馬の点数誤記は既存の診断・局所回復へ戻し、両AIの正常な残りを保持する。公開可能なroleが0件のまま、選出可能・生存馬ありで統合する場合はW2_NO_VERIFIED_ROLE。候補0頭の公開成功扱いにしない。
+a・bは同じルールで基礎順位から1回だけ適用する。q=0、次点なし、Tier違い、標本不足、同値、E3だけ改善してE5悪化、次点自身の基準未達は入替なし。SELECTION_DISABLEDでも全頭と順位を返す。局所の帯順位だけに不一致があれば該当帯をrepair_scopeに指定し、そのAIの原応答と同一snapshotで既定の最大1回。全頭一意・他馬の正常な根拠は既存の局所回復手順で保全する。
+統合は凍結帯頭数をKとし、各馬の有効なselection_ranksの高い順位rから100×(K−r＋1)/Kを使う。Eの生値の追加加点はしない。両方の検証済み原応答で、E適用前も後も公開候補だった馬だけが一致＋5の対象。同一のE入替だけで両AIに入った馬には再加点しない。既存契約の各帯枠・同点順（証明済み一致、独立根拠群数、馬番）を継承する。補充は各帯を先に確保し、D不足→B、B不足→D、A不足→B、次いでD。穴側不足をAで埋めない。
+取消後は既存LaravelのafterCancellationに、凍結馬番→帯、累積取消、凍結1st配分、凍結allocation_modeの4つを渡す。そのlive_quotaと、同じライブ版の有効馬番をdへ渡す。R3は生存する馬の凍結帯の頭数から、同じ配分表と構造移動順でlive_quotaを独立照合する。混戦の16→15頭は3/2/1の6枠、14→13頭は基本3/2/0の5枠、9→8頭は基本2/2/0の4枠。元の帯の収容頭数が不足すれば構造移動する。残存馬がいて選出可能なのにnullの枠、合計または内訳の不一致はW2_EFFECTIVE_QUOTA。公開処理を中断し、ライブ版と枠を再読込する。同じ不整合が続く場合は診断を残す。全頭取消または凍結時UNRESOLVEDはnull枠・候補0頭。PHP内の有効馬番は整数1～18、またはその十進文字列を受理し、正規化後の重複・未知・曖昧な型は拒否する。元のE・元のrole内比較は不変で、再統合で同じ境界を二度入れ替えない。既存の締切、競合ロック、重複ジョブ、再試行時の同一公開IDを維持する。片roleだけ有効の場合もmax順位はそのroleのみ、＋5は0。公開許可は既存の検査済み新結果だけに付ける。
+監査に必要なもの　race_id、snapshot_hash、時刻、roleと採用応答、元の評価・Tier、band_ranks、expected_reviews、selection_ranks、フラグ・非選出理由、馬番別public_proof_hashes、統合前後・取消・不足／補充・公開版、購入見送り。画面は検証済みの採否・事実から定型表示する。
+
+5　試験
+・formulaフォルダーで php verify.php　元の56ケース。
+・php validation/verify_w2.php　新接続・順位・統合の試験。--examples 保存先 を加えると両roleの完全な合成リクエスト/応答を書き出す。これらは書式検証用で、実AI応答ではない。
+・Python 3、jsonschema 4系とrfc3339-validator、PHP CLIのある環境で python3 validation/verify_release.py --php /実際の/php 。W1の週末実データ検査、原方程式、W2試験、Draft 2020-12スキーマの正常・異常例を実行する。主サービスはPHPで動き、Pythonは検査用。
+・実装担当環境で既存BaganrikiPromptクラスを読み込む信頼済みPHPがあれば、上に --codec-class /その/パス.php を追加。今回は10/23提出code/AiController.php（SHA-256先頭 1e8f0fbfe732fd24）から、クラス本体をそのまま隔離して純粋な圧縮処理を実行した。機器依存のPHP/Laravel全体・実AI接続は未検証。
+・実行記録、申告した版と実際に使うPHP・契約の照合、投入後の全頭集合、3帯の採否、実際の送信費用、締切、Flutter表示までを、予定している非公開2レースで確認する。2レースで長期回収率を認定しない。
+
+標準検査の実行
+10月23日提出の元のAiController.phpが手元にあれば、次の1行で圧縮・厳密JSON・両AI相違・帯間補充と取消・ローカルSQLite往復を再現できる。Python標準のsqlite3を有効にする。
+python3 validation/verify_release.py --php /実際の/php --submitted-php /元の/AiController.php
+既知のSHA-256に一致した場合だけ、検査対象の8クラスと配分定数を一時抽出する。CLIのmbstring拡張を有効にする。提出後に変更したファイルには、代わりに以下の読込先を指定する。
+validation/verify_release.py --php /実際の/php --codec-class /圧縮クラス.php --backend-class /信頼済みの提出クラス読込ファイル.php
+backend-classはApp\Http\Controllers\Api配下のBaganrikiJson・BaganrikiResponse・BaganrikiPublicView・BaganrikiPrompt・BaganrikiRanking・BaganrikiAllocation、AiControllerの配分定数とmbstringが必要。DB・Queue・外部APIを起動しないクラス読込専用ファイルを使う。指定がない場合も通常の数式・接続・スキーマ試験は実行できる。付属合成例は再生成したJSONとバイト照合する。再現した旧動作と新しい受入値は03～07の履歴に記載。訂正条件は07、計算原文の保存は08～10、現行の公開前照合とエラーは10・11。
+
+継続適用する入口とエラー処理
+・配布PHPはphp/全ファイルを同じ位置に置く。config/w2_contract.jsonとschemas/input_schema.json・output_schema.json・recovery_schema.jsonを同じリリースから読み込む。schemaと別版の本体を混ぜない。PHP 8.0以降、実運用の原文検証には既存の厳密JSONクラスとmbstringを使う。標準の公開読取APIのschema_versionと予想エンジンのprompt_versionは別の識別子として記録する。
+・MarketStateW2は単複の元オッズ、凍結人気、馬番、slot、受信・採用時刻を結んでX1～X5/Zを検算。X6は7頭以上null、6頭以下false、learning_stage=COLLECT_ONLY、model_version=nullを照合する。S、正式・暫定モード、星、基本枠・構造移動、role枠、Eの同人気順位を照合する。欠損は三値の不明として扱い、不正な入替や他馬の参照は閉じた状態で止める。
+・時刻の文字列表記はUTC／JSTでも同一瞬間なら受理する。取得元の更新時刻が判明している場合は受信時刻以下。歴史のE用指紋は、採用済みの6/21分バッチ・元精度の単勝、公式の対象集合・条件、過去の場合は当時利用可能な着順と時刻の正規化済み射影から計算する。current_sha256／source_hashesはこの計算入力の指紋。生のプロバイダペイロードのpayload_hash、監査ログおよび凍結JSONのSHA-256は別に保存する。3分前以後の列やDB行の読出順はE用指紋に入らない。早い取得枠の後に正式取消が届いた馬は、凍結前に利用可能だった取消だけをDBで照合してから公式rosterへ結合する。
+・入力と原応答を実際のスキーマで検査し、source_registry・coverage・親参照・馬番・factsの値と型を照合する。数値を文字列として返したfactsや同じ元信号を名称だけ変えた2系統は原応答証明に使わない。ローカルの新検証は既存r12.2が行う派生式と証拠の検証、局所回復、トランザクションや権限確認と合わせて使う。
+・長い正の十進数で市場の正確な比較は可能でも、元のE計算器の倍精度範囲を超える場合はFORMULA_NUMERIC_RANGE。6分系列ならそのレースのEを未算出、21分だけなら該当馬を未算出とし、根拠による候補選びを続ける。
+・独立した比較を別シードで反復する場合、verify_release.pyの末尾に --stress-seed 190401 等を付ける。PHPは提出された10月23日AiController.phpの完全なSHA-256を照合してから参照クラスを一時抽出する。週末8レースの判定はvalidation/週末8レース_R3市場判定.json。着順を入力に使わない。
+
+送信・受信の必須条件
+$readLiveStateは送信前の2回の呼出しでDBと時計を新たに読む関数。$liveStateはこの6項目に、公式の累積取消馬番cancelled_horse_nos、state_revision、response_revision、publication_revision、および独立保存したrole_journalを加える。詳細は10・11。送信の$readLiveStateはrace_id、snapshot_hash、now、live_close_at、all_cancelled、race_startedの6項目。初回データのキーと時刻境界は06、訂正行に足すrepair_scopeと公開診断は07に記載。
+
+R5の訂正行と表示
+初回の診断で保存したrepair_scopeと初回応答の保存SHAを AttemptWindowW2::repairGrant($initialResponseHash,$initialInspectionScope) に渡す。返値を訂正行（attempt_no=1）のrepair_scopeとして保存する。初回0番には不要。両方の元レコードは同じrace_id、snapshot、role、公開読取版に属さなければならない。署名や許可をAI出力から作らない。初回の保存hashと照合できない訂正は除外する。
+replayed_initial_rolesは回復文書を使えず、承認済み初回を再検証して使ったrole。role_issuesに元の失敗理由を残す。そのroleには一致加点を付けない。retained_rank_sourcesは記録上の出典が欠落または不適切で、検証済みの原順位を選び直した帯と採用SHA。rank_fallback_bandsは原順位を引き継げず独立群数・馬番から決めた帯。ignored_role_countに選出経路で無視した未知roleの個数を記録する。
+公開前は正式な取消を反映して候補を再統合する。公開後の画面再読込は保存済み予想と現在の取消内容を読む。新しい公開は別intentの既存承認手続きで扱う。
+
+R6から継承する計算原文の受け渡し
+ExpectedBridgeW2::attachの返値audit.expected_proofを、計算時にそのまま保存する。{json, sha256}を公開時の共通入力から独立して読み出し、FrozenInputW2::fromStoredの第5引数へ渡す。再読込時にexpected_v01やAI応答から証明を組み立て直さない。初回・訂正・両roleとも同じ凍結版に結ぶ。具体的な保存手順、エラー、出典、試験結果は08～11を参照する。
+
+R7から継承する4か所（R8の追加項目は次節と10）
+1．計算原文の外形は {json, sha256}。内部JSONがEの全行、odds_binding_sha256、market_source_sha256を含む。馬番ごとの6・21分前の採用単勝と、その値を含むバッチのID・要求／受信／利用可時刻を、計算直後と凍結レジストリから別々に照合する。凍結時刻・対象馬番も含む。異なるとW7_E_ODDS_BINDINGで両AIへの送信と新規公開を止める。計算原文はPHPで作り、DBにはバイト列のまま別保存する。AIには36項目の入力のみを渡す。旧版はその版の証明・入力で再現する。R15.3の試験はR15で凍結した同一入力とR15.3の受入判定を使用する。
+2．horse・pair・cohort・raceの索引は所有馬、項目名、観測枠を同じレジストリ行に対応させる。W7_INDEX_BINDINGまたはW7_DUPLICATE_INDEX_REFは元の凍結入力から調べる。非圧縮送信を許可していても、この検査を通過した原文のみ送信する。
+3．回復後に検証済み馬別行が残り、rank_sourcesの該当帯が明示的にnullなら、欠落・空・不整合の順位キャッシュを再構成できる。全馬に採点がそろえば合計・V・Hの降順と馬番昇順。根拠順位を使う帯では使用可能な検証済みの原順位を優先し、引き継げなければ独立根拠群数の降順、同数は馬番昇順とする。根拠なしの順位を引き継がない。SHAを申告した帯は対象集合と原順位の証明を必須とする。rebuilt_base_bandsは再構成した帯、rank_fallback_bandsは原順位を引き継げず独立群数を使った帯。回復の一致加点は0。
+4．公開履歴にはpublic_candidatesの順序、配分要求live_quota、補充後の実頭数actual_quota、fillとshortfallsを一緒に保存する。候補を要求枠順に再配列しない。表示は実際のA、B、Dの順、同一帯は統合順位順。shortfalls.filledは要求帯の枠を補充込みで満たした頭数。既存のトランザクションで取消版・期限・公開intentを再照合し、同じintentの再試行は同じ公開履歴を返す。画面再読込には公開時記録と現時点の取消状態を分けて渡す。
+
+R8から引き継ぐ公開前の読取と保存（R9の追加項目は11）
+(a) 整合読取で凍結入力・計算原文、採用試行、公式の累積取消と3つのrevisionを読む。cancelled_horse_nosには公式な取消の馬番リストを使う。比較するactiveHorseNosから逆算してはいけない。先に作った候補や別時点の役割別応答をこの読取に混ぜない。
+(b) mergeStoredの結果にはpublication_guardが付く。このサーバー専用の記録に、凍結レース・SHA、3版、残存馬番、期限、検証開始時刻と結果本文のSHAが入る。検証完了時の時計も記録する。
+(c) 公開時は既存intent・live_stateをロック。既に同じintentの公開履歴があれば保存済みIDを返す。新規書込みはロック内で公式取消・3版・現在時刻・前倒し込みの期限を再読込し、AttemptWindowW2::assertPublicationCommit($frozen,$selection,$validationCompletedAt,$lockedState)が通った場合のみ。続けて同じ取引内で保存・公開版の更新・commit。失敗時はrollbackし、最新状態を読み直して既存規則の新規intentで再統合する。
+(d) 凍結時の全6枠の単勝・複勝上下限、馬番と人気順、採用バッチのID・元payload_hash・取得時刻・判明した更新時刻を監査証明に結ぶ。対象Eだけに使う6/21分前の単勝照合も継続する。範囲は10。DBのoriginal_approvedは権限確認済みのサーバー記録を使い、真偽値と厳密な0/1の整数・文字列だけを受ける。AIから送られた承認値は使わない。
+
+R9　各AIに送った原文から、公開で使った応答までの引継ぎ
+・実際に送る2つのメッセージはprepareSendが組み立てる。圧縮の付録を呼出側で二重に足さない。SDKへの最終変換で実際に使うsystemとuserをDispatchW2::recordSentで照合し、戻り値を同一予約のsent_requestとして保存。訂正文は同role・同じ送信形式とし、初回受領行とサーバー診断のinspection_sha256を使う。申請・許可・外部APIの一度限りの送信と不明状態は既存のQueueジャーナルが扱う。
+・初回／訂正・採否・回復文書・馬別の一致証明が決まる取引で、RoleJournalW2::witnessを正本のレコードから作りresponse_revisionと原子的に保存する。公開計算では独立保存したrole_journalを読み、別に読んだ作業データが一致するかをmergeStoredで確認する。両者を公開ジョブの同じ古い配列から生成しない。
+・公開ID確定時に元の本文SHA、レースとsnapshot、処理キーと公開IDを結ぶpublication_sha256を保存。同じintentがある場合は、そのsnapshot_idとintent_hashで検索し、AttemptWindowW2::replayIdから既存のIDを返す。呼出し・引数とDB保存手順は11。過去版の履歴は元の版の保存記録として扱う。
+
+R15.2では、18までの標準試験に、順位変更の許可、採点時の根拠順位、受信原文の差し替え、部分回復と公開候補の照合を追加した。手順と期待結果は19を参照。各版の識別子は本書冒頭とconfig/w2_contract.jsonで確認する。
+
+R11で導入し、R15で版を更新したスキーマの登録・参照
+入力・出力・回復スキーマの$idは、それぞれ urn:baganriki:r12-2-w2-e35-r15:input、:output、:recovery。各本文のprompt_version/schema_versionとconfigの値を一致させる。ローカルPHPのvalidateは引き続き同梱ファイルを使う。外部のJSON Schemaレジストリを使う場合は版別の$idで登録し、保存入力の版に対応するスキーマを選ぶ。旧$idを新版への別名にせず、旧本文を書き換えない。R7～R10に残る同一IDの履歴は版別の検証環境に分ける。source_registry_schemaは本文が同一のため従来IDを維持する。13の登録順試験と版整合チェックをリリース検査に含める。
+
+R15.3以降は20の時刻・完了欄・片方のAIの障害と取消の試験も同じ標準コマンドに含む。

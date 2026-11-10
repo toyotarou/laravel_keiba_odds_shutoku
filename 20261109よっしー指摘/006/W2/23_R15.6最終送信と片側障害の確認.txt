@@ -1,0 +1,31 @@
+馬眼力　W2-R15.6　送信直前の確認と公開・購入の分離
+2026年11月4日　送付ファイルは「馬眼力_W2-R15.6_エンジニア送付一式_20261104.zip」1本
+
+1　R15.5で再現した現象
+① 送信許可と予算予約の後、対象レースが全頭取消になっても、ファースト・セカンドともに送信処理を1回呼んだ。ライブ行または残頭数が欠けても同じだった。また、正式取消の保存行が消えた後の予約は、取消ゼロの行を再作成できていた。凍結時に全16頭がいたことだけでは、今も16頭が出走することは分からない。
+② 応答期限まで6秒ある時点で判定を始め、レースの正本の読取りに2.2秒かけると、残りは3.8秒になる。R15.5では読取り前の時計を使い、有料AIの送信処理に進んだ。両方とも実送信の直前まで提出コードを実行し、通信先をテスト用に置き換えて確認した。
+
+2　予約から送信まで
+・W2の凍結時、ライブ行も同じ取引で作る。出走馬は凍結馬番 frozen_nums、除外する馬は累積の正式取消 cancellations、残頭数は active_count。送信枠の予約、送信許可、予算確保後の最終確認は3項目を照合する。全部取り消しなら ALL_CANCELLED。不明・形式不正・重複・未知馬・頭数が合わない場合は LIVE_STATE_UNAVAILABLE。部分取消で残頭数が合えば送信可能。
+・W2のライブ行が消失した場合、ensureLiveは空の取消行を作らない。初期のライブ行が作られなかったケースも保留し、正本の取消と履歴を確認して復元する。凍結時のrelease_versionが今回のW2対象IDと異なる従来経路は、従来どおり初期化する。R15.5時点で凍結した行でも、対象IDが同じならW2の条件を用いる。
+・callPredictionAiにrole、prepareSendで確定したsystemとuser、設定した待ち時間の上限、同じ凍結入力のsnapshot_idを渡す。W2ではsnapshot_idを省略できない。凍結版・レースID・role・snapshot_hashの不一致は送信前に止める。初回と訂正、FULLとSOURCE_TABLE_V1のいずれも送信窓口で再圧縮しない。受領記録にはプロバイダーに渡したsystem/userのSHA-256と実送信時刻を残す。
+・最終確認では短いDB取引内でライブ行、次いで公式レース行をロックして照合する。取引を完了して時計を取り直し、応答期限と呼出し上限の早いほうを秒未満切捨てで適用する。残り5秒ちょうどで送信可、4.999999秒で送信不可（DEADLINE_AFTER_WAIT）。発走済みと公式時刻を読めない状態も送信不可。通信を始める前にロックを解放する。新しい停止理由を未送信として扱い、取得済みの予算予約を解放する。送信開始後に状態が変わった場合は受領・公開時に再検査する。
+
+3　片方の応答だけを採用できるとき
+各roleの応答が正常、欠落、結果不明、未完了、原文とハッシュの不一致の5種類を組み合わせた。取消なし・1頭取消・2頭取消の3条件で、公開候補、表示順、実配分、補充、不足と一致加点を照合した。
+・一方だけが有効なら、そのroleの検証済み情報で候補を計算する。一致加点は0。両方とも有効な応答がなければ新規公開を止める。確定済みの公開結果を再読込する際の取扱いは22を参照。
+・表示用APIのbuy_recommendedはfalse、purchase_policy_statusはPENDING_VALIDATION、learning_stageはCOLLECT_ONLY。補充や候補の公開を購入推奨へ昇格させない。
+
+4　実装と再実行
+対象は2026年10月23日提出原本 AiController.php（SHA-256 1e8f0fbfe732fd24639c6b1f40c40b384e5956accd969a5aea3ff838159ed7ae）。integration/response_frame_w2.patch → integration/score_evidence_w2.patchの順に、原本のあるディレクトリで patch --batch --fuzz=0 -p1 -i /差分への絶対パス を適用する。適用後の参照PHPのSHA-256は 4a0de832d2699bff91c9f9047b5bd523f762ed13406169488bb19aa5aaf8ee5a。先に別版を適用している現場は、原本に2本を適用した参照版と現場変更を突き合わせて統合する。
+送付版R15.6、プロンプトとスキーマR15、受領validator_versionはw2-r15.5、計算器v0.1.4。送信修正の識別には配布版と実装ハッシュを併記する。新規ジョブの経路は02に従う。
+W2ディレクトリで次を実行する。PHP CLIはmbstringとPDO SQLite、標準試験のPython依存は02を参照。
+  python3 validation/verify_release.py --php /path/to/php --submitted-php /path/to/original/AiController.php
+  python3 validation/verify_r154_recovery.py /path/to/php /path/to/patched/AiController.php
+  python3 validation/verify_r155_live.py /path/to/php /path/to/patched/AiController.php
+  python3 validation/verify_r156_send.py /path/to/php /path/to/patched/AiController.php
+
+5　非公開2レースの受入
+① 通常のレースで、prepareSendと送信先に渡したsystem/userのハッシュ、role・snapshot_id、送信時刻・実効の応答期限・許可された秒数、実際のAPI利用履歴を照合する。画面更新の前後で有料AIの呼出件数が増えないこと、公開候補の馬番と表示順、購入推奨なしをFlutterで確認する。
+② 検証用に送信を止められるレースで、予算予約後に全頭取消、または応答期限まで5秒未満となるケースを再演する。MySQLとQueueで停止理由、未送信、予約解放が同一試行に結び付くこと、外部APIの件数が増えないことを確認する。片側障害では片側だけの候補と一致加点0、両側失敗では新規公開なしを確認する。
+試験用の合成データを使った回数と、実際のレース件数・外部課金は別に記録する。今回の手元の検証結果はvalidation/実行結果.txtに収録した。

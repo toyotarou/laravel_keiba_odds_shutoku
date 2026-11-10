@@ -43,7 +43,7 @@ use App\Events\BaganrikiOddsSent;
  *   新しいテーブルへ1行 INSERT するだけで、失敗しても本番は止めません
  *   （記録できなかったことをログに残し、そのバッチは採用しません）。
  *
- *   止め方: .env に BAGANRIKI_R122_AUDIT=0 を入れると記録しません。
+ *   止め方: .env に BAGANRIKI_PREDICTION_AUDIT=0 を入れると記録しません。
  *   テーブルが無い環境では自動的に何もしません。
  *
  * 【cron設定】
@@ -532,14 +532,14 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
      *     （記録できなかったバッチは committed=0 のまま＝採用されません）。
      *
      * ■ 止め方
-     *   .env に BAGANRIKI_R122_AUDIT=0 を入れると記録しません。
+     *   .env に BAGANRIKI_PREDICTION_AUDIT=0 を入れると記録しません。
      *   テーブルが無い環境では何もしません（--prediction-install で作ります）。
      */
     // private function r122RecordBatch($race, int $diff, array $v): void   // 旧（名前を意味のあるものへ変えました）
     private function recordAcquisitionBatch($race, int $diff, array $v): void
     {
         try {
-            $sw = (string) env('BAGANRIKI_R122_AUDIT', '1');
+            $sw = (string) env('BAGANRIKI_PREDICTION_AUDIT', '1');
             if (in_array($sw, ['0', 'false', 'off', 'no'], true)) {
                 return;
             }
