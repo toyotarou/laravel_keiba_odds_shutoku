@@ -143,7 +143,7 @@
   "system_file_sha256": {
     "prompt_1st.txt": "afc266a96173efd8d43bfd4410ef7a662d95f7788bbffa2567b3dab8eb5716de",
     "prompt_2nd.txt": "14fcb394c86201eeca6c79b5bccc9e2b690743e7750999da4c6497115a42b30a",
-    "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "fb7b4434dc488860c4611345fb59eca760bdad5bf8cf5d1bede8c9596782da9b",
+    "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "bcb069267ecd10f569bae5199b26f09db7a91eee96426161620a94e3da170eb6",
     "SOURCE_DICT_V3_ADDENDUM_V1.txt": "127794a2ec91b6cde14a51030281a352d3bf32e91dc7dfdc6896b9b344b8818e"
   },
   "score_evidence_policy": "W2_R14_SCORE_MATERIALS_V1",
@@ -192,5 +192,8 @@
     "1stはSOURCE_DICT_V3（名前で引ける圧縮形式）で送る（よっしー11/9 A。R15.21のFULL固定から変更）",
     "凍結T-300・6分前猶予60秒（豊田さん11/9 A）",
     "サーバ計算値はSERVER_FORMULASの一覧だけ受け入れる（よっしー11/9【2】A）"
+  ],
+  "local_changes_20261110": [
+    "2ndの返事を速くするため、SOURCE_TABLE_V1_ADDENDUM_V2.txt の末尾に「返事は短く書く」を追加（豊田さん11/10 B）"
   ]
 }

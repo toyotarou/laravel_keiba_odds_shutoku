@@ -213,7 +213,7 @@ class RepairKeibaStartTime extends Command
                 $updatedCount++;
 
                 // ─────────────────────────────────────────────────────
-                // @ANCHOR-20261023-NARU-STARTTIME  r12.2 新しい予想へ、発走時刻の前倒しを入れる
+                // @ANCHOR-20261023-NARU-STARTTIME  新方式 新しい予想へ、発走時刻の前倒しを入れる
                 //   凍結済みのレースだけが対象です（凍結前のレースは何もしません）。
                 //   前倒しのときだけ実状態の締切を早めます（延長はしません）。AIへは送りません。
                 //   失敗しても、この発走時刻の更新は止めません（呼び先の中で受け止めます）。
@@ -223,11 +223,11 @@ class RepairKeibaStartTime extends Command
                         $lv = \App\Http\Controllers\Api\AiController::syncLiveStartTimeForRace(
                             (string) $race['date'], (string) $race['basho'], (int) $race['race']);
                         if ($lv['checked'] > 0) {
-                            $this->info('    [r12.2実状態] ' . implode(' ', $lv['codes']));
+                            $this->info('    [新方式実状態] ' . implode(' ', $lv['codes']));
                         }
                     }
                 } catch (\Throwable $e) {
-                    $this->warn('    [r12.2実状態] 入れられませんでした: ' . $e->getMessage());
+                    $this->warn('    [新方式実状態] 入れられませんでした: ' . $e->getMessage());
                 }
 
                 $this->info(sprintf(

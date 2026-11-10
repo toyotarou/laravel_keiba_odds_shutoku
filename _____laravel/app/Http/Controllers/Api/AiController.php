@@ -27,7 +27,7 @@ if (!function_exists(__NAMESPACE__ . '\\array_is_list')) {
 // ##############################################################################
 // ##
 // ##  馬眼力の予想を作って、アプリへ返すところです。予想は「新しい方式」（よっしーの
-// ##  プロンプト r12.2 を 1st＝Claude・2nd＝DeepSeek に送る方式）だけで作ります。
+// ##  プロンプト 新方式 を 1st＝Claude・2nd＝DeepSeek に送る方式）だけで作ります。
 // ##  以前の方式（11/6 まで）のAI呼び出しはありません。過去レースの表示のために、
 // ##  以前の方式で保存した予想を読み出す部分だけ残しています。
 // ##
@@ -176,7 +176,7 @@ class AiController extends Controller
      * @ANCHOR-20261020-PREDICTION-QUOTA  2026-10-20 受領の 新方式 で C7 混戦が変わりました。
      *   変更計画書v1.2 第3章／詳細設計書6章／config/r122_contract.json の base_quota は
      *   いずれも C7 MIXED = 3/3/1 です（「C7混戦の人気側3頭＋穴側4頭を維持する」）。
-     *   【旧】7 => [... 'MIXED' => [4, 2, 1] ...]  ← 人気側4頭。r12.2で使いません。
+     *   【旧】7 => [... 'MIXED' => [4, 2, 1] ...]  ← 人気側4頭。新方式で使いません。
      *   他の行（C4〜C6、C7のFIRM・VOLATILE）は 新方式 と同じ値でした。
      */
     public const V04_QUOTA_BY_TARGET = [
@@ -1126,7 +1126,7 @@ class AiController extends Controller
         // ══════════════════════════════════════════════════════════════
         //   【見つかったこと】この読取APIには<b>認証が1つも掛かって
         //   いませんでした。</b>さらに画面側（Flutter）の
-        //   race_content_page に、<b>誰にでも見える「r12.2」のボタン</b>が
+        //   race_content_page に、<b>誰にでも見える「新方式」のボタン</b>が
         //   出ています（管理者判定も debug 判定もありません）。
         //
         //   いまは記録が1件もないので空が返るだけです。ですが
@@ -1204,7 +1204,7 @@ class AiController extends Controller
             ]), 404, $headers);
         }
 
-        // ── 保存済みの r12.2 の記録を読む ───────────────────────────────
+        // ── 保存済みの 新方式 の記録を読む ───────────────────────────────
         //   まだ凍結・公開の保存を実装していない期間は、
         //   snapshot が無い状態として PENDING / UNAVAILABLE を返します。
         // ══════════════════════════════════════════════════════════════
@@ -4448,7 +4448,7 @@ class AiController extends Controller
         //     BAGANRIKI_PREDICTION_1ST_MAX_TOKENS   1st の出力上限（既定 32768）
         //     BAGANRIKI_PREDICTION_2ND_MODEL        2nd のモデル（既定 deepseek-chat）
         //     BAGANRIKI_PREDICTION_2ND_MAX_TOKENS   2nd の出力上限（既定 8192）
-        //   旧経路（旧1st・旧2nd）の送信には一切効きません。r12.2 の送信口だけです。
+        //   旧経路（旧1st・旧2nd）の送信には一切効きません。新方式 の送信口だけです。
         $m1 = trim((string) env('BAGANRIKI_PREDICTION_1ST_MODEL', ''));
         // @ANCHOR-20261023-NARU-FAKEAI  worker の受入試験用の偽AI（なる 10/23 8-3）
         //   BAGANRIKI_PREDICTION_FAKE_AI=1 かつ、送る本文の race_id が「試験用の場コード 90〜99」の
@@ -4585,15 +4585,18 @@ class AiController extends Controller
                 // @ANCHOR-20261023-R122-MODELCFG  モデルを指定したときだけ直接送ります
                 //   AnthropicService はモデルが定数で、旧経路も同じ物を使うので触りません。
                 //   送り方（1回だけ・自動再試行なし・同じ鍵・同じ版）は AnthropicService と同じです。
-                $res = \Illuminate\Support\Facades\Http::withHeaders([
+                // @ANCHOR-20261110-PREDICTION-1ST-RESEND  同じ内容を、もう1回だけ送れるように関数にまとめました（送る中身は変えていません）
+                $send1 = function (int $maxTokens, int $sec) use ($m1, $system, $user, $th1, $ef1) {
+                return \Illuminate\Support\Facades\Http::withHeaders([
                         'x-api-key'         => config('services.anthropic.api_key'),
                         'anthropic-version' => '2023-06-01',
                         'content-type'      => 'application/json',
                     ])
-                    ->timeout($timeout)
+                    ->timeout($sec)
                     ->post('https://api.anthropic.com/v1/messages', array_merge([
                         'model'      => $m1,
-                        'max_tokens' => $t1,
+                        // 'max_tokens' => $t1,   // 旧（送り直しでは、1回目に使った分を引いた上限にします）
+                        'max_tokens' => $maxTokens,
                         // @ANCHOR-20261023-COST-PROMPTCACHE  指示文はどのレースでも同じなので、
                         //   AI のキャッシュを使います（2回目以降、その部分の料金が約1割）。
                         //   BAGANRIKI_PREDICTION_PROMPT_CACHE=0 で止められます。
@@ -4609,6 +4612,9 @@ class AiController extends Controller
                         ? ['thinking' => ['type' => $th1]] : [],
                     in_array($ef1, ['low', 'medium', 'high', 'xhigh', 'max'], true)
                         ? ['output_config' => ['effort' => $ef1]] : []));
+                };
+                $res = $send1($t1, $timeout);
+                $res = $this->resendAbandonedFirst($res, $send1, $w2Input, $t1, $timeout, $nowB, $replyDeadline, $out);
             }
             if ($res->failed()) {
                 $out['code']   = 'API_ERROR';
@@ -4649,6 +4655,10 @@ class AiController extends Controller
             $out['stop']  = ($stop === null) ? null : (string) $stop;
             $u = $res->json('usage');
             $out['usage'] = is_array($u) ? (array) $u : null;
+            // @ANCHOR-20261110-PREDICTION-1ST-RESEND  送り直したときは、1回目の使用量も足します（料金の記録を実際の額にするため）
+            if (isset($out['first_send_usage']) && is_array($out['first_send_usage']) && is_array($out['usage'])) {
+                $out['usage'] = self::addUsage($out['usage'], $out['first_send_usage']);
+            }
             return $out;
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             // 届いたかどうか分からないので「結果不明」にします（再送しません）
@@ -4660,6 +4670,83 @@ class AiController extends Controller
             $out['reason'] = $e->getMessage();
             return $out;
         }
+    }
+
+    /**
+     * @ANCHOR-20261110-PREDICTION-1ST-RESEND  1st が途中で書くのをやめたときだけ、同じ内容をもう1回送ります（豊田さん 11/10）
+     *   11/10 の非公開試験で、1st（Claude）が「全頭書く」の指示に反し、1頭だけ・0頭で返事を終えたことが3レース中2回ありました。
+     *   そのときは4〜11秒で返ってくるので、同じ内容をもう1回送っても締め切りに間に合います。
+     *   送り直すのは、次をすべて満たすときの1回だけです（それ以外は今までどおり1回目の返事を使います）。
+     *     ・予想の版（E3・E5版）の 1st
+     *     ・1回目が最後まで返ってきた（end_turn）のに、書いた馬が出走馬の半分に満たない
+     *     ・1回目が30秒以内に返ってきて、返事の締め切りまで60秒以上残っている
+     *   2回目が届かない・読めない・1回目より馬が少ないときは、1回目の返事を使います。
+     *   2回目の出力上限は、1回目に使った分を引いた値です（1回分の予約額を超えないため）。
+     */
+    private function resendAbandonedFirst($res, callable $send1, ?array $w2Input, int $t1, int $timeout,
+                                          int $sentUs, ?int $replyDeadline, array &$out)
+    {
+        try {
+            if ($w2Input === null || $res->failed() || $res->json('stop_reason') !== 'end_turn') { return $res; }
+            $runners = count((array) ($w2Input['runners'] ?? []));
+            if ($runners < 2) { return $res; }
+            $n1 = self::countReplyHorses($res);
+            if ($n1 === null || $n1 * 2 >= $runners) { return $res; }
+            $now = BaganrikiWorker::nowUs();
+            if ($now - $sentUs > 30000000) { return $res; }
+            $left = $timeout - (int) ceil(($now - $sentUs) / 1000000);
+            if ($replyDeadline !== null) { $left = min($left, intdiv(max(0, $replyDeadline - $now), 1000000)); }
+            if ($left < 60) { return $res; }
+            $used = (int) ($res->json('usage.output_tokens') ?? 0);
+            $max2 = $t1 - $used;
+            if ($max2 < 4096) { return $res; }
+            $out['first_send_usage'] = is_array($res->json('usage')) ? (array) $res->json('usage') : null;
+            $out['resent'] = ['reason' => '1回目の返事に書いた馬が ' . $n1 . '頭（出走 ' . $runners . '頭）だったため、同じ内容をもう1回送りました',
+                              'first_horses' => $n1, 'runners' => $runners, 'first_seconds' => round(($now - $sentUs) / 1000000, 1)];
+            \Log::info('[PREDICTION-1ST-RESEND] 1st が途中で書くのをやめたので、もう1回送ります', $out['resent']);
+            $res2 = $send1($max2, $left);
+            $n2 = $res2->failed() ? null : self::countReplyHorses($res2);
+            if ($n2 === null || $n2 <= $n1 || $res2->json('stop_reason') !== 'end_turn') {
+                // 2回目は使わず、1回目の返事を使います。2回目にも料金はかかっているので、
+                //   最後に足す分（first_send_usage）には2回目の使用量を入れます（1回目の分は1回目の返事の usage に入っています）
+                $u2 = $res2->failed() ? null : $res2->json('usage');
+                if (is_array($u2)) { $out['first_send_usage'] = (array) $u2; } else { unset($out['first_send_usage']); }
+                $out['resent']['used'] = false;
+                $out['resent']['second_horses'] = $n2;
+                return $res;
+            }
+            $out['resent']['used'] = true;
+            $out['resent']['second_horses'] = $n2;
+            return $res2;
+        } catch (\Throwable $e) {
+            \Log::warning('[PREDICTION-1ST-RESEND] 送り直しの判定で止まりました（1回目の返事を使います）', ['message' => $e->getMessage()]);
+            return $res;
+        }
+    }
+
+    /** 1st の返事に書かれた馬の数（読めなければ null） */
+    private static function countReplyHorses($res): ?int
+    {
+        $raw = '';
+        foreach ((array) $res->json('content') as $blk) {
+            if (is_array($blk) && ($blk['type'] ?? '') === 'text') { $raw .= (string) ($blk['text'] ?? ''); }
+        }
+        $a = strpos($raw, '{'); $b = strrpos($raw, '}');
+        if ($a === false || $b === false || $b <= $a) { return null; }
+        $j = json_decode(substr($raw, $a, $b - $a + 1), true);
+        if (!is_array($j) || !isset($j['horses']) || !is_array($j['horses'])) { return null; }
+        return count($j['horses']);
+    }
+
+    /** 使用量（数の項目）を足し合わせます。入れ子の数も足します */
+    private static function addUsage(array $a, array $b): array
+    {
+        foreach ($b as $k => $v) {
+            if (is_int($v) || is_float($v)) { $a[$k] = (is_int($a[$k] ?? null) || is_float($a[$k] ?? null)) ? $a[$k] + $v : $v; }
+            elseif (is_array($v)) { $a[$k] = self::addUsage(is_array($a[$k] ?? null) ? $a[$k] : [], $v); }
+            elseif (!array_key_exists($k, $a)) { $a[$k] = $v; }
+        }
+        return $a;
     }
 
     /** 予算を確保したあと、同じレースの正本・取消・期限を再取得する。 */
@@ -9449,6 +9536,8 @@ final class BaganrikiUsage
                     'wire_encoding' => $call['wire_encoding'] ?? null,
                     'wire_bytes'    => $call['wire_bytes'] ?? null,
                     'wire_sha256'   => $call['wire_sha256'] ?? null,
+                    // @ANCHOR-20261110-PREDICTION-1ST-RESEND  1st を送り直したときの記録（送り直していなければ null）
+                    'resent'        => $call['resent'] ?? null,
                 ],
                 $role . '#' . $attemptNo,
                 BaganrikiWorker::nowUs()
@@ -17278,7 +17367,7 @@ final class BaganrikiText
 /** Exact r12 derivations from stored numeric tokens; no optional PHP extensions or float rounding. */
 final class BaganrikiDerivedValue
 {
-    // Base-10 multiplication (the submitted r12.2 integer algorithm). No division or float threshold.
+    // Base-10 multiplication (the submitted 新方式 integer algorithm). No division or float threshold.
     public static function multiply(string $a,string $b):string
     {
         if (strlen($a)+strlen($b)<=18 && PHP_INT_SIZE>=8) return (string)((int)$a*(int)$b);
@@ -18309,7 +18398,7 @@ final class BaganrikiAttemptWindow
         return $w;
     }
 
-    /** Adapt the trusted r12.2 first inspection. The first hash must come from the stored attempt. */
+    /** Adapt the trusted 新方式 first inspection. The first hash must come from the stored attempt. */
     public static function repairGrant(string $firstHash,array $inspection):array
     {
         self::need(preg_match('/^[a-f0-9]{64}$/D',$firstHash)===1,'EXPECTED_REPAIR_SCOPE');
@@ -18796,11 +18885,24 @@ final class BaganrikiResponseFrame
             $fixed=self::dedupeKeys($body,$dupRemoved);
             if ($fixed!==null) $parsed=BaganrikiJson::strict($fixed);
         }
+        // @ANCHOR-20261110-PREDICTION-STRAYQUOTE  AIが「},」のあとに余計な " を1つ書き、次の {…} が読めなくなったとき（例 },"{"evidence_id"…）は、
+        //   その " だけを取り除いて読み直します。読めなかったときだけ試し、取り除いても読めなければ今までどおり使いません（11/10 非公開試験で2nd に2回発生）
+        $strayRemoved=0;
+        if (!$parsed['ok'] && (string)$parsed['code']!=='JSON_DUPLICATE_KEY') {
+            $fixed=preg_replace('/([\]}]),"\{"/','$1,{"',$body,-1,$strayRemoved);
+            if (is_string($fixed) && $strayRemoved>0) {
+                $parsed=BaganrikiJson::strict($fixed);
+                if (!$parsed['ok'] && (string)$parsed['code']==='JSON_DUPLICATE_KEY') {
+                    $fixed2=self::dedupeKeys($fixed,$dupRemoved);
+                    if ($fixed2!==null) $parsed=BaganrikiJson::strict($fixed2);
+                }
+            }
+        }
         if (!$parsed['ok']) return self::fail('EXPECTED_RESPONSE_JSON',(string)$parsed['code']);
         if (!is_array($parsed['value']) || ($parsed['map']['kind'][BaganrikiJson::pathKey([])]??null)!=='obj')
             return self::fail('EXPECTED_RESPONSE_JSON','EXPECTED_OBJECT_REQUIRED');
         return ['ok'=>true,'code'=>null,'reason'=>null,'json'=>$parsed['value'],
-            'number_paths'=>(array)($parsed['number_paths']??[]),'map'=>(array)$parsed['map'],'duplicate_keys_removed'=>$dupRemoved];
+            'number_paths'=>(array)($parsed['number_paths']??[]),'map'=>(array)$parsed['map'],'duplicate_keys_removed'=>$dupRemoved,'stray_quotes_removed'=>$strayRemoved];
     }
 
     /** 同じ階層の重複キーを、2回目以降だけ取り除いた本文を返す（先の値を残す）。読めなければ null */
@@ -19591,7 +19693,7 @@ final class BaganrikiSourceEvidence
     }
 }
 
-/** Reproduce the frozen r12.2 market classification and its evidence from the same race. */
+/** Reproduce the frozen 新方式 market classification and its evidence from the same race. */
 final class BaganrikiMarketState
 {
     private const WEIGHTS=['X1'=>2,'X2'=>1,'X3'=>1,'X4'=>1,'X5'=>1,'X6'=>1,'Z'=>-2];
@@ -21267,7 +21369,7 @@ final class BaganrikiCandidateSelection
         return $bands;
     }
 
-    /** Recalculate the r12.2 structural quota using only the remaining frozen bands. */
+    /** Recalculate the 新方式 structural quota using only the remaining frozen bands. */
     private static function structuralQuota(?string $mode, array $bands, ?array &$base=null, ?array &$moves=null): ?array
     {
         $n = count($bands); $base=null; $moves=[];
@@ -21313,7 +21415,7 @@ final class BaganrikiCandidateSelection
         return $contract;
     }
 
-    /** Validate score components already verified against their source evidence by r12.2. */
+    /** Validate score components already verified against their source evidence by 新方式. */
     private static function scoreKey(array $horse,bool $checkTotals=true): ?array
     {
         $scores=$horse['scores']??null; $caps=self::contract()['score_caps'];
@@ -21633,7 +21735,7 @@ final class BaganrikiCandidateSelection
         return !$in['selection_enabled']?'SELECTION_DISABLED':($eligibility==='ELIGIBLE'?'BAND_QUOTA':$eligibility);
     }
 
-    /** Call after ordinary r12.2 core validation; the return value is reusable by the merger. */
+    /** Call after ordinary 新方式 core validation; the return value is reusable by the merger. */
     public static function verifyReply(BaganrikiFrozenInput|array $input, array $reply): array
     {
         $in=BaganrikiFrozenInput::checked($input);
@@ -21711,7 +21813,7 @@ final class BaganrikiCandidateSelection
         return $parsed;
     }
 
-    /** Use after r12.2 has verified the whole adopted response against its effective evidence rows. */
+    /** Use after 新方式 has verified the whole adopted response against its effective evidence rows. */
     public static function verifyOriginal(BaganrikiFrozenInput $snapshot,string $raw,string $savedResponseHash):array
     {
         $parsed=self::parseOriginal($raw,$savedResponseHash);
@@ -21731,7 +21833,7 @@ final class BaganrikiCandidateSelection
     /**
      * Publication entry point for accepted DB attempts. Rebuild the result for every live revision.
      * ORIGINAL uses stored exact bytes. RECOVERED accepts only the effective rows/ranks already
-     * validated by r12.2; it receives no original-reply bonus. Never consume a cached list of picks.
+     * validated by 新方式; it receives no original-reply bonus. Never consume a cached list of picks.
      */
     public static function mergeStored(BaganrikiFrozenInput $snapshot,array $attempts,?array $liveQuota,array $activeNos,array $proof,array $context):array
     {

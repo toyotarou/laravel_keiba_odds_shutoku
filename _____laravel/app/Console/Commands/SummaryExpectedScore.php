@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
  *
  * 【概要】20261028 追加（よっしー資料「改良期待数値 v0.1.4」、B案：非公開の計算・保存）
  *   各出走馬の改良期待スコア E3（3着内）・E5（5着内）を計算し、
- *   t_horse_odds_finder_expected_score に保存する。画面・API・AI予想・r12.2・人気帯枠には使わない。
+ *   t_horse_odds_finder_expected_score に保存する。画面・API・AI予想・新方式・人気帯枠には使わない。
  *   comparison_only=1、validated_for_live=0 で保存する。
  *
  * 【計算】数式は App\Services\ExpectedScoreService（資料の参考実装 ExpectedValueV01 v0.1.4 を、名前だけこのプロジェクトに合わせて配置）。
@@ -37,9 +37,9 @@ use Illuminate\Support\Facades\DB;
  *   ・6分前の単勝が数値でも「取消」でもない馬がいる（6分前オッズ欠け。残りの頭数で計算しない）
  *   ・21分前オッズ欠け、距離なし、クラス不明
  *   ・凍結した出馬表（horses）と summary の馬番が一致しない（全馬照合。summary の行の欠落を検知）
- *   ・6分前の取得日時が無い、または r12.2 の期限（発走予定の330秒前）を超えている
- *   ・21分前の取得日時が無い、または r12.2 の期限（発走予定の1140秒前＝21分前＋猶予120秒）を超えている（20261028 追加）
- *     期限ちょうどは採用（r12.2 の BaganrikiTime::acceptBatch と同じく「超えたら」不採用）
+ *   ・6分前の取得日時が無い、または 新方式 の期限（発走予定の330秒前）を超えている
+ *   ・21分前の取得日時が無い、または 新方式 の期限（発走予定の1140秒前＝21分前＋猶予120秒）を超えている（20261028 追加）
+ *     期限ちょうどは採用（新方式 の BaganrikiTime::acceptBatch と同じく「超えたら」不採用）
  *     （--allow-missing-freeze のときだけ、記録が無い過去日も計算し、理由欄に「時刻記録なし」と残す。
  *       記録があって期限を超えているもの・出馬表と一致しないものは、この指定でも計算しない）
  *
@@ -78,8 +78,8 @@ class SummaryExpectedScore extends Command
     private const LOOKBACK_DAYS   = 730;
     private const MAX_D2          = 9.0;
     private const MAX_NEIGHBOURS  = 200;
-    private const FREEZE_SECONDS  = 330;   // r12.2：input_freeze_at = 発走予定 − 330秒（6分前 ＋ 猶予30秒）
-    private const DEADLINE21_SECONDS = 1140;   // 20261028: r12.2：21分前の採用期限 = 発走予定 − 1140秒（21分前 ＋ 猶予120秒）
+    private const FREEZE_SECONDS  = 330;   // 新方式：input_freeze_at = 発走予定 − 330秒（6分前 ＋ 猶予30秒）
+    private const DEADLINE21_SECONDS = 1140;   // 20261028: 新方式：21分前の採用期限 = 発走予定 − 1140秒（21分前 ＋ 猶予120秒）
 
     /** 20261028: 保存先に21分前の取得日時の列があるか（ALTER 前でも動くようにする） */
     private bool $hasGot21Column = false;
@@ -395,7 +395,7 @@ class SummaryExpectedScore extends Command
     //         $set('UNAVAILABLE_INPUT', '出馬表と馬番が一致しない');
     //     }
     // 
-    //     // r12.2 と同じ期限：6分前の取得が「発走予定 − 330秒」を超えていない
+    //     // 新方式 と同じ期限：6分前の取得が「発走予定 − 330秒」を超えていない
     //     if ($out['freeze_at'] === null || $out['nominal_start_at'] === null) {
     //         if (!$allowMissingFreeze) {
     //             $set('UNAVAILABLE_INPUT', '6分前の取得日時または発走予定時刻の記録なし');
@@ -456,7 +456,7 @@ class SummaryExpectedScore extends Command
 
     /**
      * 20261028: 対象レースの照合の判定（DBを読まない）。最初に当たった理由を残す。
-     *   期限は r12.2（BaganrikiTime::acceptBatch）と同じく「超えたら」不採用。期限ちょうどは採用。
+     *   期限は 新方式（BaganrikiTime::acceptBatch）と同じく「超えたら」不採用。期限ちょうどは採用。
      *     6分前  : 取得日時 > 発走予定 − 330秒  → ACQUISITION_DEADLINE_EXCEEDED
      *     21分前 : 取得日時 > 発走予定 − 1140秒 → ACQUISITION_DEADLINE_EXCEEDED
      *   --allow-missing-freeze は「記録が無い」ときだけ計算を許す。期限超過・出馬表の不一致は許さない。
@@ -512,7 +512,7 @@ class SummaryExpectedScore extends Command
             $set('UNAVAILABLE_INPUT', '出馬表と馬番が一致しない');
         }
 
-        // r12.2 と同じ期限（記録があるものは、--allow-missing-freeze でも必ず照合する）
+        // 新方式 と同じ期限（記録があるものは、--allow-missing-freeze でも必ず照合する）
         $startTs = $out['nominal_start_at'] === null ? null : strtotime($out['nominal_start_at']);
         $got6Ts  = $got6 === null ? null : strtotime($got6);
         $got21Ts = $got21 === null ? null : strtotime($got21);

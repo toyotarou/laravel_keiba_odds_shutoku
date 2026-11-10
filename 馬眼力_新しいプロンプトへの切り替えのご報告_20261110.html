@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新しいプロンプトへの切り替えのご報告（11月10日）</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 720px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 26px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .big { font-size: 18px; font-weight: bold; }
+  .ok { display: inline-block; background: #e3f4e8; color: #1b7a3a; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .why { color: #555; font-size: 14px; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>新しいプロンプトへの切り替えのご報告</h1>
+  <p>2026年11月10日（火）　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">11月10日（火）の朝に、お客様の画面のAI予想を、新しいプロンプト（E3・E5版）に切り替えました。</p>
+  <p style="margin:8px 0 0">11月14日（土）・15日（日）のレースから、新しいプロンプトの予想がお客様の画面に出ます。</p>
+  <p class="note" style="margin:8px 0 0">このご報告へのお返事は不要です。</p>
+</div>
+
+<h2>1. きちんと予想を出すために行ったこと</h2>
+
+<div class="card">
+  <h3><span class="ok">済</span>資料を固める時刻は「発走5分前」、6分前オッズは最大60秒待つ</h3>
+  <p style="margin:0">W2の決まり（5分30秒前・30秒待ち）のままですと、6分前オッズが全頭そろう前に締め切られ、予想が出ないレースが出ます。そのため、待つ時間を60秒にしました。</p>
+  <p class="why" style="margin:6px 0 0">6分前のオッズを基準にすることは変えていません。</p>
+</div>
+
+<div class="card">
+  <h3><span class="ok">済</span>1つ目のAI（Claude）には、名前で引ける形に詰めて送る</h3>
+  <p style="margin:0">送る中身は同じまま、書き方だけを詰めています。大きさは元の約5分の1で、費用は1レース約3円です。</p>
+  <p class="why" style="margin:6px 0 0">2つ目のAI（DeepSeek）には、表の形に詰めて送っています。</p>
+</div>
+
+<div class="card">
+  <h3><span class="ok">済</span>AIの返事の小さな書き間違いは、サーバで整える</h3>
+  <ul>
+    <li>AIが合計点を書き間違えたときや、決まった項目名を少し間違えたときは、AIに聞き直さずに、サーバで計算し直して整えます。聞き直すと費用が倍近くになるためです。</li>
+    <li>根拠が確かめられない部分だけを外し、残りの正しい根拠で予想を出します。</li>
+    <li>根拠をこちらで作り足すことはしません。</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3><span class="ok">済</span>2つ目のAI（DeepSeek）の返事を速くする</h3>
+  <p style="margin:0">先週末（11月8日）の本番では、2つ目のAIの返事が締め切りに間に合わないレースが、36レース中8レースありました。返事に平均90秒、長いときで148秒かかっていたためです。</p>
+  <ul>
+    <li>2つ目のAIへの補足説明に、「根拠は系統ごとに1件まで」「理由は30字以内の1文」など、返事を短く書く指示を足しました。書く項目は今までどおり全部です。</li>
+    <li>返事の長さは約半分になり、11月10日の試験では5レースとも31〜72秒で返ってきました。</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3><span class="ok">済</span>AIの返事の、記号1文字の書き損じを直して読む</h3>
+  <p style="margin:0">2つ目のAIが、返事の中に余計な記号（ " ）を1文字だけ書き、返事全体が読めなくなることがありました。返事が読めなかったときだけ、その1文字を取り除いて読み直します。中身には手を加えません。</p>
+</div>
+
+<div class="card">
+  <h3><span class="ok">済</span>1つ目のAIが途中で書くのをやめたときは、もう1回だけ送る</h3>
+  <p style="margin:0">1つ目のAIが、「全頭書く」の指示に反して1頭だけ、または0頭で返事を終えることがありました。そのときは数秒で返ってくるので、同じ内容をもう1回だけ送ります。締め切りまで60秒以上あるときだけで、1レースにつき1回までです。費用は1回2円ほどです。</p>
+</div>
+
+<div class="card">
+  <h3><span class="ok">済</span>新馬戦など、過去の走りがない馬がいるレースでも予想を出す</h3>
+  <p style="margin:0">過去の走りがない馬がいると、1つ目のAIが予想そのものをあきらめることがありました。そうならないよう、1つ目のAIへの補足説明を足しました。試験では、新馬戦でも予想が出ることを確かめています。</p>
+</div>
+
+<div class="card">
+  <h3><span class="ok">済</span>プログラムの中の呼び名を「新方式」にそろえる</h3>
+  <p style="margin:0">プログラムの説明書きや作業画面の見出しに残っていた「r12.2」という呼び名を、「新方式」にそろえました。予想の動きは変わりません。</p>
+</div>
+
+<h2>2. 送った資料の実例</h2>
+
+<div class="card">
+  <p style="margin:0 0 8px">切り替え前の最終確認で、11月8日のレースの資料を本番と同じ流れで固め、AIへ送る直前まで確かめました。</p>
+  <div class="tw"><table>
+    <tr><th>レース</th><th>頭数</th><th>1つ目のAIへ</th><th>2つ目のAIへ</th></tr>
+    <tr><td>11月8日 東京3R</td><td>15頭</td><td>87,102バイト<br>（元 445,310バイト）</td><td>90,843バイト<br>（元 445,310バイト）</td></tr>
+    <tr><td>11月8日 京都5R</td><td>11頭</td><td>36,062バイト<br>（元 189,683バイト）</td><td>36,082バイト<br>（元 189,683バイト）</td></tr>
+  </table></div>
+  <ul>
+    <li>どちらのAIにも、レース指標（波乱度・下位進入度・大穴進入度）を出す指示が入っていることを確かめました。</li>
+    <li>試験のレースでは、両方のAIの評価を使って予想が出て、レース指標も「波乱度3・下位進入度2・大穴進入度1」のように数字で出ました。</li>
+  </ul>
+</div>
+
+<h2>3. これからの予定</h2>
+
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>いつ</th><th>すること</th></tr>
+    <tr><td>11月14日（土）<br>15日（日）</td><td>新しいプロンプトでの最初の週末です。予想とレース指標が全レースで出ているか、費用がいくらかを、データを読むだけで見守ります（サーバには触れません）。</td></tr>
+    <tr><td>土日のあと</td><td>結果をご報告します。2つ目のAIが締め切りに間に合ったか、1つ目のAIの送り直しが何回あったかも、あわせてお知らせします。</td></tr>
+    <tr><td>土日のあと</td><td>11月9日にいただいたR15.24（送り方の新しい形）を、土日の結果を見たうえで取り入れます。</td></tr>
+  </table></div>
+</div>
+
+</main>
+<footer>馬眼力　新しいプロンプトへの切り替えのご報告　2026-11-10</footer>
+</body>
+</html>

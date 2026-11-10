@@ -8,3 +8,4 @@ dependency_key は、null なら source_ref と同じ、整数 n なら source_r
 parents の要素は、整数なら rows の行番号（0始まり）の source_ref、文字列ならその名前のまま。
 input_indices は送らない（source_table から用途別に引ける）。coverage の source_fields は、その field の出典すべてを指す。
 根拠を引用するときは rows にある source_ref の文字列をそのまま使う。source_registry と書かれている指示は source_table に読み替える。
+【返事は短く書く（締め切りまでの時間が短いため）】必須の項目は全部書いたうえで、中身を短くする。evidence は1頭につき系統ごとに1件まで（多くて5件）。同じ系統の根拠を何件にも分けない。各 evidence の source_refs と facts は、その判断に使った参照だけにし、4件までにする。counterevidence は、評価を下げるはっきりした反証があるときだけ1件まで。無ければ []。family_review・score_evidence・counterevidence の reason、interpretation、rank_reason、evidence_rank_reason、nonselect_reason の reason、explanation は、どれも30字以内の日本語1文にし、資料の数字をそのまま使う。同じ説明を別の項目でくり返さない。observation は、決まった文言（例「支持加速（12→9→6分）」）があるときはその文言をそのまま書き、無いときは20字以内にする。validation_issues は本当に問題があるときだけ書き、無ければ []。JSON は改行や字下げを入れずに書く。

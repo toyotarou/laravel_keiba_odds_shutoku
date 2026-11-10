@@ -15,7 +15,7 @@ use InvalidArgumentException;
  *
  * 馬眼力 改良期待数値 v0.1 の純粋な数式部分。
  * Laravel への組込み、DB取得、時刻検証、候補抽出、校正係数の学習は呼出側の責務。
- * 既存の AiController や r12.2 の選出・JSON Schema を書き換えない。
+ * 既存の AiController や 新方式 の選出・JSON Schema を書き換えない。
  * PHP 8.0+ 用の参考実装。実装修正版 v0.1.4。PHP実機では未実行。
  */
 final class ExpectedScoreService

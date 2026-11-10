@@ -30,9 +30,9 @@ use App\Events\BaganrikiOddsSent;
  *   【ブロック 8】取得タイミング記録（t_horse_odds_finder_odds_get_timing）
  *   【ブロック 9】人気順位変動ログ出力
  *   【ブロック 10】有意変動（2位以上）の WebPush 通知
- *   【ブロック 11】r12.2 取得監査の記録（@ANCHOR-20261020-R122-AUDIT）
+ *   【ブロック 11】新方式 取得監査の記録（@ANCHOR-20261020-R122-AUDIT）
  *
- * 【r12.2 取得監査について】
+ * 【新方式 取得監査について】
  *   server_contract_r12.2.txt 4章・8章／詳細設計書 4.3 のお願い②（A案）です。
  *   「いつ要求を出し、いつ受け取り、いつ読めるようになったか」の実時刻と、
  *   受け取った原ペイロードそのものを baganriki_acquisition_batches へ残します。
@@ -371,7 +371,7 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
             // 20261031: 【ブロック 11】（取得監査の記録）を【ブロック 10.8】より前へ移しました。
             //   AI予想（補完）が起動した時点で、6分前の取得監査がすでに入っているようにするためです。
             // ─────────────────────────────────────────────────────────────
-            // 【ブロック 11】r12.2 取得監査の記録
+            // 【ブロック 11】新方式 取得監査の記録
             // @ANCHOR-20261020-R122-AUDIT
             //   available_at は「保存が終わって読めると確かめた実時刻」です。
             //   予定時刻で埋めません。ここは保存トランザクションの<b>後</b>です。
@@ -421,7 +421,7 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
             }
 
             // ─────────────────────────────────────────────────────────────
-            // 【ブロック 12】r12.2 正式な取消・発走時刻の前倒しを実状態へ入れる
+            // 【ブロック 12】新方式 正式な取消・発走時刻の前倒しを実状態へ入れる
             // @ANCHOR-20261023-NARU-LIVE  （なる 10/23 4-B）
             //   凍結（発走の約5分半前）より後に出た取消・除外と、早まった発走時刻を、
             //   新しい予想の実状態（baganriki_live_states）へ入れます。
@@ -439,7 +439,7 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
                     }
                 }
             } catch (\Throwable $e) {
-                $this->warn('  [r12.2実状態] 入れられませんでした: ' . $e->getMessage());
+                $this->warn('  [新方式実状態] 入れられませんでした: ' . $e->getMessage());
             }
 
             // ─────────────────────────────────────────────────────────
@@ -588,7 +588,7 @@ $timing    = ($diff === $timings[0]) ? Constants::ODDS_DB_FIRST : (($diff === 0)
                 ($hash === null) ? '(なし)' : substr($hash, 0, 12)));
         } catch (\Throwable $e) {
             // 記録できなくても本番は止めません。採用もされません。
-            $this->warn('  [r12.2監査] 記録できませんでした: ' . $e->getMessage());
+            $this->warn('  [新方式監査] 記録できませんでした: ' . $e->getMessage());
             \Log::warning('[R122-AUDIT] 取得監査を記録できませんでした', [
                 'date' => $race->date ?? null, 'race' => $race->race ?? null,
                 'slot' => $diff, 'err' => $e->getMessage(),

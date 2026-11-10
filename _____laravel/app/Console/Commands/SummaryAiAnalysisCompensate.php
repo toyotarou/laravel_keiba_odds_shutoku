@@ -162,17 +162,17 @@ class SummaryAiAnalysisCompensate extends Command
                            // @ANCHOR-20261015-AVOID  10/15（4回目）02.txt ②
                            // @ANCHOR-20261015-CODE-EVIDENCE  10/15（4回目）02.txt
                            // @ANCHOR-20261018-MODECHECK  10/18（005）ご指摘①
-                           . ' {--prediction-cases= : r12.2の合成試験（mode_cases.json 729件・acquisition_boundary_cases.json 4件）を先方の期待値と突き合わせる。validationフォルダのパスを渡す（読み取りだけ・AI呼び出し0回）}'
-                           . ' {--prediction-install : r12.2で使う新しいテーブル9本を作る（既にあれば何もしない。既存テーブルには触らない）}'
-                           . ' {--prediction-status : r12.2のテーブルの有無と件数、版の設定値を表示する（読み取りだけ）}'
+                           . ' {--prediction-cases= : 新方式の合成試験（mode_cases.json 729件・acquisition_boundary_cases.json 4件）を先方の期待値と突き合わせる。validationフォルダのパスを渡す（読み取りだけ・AI呼び出し0回）}'
+                           . ' {--prediction-install : 新方式で使う新しいテーブル9本を作る（既にあれば何もしない。既存テーブルには触らない）}'
+                           . ' {--prediction-status : 新方式のテーブルの有無と件数、版の設定値を表示する（読み取りだけ）}'
                            // @ANCHOR-20261110-PREDICTION-EXPECTED-CHECK  予想の版（E3・E5を使う版）の凍結と送る原文の準備だけを試す
                            . ' {--prediction-expected-check : 保存済みのレース（11/8の東京6R・京都8R・福島11R）で、E3・E5を付けた凍結と、両AIへ送る原文の準備を試す（AIへは送らない・費用0円・最後に必ずDBを元に戻す）}'
                            // @ANCHOR-20261110-PREDICTION-EXPECTED-PRIVATE  よっしー⑤の非公開2レース（実際にAIへ送る。お客様の画面には出ない世代900で保存）
                            . ' {--prediction-expected-measure : 非公開試験の世代900（11/8 東京6R）の1st原文を、締切を気にせずClaudeへ1回だけ送り、返事にかかる時間と長さを測る（料金は数円。予想の保存はしない）}'
                            . ' {--prediction-expected-private : 保存済みの2レース（11/8 東京6R・京都8R）を、E3・E5版で実際に両AIへ送り、検査・訂正・公開・画面用の返し方まで通す（費用がかかる。お客様の画面には出ない。記録は残す）}'
-                           // @ANCHOR-20261020-PREDICTION-PROMPT  r12.2の両AI本文（1st・2nd）の全文置換
+                           // @ANCHOR-20261020-PREDICTION-PROMPT  新方式の両AI本文（1st・2nd）の全文置換
                            . ' {--prediction-prompt-install= : 配布された両AI本文3本（prompt_1st.txt / prompt_2nd.txt / common_prompt.txt）をstorageへ設置し、マーカー・版・差し込み記号を確かめる。promptsフォルダのパスを渡す}'
-                           . ' {--prediction-prompt-check= : r12.2の送信文（system全文＋INPUT_JSON）を組み立て、先方の参照入力14本・同梱スキーマと突き合わせる。送付資料のルート（prompts/schemas/validationを含む）を渡す（AIへは送らない・費用0円・DB書込なし）}'
+                           . ' {--prediction-prompt-check= : 新方式の送信文（system全文＋INPUT_JSON）を組み立て、先方の参照入力14本・同梱スキーマと突き合わせる。送付資料のルート（prompts/schemas/validationを含む）を渡す（AIへは送らない・費用0円・DB書込なし）}'
                            . ' {--prediction-prompt-dump= : 組み立てた送信文（system本文とINPUT_JSON）をこのフォルダへ書き出す}'
                            . ' {--prediction-prompt-real : 本番DBの保存済みレースで送信文を組み立てられるか試す。--prediction-prompt-check と --date= を併用（読み取りだけ・AI呼び出し0回）}'
                            . ' {--prediction-prompt-assume : 取得監査の実時刻を予定時刻で仮置きして送信文の形まで確かめる（本番送信には使わない）。--prediction-prompt-real と併用}'
@@ -252,7 +252,7 @@ class SummaryAiAnalysisCompensate extends Command
             return;
         }
 
-        // @ANCHOR-20261020-PREDICTION-INSTALL  r12.2のテーブルを作る／状態を見る
+        // @ANCHOR-20261020-PREDICTION-INSTALL  新方式のテーブルを作る／状態を見る
         if ((bool) $this->option('prediction-install')) {
             $this->runPredictionInstall();
             return;
@@ -430,7 +430,7 @@ class SummaryAiAnalysisCompensate extends Command
         if ((bool) $this->option('prediction-sweep')) {
             self::loadPredictionClasses();
             $this->info('════════════════════════════════════════════════════════');
-            $this->info(' r12.2 止まったレースのやり直し（初回の送信はしません）');
+            $this->info(' 新方式 止まったレースのやり直し（初回の送信はしません）');
             $this->info('════════════════════════════════════════════════════════');
             $this->line('  実行時刻 : ' . date('c'));
             // @ANCHOR-20261020-PREDICTION-WIRE  0件の理由が読めるようにします。
@@ -658,7 +658,7 @@ class SummaryAiAnalysisCompensate extends Command
             return;
         }
 
-        // @ANCHOR-20261020-PREDICTION-PROMPT  r12.2の両AI本文の設置と送信文の検査
+        // @ANCHOR-20261020-PREDICTION-PROMPT  新方式の両AI本文の設置と送信文の検査
         if ($this->option('prediction-prompt-install')) {
             $this->runPromptInstall((string) $this->option('prediction-prompt-install'));
             return;
@@ -668,7 +668,7 @@ class SummaryAiAnalysisCompensate extends Command
             return;
         }
 
-        // @ANCHOR-20261020-R122CASES  r12.2の合成試験（先方の期待値との突き合わせ）
+        // @ANCHOR-20261020-R122CASES  新方式の合成試験（先方の期待値との突き合わせ）
         if ($this->option('prediction-cases')) {
             $this->runPredictionCases((string) $this->option('prediction-cases'));
             return;
@@ -1021,7 +1021,7 @@ class SummaryAiAnalysisCompensate extends Command
     {
         $this->line('');
         $this->line('══════════════════════════════════════════════════════════');
-        $this->line(' r12.2 の新しいテーブルを作ります（既にあれば何もしません）');
+        $this->line(' 新方式 の新しいテーブルを作ります（既にあれば何もしません）');
         $this->line('  既存テーブルには触れません');
         $this->line('══════════════════════════════════════════════════════════');
         $this->line('');
@@ -1230,7 +1230,11 @@ class SummaryAiAnalysisCompensate extends Command
         // 20:15：京都7R・東京5R は送信済み（判定し直すだけ・0円）、京都6R・東京4R は新しく送る（目印の読み方・指標の参照・全頭を書く指示を直した後の確認）
         // $races = [['2026-11-08', '5', '08', '2', 7], ['2026-11-08', '5', '05', '2', 5], ['2026-11-08', '5', '08', '2', 6], ['2026-11-08', '5', '05', '2', 4]];
         // 20:30：指標を整えた後の返事から読むよう直したので京都7R（送信済み・0円）を判定し直し、人気順・過去走なしの補足を足した後の確認で東京3R・京都5Rを新しく送る
-        $races = [['2026-11-08', '5', '08', '2', 7], ['2026-11-08', '5', '05', '2', 3], ['2026-11-08', '5', '08', '2', 5]];
+        // $races = [['2026-11-08', '5', '08', '2', 7], ['2026-11-08', '5', '05', '2', 3], ['2026-11-08', '5', '08', '2', 5]];
+        // 11/10 10:30：2nd の書き損じ（余計な "）を取り除いて読み直す処理と、1st が途中でやめたときの送り直しを足したので、
+        //   京都7R・東京3R・京都5R（送信済み・0円）を判定し直し、まだ使っていない2レース（京都3R・東京2R）を新しく送る
+        $races = [['2026-11-08', '5', '08', '2', 7], ['2026-11-08', '5', '05', '2', 3], ['2026-11-08', '5', '08', '2', 5],
+                  ['2026-11-08', '5', '08', '2', 3], ['2026-11-08', '5', '05', '2', 2]];
         foreach (['BAGANRIKI_PREDICTION_EXPECTED' => '1'] as $k => $v) { putenv("{$k}={$v}"); $_ENV[$k] = $v; $_SERVER[$k] = $v; }
         $NS = '\\App\\Http\\Controllers\\Api\\';
         $W = $NS . 'BaganrikiWorker'; $T = $NS . 'BaganrikiTime'; $A = $NS . 'AiController';
@@ -1271,6 +1275,10 @@ class SummaryAiAnalysisCompensate extends Command
                         $this->line(sprintf('  %s 検査・訂正: %s %s（%.0f秒）', $role, (string) ($rv['code'] ?? ''), (string) ($rv['reason'] ?? ''), microtime(true) - $s0));
                     }
                     $at = \DB::table('baganriki_ai_attempts')->where('snapshot_id', $sid)->where('role', $role)->orderBy('attempt_no')->get();
+                    foreach (\DB::table('baganriki_audit_events')->where('snapshot_id', $sid)->where('kind', 'R122_USAGE')->where('related_id', $role . '#0')->get(['diagnostics']) as $ue) {
+                        $ud = json_decode((string) $ue->diagnostics, true);
+                        if (!empty($ud['resent'])) { $this->line('    送り直し: ' . json_encode($ud['resent'], JSON_UNESCAPED_UNICODE)); }
+                    }
                     foreach ($at as $x) {
                         $sent = json_decode((string) ($x->sent_request ?? ''), true);
                         $this->line(sprintf('    %s 回%d: %s 形式=%s 送信=%sバイト 受信=%sバイト', $role, (int) $x->attempt_no, (string) $x->status,
@@ -1327,7 +1335,7 @@ class SummaryAiAnalysisCompensate extends Command
     {
         $this->line('');
         $this->line('══════════════════════════════════════════════════════════');
-        $this->line(' r12.2 の状態（読み取りだけ）');
+        $this->line(' 新方式 の状態（読み取りだけ）');
         $this->line('══════════════════════════════════════════════════════════');
         $this->line('');
         $this->info(' 1. テーブル');
@@ -1546,7 +1554,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
     {
         $this->line('');
         $this->line('══════════════════════════════════════════════════════════');
-        $this->line(' r12.2 合成試験の突き合わせ（先方の期待値との比較）');
+        $this->line(' 新方式 合成試験の突き合わせ（先方の期待値との比較）');
         $this->line('  対象フォルダ: ' . $dir);
         $this->line('  （DBも外部APIも使いません・費用0円）');
         $this->line('══════════════════════════════════════════════════════════');
@@ -1670,7 +1678,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         self::loadPredictionClasses();
         $srcDir = rtrim($srcDir, '/');
         $dst = \App\Http\Controllers\Api\BaganrikiPrompt::dir();
-        $this->info('══ r12.2 両AI本文の設置 ══');
+        $this->info('══ 新方式 両AI本文の設置 ══');
         $this->line('  配布元: ' . $srcDir);
         $this->line('  置き場: ' . $dst);
         if (!is_dir($dst) && !@mkdir($dst, 0775, true) && !is_dir($dst)) {
@@ -1740,7 +1748,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $dump = (string) ($this->option('prediction-prompt-dump') ?: '');
 
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 送信文の検査（AI呼び出し0回・費用0円・DB書込なし）');
+        $this->info(' 新方式 送信文の検査（AI呼び出し0回・費用0円・DB書込なし）');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->line('  資材      : ' . $root);
@@ -2400,7 +2408,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         self::loadPredictionClasses();
         $T = 'baganriki_acquisition_batches';
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 取得監査の記録の確認（DBへ残る書き込みは0件）');
+        $this->info(' 新方式 取得監査の記録の確認（DBへ残る書き込みは0件）');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->line('');
@@ -2583,7 +2591,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $base = dirname($vDir);
 
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 異常例の突き合わせ（Schema と 意味検証 を分けて判定）');
+        $this->info(' 新方式 異常例の突き合わせ（Schema と 意味検証 を分けて判定）');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->line('  資材      : ' . $vDir);
@@ -3239,7 +3247,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         self::loadPredictionClasses();
         $date = (string) ($this->option('date') ?: '2026-10-18');
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 監査行→採用→入力→凍結保存→読戻し の通し試験');
+        $this->info(' 新方式 監査行→採用→入力→凍結保存→読戻し の通し試験');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->warn('  ※ 監査行は試験用に作ったものです（実開催の実時刻ではありません）');
@@ -3513,7 +3521,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
                 ['date','kaisuu','basho','day','race','num','result'],
         ];
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 元値の指紋（読むだけ・DBへの書き込み0件）');
+        $this->info(' 新方式 元値の指紋（読むだけ・DBへの書き込み0件）');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->line('  方法     : 列ごとに「N」または「V<バイト数>:<値>」で書き、');
@@ -3691,7 +3699,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         self::loadPredictionClasses();
 
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 キューと永続予約の通し試験');
+        $this->info(' 新方式 キューと永続予約の通し試験');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->warn('  ※ 全部ロールバックします。DBへ残る書き込みは0件です');
@@ -4424,7 +4432,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         self::loadPredictionClasses();
         $vDir = rtrim($root, '/') . '/validation';
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 応答検証と局所回復の通し試験');
+        $this->info(' 新方式 応答検証と局所回復の通し試験');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->line('  資料     : ' . $vDir);
@@ -6201,7 +6209,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         self::loadPredictionClasses();
         $vDir = rtrim($root, '/') . '/validation/normal';
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 統合・公開・intent・revision の通し試験');
+        $this->info(' 新方式 統合・公開・intent・revision の通し試験');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->line('  資料     : ' . $vDir);
@@ -6880,7 +6888,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         self::loadPredictionClasses();
         $vDir = rtrim($root, '/') . '/validation/normal';
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 読取APIの通し試験');
+        $this->info(' 新方式 読取APIの通し試験');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->warn('  ※ 全部ロールバックします。DBへ残る書き込みは0件です');
@@ -7208,7 +7216,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $date = (string) ($this->option('date') ?: '2026-10-18');
 
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 本番の経路で作った入力を Schema に当てる');
+        $this->info(' 新方式 本番の経路で作った入力を Schema に当てる');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->line('  Schema   : ' . $sDir);
@@ -7413,7 +7421,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $regSchemaPath = $sDir . '/source_registry_schema.json';
 
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 OPI と推定確定オッズの通し試験');
+        $this->info(' 新方式 OPI と推定確定オッズの通し試験');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->line('  実レース : ' . $date . ' の先頭1レース');
@@ -7773,7 +7781,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $R = \App\Http\Controllers\Api\BaganrikiRanking::class;
 
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 合成試験と取消の例を「本体」へ直接通す');
+        $this->info(' 新方式 合成試験と取消の例を「本体」へ直接通す');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->line('  対象     : ' . $dir);
@@ -8089,7 +8097,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         self::loadPredictionClasses();
         $date = (string) ($this->option('date') ?: '2026-10-18');
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 固定入力をそのまま送る（007のご指摘2）');
+        $this->info(' 新方式 固定入力をそのまま送る（007のご指摘2）');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->warn('  ※ 監査行は試験用に作ったものです（実開催の実時刻ではありません）');
@@ -8355,7 +8363,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         self::loadPredictionClasses();
         $vDir = rtrim($root, '/') . '/validation/normal';
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 送信口を試験用に置き換えて接続を通す（007のE）');
+        $this->info(' 新方式 送信口を試験用に置き換えて接続を通す（007のE）');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->line('  資料     : ' . $vDir);
@@ -9019,7 +9027,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $date = (string) ($this->option('date') ?: '2026-10-18');
         $outDir = rtrim((string) ($this->option('prediction-token-out') ?: ''), '/');
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 トークン数の実測（課金ゼロ）');
+        $this->info(' 新方式 トークン数の実測（課金ゼロ）');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->warn('  ※ 本文の生成（/v1/messages）は1回も呼びません');
@@ -9788,7 +9796,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $W = \App\Http\Controllers\Api\BaganrikiWorker::class;
 
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 Job構成の通し試験（010の2章）');
+        $this->info(' 新方式 Job構成の通し試験（010の2章）');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->warn('  ※ worker は立てません。jobs 表へ積まれた行を読みます');
@@ -10613,7 +10621,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
         $vDir = rtrim($root, '/') . '/validation/normal';
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 型保持の通し試験（010の3章）');
+        $this->info(' 新方式 型保持の通し試験（010の3章）');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->line('  資料     : ' . $vDir);
@@ -11071,7 +11079,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
         $srcDate = substr($sp[0], 0, 4) . '-' . substr($sp[0], 4, 2) . '-' . substr($sp[0], 6, 2);
 
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 実AIの実測（AC05）  role=' . $role);
+        $this->info(' 新方式 実AIの実測（AC05）  role=' . $role);
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->line('  写し元   : ' . $src);
@@ -11317,7 +11325,7 @@ CREATE TABLE IF NOT EXISTS baganriki_audit_events (
 
         $date = (string) ($this->option('date') ?: '2026-10-18');
         $this->info('════════════════════════════════════════════════════════');
-        $this->info(' r12.2 実凍結から一続きの通し試験（010の5章末尾・009の③）');
+        $this->info(' 新方式 実凍結から一続きの通し試験（010の5章末尾・009の③）');
         $this->info('════════════════════════════════════════════════════════');
         $this->line('  実行時刻 : ' . date('c'));
         $this->warn('  ※ 実在のレースの出馬表とオッズを、値を変えずに写します');
