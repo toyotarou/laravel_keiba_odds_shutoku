@@ -1,0 +1,34 @@
+==== 2026-11-09 の全レース（0レース）で、凍結と送る原文の準備を試します（AIへは送りません・0円）
+
+==== まとめ
+  レース数 0 ／ 凍結できた 0 ／ 1stの準備OK 0 ／ 2ndの準備OK 0
+  1st：送る本文の合計 0 バイト（元 0 バイト、0.0%）
+  2nd：送る本文の合計 0 バイト（元 0 バイト、0.0%）
+  E3・E5 の状態（頭数） [] 合計 0頭
+  過去レースを外した理由（延べ） []
+  比較に使えない理由（材料不足・対象外の内訳・頭数） []
+  類似例が少ない馬で、足りない条件（頭数・重複あり） []
+  比べられた過去レース数 M の分布（M＝その数：頭数） []
+==== 結果: 不合格（対象 0レース・NG 0件。DBはレースごとに元に戻しました）
+
+   RuntimeException 
+
+  当日確認: 不合格
+
+  at app/Console/Commands/SummaryAiAnalysisCompensate.php:1489
+    1485▕                  && $sum['prep_ok']['1st'] === $sum['races'] && $sum['prep_ok']['2nd'] === $sum['races'];
+    1486▕         if ($allOk) { $this->info('==== 結果: すべてOK（対象 ' . $sum['races'] . 'レース。DBはレースごとに元に戻しました）'); }
+    1487▕         else {
+    1488▕             $this->error('==== 結果: 不合格（対象 ' . $sum['races'] . 'レース・NG ' . count($sum['ng']) . '件。DBはレースごとに元に戻しました）'); foreach ($sum['ng'] as $n) { $this->line('  ' . $n); }
+  ➜ 1489▕             throw new \RuntimeException('当日確認: 不合格');
+    1490▕         }
+    1491▕     }
+    1492▕ 
+    1493▕     /**
+
+  1   app/Console/Commands/SummaryAiAnalysisCompensate.php:284
+      App\Console\Commands\SummaryAiAnalysisCompensate::runPredictionExpectedCheckDay()
+
+      [2m+13 vendor frames [22m
+  15  artisan:37
+      Illuminate\Foundation\Console\Kernel::handle()

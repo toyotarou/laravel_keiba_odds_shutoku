@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>なるさんの確認事項への回答（発走後の凍結の起点・11月8日の公開記録）</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>なるさんの確認事項への回答<br>（発走後の凍結の起点・11月8日の公開記録）</h1>
+  <p>2026年11月11日（水）夜　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">発走後の凍結を起こした処理を特定しました。11月7日時点のコードにあった「画面へ保存済みの答えを返したあとの後始末」で、発走後13回の試行はすべて、同じ秒の画面アクセスと一致しました。この処理は今のコードにはありません。</p>
+  <p style="margin:8px 0 0">あわせて、11月8日の全36レースの公開記録を添えます。前回⑤の「全36レースが期限内に公開」は誤りで、正しくは<b>凍結36・期限内公開35・公開なし1</b>です。コードは変えていません（AiController <b>43062c79</b>・SummaryAiAnalysisCompensate <b>3258d68b</b>）。</p>
+</div>
+
+<h2>① ご指摘2点の反映</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li><b>分類</b>：11月7日の京都8R・福島12Rは「凍結試行あり・期限内凍結失敗」とします。旧方式で保存した結果は新方式の成績から分け、全対象レースの母数と総費用には残します。週末の集計もこの決め方で行います。</li>
+    <li><b>表現</b>：「取得元の応答に38〜45秒」は「取得予定から利用可能まで38.434〜45.006秒（うち通信の開始→受信は35.414秒・42.061秒）」に改めます。</li>
+  </ul>
+</div>
+
+<h2>② 発走後の凍結を起こした処理</h2>
+<div class="card">
+  <p style="margin-top:0"><b>処理</b>：11月7日時点の本番コードの <code>afterCachedResponse</code>。画面の取得口（getHorseOddsFinderAiAnalysis など）が保存済みの答えを返したあと（app()->terminating）に、凍結が無ければ <code>resumePredictionFreeze</code> を呼びます。この処理は「固定済みか」と「情報上限より前か（TOO_EARLY）」しか見ておらず、<b>発走後かどうかを見ていませんでした</b>。11月7日の2レースは旧方式の保存済みの答えがあったため、画面を開くたびにこの処理が動きました。</p>
+  <p><b>照合</b>（DBの凍結試行と、123の nginx アクセス記録）</p>
+  <div class="tw"><table>
+    <tr><th>レース</th><th>凍結の試行（DB）</th><th>同じ秒の画面アクセス</th></tr>
+    <tr><td>京都8R（発走14:01）</td><td>14:39:12.6／17.2／18.9／33.0／35.6（失敗）<br><b>19:12:28.9（凍結）</b></td><td>14:39:12／17／18／33／35（利用者A）<br>19:12:28（利用者G）</td></tr>
+    <tr><td>福島12R（発走16:01）</td><td>16:01:42.3／16:01:54.0／16:10:54.2／16:15:16.6／17:07:26.5／18:42:45.2（失敗）<br><b>21:21:03.2（凍結）</b></td><td>16:01:42／16:01:53（利用者B）・16:10:54（C）・16:15:16（D）・17:07:26（E）・18:42:45（F）<br>21:21:03（利用者H）</td></tr>
+  </table></div>
+  <p class="note">発走後の13回すべてが、同じ秒のそのレースの1stの取得口へのアクセスと一致しています。発走前の24回は、ここでは照合していません。お客様のIPアドレスは記号に置き換えています。</p>
+  <p style="margin-bottom:0"><b>今のコード</b>：<code>afterCachedResponse</code> は定義も呼び出しも0件です（11月9日13:59時点の本番にはあり、11月10日朝の時点ではありません）。今、凍結関数に届くのは巡回（sweepPendingPredictions）だけで、巡回は発走時刻を過ぎたレースを外しています。DBでも、11月8日以降、発走時刻より後の凍結の試行は0件です。</p>
+</div>
+
+<h2>③ 11月8日の全36レースの公開記録</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>項目</th><th>件数</th></tr>
+    <tr><td>凍結</td><td>36</td></tr>
+    <tr><td>公開（すべて期限内・期限まで最小 32.17秒・最大 109.37秒）</td><td>35</td></tr>
+    <tr><td>候補0頭の公開</td><td>0</td></tr>
+    <tr><td>公開なし</td><td>1（東京6R）</td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">東京6R（snapshot 3978）は、1st が受領、2nd が初回の送信で通信のタイムアウト（cURL error 28・結果不明 UNKNOWN_RESULT）で、公開の行はありません。全36レースの凍結時刻・公開期限・公開時刻・余裕・候補数を ZIP の 4_ に入れています。</p>
+</div>
+
+<h2>④ 未解決として残るもの</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li>11月8日 東京6R：2nd の通信タイムアウトの原因（取得元側か、こちらの送信か）は、まだ確かめていません。</li>
+    <li>特別レースのクラス不明は、次の版で扱います。</li>
+  </ul>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>

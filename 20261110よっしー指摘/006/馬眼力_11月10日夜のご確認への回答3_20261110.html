@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11月10日夜のご確認への回答（3回目）</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  .rec { background: #e6eefb; color: #1f3a5f; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>11月10日夜のご確認への回答<br>（3回目：期限後に届いた良い再送）</h1>
+  <p>2026年11月10日（火）　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">ご指摘の分岐を直し、サーバに入れました。</p>
+  <p style="margin:8px 0 0">ご指定の追加試験を含め、サーバの Laravel／DB 上の再現試験で<b>33件すべて合格</b>しました。差分と試験ログは、同じフォルダの ZIP に入れています。</p>
+</div>
+
+<h2>1. 直したこと</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li>送り直しの2回目が届いたら、<b>中身を比べる前に</b>、最新の実効応答期限（凍結入力と最新のライブ状態から算出）より前に届いたかを判定します。</li>
+    <li>期限より後に届いた2回目は、中身が良くても使いません。期限内に届いた1回目（原文・受領時刻・有効馬）を保ちます。</li>
+    <li>期限を読めないときも、2回目は使いません。</li>
+    <li>正式な締切変更・取消・公開期限の検査は、受領の中でこれまでどおり行います。</li>
+    <li>2回目の記録には「期限後に届いた（late）」を残します。</li>
+  </ul>
+</div>
+
+<h2>2. 追加した試験の結果</h2>
+<div class="card">
+  <p style="margin-top:0">福島11R の 2nd で、ご指定の場面を作りました（京都11R は「良い再送を使う」場面として残しています）。</p>
+  <div class="tw"><table>
+    <tr><th>返答</th><th>到着</th><th>検査を通る馬</th></tr>
+    <tr><td>初回</td><td>応答期限内（15:15:06）</td><td>2頭</td></tr>
+    <tr><td>再送（正常な全頭）</td><td>応答期限 15:17:30 の5秒後</td><td>16頭</td></tr>
+  </table></div>
+  <p style="margin-bottom:0"><span class="tag ok">合格</span>再送は期限後と判定され、使いませんでした。保存した原文は初回（ハッシュ一致）、受領時刻は初回が届いた 15:15:06、検査を通る馬は初回の2頭のままで、公開まで進みました。前回までの場面（読めない再送のときの初回保持・同時の記録1件など）も、同じ実行で合格しています。</p>
+</div>
+
+<h2>3. お送りするもの</h2>
+<div class="card">
+  <p style="margin:0">ZIP「馬眼力_夜版3の差分と試験ログ_20261110.zip」</p>
+  <ul>
+    <li>1_変更差分：夜版2 → 夜版3 の差分（2ファイル）と、参考に夕方版からの通しの差分</li>
+    <li>2_プログラム全文：夜版3の2ファイル</li>
+    <li>3_試験ログ：再現試験（33件）、送り直しの判定の手元試験</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">A の方針と C の保留は変えていません。</p>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>

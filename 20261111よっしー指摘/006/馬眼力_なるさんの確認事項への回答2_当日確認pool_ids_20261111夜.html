@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>なるさんの確認事項への回答（当日確認の pool_ids）</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>なるさんの確認事項への回答<br>（当日確認の pool_ids）</h1>
+  <p>2026年11月11日（水）夜　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">ご指摘の1か所を補強しました。123で異常ケース11件と、11月7日・8日の全72レースを確かめ、すべて期待どおりでした。</p>
+  <p style="margin:8px 0 0">変えたのは確認コマンドのファイルだけです（SummaryAiAnalysisCompensate 2d71df81 → <b>3258d68b</b>）。予想の処理は夜版4（AiController <b>43062c79</b>）のままです。コード全文・差分・ログを ZIP に入れています。</p>
+</div>
+
+<h2>① 直したこと</h2>
+<div class="card">
+  <p style="margin-top:0">当日確認（--prediction-expected-check-day）で、監査記録の pool_ids を読むところを、障害比較（--prediction-expected-jump-compare）と<b>同じ判定</b>にしました。読み出しを1つの関数（strictPoolIdsFromAudit）にまとめています。</p>
+  <div class="tw"><table>
+    <tr><th>監査記録の pool_ids</th><th>変更前</th><th>変更後</th></tr>
+    <tr><td>キーが無い</td><td>空配列扱いで M=0 と表示（合格になりえた）</td><td><span class="tag ng">NG</span>不合格・終了コード1</td></tr>
+    <tr><td>配列でない（null・文字列など）</td><td>同上</td><td><span class="tag ng">NG</span>不合格・終了コード1</td></tr>
+    <tr><td>正しい空配列</td><td>M=0</td><td><span class="tag ok">OK</span>正常な M=0</td></tr>
+  </table></div>
+  <p class="note">最上位の pool_ids を先に見て、無ければ packet.pool_ids を見ます（障害比較と同じ順です）。</p>
+</div>
+
+<h2>② 異常ケースの確認（11件・すべてOK）</h2>
+<div class="card">
+  <p style="margin-top:0">確認命令 <code>--prediction-expected-pool-strict-test</code> を足しました。AIへは送らず（0円）、DBは元に戻します。</p>
+  <div class="tw"><table>
+    <tr><th>番号</th><th>中身</th><th>期待</th><th>結果</th></tr>
+    <tr><td>P-01〜03</td><td>読み出し関数：最上位の空配列／packet の空配列／中身あり</td><td>そのまま返す</td><td><span class="tag ok">OK</span></td></tr>
+    <tr><td>P-04〜07</td><td>読み出し関数：キー欠落／null／文字列／packet が配列でない</td><td>例外</td><td><span class="tag ok">OK</span></td></tr>
+    <tr><td>C-01</td><td>当日確認そのもの（11月7日の最初の1レース）：書き換えなし</td><td>合格</td><td><span class="tag ok">OK</span>M=3</td></tr>
+    <tr><td>C-02</td><td>同：監査記録から pool_ids を消す</td><td>不合格・終了コード1</td><td><span class="tag ok">OK</span>「pool_ids がありません」</td></tr>
+    <tr><td>C-03</td><td>同：pool_ids を文字列にする</td><td>不合格・終了コード1</td><td><span class="tag ok">OK</span>「型が不正」</td></tr>
+    <tr><td>C-04</td><td>同：pool_ids を正しい空配列にする</td><td>合格・M=0</td><td><span class="tag ok">OK</span>M=0</td></tr>
+  </table></div>
+  <p class="note">最初は PHP の既定のメモリ上限（128MB）で実行し、C-03 の途中でメモリ不足により止まりました。1回の実行で当日確認を4回続けて回すためで、判定の不具合ではありません。上限を1GBにして再実行した結果が上の表です。止まったときのDBはトランザクションの中だったので、元に戻っています。</p>
+</div>
+
+<h2>③ 実際のレースで誤ってNGにならないか</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>日</th><th>結果</th><th>終了コード</th></tr>
+    <tr><td>11月7日（土）</td><td>36レースすべてOK（凍結36・1st準備36・2nd準備36）</td><td>0</td></tr>
+    <tr><td>11月8日（日）</td><td>36レースすべてOK（同上）</td><td>0</td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">11月8日 京都3R（20261108-5-08-2-3）は、監査記録の pool_ids が正しい空配列で、M=0 として合格しています。ご指摘の「正しい空配列は正常な M=0」の実例です。</p>
+</div>
+
+<h2>④ 指紋</h2>
+<div class="card">
+<pre>md5                               ファイル
+43062c7934229e06add683743ffe292e  AiController.php（夜版4・変更なし）
+3258d68bb6fcc75699207f590b156737  SummaryAiAnalysisCompensate.php（変更後・123に反映済み）
+2d71df81b6f28860021758c7c2a82fe8  SummaryAiAnalysisCompensate.php（変更前）</pre>
+  <p class="note" style="margin-bottom:0">sha256 は ZIP の「00_最初にお読みください.txt」に書いています。</p>
+</div>
+
+<h2>⑤ 未解決として把握していること（今回は変えていません）</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li><b>11月7日に未起動だった2レース（京都8R・福島12R）</b>：原因が分かりました。6分前のオッズの取得に42秒・35秒かかり、当時の「30秒以内」の条件で入力を固められませんでした。11月7日夜に条件を60秒に広げ、11月8日は30秒を超えた3レースも含めて36レースすべて固まっています。実際の開催日の最大は45秒です。</li>
+    <li><b>発走後に固まった2件</b>：上の2レースでした。11月7日夜の変更のあとに固まったもので、AIへの送信も公開もしていません。</li>
+    <li>特別レースのクラス不明は、次の版で扱います。</li>
+  </ul>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>なるさんの確認事項への回答（夜版4）</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  .rec { background: #e6eefb; color: #1f3a5f; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>なるさんの確認事項への回答<br>（夜版4・14日の運用手順）</h1>
+  <p>2026年11月11日（水）　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">確認事項①〜⑤に対応しました。確認コマンドの合否判定を補強し、14日の見張り方と止め方を決めました。</p>
+  <p style="margin:8px 0 0">予想の処理は夜版4（AiController 43062c79）のままです。変えたのは確認コマンドだけです（SummaryAiAnalysisCompensate 85288522 → <b>2d71df81</b>）。コード全文・差分・ログ・原記録を ZIP に入れています。</p>
+</div>
+
+<h2>① 版の記録</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li>今週末の版は<b>夜版4</b>（障害レースの修正のみ）。時間対応の次版案とは別の版として記録し、成績も夜版4として集計します。</li>
+    <li>サーバの指紋（豊田が md5sum で確認）：AiController <b>43062c79</b>、SummaryAiAnalysisCompensate <b>2d71df81</b>。</li>
+  </ul>
+</div>
+
+<h2>② 14日（土）の運用手順</h2>
+<div class="card">
+  <p style="margin-top:0"><b>(1) 困ったときに、今のコードがどう動くか</b></p>
+  <div class="tw"><table>
+    <tr><th>場面</th><th>サーバの動き</th><th>お客様の画面</th></tr>
+    <tr><td>入力が凍結されないまま発走（未起動）</td><td>AIへは送りません。予想は作りません。</td><td>発走前：「予想の準備中」。発走後：「このレースの予想はありません」（凍結を試みた記録があれば「新しい予想の入力を固められなかったため…」）</td></tr>
+    <tr><td>発走後に凍結された</td><td>締切を過ぎているため AIへは送りません。公開もしません（11/7 の2件と同じ）。</td><td>「AIの評価を確認できなかったため、予想は出せませんでした」</td></tr>
+    <tr><td>AIの返事が期限に間に合わない</td><td>期限を過ぎた返事は受け取りません（遅着として拒否）。両方とも間に合わなければ公開せず、「出せなかった記録」を1件残します。</td><td>同上（よっしーさんの文面）</td></tr>
+    <tr><td>評価は終わったが候補0頭</td><td>候補0頭で公開し、記録を1件残します。</td><td>「AIの評価で根拠を確かめられた馬がいなかったため、予想は出せませんでした」</td></tr>
+  </table></div>
+  <p class="note">どの場面でも、旧方式へ自動で切り替える動きはありません（11月7日の決定どおり）。誤った予想を出すより、出さない方に倒れる作りです。発走後に凍結された場合の画面の文面が実態（凍結が遅れた）と合わない点は、次の版で直します。</p>
+
+  <p><b>(2) 見張り（豊田と Claude。DBとログの読み取りだけ）</b></p>
+  <div class="tw"><table>
+    <tr><th>時刻</th><th>見ること</th></tr>
+    <tr><td>9:30ごろ</td><td>cron（オッズ取得・1st/2nd の巡回）がその日に動き始めたか（ログの更新時刻）、実行経路が SYNC か</td></tr>
+    <tr><td>各会場の最初のレース（10時前後）</td><td>凍結時刻、両AIの送信・受領時刻（応答時間）、送り直し、検査、公開時刻と公開期限、<b>アプリ画面と DB の一致</b>（画面の写真を残す）</td></tr>
+    <tr><td>昼（12:30ごろ）</td><td>そこまでの全レースの公開・未公開・未起動の件数</td></tr>
+    <tr><td>発走が詰まる時間帯</td><td>凍結の遅れ、送信までの待ち、公開期限までの余裕</td></tr>
+    <tr><td>最終レース後（17時ごろ）</td><td>その日の全レースの集計（③⑤の形）</td></tr>
+  </table></div>
+
+  <p><b>(3) 止め方・連絡</b></p>
+  <ul style="margin-bottom:0">
+    <li>次のどれかが起きたら、<b>その場でよっしーさんに連絡</b>し、止めるかどうかを決めていただきます。
+      <ul>
+        <li>画面に、DB の公開内容と違う馬・取消馬が出ている</li>
+        <li>巡回がエラーで止まり、予想が出ないレースが続く（2レース以上続けて未起動・未公開）</li>
+        <li>費用が予算の上限に近づく</li>
+      </ul>
+    </li>
+    <li>止める手順：サーバの crontab で、予想の3行（aiPrewarm・r122Sweep・r122Sweep2nd）の先頭に # を付けます。新しい送信が止まり、公開済みの予想はそのまま残ります。# を外せば再開します。オッズ取得など、ほかの処理は止めません。</li>
+    <li>開催日はサーバに触れない決まりのため、止めるのは、よっしーさんの了解を得た場合だけにします。</li>
+  </ul>
+</div>
+
+<h2>③ 11月8日福島4R「37件」の原記録</h2>
+<div class="card">
+  <p style="margin-top:0">snapshot 3971 の試行・公開・監査記録を、DB からそのまま抜き出しました（ZIP の 4_記録）。</p>
+  <div class="tw"><table>
+    <tr><th>記録</th><th>件数</th></tr>
+    <tr><td>予約（QUEUE_RESERVED）</td><td>1st 1／2nd 1</td></tr>
+    <tr><td>送信（QUEUE_SENT）</td><td>1st 1／2nd 1</td></tr>
+    <tr><td>試行の行（ai_attempts）</td><td>1st attempt 0／2nd attempt 0 の2行のみ</td></tr>
+    <tr><td>受領（QUEUE_RECEIVED）</td><td>1st 11:10:31／2nd 11:11:42 の各1</td></tr>
+    <tr><td>公開（publications）</td><td>1件（11:11:43）</td></tr>
+    <tr><td>実行経路の記録（R122_PATH_FIXED）</td><td><b>2件</b>（11:10:23.133 と .451、どちらも SYNC）</td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">2件になったのは経路の記録だけで、予約・送信・受領・公開は各1回です。</p>
+</div>
+
+<h2>④ 確認コマンドの合否判定の補強</h2>
+<div class="card">
+  <ul style="margin-top:0">
+    <li>対象レースが0件なら<b>不合格</b>（0件で成功表示にしない）。</li>
+    <li>凍結の行・expected_v01.rows・runners・監査記録・pool_ids が無い場合は NG（pool_ids が「有って0件」の M=0 は正常として区別）。rows の馬番が出走馬と一致しなければ NG。</li>
+    <li>障害の比較：直した後に基準集団へ障害が残る、障害レースの馬が全頭 OUT_OF_SCOPE・E3/E5=null でない、混入の無かった平地レースで値が変わる、のどれかで NG。</li>
+    <li>当日確認：凍結・1st準備・2nd準備のどれかが全件そろわなければ不合格。</li>
+    <li>不合格は、エラー表示に加えて<b>終了コード1</b>で呼び出し元に伝えます。</li>
+  </ul>
+  <div class="tw"><table>
+    <tr><th>補強後の実行（16:43）</th><th>結果</th><th>終了コード</th></tr>
+    <tr><td>11月8日 障害レースの前後比較</td><td>合格（36レース）</td><td>0</td></tr>
+    <tr><td>11月7日 準備確認</td><td>すべてOK（36レース）</td><td>0</td></tr>
+    <tr><td>11月8日 準備確認</td><td>すべてOK（36レース）</td><td>0</td></tr>
+    <tr><td>11月9日（レース0件）</td><td><b>不合格</b></td><td><b>1</b></td></tr>
+  </table></div>
+</div>
+
+<h2>⑤ 週末の実績の出し方（夜版4として）</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li><b>母数はその日の全対象レース</b>（レース表の全レース）。内訳：期限内公開／候補0頭の公開／AIの評価を確認できず未公開／期限超過／<b>未起動（凍結なし）</b>／発走後の凍結。</li>
+    <li>E3・E5 の状態の内訳と、<b>実際の入れ替え件数</b>（今週末は0の見込み。0件も数字で示します）。</li>
+    <li>費用（送り直し込み・AIごと）、送受信時間、期限内公開率。</li>
+    <li>成績：1st 単独・2nd 単独・統合（共通レースと全対象を分け、同予算の参考比較も併記）。発走後の凍結・再生成と試験記録（世代900）は除外。</li>
+  </ul>
+</div>
+
+<h2>⑥ お送りするもの</h2>
+<div class="card">
+  <p style="margin:0">ZIP「馬眼力_確認コマンド補強と運用手順の提出物_20261111.zip」</p>
+  <ul>
+    <li>1_変更差分：SummaryAiAnalysisCompensate.php（85288522 → 2d71df81）</li>
+    <li>2_プログラム全文：AiController.php（43062c79）、SummaryAiAnalysisCompensate.php（2d71df81）</li>
+    <li>3_ログ：補強後の4回の実行と終了コード</li>
+    <li>4_記録：福島4R（snapshot 3971）の原記録</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">発走前に処理されなかった2レースと発走後の凍結の原因、特別戦のクラス不明は、引き続き未解決です（週末のあとに調べます）。今回確かめたのは確認コマンドと記録までで、実AIの応答・期限内公開・予想精度は14日以降の実績で確かめます。</p>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>

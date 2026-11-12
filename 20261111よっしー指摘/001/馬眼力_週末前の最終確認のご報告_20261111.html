@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>週末前の最終確認のご報告</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  .rec { background: #e6eefb; color: #1f3a5f; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>週末前の最終確認のご報告</h1>
+  <p>2026年11月11日（水）　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">金曜に予定していた週末前の最終確認を、前倒しで本日（11日の朝）行いました。すべて問題ありませんでした。</p>
+  <p style="margin:8px 0 0"><b>11月14日（土）の最初のレースが終わるまで、こちらで行う作業はありません。</b>今週末は、11月10日夜にご確認いただいた夜版3のまま動かします。サーバのファイル・設定は、本日の確認では何も変えていません。</p>
+</div>
+
+<h2>1. 結論（3点）</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>確認</th><th>結果</th></tr>
+    <tr><td>① サーバの版</td><td><span class="tag ok">OK</span>夜版3のまま</td></tr>
+    <tr><td>② 全レースで予想の準備が通るか</td><td><span class="tag ok">OK</span>11月7日の36レースすべて通過</td></tr>
+    <tr><td>③ 予想を動かす定期処理</td><td><span class="tag ok">OK</span>毎分動く設定のまま・滞留や失敗なし</td></tr>
+  </table></div>
+</div>
+
+<h2>2. ① サーバの版</h2>
+<div class="card">
+  <ul style="margin-top:0">
+    <li>AiController.php の指紋（md5の先頭8文字）：<b>58e3ee27</b></li>
+    <li>SummaryAiAnalysisCompensate.php の指紋：<b>5958e321</b></li>
+    <li>どちらも、11月10日夜にご確認いただいた夜版3と同じです。PHP の文法検査（php -l）でも誤りはありませんでした。</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">夜版3に入っている主な変更：2nd の送り直し、送り直しの採否を「検査を通って候補になれる馬の数」で比べる、遅着の送り直しは使わない、受領の期限は使う返事が届いた時刻で判定、予想を出せなかった記録（2種類・ロックで1件に限定）、候補0頭時の文面。</p>
+</div>
+
+<h2>3. ② 全レースで予想の準備が通るか</h2>
+<div class="card">
+  <p style="margin-top:0">オッズがすべてそろっている過去の日で、今の版が「入力の凍結」と「両AIへ送る原文の準備」を最後までできるかを試しました。</p>
+  <ul>
+    <li>対象：<b>11月7日（土）の全36レース</b>（福島・東京・京都 各12レース）</li>
+    <li>方法：各レースの発走前の凍結時刻に合わせて凍結し、1st・2nd それぞれの送る原文を作り、圧縮した原文から元の入力を完全に戻せるかまで照合</li>
+    <li>AIへは送っていません（費用0円）。DBはレースごとに元に戻しています。</li>
+    <li>11月8日を使わなかったのは、10日夜の試験の記録（世代900）が4レース分残っていて重なるためです。</li>
+  </ul>
+  <div class="tw"><table>
+    <tr><th>項目</th><th>結果</th></tr>
+    <tr><td>凍結できたレース</td><td><b>36／36</b></td></tr>
+    <tr><td>1st の原文準備（SOURCE_DICT_V3）</td><td><b>36／36</b></td></tr>
+    <tr><td>2nd の原文準備（SOURCE_TABLE_V1）</td><td><b>36／36</b></td></tr>
+    <tr><td>送る原文の大きさ（圧縮後／元）</td><td>1st：3,261,159 ／ 17,240,508 バイト（<b>18.9％</b>）<br>2nd：3,356,505 ／ 17,240,508 バイト（<b>19.5％</b>）</td></tr>
+    <tr><td>頭数</td><td>全501頭（1レース8〜18頭）</td></tr>
+  </table></div>
+  <p style="margin-bottom:4px"><b>E3・E5 の状態（参考）</b></p>
+  <div class="tw"><table>
+    <tr><th>状態</th><th>頭数</th></tr>
+    <tr><td>LOW_SUPPORT（類似例が少ない）</td><td>369</td></tr>
+    <tr><td>UNAVAILABLE_INPUT（材料不足）</td><td>123</td></tr>
+    <tr><td>BASELINE_ONLY（基準率のみ）</td><td>9</td></tr>
+    <tr><td>COMPARISON_READY（比較に使える）</td><td>0</td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">比較に使える状態の馬が0頭のため、今週末も E3・E5 による帯内の入れ替えは起きない見込みです（取得時刻が記録された過去レースがまだ少ないため。以前ご報告した状況と同じです）。候補は各AIの根拠と帯内順位で決まります。</p>
+</div>
+
+<h2>4. ③ 予想を動かす定期処理</h2>
+<div class="card">
+  <p style="margin-top:0">このサーバでは、予想の処理を cron が直接、毎分動かしています（常駐のキュー処理は使っていません）。設定を読み、次のとおりでした。</p>
+  <div class="tw"><table>
+    <tr><th>処理</th><th>動く時間帯</th></tr>
+    <tr><td>オッズの取得</td><td>毎分・9時〜18時台</td></tr>
+    <tr><td>発走時刻の補正</td><td>毎分・9時〜18時台</td></tr>
+    <tr><td>予想の下準備（凍結など）</td><td>毎分・9時〜16時台</td></tr>
+    <tr><td>1st の送信・受領・採否</td><td>毎分・9時〜17時台</td></tr>
+    <tr><td>2nd の送信・受領・採否</td><td>毎分・9時〜17時台</td></tr>
+    <tr><td>レース結果の取得</td><td>毎分・9時〜19時台</td></tr>
+  </table></div>
+  <ul>
+    <li>処理待ちの仕事：<b>0件</b>。11月7日以降に失敗した仕事：<b>0件</b>。</li>
+    <li>先週末もこの仕組みで、11月7日・8日とも<b>36レースすべての入力を凍結</b>できていました（8日は9時40分〜16時20分）。</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">先週末は旧版（10/20版）で、公開は7日32レース・8日35レースでした。今週末から夜版3になるため、この公開数は今週末の見込みには使いません。</p>
+</div>
+
+<h2>5. 14日（土）当日</h2>
+<div class="card">
+  <ul style="margin-top:0">
+    <li>土曜のレースのオッズは当日にしか入らないため、14日のレースそのものでの確認は、当日の最初のレースで行います。</li>
+    <li>最初のレースが終わったあと、DBを読むだけで次を確認します。サーバのファイル・設定には触れません。
+      <ul>
+        <li>オッズが時刻どおりに入っているか</li>
+        <li>入力が凍結され、両AIへ送信・受領できたか（送り直しの有無を含む）</li>
+        <li>予想が公開されたか。出せなかった場合は、記録された原因</li>
+      </ul>
+    </li>
+    <li>問題があれば、その時点でご連絡します。</li>
+  </ul>
+</div>
+
+<h2>6. 週末のあとにご報告すること</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>項目</th><th>内容</th></tr>
+    <tr><td>予想を出せなかったレース</td><td>件数と原因。「AIの評価を確認できない」と「評価は確認できたが候補0頭」を分けて、AIごとの送信状態・検査の判定・送り直しの有無とともに</td></tr>
+    <tr><td>複勝回収率</td><td>1st 単独・2nd 単独・統合の3通り。公開候補へ複勝100円ずつの仮配分で集計。2日分のため参考値</td></tr>
+    <tr><td>費用</td><td>送り直しを含む AI の費用（AIごと・レースごと）</td></tr>
+    <tr><td>時間</td><td>レースごと・AIごとの所要時間（送り直しを含む）と、期限内に予想を出せた割合</td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">試験の記録（世代900）と旧版の控えは、週末の照合と控えの確認が済むまで消さずに残します。</p>
+</div>
+
+<h2>7. なるさんの11月11日の記録について</h2>
+<div class="card">
+  <p style="margin:0">次回プロンプトへの引継ぎ（高配当馬の捕捉と回収率の改善の検討案）と、「今週末は新しいプロンプトを検証してから判断する」方針を拝見しました。今週末の版・方針は変えていません。週末の報告では、記録にある比較項目（1st 単独・2nd 単独・統合、費用、所要時間、処理失敗・未公開の件数）をそろえて出します。</p>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>

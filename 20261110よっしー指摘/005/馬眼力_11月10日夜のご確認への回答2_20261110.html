@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11月10日夜のご確認への回答（2回目）</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  .rec { background: #e6eefb; color: #1f3a5f; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>11月10日夜のご確認への回答<br>（2回目：期限の判定・同時の記録）</h1>
+  <p>2026年11月10日（火）　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">ご指摘の2点を直し、サーバに入れました。報告書の1点も訂正します。</p>
+  <p style="margin:8px 0 0">サーバの Laravel／DB 上で、AIへは送らない再現試験を通し、ご指定の2つの追加試験を含めて<b>32件すべて合格</b>しました。差分と試験ログは、同じフォルダの ZIP に入れています。</p>
+</div>
+
+<h2>1. 直したこと</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>ご指摘</th><th>直したこと</th></tr>
+    <tr><td>① 締切間際に、有効な初回評価まで失う経路</td><td><span class="tag ok">修正</span>返事が届いた直後の時刻を、その返事の原文の SHA-256 と組にして残すようにしました。受領の期限判定は、送り直し・検査・料金の記録が終わった時刻ではなく、<b>使う返事が届いた時刻</b>で行います。保存する原文のハッシュが一致するときだけ、この時刻を使います（一致しなければ今の時刻）。最新の正式締切・取消・公開期限の検査は、受領の中でこれまでどおり行います。</td></tr>
+    <tr><td>② 出せなかった記録が同時実行で2件入り得る</td><td><span class="tag ok">修正</span>同じ凍結入力の行を FOR UPDATE でロックしたトランザクションの中で、「まだ記録が無いこと」の確認と追加を一体にしました。同時に来た2つ目の処理は、1つ目の確定を待ってから確認するため、追加しません。</td></tr>
+  </table></div>
+</div>
+
+<h2>2. 報告書の訂正（2回目を使う条件）</h2>
+<div class="card">
+  <p style="margin-top:0">前回「2回目の有効馬数が多いときだけ採用」と書きましたが、正しくは次のとおりです。</p>
+  <ul>
+    <li>両方の返事を本番と同じ検査に通し、<b>検査を通って候補になれる馬</b>の数で比べます。</li>
+    <li>2回目のほうが多いとき：2回目を使います。</li>
+    <li>2回目のほうが少ないとき：1回目を使います。</li>
+    <li><b>同じ数のとき</b>：根拠を書いた馬の数 → 書いた馬の数 → 波乱度を出したか（1st だけ）の順で比べ、2回目のほうが上なら2回目、そうでなければ1回目を使います。</li>
+    <li>2回目が読めない返事のとき、写すだけの欄を書き換えたときは、2回目を使いません。</li>
+    <li>検査そのものが動かないとき（凍結入力・枠が読めない等）は、1回目を使います（1回目が読めない返事のときだけ、上の同数のときの比べ方で決めます）。</li>
+  </ul>
+</div>
+
+<h2>3. 追加した試験の結果</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>試験</th><th>結果</th></tr>
+    <tr><td>① 期限内の初回に有効馬あり → 再送失敗 → 処理終了時には応答期限超過（福島11R）</td><td><span class="tag ok">合格</span>
+      <ul>
+        <li>応答期限 15:17:30、送り直しの返事は期限の5秒後に到着（読めない返事）、1st の処理が終わった時刻 15:17:41</li>
+        <li>1回目（候補になれる馬7頭）を使い、受領時刻は1回目が届いた 15:15:06 で保存。遅着として拒否されませんでした</li>
+      </ul></td></tr>
+    <tr><td>② 2つの接続から同時に記録しても1件になること</td><td><span class="tag ok">合格</span>
+      <ul>
+        <li>A がロックの中で「まだ無い」と確かめた直後に、別プロセス B（別の接続）から同じ記録を実行</li>
+        <li>接続 C で、B の接続が LOCK WAIT になったことを確認したあと A を確定</li>
+        <li>B は A の確定後に確認して追加せず、記録は1件（試験で入れた記録は最後に消しました）</li>
+      </ul></td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">前回までの29件（2nd の送り直し、検査で全頭落ちる2回目を使わない、両AI使用不可の動き、候補0頭の記録と文面）も、同じ実行で合格しています。</p>
+</div>
+
+<h2>4. お送りするもの</h2>
+<div class="card">
+  <p style="margin:0">ZIP「馬眼力_夜版2の差分と試験ログ_20261110.zip」</p>
+  <ul>
+    <li>1_変更差分：前回の夜版 → 夜版2 の差分（2ファイル）と、参考に夕方版からの通しの差分</li>
+    <li>2_プログラム全文：夜版2の2ファイル</li>
+    <li>3_試験ログ：再現試験（32件）、送り直しの判定の手元試験</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">A の方針と C の保留は変えていません。</p>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>

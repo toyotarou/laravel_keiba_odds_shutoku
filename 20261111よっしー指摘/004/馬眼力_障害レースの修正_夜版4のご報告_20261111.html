@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>障害レースの修正（夜版4）のご報告</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  .rec { background: #e6eefb; color: #1f3a5f; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>障害レースの修正（夜版4）のご報告</h1>
+  <p>2026年11月11日（水）　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">なるさんの B 案のとおり、障害レースの混入だけを直し、サーバに入れました。</p>
+  <p style="margin:8px 0 0">直す前と後を11月8日の全36レースで比べ、<b>直した後は混入0</b>、<b>平地のレースで値が変わったのは混入があった京都8Rだけ</b>でした。11月7日・8日とも、夜版4で全36レースの準備が通っています。<b>今週末（14日・15日）は夜版4で動かします。</b>コード全文・差分・ログを ZIP に入れています。</p>
+</div>
+
+<h2>1. 直したこと（夜版3 → 夜版4）</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>ファイル</th><th>夜版3</th><th>夜版4</th></tr>
+    <tr><td>AiController.php</td><td>58e3ee27</td><td><b>43062c79</b></td></tr>
+    <tr><td>SummaryAiAnalysisCompensate.php</td><td>5958e321</td><td><b>85288522</b></td></tr>
+  </table></div>
+  <ul>
+    <li><b>過去の比較対象から障害レースを除く</b>：過去レースのクラスが JUMP なら race_type を JUMP にし、平地の基準集団に入れません。</li>
+    <li><b>現在の障害レースは平地用 E3・E5 の対象外</b>：現在レースのクラスが JUMP なら race_type を JUMP にし、E3・E5 は OUT_OF_SCOPE になります（「材料不足」と分かれます）。</li>
+    <li>予想の処理（凍結・送信・検査・公開）、時間対応の次版案は入れていません。修正はこの2か所だけです。旧行はコメントアウトで残しています。</li>
+    <li>確認用に、直す前と後の材料を並べて比べるコマンドを足しました（本番の処理には使いません）。</li>
+  </ul>
+</div>
+
+<h2>2. 直す前と後の比較（11月8日・全36レース）</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>レース</th><th>直す前 → 直した後</th></tr>
+    <tr><td>京都8R（平地・芝9頭・2勝クラス）</td><td>基準集団 7→6。11月7日京都ジャンプSが外れ、<b>9頭すべての基準率・E3・E5 が変化</b>（例：2番 E3 42.3→36.3、7番 E5 68.3→75.6）</td></tr>
+    <tr><td>東京9R 百日草特別（芝9頭）</td><td>基準集団 7→6（京都ジャンプSが外れる）。この馬はクラス不明で E3・E5 がもともと出ないため、値の変化なし</td></tr>
+    <tr><td>福島5R（障害・9頭）</td><td>基準集団の障害 1→0、9頭が「材料不足」→「対象外」</td></tr>
+    <tr><td>福島4R（障害・11頭）</td><td>11頭が「材料不足」→「対象外」</td></tr>
+    <tr><td>ほかの32レース</td><td><b>基準集団の数も値も変化なし</b></td></tr>
+  </table></div>
+  <p style="margin-bottom:0">まとめ：基準集団に入った障害レース（延べ）<b>3 → 0</b>、値が変わったレース 3（うち平地は京都8Rのみ）、値が変わった馬 29頭（障害20頭の区分変更を含む）。</p>
+  <p class="note" style="margin-bottom:0">11月8日の本番は旧版だったため、この京都8Rのずれが当日の予想に使われたわけではありません。夜版3のまま今週末を迎えていれば、同じ種類のずれが芝の9頭・11頭のレースで起きえました。</p>
+</div>
+
+<h2>3. 夜版4での準備確認（11月7日・8日）</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>項目</th><th>11月7日</th><th>11月8日</th></tr>
+    <tr><td>凍結・1st準備・2nd準備</td><td>36／36／36</td><td>36／36／36</td></tr>
+    <tr><td>対象外（障害）</td><td>京都8R 9頭</td><td>福島4R 11頭・5R 9頭</td></tr>
+    <tr><td>材料不足（クラス不明）</td><td>8レース114頭</td><td>7レース92頭</td></tr>
+    <tr><td>類似例が少ない</td><td>369頭</td><td>379頭</td></tr>
+    <tr><td>基準率のみ／基準なし</td><td>9頭（M=1・K=0）</td><td>6頭（M=0）</td></tr>
+    <tr><td>比較に使える</td><td>0頭</td><td>0頭</td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">11月7日の「類似例が少ない369頭」と M の分布は、直す前と全く同じでした（11月6日以前の障害レースは芝・ダートの区分が OTHER で、もともと混入していなかったため）。11月8日の4レースに残る試験記録（世代900）は、確認の間だけトランザクション内で外し、最後に元に戻しています（消していません）。</p>
+</div>
+
+<h2>4. 11月8日の実行経路「37件」の差（ご指摘）</h2>
+<div class="card">
+  <p style="margin:0">11月8日福島4R（snapshot 3971）だけ、実行経路の記録（R122_PATH_FIXED・SYNC）が0.3秒差で2件ありました。1st と 2nd の巡回が、同じレースに同じ経路の記録をそれぞれ書いたものです。送信の予約・送信・受領は各AI1回ずつ、公開は1件で、重複処理ではありません。</p>
+</div>
+
+<h2>5. 残っていること</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li>11月7日の発走前に処理されなかった2レース（京都8R・福島12R）と、発走後の凍結の原因は未解決です。週末のあとに調べます。</li>
+    <li>特別戦のクラス不明は、次の版の課題です（今回は直していません）。</li>
+    <li>週末に期限内で処理が終わるかは、14日の当日確認と、全レースの期限内公開率で確かめます。</li>
+    <li>成績は版ごとに分け、夜版4（今週末）の記録として集計します。夜版3の記録とは混ぜません。</li>
+  </ul>
+</div>
+
+<h2>6. お送りするもの</h2>
+<div class="card">
+  <p style="margin:0">ZIP「馬眼力_夜版4_障害レース修正の提出物_20261111.zip」</p>
+  <ul>
+    <li>1_変更差分：夜版3 → 夜版4（2ファイル）</li>
+    <li>2_プログラム全文：夜版4の2ファイル</li>
+    <li>3_ログ：11月8日の修正前後の比較、11月7日・8日の夜版4での準備確認</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">今回確かめたのは、AIへ送る前の材料と準備までです。実AIの応答、期限内の公開、画面表示、予想精度は14日以降の実績で確かめます。</p>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11月10日のご確認への回答（E3・E5版の稼働版）</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .todo { background: #fff3d6; color: #8a5a00; }
+  .ask { background: #fde7e7; color: #a12a2a; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  code { font-size: 13px; background: #f0f2f5; padding: 0 4px; border-radius: 4px; word-break: break-all; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>11月10日のご確認への回答<br>（E3・E5版の稼働版）</h1>
+  <p>2026年11月10日（火）　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">前回は報告書だけをお送りし、実際のプロンプト・プログラム・試験の記録が入っていませんでした。今回は資料一式（ZIP）を同梱しています。</p>
+  <ul>
+    <li>ご指摘の4点を確かめ、直すべきところは11月10日のうちに直して、サーバに入れました。</li>
+    <li>追加でご依頼の3点（R15.24との差分、60秒条件の統一状況、1レース分の送信全文・両AIの回答・整える前後・検査結果）は、ZIPに入っています。</li>
+    <li>ご判断いただきたいことが1つあります（6章）。</li>
+  </ul>
+  <p class="note" style="margin:8px 0 0">ZIP：<code>馬眼力_W2稼働版資料一式_20261110.zip</code>（中身は 00_最初にお読みください.txt に書いてあります）</p>
+</div>
+
+<h2>1. 今週末（11月14日・15日）に動く版</h2>
+<div class="card">
+  <ul>
+    <li>動くのは、11月10日（火）13時の稼働版です。R15.24 そのものは入っていません（R15.24 は土日の結果を見てから取り入れます）。</li>
+    <li>E3・E5 の式、帯ごとの選出枠、両AIの構成、購入推奨を出さない（buy_recommended=false）ことは、R15.21 から変えていません。</li>
+    <li>送信形式は、1st が SOURCE_DICT_V3（名前で引ける圧縮。11月9日のA）、2nd が SOURCE_TABLE_V1 です。</li>
+  </ul>
+</div>
+
+<h2>2. ① 現在の稼働版と R15.24 の違い</h2>
+<div class="card">
+  <p style="margin-top:0">R15.22〜R15.24 で直された問題は、どれも「圧縮して送るときに、元の入力と少しでも違う形になる」問題です。稼働版は、送る直前に<b>詰めた形を元に戻し、凍結した正本と値・JSON型・小数の表記・配列順序・参照関係まで一致するか</b>を照合し、一致しなければ送りません。違うデータを送ることはなく、問題が起きたときは「送らずに止まる」作りです。</p>
+  <div class="tw"><table>
+    <tr><th>R15.22〜24 の問題</th><th>稼働版での扱い</th><th>先週末72レースでの実際</th></tr>
+    <tr><td>1st を FULL に固定してしまう（R15.22）</td><td>1st は SOURCE_DICT_V3 で送る（11/9 A）</td><td>72レースとも圧縮して送る準備ができた</td></tr>
+    <tr><td>coverage の参照順序が並べ替わる／追加索引で止まる（R15.23）</td><td>元に戻した形が正本と順序まで一致しなければ送らない</td><td>0件</td></tr>
+    <tr><td>本文版の欠落（R15.23）</td><td>凍結の前に本文版（COMPACT_TEXT_20261109_04）を入力に付けて、ハッシュを確定する</td><td>72レースとも版あり</td></tr>
+    <tr><td>数字だけの参照名・連番キーが配列になる（R15.23・24）</td><td>型まで照合し、違えば送らない</td><td>0件（参照名は h3_win_odds_6 などで、数字だけの名前はない）</td></tr>
+    <tr><td>指数表記（1e0 など）が普通の小数になる（R15.24）</td><td>同上</td><td>0件（DBの値は通常の小数表記）</td></tr>
+  </table></div>
+  <p class="note">確認方法：先週末（11/7・11/8）の全72レースを、それぞれの凍結時刻で凍結し、両AIへ送る原文を作るところまで試しました（AIへは送らない・費用0円）。72レースとも 1st・2nd の準備が通りました。送る本文は元の約19%です（ZIP の 4_試験ログ）。</p>
+  <p class="note">稼働版が R15.24 の SOURCE_TABLE_V2 を使っていない理由：R15.24 は11月9日夜の受領で、土日までに入れ替えて試験をやり直す時間がとれないためです。土日の結果を見て取り入れます。</p>
+</div>
+
+<h2>3. ② オッズの待ち時間（6分前＋60秒）の統一状況</h2>
+<div class="card">
+  <p style="margin-top:0">ご指摘のとおり、AIへの指示文が「T−6分＋30秒」のままでした。11月10日に「T−6分＋60秒（＝T−5分）」に直しました。今は、次がすべて60秒でそろっています。</p>
+  <div class="tw"><table>
+    <tr><th>場所</th><th>内容</th></tr>
+    <tr><td>AIへの指示文</td><td>prompt_1st.txt・prompt_2nd.txt・common_prompt.txt：情報上限 input_freeze_at＝T−6分＋60秒（＝T−5分）<span class="tag ok">11/10に修正</span></td></tr>
+    <tr><td>設定（contract.json）</td><td>input_freeze_offset_seconds＝−300、acquisition_grace_ms の 6分前＝60000</td></tr>
+    <tr><td>入力の検査（input_schema）</td><td>acquisition_grace_ms の 6分前＝60000</td></tr>
+    <tr><td>凍結の処理</td><td>T−300秒で凍結し、6分前オッズはT−6分から60秒まで待つ</td></tr>
+  </table></div>
+  <ul>
+    <li><b>実際の取得時刻</b>：レースごとに、21・18・15・12・9・6分前の各回について、要求開始・受信完了・利用可能の時刻を記録しています（00_snapshot.json の collection_audit）。</li>
+    <li><b>30秒条件の結果との区別</b>：凍結の記録に input_freeze_at が残るので、発走時刻との差で分けられます（60秒条件は T−300秒、10/20版の30秒条件は T−330秒）。11月8日までの本番の記録はすべて30秒条件、11月10日以降の E3・E5版の記録は60秒条件です。</li>
+  </ul>
+</div>
+
+<h2>4. ③「サーバで直す」範囲</h2>
+<div class="card">
+  <h3>直すのは、次の決まった書き方の誤りだけです</h3>
+  <ul>
+    <li>状態名の綴り違い（例 DATA_MISSINGS → DATA_MISSING）、score_status の大文字・小文字</li>
+    <li>合計点・観測した点の合計・上限（score_caps に合わせて計算し直す）</li>
+    <li>根拠の無い欄の補い方（score_evidence が無い馬は点数をすべて null にする）、未知の欄の除去</li>
+    <li>返事全体が読めないときの、決まった形の書き損じ3種（11/10 に実際に出たもの）
+      <ul>
+        <li>「},」のあとの余計な <code>"</code>（2nd に2回）</li>
+        <li>race_metrics の中の余計な <code>}</code>（1st に2回）</li>
+        <li>score_evidence の閉じ忘れ（2nd に1回・全頭）</li>
+      </ul>
+      読めなかったときだけ試し、直しても読めなければ使いません。11/10 の正しい返事15通では、直す箇所は0か所でした。</li>
+  </ul>
+  <h3 style="margin-top:12px">誤った根拠を除いたあとは、残った根拠だけで判定し直します</h3>
+  <ul>
+    <li>凍結した資料と照合できない根拠は除き、その根拠に頼っていた点数は null にします。合計点もその後で計算し直します。</li>
+    <li>5系統の判定（family_review）、tier、選出資格（eligibility）、順位の付け方（rank_basis）は、残った根拠から作り直します。<b>削除前の点数・順位・資格は残しません。</b></li>
+    <li>検証できた根拠が1つもない馬は、NOT_RANKED（順位なし）・選出資格なし（NO_EVIDENCE または UNVERIFIED）にし、公開候補にしません。</li>
+    <li>直した返事・整えた返事にも、このあと検査を全部かけます。原文そのままではないので、両AIの一致加点の証明は付けません。</li>
+  </ul>
+  <p class="note">11/10 に直した組み直しの抜け：AIが「支持なし（NO_SUPPORT）」とした系統に、値のある参照が1つも書かれていないと、その馬を組み直せずに外していました。その馬自身の実在する資料に差し替える（資料が無ければ DATA_MISSING にする）よう直しました。これで、全頭が外れていた返事（2nd 2通・1st 1通）が使えるようになりました。</p>
+</div>
+
+<h2>5. ④「全頭評価」が最後まで守られるか</h2>
+<div class="card">
+  <p style="margin-top:0">前回の報告書の「0頭・1頭で終わったとき」は説明が足りませんでした。11月10日に、送り直しの条件を次のとおり広げています。</p>
+  <ul>
+    <li><b>送り直すとき</b>：1st の返事が最後まで返ってきたのに、出走馬のうち書いた馬が1頭でも足りないとき。馬番の重複・出走にない馬番は数えないので、重複や抜けがあっても送り直します。返事が読めないときは「0頭」として扱います。</li>
+    <li><b>条件</b>：1回目が30秒以内に返ってきて、返事の締め切りまで60秒以上あるとき、1レースにつき1回だけ。全頭を書いた返事は30秒を超えるので、ここで区別しています。</li>
+    <li><b>2回目の扱い</b>：2回目の方が、書いた馬が多いときだけ使います。届かない・読めない・少ないときは1回目を使います。料金は2回分を記録します。</li>
+    <li><b>30秒を超えて返ってきて、馬が足りない場合</b>：送り直しません（締め切りに間に合わないため）。足りない馬は検査で HORSE_MISSING になり、その馬は2つ目のAIの評価だけで扱います。</li>
+    <li><b>新馬戦</b>：過去走が無い馬は、ability を DATA_MISSING（不明）として、残りの系統（market・gap・win_place）で評価するよう、1st への補足に書いています。</li>
+  </ul>
+  <p>あわせて、1st への補足に「出力の上限は65,536トークンあり全頭書ける。horses を空にしない」「返事は短く書く」を足しました（1st が「書ききれない」と書いて、horses を空にして返すことがあったため）。</p>
+  <p class="note">11/10 の非公開試験：送り直しは2回起きました。京都5Rは、1回目の0頭が2回目で11頭になりました。京都2Rは、2回目が読めなかったため、1回目（2頭）を使いました。また東京6Rでは、1st が自分で「選出停止」と判断し、role_cap を0に書き換えて返しました。これはAIの判断の誤りなので使わず、2nd の評価（15頭）で公開しました。</p>
+</div>
+
+<h2>6. ご判断いただきたいこと</h2>
+<div class="card">
+  <p style="margin-top:0"><span class="tag ask">ご判断</span><b>根拠で選べた馬が、帯の枠より少なかったとき（両AIとも使えなかったときを含む）、画面の表示をどうしますか。</b></p>
+  <p>今は、足りない枠を、同じ帯の中でAIが付けた順位（無ければ6分前の人気順）で埋めています。その馬には、選出理由の先頭に「補充：AIの根拠を確かめきれなかったため…」と書き、おすすめ度は0にしています。公開の記録上は、根拠で選んだ候補とは分け、不足（shortfalls）として残しています。</p>
+  <div class="tw"><table>
+    <tr><th>選択</th><th>画面</th><th>結果</th></tr>
+    <tr><td><b>A．今のまま</b>（「補充」と明記して埋める）</td><td>どのレースでも枠の頭数が出る</td><td>お客様は、根拠のある馬と補充の馬を、選出理由とおすすめ度0で見分ける</td></tr>
+    <tr><td><b>B．埋めない</b></td><td>根拠で選べた馬だけを出す。1頭も選べなければ「予想なし」</td><td>出る頭数がレースごとに変わる。根拠の無い馬は画面に出ない</td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">お返事は「A」か「B」だけで大丈夫です。</p>
+</div>
+
+<h2>7. 費用と時間（両AIと送り直しを含む）</h2>
+<div class="card">
+  <ul>
+    <li><b>費用</b>：1レース 0.031〜0.075ドル、9レースの平均 0.046ドル（1ドル150円で約7円）。前回の「約3円」は 1st だけの数字でした。1日36レースで約1.7ドル（約250円）です。予算用の見積りで、DeepSeek は平日ピークの単価で計算しています。土日はこれより下がる見込みです。</li>
+    <li><b>2nd の時間</b>：11/10 の非公開試験14回で31〜85秒でした。11/8（日）の本番（10/20版）は平均90秒・最長148秒で、36レース中8レースが締め切りに間に合いませんでした。出力は約半分になっています。</li>
+  </ul>
+</div>
+
+<h2>8. 土日のあとにお出しするもの</h2>
+<div class="card">
+  <ul>
+    <li>表示件数（予想が出たレース数、1st単独・2nd単独・統合の内訳）、2nd が締め切りに間に合った数、1st の送り直しの回数</li>
+    <li>速度（両AIの返事の時間の分布）と、両AI・送り直しを含む費用の総額</li>
+    <li>公開候補と購入推奨の分離の確認（購入推奨は出していないこと）</li>
+    <li>複勝回収率（1st単独・2nd単独・統合の比較）。ただし2日分では数が少ないので、参考値としてお出しします。</li>
+    <li>E3・E5 が比べられた頭数と、比べられなかった理由。先週末の72レースでは、比べられる状態（COMPARISON_READY）は0頭でした（LOW_SUPPORT 748頭、UNAVAILABLE_INPUT 235頭ほか）。今は E3・E5 による入れ替えが起きない状態です。</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">今回確かめられたのは、予想を出す仕組みの改善までです。回収率が良くなったかどうかは、まだ確かめられていません。</p>
+</div>
+
+<h2>9. なるさんへの確認用（技術的な内容）</h2>
+<div class="card">
+  <p class="note" style="margin-top:0">下の枠を、そのままなるさんに貼ってください。</p>
+<pre>【資料】馬眼力_W2稼働版資料一式_20261110.zip（SHA256SUMS.txt 同梱）
+稼働版：AiController.php md5 76730632…／SummaryAiAnalysisCompensate.php md5 7da7b657…（11/10 13:07）
+本文版 COMPACT_TEXT_20261109_04、受入版 w2-r15.21、1st=SOURCE_DICT_V3、2nd=SOURCE_TABLE_V1、FIX_POLICY_NEVER
+
+【①R15.24との差分】R15.22〜24 の PHP（SourceTableV2W2・ExactSourceTableW2 等）は未統合。
+送信前に wire→expand した入力と凍結正本を、型付きの厳密比較（値・型・数値トークン・配列順序）で照合し、不一致なら送信しない（EXPECTED_WIRE_REFERENCE）。
+11/7・11/8 全72レースで凍結→両role の送信準備：72/72 OK、本文は元の18.9〜19.6%。
+
+【②60秒】prompt_1st/2nd/common の「T−6分＋30秒」を「T−6分＋60秒（＝T−5分）」に修正し、contract の system_file_sha256 を更新。
+contract：input_freeze_offset_seconds −300、acquisition_grace_ms["6"]=60000。取得実時刻は snapshot.collection_audit に slot ごとに保存。
+
+【③整え】BaganrikiReplyTidy（綴り・score_status・合計の再計算・未知キー除去 等）。
+読めない応答だけ、書き損じ3種を直して strict 再パース：},"{" の " ／ race_metrics 内の "}},"lower_entry|big_gap_entry" ／ "V5":{…}," score_status の閉じ忘れ。
+直した場合は inspection.tidied に記録し、一致加点の証明は付けない。正常応答15通では一致0か所。
+salvageEvidence：checkedEvidence を通った根拠だけで family_review・tier・eligibility・rank_basis を再構成。点数は AI値→null の順で試行。
+11/10 修正：EXPECTED_FAMILY_NO_SUPPORT（NO_SUPPORT だが値のある参照なし）の系統を defaultFamilyRefs（無ければ DATA_MISSING）へ差し替え。
+
+【④全頭】1st のみ：end_turn で、出走馬番のうち重複・出走外を除いた馬番数＜出走頭数（読めなければ0）、
+かつ1回目が30秒以内・返事の締め切りまで60秒以上なら、同じ system/user を1回だけ再送（max_tokens＝65536−1回目の出力）。
+2回目の方が馬が多いときだけ採用。使用量は2回分を合算して記録（R122_USAGE の resent）。手元の試験15通りは resend_test.txt。
+
+【非公開試験 11/10（世代900、11/8 のレースを再現）】
+2nd の時間 31〜85秒、出力 1.3〜1.8万トークン。9レースすべて公開。1レースの費用 平均0.046ドル（保守的見積り）。
+代表：20261108-5-08-2-6（京都6R 18頭立て、両role 18頭が検査を通過して公開。表示指標は1stがnullを返し未算出）。
+公開の記録は送信時点の処理、inspection.json は11/10 13時の処理で検査し直した結果（差があるレースあり）。</pre>
+</div>
+
+</main>
+<footer>馬眼力　11月10日のご確認への回答　2026-11-10</footer>
+</body>
+</html>

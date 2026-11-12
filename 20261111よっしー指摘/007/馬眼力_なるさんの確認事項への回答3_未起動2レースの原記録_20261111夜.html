@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>なるさんの確認事項への回答（未起動2レースの原記録）</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>なるさんの確認事項への回答<br>（未起動2レースの原記録）</h1>
+  <p>2026年11月11日（水）夜　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">11月7日の2レースと、11月8日に30秒を超えた3レースについて、取得予定・開始・受信・利用可能・凍結の各時刻と、AI送信・公開の有無を原記録で示します。</p>
+  <p style="margin:8px 0 0">123のDB（本番）を読み取りだけで取り出しました。時刻はすべて日本時間です。コードは変えていません（AiController <b>43062c79</b>・SummaryAiAnalysisCompensate <b>3258d68b</b>）。原記録の全行とSQLを ZIP に入れています。</p>
+</div>
+
+<h2>① 判定の基準（コードの該当箇所）</h2>
+<div class="card">
+  <p style="margin-top:0">6分前のバッチは、次の<b>両方</b>を満たすときだけ採用します（BaganrikiTime::acceptBatch）。</p>
+  <ul>
+    <li>利用可能 available_at ≦ 取得予定 slot_scheduled_at ＋ 取得猶予</li>
+    <li>利用可能 available_at ≦ 情報上限 input_freeze_at</li>
+  </ul>
+  <div class="tw"><table>
+    <tr><th></th><th>取得猶予</th><th>情報上限</th><th>実際の締め</th></tr>
+    <tr><td>変更前（11月7日の発走前まで）</td><td>30秒</td><td>T−330秒</td><td>取得予定＋30秒</td></tr>
+    <tr><td>変更後（11月7日夜から）</td><td>60秒</td><td>T−300秒</td><td>取得予定＋60秒</td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">ご指摘のとおり、基準は「取得予定時刻から利用可能時刻まで」です。下の表の「予定→利用可能」はその秒数です。</p>
+</div>
+
+<h2>② 6分前の取得の各時刻</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>レース</th><th>発走</th><th>取得予定</th><th>開始</th><th>受信</th><th>利用可能</th><th>予定→利用可能</th><th>変更前</th><th>変更後</th></tr>
+    <tr><td>11/7 京都8R</td><td>14:01</td><td>13:55:00</td><td>13:55:02.7</td><td>13:55:44.8</td><td>13:55:45.0</td><td><b>45.0秒</b></td><td><span class="tag ng">外れ</span></td><td><span class="tag ok">採用</span></td></tr>
+    <tr><td>11/7 福島12R</td><td>16:01</td><td>15:55:00</td><td>15:55:02.8</td><td>15:55:38.2</td><td>15:55:38.4</td><td><b>38.4秒</b></td><td><span class="tag ng">外れ</span></td><td><span class="tag ok">採用</span></td></tr>
+    <tr><td>11/8 京都6R</td><td>13:01</td><td>12:55:00</td><td>12:55:02.7</td><td>12:55:31.8</td><td>12:55:32.0</td><td><b>32.0秒</b></td><td><span class="tag ng">外れ</span></td><td><span class="tag ok">採用</span></td></tr>
+    <tr><td>11/8 京都8R</td><td>14:01</td><td>13:55:00</td><td>13:55:03.4</td><td>13:55:31.1</td><td>13:55:31.3</td><td><b>31.3秒</b></td><td><span class="tag ng">外れ</span></td><td><span class="tag ok">採用</span></td></tr>
+    <tr><td>11/8 福島12R</td><td>16:01</td><td>15:55:00</td><td>15:55:03.2</td><td>15:55:36.6</td><td>15:55:36.9</td><td><b>36.9秒</b></td><td><span class="tag ng">外れ</span></td><td><span class="tag ok">採用</span></td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">5レースとも、遅れはほぼ全部が「開始→受信」（取得元の応答待ち）です。開始の遅れは約3秒、受信→利用可能は約0.2秒です。「変更前」「変更後」の列は、上の基準に当てはめた結果です。</p>
+</div>
+
+<h2>③ 凍結・AI送信・公開</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>レース</th><th>凍結</th><th>AIの送信（予約→受領）</th><th>公開（期限）</th></tr>
+    <tr><td>11/7 京都8R</td><td>発走前は11回とも失敗（13:55:50〜14:00:39、COLLECTION_AUDIT_MISSING）。発走後も失敗が続き、<b>19:12:28</b> に凍結</td><td>なし</td><td>なし</td></tr>
+    <tr><td>11/7 福島12R</td><td>発走前は13回とも失敗（15:55:57〜16:00:35、同上）。18:42 までの試行も失敗し、<b>21:21:03</b> に凍結</td><td>なし</td><td>なし</td></tr>
+    <tr><td>11/8 京都6R</td><td>12:56:03.8</td><td>1st 12:56:06→12:57:23<br>2nd 12:56:09→12:58:06</td><td>12:58:06.9（12:59:00）候補7</td></tr>
+    <tr><td>11/8 京都8R</td><td>13:56:04.8</td><td>1st 13:56:10→13:56:50<br>2nd 13:56:14→13:57:10</td><td>13:57:10.6（13:59:00）候補5</td></tr>
+    <tr><td>11/8 福島12R</td><td>15:56:03.9</td><td>1st 15:56:06→15:56:57<br>2nd 15:56:09→15:57:38</td><td>15:57:38.9（15:59:00）候補3</td></tr>
+  </table></div>
+  <ul class="note" style="margin-bottom:0">
+    <li>11月7日の2レースの凍結は、18:42（失敗）と19:12（成功）の間に変更後の版を入れたあとで成功したものです。発走後なので、AIへの送信も公開もしていません。</li>
+    <li>発走後に凍結の試行を起こした起点は、まだ確かめていません（週末明けに調べます）。送信・公開には進まないことは、上の記録で確認できます。</li>
+  </ul>
+</div>
+
+<h2>④ お客様に出ていたもの（11月7日の2レース）</h2>
+<div class="card">
+  <p style="margin:0">新しい仕組みで入力を固められなかったため、当時サーバに残っていた旧方式の先回り（毎分の aiPrewarm）が旧方式のAI（1st・2nd）を呼び、統合結果を保存しました（京都8R 13:56:59 終了、福島12R 15:57:00 終了・aiPrewarm.log）。<b>お客様の画面には、この2レースだけ旧方式の予想が出ています。</b>11月7日の旧方式の記録はこの2レースだけで、他の34レースは新しい仕組みで処理しています。</p>
+  <p class="note" style="margin:8px 0 0">週末の集計では、この2レースを「旧方式で出したレース」として、新しい仕組みの成績から分けます。旧方式の先回りは、現在のコードでは何もしません。旧方式への切り替えも入れていません（11月7日の決定）。</p>
+</div>
+
+<h2>⑤ まとめ</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li><b>原因</b>：6分前の取得元の応答に38〜45秒かかり、変更前の締め（取得予定＋30秒）を過ぎたため。</li>
+    <li><b>改善結果</b>：変更後（取得予定＋60秒）の11月8日は、30秒を超えた3レース（31〜37秒）も含めて全36レースが凍結し、期限内に公開しました。</li>
+    <li><b>残る条件</b>：取得元の応答が60秒を超えると、そのレースは凍結できず、予想は出ません（旧方式へは切り替えません）。実際の開催日（11月7日・8日）の最大は45.0秒です。14日の監視では、この秒数を全レースで記録します。</li>
+  </ul>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>

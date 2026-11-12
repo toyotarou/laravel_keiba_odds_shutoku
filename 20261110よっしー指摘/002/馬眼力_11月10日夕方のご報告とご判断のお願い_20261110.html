@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11月10日夕方のご報告とご判断のお願い</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  .rec { background: #e6eefb; color: #1f3a5f; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>11月10日夕方のご報告と<br>ご判断のお願い</h1>
+  <p>2026年11月10日（火）　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">いただいたご指摘（B の採用と、なるさんの確認結果①〜⑤）は、11月10日のうちに直してサーバに入れました。そのうえで、直した最終版で6レースを試しました。</p>
+  <p style="margin:8px 0 0">その結果、<b>1つ目のAI（Claude Haiku）が、新しいプロンプトの作業をこなしきれていない</b>ことがはっきりしました。今週末の進め方について、<b>3章でご判断をお願いします</b>（豊田は C を強くおすすめします）。</p>
+</div>
+
+<h2>1. 直したこと</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>ご指摘</th><th>直したこと</th></tr>
+    <tr><td>6章 B</td><td><span class="tag ok">済</span>根拠で選べた馬だけを出します。根拠を確かめられない馬で枠を埋める「補充」は、やめました。1頭も選べなかったレースは「予想は出せませんでした」と出ます。別の帯から根拠のある馬で補う仕組みは残しています。</td></tr>
+    <tr><td>① 全頭評価</td><td><span class="tag ok">済</span>1つ目のAIの返事を、「書いた馬の数」だけでなく「根拠を書いた馬の数」でも見るようにしました。次のときは送り直します。
+      <ul>
+        <li>書いた馬が1頭でも足りない（馬番の重複・抜けを含む）</li>
+        <li>根拠を書いた馬が3分の1に満たない</li>
+        <li>写すだけの欄を書き換えた</li>
+        <li>波乱度を出さなかった</li>
+      </ul>
+      「30秒以内」の決まりはやめて、締め切りまでの残り時間で決めます。2回目を使うかは、根拠を書いた馬の数で比べます。</td></tr>
+    <tr><td>② 断層の意味</td><td><span class="tag ok">済</span>断層の根拠は、その馬が上側にいて、比が2.00以上の組があるときだけ認めます（プロンプトの決まりどおり）。1.03倍を「主断層」とした根拠は外れ、点数・順位・候補は、残った根拠からやり直します。</td></tr>
+    <tr><td>③ E3・E5 の判断</td><td><span class="tag ok">済</span>公開の候補は、もともとサーバの判定（比べられない状態なら入れ替えない）で決めていて、AIが書いた KEEP/SWAP は使っていません。そのうえで、AIの判断とサーバの判断のずれを、レースごとに記録するようにしました。</td></tr>
+    <tr><td>④ 指標が null</td><td><span class="tag ok">済</span>null の理由を、「対象の人気帯の馬がいない」「1つ目のAIの返事を使えない」「AIが null を返した」「検査で外れた」に分けて記録します。波乱度を出さなかったときは送り直します。</td></tr>
+    <tr><td>⑤ 料金の二重計上</td><td><span class="tag ok">済</span>送信ごとに使用量を残し、確かめられたものだけを1回ずつ足します。2回目の結果が分からないときは、予約した最悪の額のまま数えます。使わなかった返事の原文も残します。</td></tr>
+    <tr><td>成否の数え方</td><td><span class="tag ok">済</span>レースごとに、次を分けて記録します。
+      <ul>
+        <li>返事の行数</li>
+        <li>根拠を書いた馬</li>
+        <li>検査を通った馬</li>
+        <li>選出資格</li>
+        <li>順位の採用元</li>
+        <li>最終候補</li>
+        <li>指標</li>
+      </ul></td></tr>
+    <tr><td>E3・E5 が比べられない</td><td>計算の誤りではありませんでした。過去のレースとして使えるのは、取得時刻の記録が残る10月24日以降の156レースだけです。10月23日以前の1,324レースは、6分前オッズはありますが取得時刻の記録が無いため、決まりどおり使っていません。芝・ダートと頭数が同じ過去レースは、1レースあたり3〜4件しかなく、比べられる状態（100件以上）には遠い状況です。基準は緩めていません。</td></tr>
+  </table></div>
+</div>
+
+<h2>2. 直した最終版で、6レースを試した結果</h2>
+<div class="card">
+  <p class="note" style="margin-top:0">11月8日のレースを、当日の締め切り時刻に合わせて非公開で再現しました（お客様の画面には出ていません）。</p>
+  <div class="tw"><table>
+    <tr><th>レース</th><th>1つ目のAI（Claude Haiku）</th><th>2つ目のAI（DeepSeek）</th><th>予想</th><th>指標</th></tr>
+    <tr><td>東京9R（9頭）</td><td>1回目 0頭で途中終了 → 送り直しで9頭</td><td><span class="tag ng">読めない返事</span></td><td>出た（1つ目だけ）</td><td>未算出</td></tr>
+    <tr><td>京都9R（15頭）</td><td>根拠は4頭分だけ → 送り直しは0頭（1回目を使用）。選出資格0頭</td><td>15頭</td><td>出た（2つ目だけ）</td><td>未算出</td></tr>
+    <tr><td>福島10R（15頭）</td><td>7頭で途中終了 → 送り直しは根拠が少なく、1回目を使用</td><td>15頭</td><td>出た（両方）</td><td>3・2・2</td></tr>
+    <tr><td>東京11R（18頭）</td><td>1頭で途中終了 → 送り直しで18頭（根拠は5頭分）</td><td>18頭</td><td>出た（両方）</td><td>大穴進入度だけ</td></tr>
+    <tr><td>京都11R（16頭）</td><td>読めない返事 → 送り直しは1頭</td><td>16頭</td><td>出た（2つ目だけ）</td><td>未算出</td></tr>
+    <tr><td>福島11R（16頭）</td><td>1頭で途中終了 → 送り直しで16頭</td><td><span class="tag ng">1頭で途中終了</span></td><td>出た（1つ目だけ）</td><td>3・2・2</td></tr>
+  </table></div>
+  <ul>
+    <li><b>良かった点</b>：6レースとも、どちらかのAIの根拠で予想が出ました。根拠の無い馬で枠を埋めることはありません。送り直しは6レースとも働き、うち3レースで1つ目のAIの評価を取り戻せました。</li>
+    <li><b>困った点</b>：1つ目のAIは、<b>6レースとも1回目で評価を投げ出しました</b>。送り直しても、半分は直りません。全頭を書いても、根拠を書くのは数頭だけです。2つ目のAIも、6レース中2レースで使えない返事でした。両方のAIがそろったのは2レース、指標がそろったのは2レースです。</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">見立て：新しいプロンプトは、1頭ごとに5系統の根拠と10項目の採点を書かせる、とても重い作業です。1つ目のAIの Claude Haiku（いちばん安いモデル）には重すぎるようです。書き損じを1つずつ直す方法では追いつきません。</p>
+</div>
+
+<h2>3. ご判断いただきたいこと</h2>
+<div class="card">
+  <p style="margin-top:0"><b>1つ目のAIの進め方をどうしますか。</b></p>
+  <p><span class="tag rec">豊田のおすすめ</span><b>豊田は C を強くおすすめします。B では料金が跳ね上がるからです。</b></p>
+  <ul>
+    <li><b>料金</b>：B は、1つ目のAIの費用が今の数倍になります。1レース1〜2円が十数円ほどになり、週末72レースで1,000円前後、1か月で数千円増える見込みです。予想の費用は低く抑えたいので、この増え方は受け入れにくいと考えます。</li>
+    <li><b>全頭の評価は、2つ目のAIがすでにこなしている</b>：今日の6レースでも、2つ目のAIは15〜18頭立てを全頭評価できています。1つ目のAIにまで同じ重い作業をさせる必要は薄いと考えます。</li>
+    <li><b>1つ目のAIにしかできない仕事がある</b>：レース指標3つ（波乱度・下位進入度・大穴進入度）は、1つ目のAIだけが出します。作業を軽くすれば、この指標と上位の馬の評価を、安い Haiku のまま安定して出せる見込みです。</li>
+    <li><b>モデルを上げても、確実とは言えない</b>：上のモデルでも、これだけ重い作業を毎回こなせるかは、試してみないと分かりません。お金をかけて試したあとで、結局 C が必要になることもあり得ます。</li>
+  </ul>
+  <div class="tw"><table>
+    <tr><th>選択</th><th>内容</th><th>結果</th></tr>
+    <tr><td><b>C．1つ目のAIの作業を軽くする（プロンプトを変える）</b><br><span class="tag rec">おすすめ</span></td><td>1つ目のAIは「指標3つ」と「上位の馬の評価」だけにして、全頭・全項目の評価は2つ目のAIに任せる、などの形です。どこまで軽くするかを、よっしーさんに決めていただきます。</td><td>費用は今のままか、下がります。プロンプトの変更と試験のやり直しが要るので、今週末に間に合わない場合は、今週末だけ A で動かします。</td></tr>
+    <tr><td><b>A．このまま土日を迎える</b></td><td>今の作り（Haiku＋送り直し）のまま動かし、土日の結果を見てから次を決めます。</td><td>予想は、たいていのレースでどちらかのAIの根拠で出る見込みです。ただし、両AIがそろうのは半分ほど、指標も半分ほどが「未算出」の見込みです。</td></tr>
+    <tr><td><b>B．1つ目のAIを上のモデル（Claude Sonnet）に変える</b></td><td>水曜に、料金の計算と予算の仕組みに Sonnet を足し、非公開で数レース試します。良ければ金曜までに切り替え、だめなら A に戻します。</td><td>評価は安定する見込みですが、<b>料金が跳ね上がります</b>（1つ目のAIの費用が数倍。週末72レースで1,000円前後増える見込み。正確な額は公式の料金で確かめます）。</td></tr>
+  </table></div>
+  <p class="note" style="margin:8px 0 0">お返事は「A」「B」「C」のどれかだけで大丈夫です。C の場合は、1つ目のAIに何を残すか（例：指標3つと上位の馬だけ）も一言いただけると助かります。いただかなくても、豊田のほうで「指標3つと、各人気帯の上位の馬」の案を作ってお見せします。</p>
+</div>
+
+<h2>4. なるさんへの確認用（技術的な内容）</h2>
+<div class="card">
+  <p class="note" style="margin-top:0">下の枠を、そのままなるさんに貼ってください。</p>
+<pre>【11/10 13時以降の修正（なる11/10 確認結果への対応）】
+・6章B：根拠未確認の穴埋め（predictionFillRows）を停止。公開時の別帯からの根拠付き補充（VERIFIED_EVIDENCE_FALLBACK 等）は維持。
+・①：1st 再送の判定を replyQuality に変更。投げ出し＝行数＜出走数（重複・出走外を除く、読めなければ0）／evidence を持つ馬＜ceil(N/3)／selection_enabled・role_cap の書換え／race_metrics.wave_level が null。
+  時間条件は「締切まで残り ≥ max(60秒, 1回目の秒数+20秒)」。費用条件は「1回目実額＋2回目最悪額（同入力・max_tokens=65536−1回目出力）≤ 予約額」。
+  採否は evidence を持つ馬数→行数→wave の順で比較し、2回目が良いときだけ採用。
+・②：BaganrikiGapClaim。gap の evidence は、引用した固定隣接ペア比（fixed_gap_win_ratio／fixed_gap_place_ratio）のうち、当該馬が上側かつ値≥2.00 のものが無ければ EXPECTED_FALSE_GAP。salvageEvidence で除去後に再構成。
+・③：公開候補は BaganrikiCandidateSelection::projectBand（両者 COMPARISON_READY でなければ E_UNAVAILABLE）で決定し、AIの expected_reviews は採用しない。
+  50_summary.json に AIの decision・両馬の E status・サーバが許す判定・mismatch を記録。
+・④：50_summary.json の race_metrics.why_null＝NO_TARGET／ROLE_UNUSED／AI_NULL／CHECK_FAILED。
+・⑤：送信別 usage を resent.sends に保存し、確認済みのみ合算。2回目が例外なら usage=null（UNKNOWN_KEEP_WORST で予約額のまま）。使わなかった原文は raw_unused。
+  手元の試験14通り（読めない返事・残り時間不足・予約超過・通信例外・HTTP529 を含む）は期待どおり。
+・E3/E5 COMPARISON_READY 0頭：history は t_horse_odds_finder_expected_score（6分前の取得時刻 roster_json.odds_get_timing_6 あり）の156レース（10/24〜11/7）だけ。
+  10/23以前の1,324レース（summary に6分前オッズあり）は取得時刻の記録が無く除外。同 surface・同N の pool は1レース3〜4件。
+
+【最終版（AiController md5 eab9d616…）での6レース（世代900、11/8 再現）】
+1st：1回目は6/6で投げ出し（0・1・1行、根拠4頭/15、7行、読めない）。再送採用3、不採用3。
+2nd：使えない返事2/6（JSON_INVALID、1行で終了）。公開6/6（両role 2、1st のみ 2、2nd のみ 2）。指標3つ全部 2/6。
+→ 1st の安定化（モデル変更 B または作業量の削減 C）をご判断いただくまで、書き損じ個別対応は止めています。</pre>
+</div>
+
+</main>
+<footer>馬眼力　11月10日夕方のご報告とご判断のお願い　2026-11-10</footer>
+</body>
+</html>

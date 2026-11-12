@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>週末前確認への補足（3点）</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  .rec { background: #e6eefb; color: #1f3a5f; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>週末前確認への補足（3点）</h1>
+  <p>2026年11月11日（水）　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">ご指摘の3点について、①は原因を調べ、②③は週末の確認と報告の手順を決めました。</p>
+  <p style="margin:8px 0 0">あわせて、前回入れていなかったプログラム本体と生ログを ZIP にまとめました（同じフォルダ）。<b>11月14日（土）の朝まで、こちらで行う作業はありません。</b></p>
+</div>
+
+<div class="card">
+  <p style="margin:0"><span class="tag ok">お知らせ</span>①を調べるため、当日確認コマンドのまとめに「理由の集計」を足しました（SummaryAiAnalysisCompensate.php：5958e321 → <b>d13426e6</b>）。変更は確認用の集計だけで、予想の処理（凍結・送信・検査・公開）には触れていません。AiController.php は夜版3（58e3ee27）のままです。差分は ZIP に入れています。</p>
+</div>
+
+<h2>① E3・E5 が使えない理由（11月7日・501頭）</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>状態</th><th>頭数</th><th>原因</th><th>蓄積で解決するか</th></tr>
+    <tr><td>材料不足（UNAVAILABLE_INPUT）</td><td>123</td><td><b>全頭が「レースのクラスが判定できない」（MISSING_CONDITIONS）</b>。9レースの全頭。</td><td><b>しない</b>（データの取り方を直す必要あり）</td></tr>
+    <tr><td>類似例が少ない（LOW_SUPPORT）</td><td>369</td><td>全頭が「比べられる過去レースが100未満」。あわせて K&lt;20・n_eff&lt;15 も全頭、W&lt;10 は339頭。</td><td><b>する</b>（ただし時間がかかる）</td></tr>
+    <tr><td>基準率のみ（BASELINE_ONLY）</td><td>9</td><td>似た過去レースが0件（京都1R・9頭立て）</td><td>する</td></tr>
+    <tr><td>比較に使える（COMPARISON_READY）</td><td>0</td><td>—</td><td>—</td></tr>
+  </table></div>
+
+  <p style="margin-bottom:4px"><b>材料不足123頭の詳しい原因</b></p>
+  <ul style="margin-top:0">
+    <li>対象は、福島9・10・11R、東京9・10R、京都8・9・10・11R の9レース（全頭）です。</li>
+    <li>このうち8レースは特別戦・オープン（例：三春駒特別、ノベンバーステークス、室町ステークス）。DBのレース表（t_horse_odds_finder_races）には<b>クラスの列が無く</b>、レース名にも「2勝クラス」などの文字が無く、grade も空のため、クラス判定（SummaryExpectedScore::classGroup）が「不明（UNK）」になります。</li>
+    <li>京都8R（京都ジャンプS・J-G3）は障害戦で「JUMP」と判定され、平地の比較対象外のクラスになります。</li>
+    <li>過去データの少なさとは関係がなく、<b>データがたまっても解決しません</b>。特別戦のクラスを別の資料から取る修正が必要です。今週末の夜版3には入れず、次の版の課題とします。</li>
+  </ul>
+
+  <p style="margin-bottom:4px"><b>類似例が少ない369頭の詳しい原因</b></p>
+  <ul style="margin-top:0">
+    <li>比べられる過去レース数 M は、1レースあたり<b>1〜16</b>でした（分布：M=1 9頭、2 30頭、3 142頭、4 26頭、5 33頭、6 38頭、9 36頭、16 64頭）。</li>
+    <li>過去レースは、取得時刻が記録された10月24日以降のうち、芝・ダートと頭数が同じものだけを使っています（外した延べ数：条件違い3,717、出走表・取消の不一致252）。</li>
+    <li>レースがたまれば増えますが、3週末分で最大16です。M≥100 に届くのは、単純に伸ばした<b>概算で数か月先</b>です（確約ではありません）。</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">このため、今週末も E3・E5 による帯内の入れ替えは起きない見込みです。候補は各AIの根拠と帯内順位で決まります。</p>
+</div>
+
+<h2>② 14日（土）当日の確認手順</h2>
+<div class="card">
+  <p style="margin-top:0">すべてDBの読み取りと画面の確認だけで行います。サーバのファイル・設定には触れません。各会場の最初のレースで行い、問題があればその時点でご連絡します。</p>
+  <div class="tw"><table>
+    <tr><th>時点</th><th>確認すること</th></tr>
+    <tr><td>最初のレースの発走前（9時台）</td><td>オッズの取得が毎分入り始めているか（時刻つき）。予想の下準備・送受信の定期処理が動いているか（処理待ち・失敗の件数）</td></tr>
+    <tr><td>最初のレースの凍結〜公開</td><td>入力の凍結時刻、1st・2nd の送信開始・受領時刻（<b>応答時間</b>）、送り直しの有無、検査の判定、<b>公開時刻と公開期限</b>（期限内か）</td></tr>
+    <tr><td>公開の直後</td><td><b>実際のアプリ画面</b>を豊田が開き、表示された候補の馬番・順番・文面が、DBの公開内容と一致するか（画面の写真を残す）</td></tr>
+    <tr><td>最初のレースの終了後</td><td>予想を出せなかった記録があれば、その原因</td></tr>
+  </table></div>
+</div>
+
+<h2>③ 2つのAIを公平に比べる条件</h2>
+<div class="card">
+  <ul style="margin-top:0">
+    <li><b>同じ入力</b>：同じレースの同じ凍結入力に対する、1st・2nd それぞれの採用された返事を使います。</li>
+    <li><b>同じ候補数・帯別配分</b>：1st 単独・2nd 単独の候補は、本番と同じサーバの選び方に、そのAIの返事だけを入れて作ります。帯別の枠（A/B/D）は本番と同じです。根拠のある馬が足りずに枠が埋まらない場合は、そのまま少ない頭数とし、候補数・投資額を並べて示します。</li>
+    <li><b>集計</b>：各候補へ複勝100円ずつの仮配分で、投資総額・払戻総額・回収率・帯別の捕捉を出します。最大の払戻を除いた補助集計も付けます。</li>
+    <li><b>未公開も残す</b>：予想を出せなかったレース、片方のAIが使えなかったレースは、件数と原因を別に示し、分母から黙って外しません。</li>
+    <li><b>除外するもの</b>：試験の記録（世代900）は本番成績から除外します。本番（世代0）だけを集計します。</li>
+    <li>2日分のため参考値とし、継続して判断します。</li>
+  </ul>
+</div>
+
+<h2>④ その他</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li>なるさんと作られた時間対応の次版案は、今週末の夜版3には入っていません（予定どおり）。</li>
+    <li>今回の確認は、記載した範囲（版・36レースの準備・定期処理の設定とDBの状態）に限ったものです。AIへの実送信を含む動作は、14日の当日確認で見ます。</li>
+  </ul>
+</div>
+
+<h2>⑤ お送りするもの</h2>
+<div class="card">
+  <p style="margin:0">ZIP「馬眼力_週末前確認の提出物_20261111.zip」</p>
+  <ul>
+    <li>1_ログ：11月7日36レースの準備確認の全ログ、crontab、DBの読み取り確認</li>
+    <li>2_変更差分：SummaryAiAnalysisCompensate.php（5958e321 → d13426e6）</li>
+    <li>3_プログラム全文：AiController.php（58e3ee27）、SummaryAiAnalysisCompensate.php（d13426e6）、SummaryExpectedScore.php（クラス判定の元）</li>
+  </ul>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>

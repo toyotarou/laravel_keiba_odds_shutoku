@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>なるさんの確認結果への回答とご判断のお願い</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  .rec { background: #e6eefb; color: #1f3a5f; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>なるさんの確認結果への回答<br>とご判断のお願い（1点）</h1>
+  <p>2026年11月11日（水）　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">ご指摘の点を、サーバのログとDBの読み取りで確かめました（サーバのファイル・設定は変えていません）。</p>
+  <p style="margin:8px 0 0">障害レースが平地の基準集団に入る件は、<b>実際に入った例を確認しました</b>。今週末の版を変えるかどうか、<b>1点だけご判断をお願いします</b>（2章）。そのほかは確認の結果と、週末の手順への追加です。</p>
+</div>
+
+<h2>1. 障害レースが平地の基準集団に入る件（ご指摘4）</h2>
+<div class="card">
+  <ul style="margin-top:0">
+    <li>ご指摘どおり、現在レース・過去レースとも race_type を FLAT に固定しており、過去レースを基準集団に入れる条件にクラス JUMP の除外がありません。</li>
+    <li>過去レースの表（expected_score）では、<b>11月6日までの障害レースは芝・ダートの区分が「OTHER」</b>で記録されており、芝・ダートの条件で外れていました。このため、<b>11月7日の36レースの準備確認には混入していません</b>。</li>
+    <li>ところが、<b>11月7日以降の障害レースは「芝（TURF）」で記録されています</b>（11/7 京都8R 9頭、11/8 福島4R 11頭、11/8 福島5R 9頭）。</li>
+    <li>10日夜の試験記録（世代900）で、<b>11月8日東京9R（芝・9頭）の基準集団7件の中に、11月7日京都8R（京都ジャンプS）が1件入っていました</b>。ほかの3レースには入っていません。</li>
+    <li>今週末は、<b>芝で9頭または11頭のレース</b>に、この3つの障害レースが入りえます。E3・E5 による入れ替えは今週末も起きませんが（比較可能0頭）、両AIへ参考として渡す基準率・E3・E5 の値が少しずれます。</li>
+    <li>11月7日京都8R の9頭は、「材料不足」ではなく「対象外」に分けて報告します（クラス不明114頭と障害9頭）。</li>
+  </ul>
+</div>
+
+<h2>2. ご判断のお願い：今週末の版を変えるか</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>案</th><th>内容</th><th>結果</th></tr>
+    <tr><td><b>A（おすすめ）</b><br>今週末は夜版3のまま</td><td>直さずに走らせ、週末のあとに、障害レースが基準集団に入ったレースを全件洗い出して報告。修正は次の版で行う。</td><td>今週末の版は約束どおり固定。影響はE3・E5の参考値のずれに限られ、入れ替えは起きない。影響を受けたレースは記録から特定できる。</td></tr>
+    <tr><td><b>B</b><br>今週末までに直す</td><td>過去レースからクラス JUMP を除き、現在レースの障害を「対象外」にする小さな修正（夜版4）。11月7日・8日の準備確認をやり直してから入れる。</td><td>今週末から値のずれがなくなる。その代わり版が変わるので、夜版3の記録と分けて扱う必要がある。木曜までに入れて金曜に確認。</td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">豊田は A をおすすめします。今週末は版を固定して検証する方針で、今回のずれは入れ替えに使われない参考値に限られるためです。</p>
+</div>
+
+<h2>3. 実行経路と cron の稼働（ご指摘5-①）</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li>設定値：<b>QUEUE_CONNECTION=sync</b>、<b>BAGANRIKI_PREDICTION_JOBS=0</b>（.env 全体は出さず、この2つだけを表示）。</li>
+    <li>DBの記録：11月7日・8日の全レースで、実行経路は <b>SYNC</b>（ジョブを使わず cron から同期で実行）。処理待ちの仕事が0件なのはこのためです。</li>
+    <li>cron：1st・2nd の巡回とオッズ取得のログは、本日14:08にも更新されていました（毎分の起動は生きています）。</li>
+    <li>巡回ログの error/exception 1500行は、<b>すべて10月23日（金・開催なし）9:00〜13:10</b> の「DBユーザー forge で入れない」エラー250回分でした。巡回は apache 権限で動くため、そのとき .env を読めなかったものです。<b>それ以降は0件</b>で、開催日には起きていません。</li>
+    <li>稼働中のファイルの指紋は、サーバ上で豊田が md5sum で確かめた値（58e3ee27／d13426e6）です。端末の出力を ZIP に入れています。</li>
+  </ul>
+</div>
+
+<h2>4. 11月7日の発走後の凍結（ご指摘5-③）</h2>
+<div class="card">
+  <ul style="margin-top:0">
+    <li>発走後に凍結された記録は2件：京都8R（19:12、締切14:00）、福島12R（21:21、締切16:00）。どちらも世代0・経路 SYNC で、<b>AIへの送信0件・公開0件</b>です。予想の成績には入っていません。</li>
+    <li>何がこの凍結を起こしたかは<b>未確認</b>です（この時刻に動く予想の cron はありません）。週末のあとに調べます。</li>
+    <li>成績には、締切前に凍結され、公開期限内に公開された記録だけを使います。発走後の凍結・再生成と試験記録（世代900）は別枠にします。</li>
+  </ul>
+  <p style="margin-bottom:4px"><b>参考：先週末（旧版）に予想が出なかったレース</b></p>
+  <div class="tw"><table>
+    <tr><th>日</th><th>レース</th><th>状況</th></tr>
+    <tr><td>11/7</td><td>福島3R</td><td>両AI受領、公開なし</td></tr>
+    <tr><td>11/7</td><td>京都12R</td><td>2nd APIエラー（500）、1st は検査で不採用</td></tr>
+    <tr><td>11/7</td><td>京都8R・福島12R</td><td>発走前に凍結されず</td></tr>
+    <tr><td>11/8</td><td>東京6R</td><td>2nd 結果不明、公開なし</td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">旧版の結果のため、今週末の見込みには使いません。</p>
+</div>
+
+<h2>5. 前回の補足の訂正</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li>M の分布（合計378頭）は、類似例が少ない369頭に、基準率のみの9頭を足した数でした。</li>
+    <li>京都1R は「似た過去レースが0件」ではなく、<b>比べた過去レース M=1、類似例 K=0</b> です。</li>
+    <li>11月7日の確認で使った過去レースは11月6日まで（10/24・25 と 10/31・11/1 の<b>2週末分</b>）です。「3週末分」は誤りでした。</li>
+    <li>類似例が少ない馬は、M≥100・K≥20・W≥10・n_eff≥15 をすべて満たす必要があり、蓄積で改善する可能性はありますが、期間はお約束できません。条件別に4つの充足を追います。</li>
+  </ul>
+</div>
+
+<h2>6. 14日（土）の確認手順への追加（ご指摘5-①②）</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li>朝：実行経路（SYNC）と、1st・2nd の巡回・オッズ取得の cron が、その日に動き始めたか（ログの更新時刻）。</li>
+    <li>発走が近いレースが続く時間帯：凍結の遅れ、送信までの待ち、送り直しのあとの公開の余裕（公開期限までの秒数）を記録。</li>
+    <li>各会場の最初のレース：凍結・両AIの送受信・検査・公開時刻・アプリ画面の一致（画面の写真を残す）。</li>
+    <li>その日の終わり：<b>全レースの期限内公開率と、公開できなかった理由の一覧</b>。</li>
+  </ul>
+</div>
+
+<h2>7. 2つのAIの比較への追加（ご指摘6）</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li>1st 単独・2nd 単独・統合それぞれの<b>実際の候補数・投資額・払戻・回収率</b>。</li>
+    <li>3方式が同じ条件で成立した<b>共通レースでの比較</b>と、<b>全対象の公開・未公開率</b>を分けて示す。</li>
+    <li>候補数が違う場合、<b>同じ総予算にそろえた参考比較</b>も並べる（理論上の比較と明記）。</li>
+    <li>送り直しを含む費用、実際の送受信時間、期限内公開率。</li>
+    <li>2nd が加わって拾えた馬だけでなく、統合で外れた馬、選んで走らなかった馬も示す。</li>
+    <li>保存した返事から作る「単独の場合の候補」は仮の比較で、実際に1つのAIだけで動かしたときの速さ・費用とは分けて扱う。公開候補への仮の均等配分であり、実購入の成績とは混ぜない。</li>
+  </ul>
+</div>
+
+<h2>8. お送りするもの</h2>
+<div class="card">
+  <p style="margin:0">ZIP「馬眼力_追加確認の提出物_20261111.zip」</p>
+  <ul>
+    <li>01 サーバでの確認（端末の出力）：ファイルの指紋、設定値2つ、cron ログ、エラーの中身と日時</li>
+    <li>02 DBの読み取り確認：実行経路、障害レースの区分の記録、基準集団に入った例、11/7 の発走後の凍結、先週末の未公開レース</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">今回確かめたのは、上に書いた範囲（設定・ログ・DBの記録）です。本番の不具合ゼロ、公開の成功、回収率、2つのAIの優劣を確かめたものではありません。</p>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>

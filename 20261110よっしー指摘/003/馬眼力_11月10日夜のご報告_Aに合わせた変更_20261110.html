@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11月10日夜のご報告（A に合わせた変更）</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  .rec { background: #e6eefb; color: #1f3a5f; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>11月10日夜のご報告<br>（A に合わせた変更）</h1>
+  <p>2026年11月10日（火）　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">ご判断ありがとうございます。いただいた A のとおりに直し、11月10日の夜にサーバへ入れました。</p>
+  <p style="margin:8px 0 0">今週末（11月14日・15日）は、この形で動かします。</p>
+</div>
+
+<h2>1. 直したこと</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>いただいたご判断</th><th>直したこと</th></tr>
+    <tr><td>6章 B を維持する</td><td><span class="tag ok">済</span>これまでどおり、根拠を確かめられた馬だけを出します。サーバだけで選ぶ方法（B）は使っていません。</td></tr>
+    <tr><td>1つでも使えれば、その候補を出す</td><td><span class="tag ok">済</span>使えるAIを増やすため、<b>2つ目のAI（DeepSeek）にも送り直しを入れました</b>。返事を途中でやめたとき、読めない返事だったとき、根拠を書いた馬が少なすぎたときに、残り時間があれば1回だけ送り直します。2回目のほうが良いときだけ、2回目を使います。1つ目のAIの送り直しと同じ仕組みです。</td></tr>
+    <tr><td>2つとも使えないときの表示</td><td><span class="tag ok">済</span>画面には、いただいた文面のとおり「<b>AIの評価を確認できなかったため、予想は出せませんでした</b>」と出します。</td></tr>
+    <tr><td>出せなかった件数と原因の記録</td><td><span class="tag ok">済</span>予想を出せないと決まった時点で、レースごとに1件だけ記録します。記録するのは、AIごとの送信の状態、検査の判定とその理由、送り直しをしたかどうかです。</td></tr>
+  </table></div>
+</div>
+
+<h2>2. 試した結果</h2>
+<div class="card">
+  <p class="note" style="margin-top:0">11月8日のレースを、当日の締め切り時刻に合わせて非公開で再現しました（お客様の画面には出ていません）。夕方に2つ目のAIが使えなかった東京9Rと福島11Rも入れています。</p>
+  <div class="tw"><table>
+    <tr><th>レース</th><th>1つ目のAI（Claude Haiku）</th><th>2つ目のAI（DeepSeek）</th><th>予想</th></tr>
+    <tr><td>東京9R（9頭）</td><td>波乱度なし → 送り直しても同じ（1回目を使用）</td><td>1回目で使える</td><td><span class="tag ok">出た</span></td></tr>
+    <tr><td>福島11R（16頭）</td><td>根拠7頭・波乱度なし → 送り直しても同じ</td><td>1回目で使える</td><td><span class="tag ok">出た</span></td></tr>
+    <tr><td>京都11R（16頭）</td><td><b>1回目 0頭 → 送り直しで16頭</b>（2回目を使用）</td><td>1回目で使える</td><td><span class="tag ok">出た</span></td></tr>
+    <tr><td>京都6R（18頭）</td><td>根拠5頭 → 送り直しても良くならず</td><td>1回目で使える</td><td><span class="tag ok">出た</span></td></tr>
+  </table></div>
+  <ul>
+    <li>夕方の6レースと合わせて、<b>10レースすべてで予想が出ました</b>。</li>
+    <li>今回の4レースでは、2つ目のAIは1回目でそろったため、送り直しは起きていません。送り直しの動きは、夕方の東京9R・福島11Rの返事の形で、別に確かめています。</li>
+    <li>指標（波乱度・下位進入度・大穴進入度）は、1つ目のAIが出さないことが多く、4レースのうち2レースは3つとも未算出でした。この点は、前回お願いした C（1つ目のAIの作業を軽くする）で改善を見込んでいます。<b>C のご判断は、引き続きお待ちしています。</b></li>
+  </ul>
+</div>
+
+<h2>3. 今後</h2>
+<div class="card">
+  <ul>
+    <li>11月13日（金）に、もう一度最終の確認をします。</li>
+    <li>土日のあとに、<b>予想を出せなかったレースの件数と原因</b>をご報告します。</li>
+  </ul>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>

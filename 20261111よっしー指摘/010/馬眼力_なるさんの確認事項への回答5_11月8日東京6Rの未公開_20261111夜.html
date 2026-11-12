@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>なるさんの確認事項への回答（11月8日 東京6Rの未公開）</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>なるさんの確認事項への回答<br>（11月8日 東京6Rの未公開）</h1>
+  <p>2026年11月11日（水）夜　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">東京6R（snapshot 3978）は、1stの応答は届いたものの、公開に使える馬が0頭でした。2ndは応答期限の手前で通信を打ち切っており、両AIとも公開に使える評価が無いまま、公開期限を迎えました。</p>
+  <p style="margin:8px 0 0">123のDBを読み取りだけで取り出しました。時刻はすべて日本時間です。コードは変えていません（AiController <b>43062c79</b>・SummaryAiAnalysisCompensate <b>3258d68b</b>）。原記録を ZIP に入れています。</p>
+</div>
+
+<h2>① 期限</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>発走</th><th>投票締切</th><th>公開期限（締切−60秒）</th><th>応答期限（両role）</th></tr>
+    <tr><td>12:50:00</td><td>12:49:00</td><td>12:48:00</td><td>12:47:30</td></tr>
+  </table></div>
+</div>
+
+<h2>② 1stの検査結果と、公開に使える馬の数</h2>
+<div class="card">
+  <ul style="margin-top:0">
+    <li>送信 12:45:07.620 → 受信 12:46:02.454（complete・end_turn）。</li>
+    <li>検査（12:46:02.840）：<b>REPAIRABLE</b>。指摘は102件（horses 30件・summary_horses 72件）。</li>
+    <li>15頭すべてで、根拠（evidence）が「無い」または「objectの配列でない」状態でした。14頭については、この馬自身のSIGNALを根拠に1系統も持っていませんでした（EVIDENCE_NO_OWN_SIGNAL）。</li>
+    <li>検査を通った正常な部分（normal_part）は <code>{}</code> で、確定のとき（12:46:02.967）も <b>merged 0</b> でした。<b>公開に使える馬は0頭</b>です。</li>
+    <li>訂正は依頼しない設定（FIX_POLICY_NEVER_V2）のため、訂正の依頼も送り直しもしていません。</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">「受領」は、応答が届いたことだけを意味します。ご指摘のとおり、公開に使える評価があったわけではありません。</p>
+</div>
+
+<h2>③ 2ndの送信・打ち切り・応答期限</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>時刻</th><th>記録</th></tr>
+    <tr><td>12:45:09.717</td><td>枠の予約（応答期限 12:47:30）</td></tr>
+    <tr><td>12:45:09.938</td><td>実際の送信（R122_USAGE.sent_at）</td></tr>
+    <tr><td>12:47:24.235</td><td>打ち切り：cURL error 28（待ち時間の上限 134,001ミリ秒・受信は2バイトだけ）</td></tr>
+    <tr><td>12:47:24.267</td><td>結果不明（UNKNOWN_RESULT）の記録。応答期限の約6秒前</td></tr>
+  </table></div>
+  <p class="note" style="margin-bottom:0">DeepSeek から本文が返らないまま、こちらの待ち時間の上限で打ち切りました。待ち時間は応答期限を越えないように決めています。使用量は記録されていません（usage null）。</p>
+</div>
+
+<h2>④ 公開判定</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li>12:47:24 の時点で、両roleとも公開に使える評価がありませんでした（1st 0頭・2nd 応答なし）。</li>
+    <li>公開の意図（publication_intents）も公開（publications）も0件です。</li>
+    <li><b>最終的な公開判定の実行時刻と不採用理由のコードは、11月8日の時点では記録する仕組みがありませんでした。</b>11月10日から、公開しなかったレースは監査記録 PREDICTION_NOT_PUBLISHED を1件残しています。このレースと同じ状態なら、分類は AI_EVALUATION_UNCONFIRMED です（コードは、両AIが使えないと先に決まれば NO_RESPONSE、評価がそろわないまま公開期限を過ぎれば DEADLINE_PASSED）。各roleの枠の状態と検査コードも一緒に残ります。</li>
+    <li>今このレースを開くと、画面には「AIの評価を確認できなかったため、予想は出せませんでした」と出ます（11月10日の決定。根拠を確かめられない馬で枠を埋めません）。</li>
+  </ul>
+</div>
+
+<h2>⑤ 分けて見たときの結論</h2>
+<div class="card">
+  <ul style="margin:0">
+    <li><b>通信タイムアウト</b>：2ndだけです。DeepSeek の応答が134秒以内に返りませんでした。</li>
+    <li><b>未公開</b>：2ndが返っていたとしても、1stの公開に使える馬は0頭でした。1stの側の原因は、根拠の形が契約と違っていたことです。</li>
+    <li>2ndのタイムアウトの原因が DeepSeek 側にあったのか、通信経路にあったのかは、この記録からは分かりません。</li>
+  </ul>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>

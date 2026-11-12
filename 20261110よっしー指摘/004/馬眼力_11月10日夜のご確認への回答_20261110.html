@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11月10日夜のご確認への回答</title>
+<style>
+  body { margin: 0; background: #f4f5f7; color: #222; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.75; font-size: 16px; }
+  header { background: #1f3a5f; color: #fff; padding: 20px 18px; }
+  header h1 { margin: 0; font-size: 20px; line-height: 1.5; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 14px; max-width: 760px; margin: 0 auto; }
+  h2 { font-size: 17px; margin: 28px 0 10px; padding-left: 10px; border-left: 5px solid #1f3a5f; }
+  .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .big { font-size: 17px; font-weight: bold; }
+  .tag { display: inline-block; font-weight: bold; font-size: 13px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .ok { background: #e3f4e8; color: #1b7a3a; }
+  .ng { background: #fde7e7; color: #a12a2a; }
+  .rec { background: #e6eefb; color: #1f3a5f; }
+  ul { padding-left: 1.2em; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; white-space: nowrap; }
+  .note { font-size: 13px; color: #666; }
+  pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+  footer { text-align: center; font-size: 12px; color: #888; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>11月10日夜のご確認への回答<br>（2nd 再送・予想を出せない場合）</h1>
+  <p>2026年11月10日（火）　豊田</p>
+</header>
+<main>
+
+<div class="card">
+  <p class="big" style="margin:0">ご確認いただいた①〜④と、候補0頭の文面（A）を反映し、サーバに入れました。</p>
+  <p style="margin:8px 0 0">AIへは送らない再現試験で、送り直し・検査・採否・公開・料金の記録・出せなかった記録・画面まで通し、<b>29件すべて合格</b>しました。差分と試験ログは、同じフォルダの ZIP に入れています。</p>
+</div>
+
+<h2>1. ご確認への回答</h2>
+<div class="card">
+  <div class="tw"><table>
+    <tr><th>ご確認</th><th>回答</th></tr>
+    <tr><td>① 試験件数の表記</td><td><span class="tag ok">訂正</span>前回の「10レースすべてで予想が出た」は、<b>延べ10回・重複を除く7レース</b>の誤りでした（東京9R・福島11R・京都11R が夕方版と夜版で重複）。夜版で確かめたのは4レースです。</td></tr>
+    <tr><td>② 2nd に 1st 専用の条件が入っていないか</td><td><span class="tag ok">確認済</span>2nd では波乱度を見ていません（2nd は指標を出さない決まりのため）。返事の読み方は DeepSeek の形（choices・finish_reason=stop）、使用量と料金は DeepSeek の項目（prompt_tokens・completion_tokens・キャッシュ）で数え、予約額を超えるおそれがあるときは送り直しません。</td></tr>
+    <tr><td>③ 有効な初回評価を失わないこと</td><td><span class="tag ok">修正</span>ご指摘のとおり、「根拠を書いた馬の数」で比べていました。<b>両方の返事を本番と同じ検査（整え・封筒照合・馬ごとの隔離・診断・根拠の組み直し）に通し、「検査を通って候補になれる馬」の数で比べる</b>ように直しました。2回目のほうが多いときだけ2回目を使います。検査そのものが動かないときは、1回目を使います。</td></tr>
+    <tr><td>④ 予想を出せない場合</td><td><span class="tag ok">修正</span>記録を2種類に分けました（「AIの評価を確認できない」「評価は確認できたが候補0頭」）。公開期限切れのコード名の誤りで、期限切れのレースが記録されない不具合があったので直しました。候補0頭の画面は、いただいた A の文面を出します。</td></tr>
+  </table></div>
+</div>
+
+<h2>2. 再現試験の結果（29件すべて合格）</h2>
+<div class="card">
+  <p class="note" style="margin-top:0">11月8日の4レースを凍結し直し、AIへは送らずに、夜に実際に返ってきた返事（必要に応じて書き換えたもの）を偽のAIが返す形で、本番と同じ送信口から公開・画面まで通しました。費用は0円です。</p>
+  <div class="tw"><table>
+    <tr><th>レース</th><th>作った場面</th><th>結果</th></tr>
+    <tr><td>京都11R</td><td>2nd の1回目が2頭だけ → 送り直しで全頭</td><td><span class="tag ok">合格</span>検査を通る馬 1回目2頭・2回目16頭 → 2回目を使用。公開。使用量は2回分を1回ずつ合算、料金の精算は両AIぶん記録。</td></tr>
+    <tr><td>京都6R</td><td><b>③の場面</b>：2nd の1回目は根拠5頭（検査を通る）。2回目は18頭に根拠を書いたが出典が全部入力に無い</td><td><span class="tag ok">合格</span>2回目は検査で0頭 → <b>1回目（5頭）を残して公開</b>。保存・検査されたのも1回目の返事。2回目の原文は「使わなかった返事」として保存。</td></tr>
+    <tr><td>東京9R</td><td><b>④の場面</b>：1st・2nd とも、1回目も送り直しも読めない返事</td><td><span class="tag ok">合格</span>
+      <ul>
+        <li>1st だけ終わった時点・2nd の送り直しの最中は「待ち」のまま（失敗を確定しない、記録0件）</li>
+        <li>両方そろってから公開せず、<b>画面を開く前に記録1件</b>（AIの評価を確認できない）</li>
+        <li>記録に、AIごとの送信の状態・検査の判定・送り直しの内容が入る</li>
+        <li>画面は「AIの評価を確認できなかったため、予想は出せませんでした」。馬で埋めない</li>
+        <li>公開の判定2回・画面2回のあとも、記録は1件のまま</li>
+      </ul></td></tr>
+    <tr><td>福島11R</td><td>ふつうの公開＋候補0頭の場面（DBは元に戻す）</td><td><span class="tag ok">合格</span>候補0頭の公開は「評価は確認できたが候補0頭」として記録。画面は「AIの評価で根拠を確かめられた馬がいなかったため、予想は出せませんでした」。ふつうの公開では、この文面は出ません。</td></tr>
+  </table></div>
+</div>
+
+<h2>3. お送りするもの</h2>
+<div class="card">
+  <p style="margin:0">ZIP「馬眼力_夜版の差分と試験ログ_20261110.zip」</p>
+  <ul>
+    <li>1_変更差分：夕方版 → 夜版の差分（AiController・SummaryAiAnalysisCompensate）</li>
+    <li>2_プログラム全文：夜版の2ファイル</li>
+    <li>3_試験ログ：再現試験（29件）、実AIでの非公開4レース、送り直しの判定の手元試験</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">C（1つ目のAIの作業を軽くする件）は、ご指示どおり別件として扱っています。今回の変更に、全頭評価を減らす変更は入っていません。</p>
+</div>
+
+</main>
+<footer>馬眼力　豊田</footer>
+</body>
+</html>
