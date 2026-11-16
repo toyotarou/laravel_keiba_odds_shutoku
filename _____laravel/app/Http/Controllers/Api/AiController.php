@@ -6085,6 +6085,8 @@ class AiController extends Controller
     public const EXPECTED_SAVED_POLICY = 'EXPECTED_RESULT_CONFIRMED_TIME_V1';
     /** 試験用：確認記録の置き場所を変える（本番は null） */
     public static ?string $expectedSavedLedgerPath = null;
+    /** 試験用：「内容を確かめ終えた時刻」を返す時計（本番は null＝実時計）。なる11/16 残件：処理の途中で 0:00 をまたぐ試験に使う */
+    public static ?\Closure $expectedSavedClock = null;
     /** 直近の expectedHistory で、保存表の経路から使った数・外した理由ごとの数 */
     public static array $expectedSavedHistoryAudit = [];
 
@@ -6144,17 +6146,20 @@ class AiController extends Controller
         $nowStr = $now->setTimezone($tz)->format('Y-m-d\TH:i:s.uP');
         $to = $now->setTimezone($tz)->format('Y-m-d');
         $from = $now->setTimezone($tz)->modify('-800 days')->format('Y-m-d');
-        $rows = \DB::table('t_horse_odds_finder_expected_score')->where('date', '<=', $to)->where('date', '>=', $from)
-                  ->orderBy('date')->orderBy('kaisuu')->orderBy('basho')->orderBy('day')->orderBy('race')->orderBy('num')
-                  ->get(['date', 'kaisuu', 'basho', 'day', 'race', 'num']);
-        $res = [];
-        \DB::table('t_horse_odds_finder_race_result_history')->where('date', '<=', $to)->where('date', '>=', $from)
-            ->orderBy('id')->get(['date', 'kaisuu', 'basho_code', 'day', 'race', 'num', 'finishing_position', 'finishing_status'])
-            ->each(function ($r) use (&$res) {
-                $res[substr((string) $r->date, 0, 10) . '|' . (int) $r->kaisuu . '|' . $r->basho_code . '|' . (int) $r->day . '|' . (int) $r->race][(int) $r->num] = $r;
-            });
-        $races = [];
-        foreach ($rows as $r) { $races[substr((string) $r->date, 0, 10) . '|' . (int) $r->kaisuu . '|' . $r->basho . '|' . (int) $r->day . '|' . (int) $r->race][] = $r; }
+        // 旧（20261116 11:30 の手動実行で、800日分の結果を一度に読んでメモリ不足（128MB）になったため、日付ごとに読む形へ）
+        // $rows = \DB::table('t_horse_odds_finder_expected_score')->where('date', '<=', $to)->where('date', '>=', $from)
+        //           ->orderBy('date')->orderBy('kaisuu')->orderBy('basho')->orderBy('day')->orderBy('race')->orderBy('num')
+        //           ->get(['date', 'kaisuu', 'basho', 'day', 'race', 'num']);
+        // $res = [];
+        // \DB::table('t_horse_odds_finder_race_result_history')->where('date', '<=', $to)->where('date', '>=', $from)
+        //     ->orderBy('id')->get(['date', 'kaisuu', 'basho_code', 'day', 'race', 'num', 'finishing_position', 'finishing_status'])
+        //     ->each(function ($r) use (&$res) {
+        //         $res[substr((string) $r->date, 0, 10) . '|' . (int) $r->kaisuu . '|' . $r->basho_code . '|' . (int) $r->day . '|' . (int) $r->race][(int) $r->num] = $r;
+        //     });
+        // $races = [];
+        // foreach ($rows as $r) { $races[substr((string) $r->date, 0, 10) . '|' . (int) $r->kaisuu . '|' . $r->basho . '|' . (int) $r->day . '|' . (int) $r->race][] = $r; }
+        $dates = \DB::table('t_horse_odds_finder_expected_score')->where('date', '<=', $to)->where('date', '>=', $from)
+                   ->distinct()->orderBy('date')->pluck('date')->map(static fn($d) => substr((string) $d, 0, 10))->all();
         $path = self::expectedSavedLedgerFile();
         @mkdir(dirname($path), 0755, true);
         $lock = fopen($path . '.lock', 'c');
@@ -6163,15 +6168,29 @@ class AiController extends Controller
             $ledger = self::expectedSavedLedger() ?? ['policy' => self::EXPECTED_SAVED_POLICY,
                 'note' => '結果の確認記録（なる11/16 質問2 A）。レース×結果内容の版ごとに、確認した実時刻と照合値。最初の確認時刻は変えない', 'races' => []];
             $cnt = ['checked' => 0, 'new' => 0, 'same' => 0, 'corrected' => 0, 'incomplete' => 0];
+            $add = [];   // 今回足す版（race_id => 照合値）
+            foreach ($dates as $date) {   // 日付ごとに読む（メモリを1日分だけ使う）
+            $res = [];
+            foreach (\DB::table('t_horse_odds_finder_race_result_history')->where('date', $date)
+                ->orderBy('id')->get(['kaisuu', 'basho_code', 'day', 'race', 'num', 'finishing_position', 'finishing_status']) as $r) {
+                $res[$date . '|' . (int) $r->kaisuu . '|' . $r->basho_code . '|' . (int) $r->day . '|' . (int) $r->race][(int) $r->num]
+                    = [(int) $r->finishing_position, (string) ($r->finishing_status ?? '')];
+            }
+            $races = [];
+            foreach (\DB::table('t_horse_odds_finder_expected_score')->where('date', $date)
+                ->orderBy('kaisuu')->orderBy('basho')->orderBy('day')->orderBy('race')->orderBy('num')
+                ->get(['kaisuu', 'basho', 'day', 'race', 'num']) as $r) {
+                $races[$date . '|' . (int) $r->kaisuu . '|' . $r->basho . '|' . (int) $r->day . '|' . (int) $r->race][] = (int) $r->num;
+            }
             foreach ($races as $key => $hs) {
                 [$d, $k, $b, $dy, $rc] = explode('|', $key);
                 if (!isset($res[$key])) { $cnt['incomplete']++; continue; }
                 $roster = []; $results = []; $bad = false;
-                foreach ($hs as $h) {
-                    $no = (int) $h->num; $id = 'H' . $no; $roster[] = ['horse_no' => $no, 'horse_id' => $id];
+                foreach ($hs as $no) {
+                    $id = 'H' . $no; $roster[] = ['horse_no' => $no, 'horse_id' => $id];
                     $f = $res[$key][$no] ?? null;
                     if ($f === null) { $bad = true; break; }
-                    $pos = (int) $f->finishing_position; $st = (string) ($f->finishing_status ?? '');
+                    [$pos, $st] = $f;
                     if ($pos >= 1) { $results[] = ['horse_id' => $id, 'finish' => $pos]; }
                     elseif ($st === '中止') { $results[] = ['horse_id' => $id, 'finish' => 'DNF']; }
                     elseif ($st === '失格') { $results[] = ['horse_id' => $id, 'finish' => 'DQ']; }
@@ -6184,9 +6203,20 @@ class AiController extends Controller
                 $versions = $ledger['races'][$rid] ?? [];
                 $last = $versions !== [] ? end($versions) : null;
                 if (is_array($last) && ($last['digest'] ?? null) === $digest) { $cnt['same']++; continue; }   // 同じ内容：時刻は変えない
-                $versions[] = ['digest' => $digest, 'confirmed_at' => $nowStr];
-                $ledger['races'][$rid] = $versions;
-                $versions === [] || count($versions) === 1 ? $cnt['new']++ : $cnt['corrected']++;
+                // $versions[] = ['digest' => $digest, 'confirmed_at' => $nowStr];   // 旧（20261116 なる残件：処理を始めた時刻を確認時刻にしていた）
+                // $ledger['races'][$rid] = $versions;
+                $add[$rid] = $digest;   // 足す版はいったん集め、全部の検査が終わった後の実時刻を付ける
+                count($versions) === 0 ? $cnt['new']++ : $cnt['corrected']++;
+            }
+            unset($res, $races);
+            }   // 日付ごと
+            // @ANCHOR-20261116-EXPECTED-SAVED-CONFIRM  なる11/16 残件：確認時刻は、結果の読み取りと内容の検査を全部終えた後（台帳を書く直前）に実時計から取り直す。
+            //   処理を始めた時刻（$now）は、調べる期間を決めるためだけに使う。今回足す版だけにこの時刻を付け、同じ内容の既存の版の時刻は変えない。
+            $confirmedStr = null;
+            if ($add !== []) {
+                $doneAt = (self::$expectedSavedClock !== null) ? (self::$expectedSavedClock)() : new \DateTimeImmutable('now', $tz);
+                $confirmedStr = $doneAt->setTimezone($tz)->format('Y-m-d\TH:i:s.uP');
+                foreach ($add as $rid => $digest) { $ledger['races'][$rid][] = ['digest' => $digest, 'confirmed_at' => $confirmedStr]; }
             }
             if ($cnt['new'] > 0 || $cnt['corrected'] > 0 || !is_file($path)) {
                 $tmp = $path . '.tmp';
@@ -6195,7 +6225,8 @@ class AiController extends Controller
                 }
                 @chmod($path, 0644);
             }
-            return ['ok' => true, 'confirmed_at' => $nowStr, 'path' => $path] + $cnt;
+            // return ['ok' => true, 'confirmed_at' => $nowStr, 'path' => $path] + $cnt;   // 旧（処理を始めた時刻を返していた）
+            return ['ok' => true, 'started_at' => $nowStr, 'confirmed_at' => $confirmedStr, 'path' => $path] + $cnt;
         } finally {
             flock($lock, LOCK_UN); fclose($lock);
         }
