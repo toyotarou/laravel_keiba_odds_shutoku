@@ -188,6 +188,16 @@ class SummaryExpectedScore extends Command
                 (new WebPushService())->sendPushNotifierDeveloperNews('develop',
                     "SummaryExpectedScore::handle\n{$status}、{$from}〜{$to}、レース:{$count['races']}、保存:{$count['saved']}");
             }
+            // 20261116 なる11/16 質問2 A：結果の確認記録（レース×結果内容の版ごとの確認時刻）。予想の過去レースは、対象日 0:00 より前に確認した版だけを使う
+            //   結果の取込み（importJraRaceOneResult 9〜19時・importRaceResultHistory 20:30）の後のこの時刻に、毎晩確認する。同じ内容なら時刻は変えない
+            if (!$dryRun) {
+                try {
+                    $cf = \App\Http\Controllers\Api\AiController::expectedResultsConfirm();
+                    $this->info('結果の確認記録 : ' . json_encode($cf, JSON_UNESCAPED_UNICODE) . ' ／ 終わった時刻 ' . date('Y-m-d H:i:s'));
+                } catch (\Throwable $e) {
+                    $this->error('結果の確認記録 異常: ' . $e->getMessage());
+                }
+            }
         }
     }
 

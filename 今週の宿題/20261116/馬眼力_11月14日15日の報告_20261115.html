@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力　11/14・15の報告と来週の作業</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1d2430; --sub:#5b6575; --line:#e2e6ec; --accent:#1f6feb; --soft:#eaf2ff; --warn:#fff4e5; --warnline:#f0b35a; --red:#fdecec; --redline:#e5534b; }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif; font-size:16px; line-height:1.7; }
+  header { background:#16213a; color:#fff; padding:20px 16px 18px; }
+  header h1 { margin:0 0 6px; font-size:20px; line-height:1.4; }
+  header p { margin:0; font-size:13px; color:#c9d3e6; }
+  main { max-width:720px; margin:0 auto; padding:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 14px 10px; margin:12px 0; }
+  h2 { font-size:18px; margin:0 0 8px; line-height:1.45; scroll-margin-top:12px; }
+  p { margin:6px 0; }
+  ul { margin:6px 0; padding-left:20px; }
+  li { margin:3px 0; }
+  .toc { padding-left:20px; margin:4px 0; }
+  .toc a { color:var(--accent); text-decoration:none; }
+  table { border-collapse:collapse; width:100%; font-size:14px; margin:6px 0; }
+  th, td { border:1px solid var(--line); padding:6px; text-align:left; vertical-align:top; }
+  th { background:#f0f3f7; font-weight:600; }
+  .scroll { overflow-x:auto; }
+  .big { background:var(--red); border-left:5px solid var(--redline); border-radius:8px; padding:10px 12px; margin:8px 0; }
+  .big b { font-size:17px; }
+  .note { background:var(--warn); border-left:4px solid var(--warnline); padding:8px 10px; border-radius:6px; font-size:14px; margin:8px 0; }
+  .ok { background:var(--soft); border-radius:8px; padding:8px 10px; margin:8px 0; }
+  .q { border:2px solid var(--accent); border-radius:10px; padding:10px 12px; margin:8px 0; }
+  .top { text-align:right; margin:8px 0 2px; font-size:14px; }
+  .top a { color:var(--accent); text-decoration:none; }
+  footer { text-align:center; font-size:12px; color:var(--sub); padding:20px 0 30px; }
+</style>
+</head>
+<body>
+<header id="top">
+  <h1>馬眼力　11/14（土）・15（日）の報告と来週の作業</h1>
+  <p>2026年11月15日（日）夜　豊田／よっしーさん・なるさん向け（19:20 なるさんの回答を受けて更新）</p>
+</header>
+<main>
+
+<div class="card">
+  <h2>目次</h2>
+  <ol class="toc">
+    <li><a href="#s1">【一番大事】頭数どおりに推薦馬が出ていなかった</a></li>
+    <li><a href="#s2">公開できたレースと、できなかったレース</a></li>
+    <li><a href="#s3">波乱度・下位進入度・大穴進入度</a></li>
+    <li><a href="#s4">予想にかかる時間と、2ndの時間切れ</a></li>
+    <li><a href="#s5">E3・E5（過去データを足す件）</a></li>
+    <li><a href="#s6">決めてほしいこと（1つ）</a></li>
+    <li><a href="#s7">来週の作業</a></li>
+  </ol>
+</div>
+
+<div class="card" id="s1">
+  <h2>1. 【一番大事】頭数どおりに推薦馬が出ていなかった</h2>
+  <div class="big"><b>今週は、レースの頭数に応じた数の推薦馬が出ていないレースが多くありました。</b>これは直すべき不具合として扱い、11/15（日）の夜に直しました。</div>
+  <div class="scroll"><table>
+    <tr><th>日</th><th>公開したレース</th><th>頭数どおり出た</th><th>出すべき頭数</th><th>実際に出た頭数</th></tr>
+    <tr><td>11/14</td><td>35</td><td>28</td><td>212頭</td><td>181頭（31頭足りない）</td></tr>
+    <tr><td>11/15</td><td>33</td><td>21</td><td>201頭</td><td>155頭（46頭足りない）</td></tr>
+  </table></div>
+  <ul>
+    <li>原因：根拠を確かめられた馬が枠より少ない帯で、足りない分を埋めていなかった。</li>
+    <li>直したこと（よっしーさん11/14のB案）：
+      <ul>
+        <li>足りない分を、サーバが「補充」として出します。補う順は、A帯の不足ならA→B→D、B帯ならB→D、D帯ならD→Bです。</li>
+        <li>アプリでは、補充の馬に水色の「補充」の印を付けます。</li>
+        <li>根拠を確かめられた馬が0頭のレースも、頭数分を「補充（参考）」で出します。</li>
+        <li>合計が頭数を超えないようにしました（京都12Rで8頭出ていた件）。</li>
+      </ul>
+    </li>
+    <li>補充の馬も、AI選出として、総合予想・馬の選択画面・合致数に入ります。ただし、両AIの一致やおすすめ度には混ぜません（補充の馬には「%」を出しません）。</li>
+    <li>補充の並び順は、検査を通ったAIの順位から取ります（取れないときは6分前の人気順）。</li>
+  </ul>
+  <div class="ok">直した後の計算（11/15夜、123で確認）では、11/14・15の72レースはこうなります。来週（11/21）から、この形で出ます。
+    <ul>
+      <li>通常の候補だけで頭数どおり：<b>49</b></li>
+      <li>補充を含めて頭数どおり：<b>14</b></li>
+      <li>参考の補充だけ（AIの評価が成り立たなかった。AIが2つとも時間切れだった東京12Rを含む）：<b>6</b></li>
+      <li>予想を出せない：<b>3</b>（下の2）</li>
+    </ul>
+    補充しても頭数に届かないレースは0でした。当時公開できたのは68レースで、上の数とは別です。</div>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s2">
+  <h2>2. 公開できたレースと、できなかったレース</h2>
+  <p>11/14は36レース中35、11/15は36レース中33を公開しました。公開できなかった4レース：</p>
+  <div class="scroll"><table>
+    <tr><th>レース</th><th>原因</th><th>対応</th></tr>
+    <tr><td>11/14 福島1R</td><td>E3・E5を付けた入力を作るところで、統計表の数え方の不具合で止まった</td><td>11/14夜に直した</td></tr>
+    <tr><td>11/15 京都10R</td><td>発走前に取消になった馬の過去走が入力に残り、止まった</td><td>11/15夜に直した（取消馬の過去走を入れない）。11/15の36レースを凍結し直す試験で36/36 OK</td></tr>
+    <tr><td>11/15 東京12R</td><td>凍結が約1分遅れ、AI2つとも返事が時間切れ</td><td>作業1（時間短縮）で対応</td></tr>
+    <tr><td>11/15 京都6R</td><td>レースの型が決まらず「選出停止」（決まりどおり）</td><td>決まりどおり公開しない。記録を「期限切れ」から「選出停止」に直した</td></tr>
+  </table></div>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s3">
+  <h2>3. 波乱度・下位進入度・大穴進入度</h2>
+  <ul>
+    <li><b>表示の不具合を直しました</b>：検査を通った値まで、アプリで「未算出」になっていました（アプリに返す処理が版の名前を読んでいなかった）。今は、検査を通った値はすべて表示されます。</li>
+    <li>その人気帯の馬がいないレース（10頭立てで11番人気以下がいない、など）は、「対象外」と表示するようにしました。</li>
+  </ul>
+  <div class="scroll"><table>
+    <tr><th></th><th>11/14（35レース）</th><th>11/15（33レース）</th></tr>
+    <tr><td>波乱度　表示できた</td><td>19</td><td>18</td></tr>
+    <tr><td>下位進入度　表示できた</td><td>19</td><td>21</td></tr>
+    <tr><td>大穴進入度　表示できた</td><td>19</td><td>13</td></tr>
+  </table></div>
+  <ul>
+    <li>残りの多くは、1stの答え方が原因です。
+      <ul>
+        <li>馬番と人気順を取り違える</li>
+        <li>6分前のオッズだけで比べる</li>
+        <li>材料があるのに「資料不足」とする</li>
+      </ul>
+      サーバの検査は決まりどおりなので、プロンプトの文言の直しをなるさんにお願いします（別紙「00_最初にお読みください.txt」）。</li>
+    <li>1stの返事そのものが使えなかったレースが5つありました（JSONが壊れていた2件、全頭の評価を投げ出した3件）。サーバの不具合ではありません。</li>
+  </ul>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s4">
+  <h2>4. 予想にかかる時間と、2ndの時間切れ</h2>
+  <ul>
+    <li>凍結（発走5分前）から公開までは、平均約107秒でした（11/14）。公開は平均で発走の約3分13秒前です。</li>
+    <li>凍結の処理は、単独なら4.5〜7秒で終わります。ただ、本番では25〜47秒かかっていました。毎分のオッズ取り込みなどと同時に動いて、取り合いになっていると見ています。</li>
+    <li>凍結の段階ごとの秒数と、サーバの混み具合を記録する仕組みを、11/15夜に入れました。11/21（土）の記録で原因を確定させます。</li>
+    <li>2nd（DeepSeek）の時間切れ：11/8に8件、11/14に2件、11/15に8件。
+      <ul>
+        <li>2ndの返事には平均60〜90秒かかり、量も1stの約2倍あります。</li>
+        <li>凍結から送信までが遅れると、待てる時間が短くなり、時間切れになります（11/15 福島10Rは、待てたのが40秒だけでした）。</li>
+        <li>作業1で待てる時間が延びます。</li>
+      </ul>
+    </li>
+  </ul>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s5">
+  <h2>5. E3・E5（過去データを足す件）</h2>
+  <ul>
+    <li>21分前＝6分前のおかしなレースは、数え直すと<b>140レース（すべて6月）</b>でした。中間報告の「138」は数え方の違いです。</li>
+    <li>これを外しても、比べられる馬（COMPARISON_READY）の数は<b>変わりません</b>でした（夜の試算と同じ式で計算）。
+      <ul>
+        <li>11/7：208頭</li>
+        <li>11/8：144頭</li>
+        <li>11/14：160頭</li>
+      </ul>
+      比べられる馬は16頭立て（M≥100）だけで、外した後もMは158〜168あり、100を超えているためです。</li>
+    <li>中間報告の訂正：「11/8の998頭中352頭」は、正しくは<b>11/7・11/8の2日分</b>の数でした。</li>
+    <li>本番でほぼ0頭なのは、過去レースを10/24以降の228レースからしか集めていないためです。</li>
+  </ul>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s6">
+  <h2>6. 決めてほしいこと（1つ）</h2>
+  <div class="q">
+    <p><b>6月〜10/23の過去レースには、オッズを取った時刻の記録がありません。E3・E5の過去レースに使ってよいですか？</b></p>
+    <p>今の決まりは「取得時刻が残っていないレースは使わない（時刻を推測で埋めない）」です。11/14の「6月からのデータも使う」と、ここがぶつかります。</p>
+    <ul>
+      <li><b>A：使う</b>（おすすめ）。
+        <ul>
+          <li>時刻は埋めず、「時刻の記録なし」の印を付けて使います。値は今と同じ取得の仕組みで保存されたものです。</li>
+          <li>比べられる馬が、1日150〜200頭ほどに増えます（ほぼ16頭立て）。</li>
+        </ul>
+      </li>
+      <li><b>B：使わない</b>。
+        <ul>
+          <li>10/24以降のデータが増えるのを待ちます。</li>
+          <li>M≥100になるまで、数か月は比べられる馬がほぼ0のままです。</li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+  <p>このほかの点は、こちらで次のように決めました。</p>
+  <ul>
+    <li><b>クラス</b>：10月中旬より前でクラスの列が空のレースは、レース名から決めます。夜の試算と同じ、決まった対応表を使います。</li>
+    <li><b>取消のあるレース</b>：今の本番の扱い（取消の印を付けて渡す）のまま、変えません。</li>
+  </ul>
+  <p>本番に入れるのは、11/14の決定④どおり、作業1（時間短縮）を出した後です。</p>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s7">
+  <h2>7. 来週の作業</h2>
+  <div class="scroll"><table>
+    <tr><th>作業</th><th>今の状態</th></tr>
+    <tr><td>1. 時間短縮</td><td>記録の仕組みを入れた。11/21の記録で原因を確定し、直す。早期凍結は、なるさんの文言を待って入れる</td></tr>
+    <tr><td>2. E3・E5に過去データを足す</td><td>下調べは済んだ。上の6の答えを待って改修する。本番は作業1の後（11/28の見込み）</td></tr>
+    <tr><td>3. 頭数どおりに出す</td><td><b>完了</b>（11/15夜、本番に反映済み）</td></tr>
+    <tr><td>4. 3指標が出ない件</td><td>サーバ側は完了。AIの答え方は、なるさんの文言を待って入れる</td></tr>
+  </table></div>
+  <p>なるさんへのお願い（プロンプト本文の直し2件：早期凍結の書き方と、3指標の答え方）は、別紙「00_最初にお読みください.txt」に書きました。今のプロンプトの中身は、別紙「今のプロンプト早見表」にまとめています。</p>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+</main>
+<footer>馬眼力　11/14・15の報告／2026年11月15日　豊田</footer>
+</body>
+</html>

@@ -798,6 +798,26 @@ class AiController extends Controller
      * @return array ['targets','started','skipped'=>[race_id=>理由]]
      */
     private static array $sweepFreezeTriedAt = [];
+    private static array $sweepFreezeEarlyTriedAt = [];   // @ANCHOR-20261116-PREDICTION-EARLYFREEZE
+
+    /**
+     * @ANCHOR-20261116-PREDICTION-EARLYFREEZE  6分前の取得バッチが、今の時刻までに利用可能になっているか（早期凍結を試す前の軽い確認）
+     *   採用できるかどうか（全頭そろっているか等）は、材料を集める処理（acceptBatch・pick）で今までどおり確かめます。
+     */
+    private static function predictionSlot6Ready(string $raceId, int $nowUs): bool
+    {
+        try {
+            if (!\Schema::hasTable('baganriki_acquisition_batches')) { return false; }
+            foreach (\DB::table('baganriki_acquisition_batches')->where('race_id', $raceId)->where('slot', 6)
+                        ->where('committed', 1)->whereNotNull('available_at')->get(['available_at']) as $b) {
+                $at = BaganrikiTime::us((string) AiController::dbTimeToRfc3339($b->available_at));
+                if ($at !== null && $at <= $nowUs) { return true; }
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('[PREDICTION-EARLYFREEZE] 6分前のバッチを確かめられません（早期凍結はしません）', ['race_id' => $raceId, 'message' => $e->getMessage()]);
+        }
+        return false;
+    }
 
     // ##########################################################################
     // ## アプリの取得口（routes/api.php から呼ばれる）
@@ -1739,8 +1759,15 @@ class AiController extends Controller
 
         // $snap = \DB::table('baganriki_snapshots')->where('race_id', $raceId)->where('generation', 0)   // 旧
         $snap = \DB::table('baganriki_snapshots')->where('race_id', $raceId)->where('generation', self::$answerTestGeneration ?? 0)
+                  // ->first(['id', 'input_invalid_code', 'sales_close_at', 'mode', 'mode_status',
+                  //          'allocation_mode', 'display_rating']);   // 旧
+                  // @ANCHOR-20261115-PREDICTION-METRICS-VERSION  release_version も読みます
+                  //   【本物の不具合でした】この行に release_version が無かったため、下の predictionPublishedAnswer で
+                  //   isExpectedSnapshot が「新しい版ではない」と判定し、3指標を旧方式の読み方（数字だけ）で読んでいました。
+                  //   新しい版のAIは {value, source_refs, reason} の形で返すので、検査を通った値もすべて「未算出」になっていました
+                  //   （11/14・15：検査を通った値があるレースでも、画面は3つとも未算出）。
                   ->first(['id', 'input_invalid_code', 'sales_close_at', 'mode', 'mode_status',
-                           'allocation_mode', 'display_rating']);
+                           'allocation_mode', 'display_rating', 'release_version']);
         $valid = ($snap !== null && $snap->input_invalid_code === null);
 
         if (!$valid) {
@@ -1765,12 +1792,15 @@ class AiController extends Controller
         if ($pub !== null) {
             // @ANCHOR-20261110-PREDICTION-ZEROCAND  よっしー11/10夜：評価は検査を通ったが、根拠を確かめられた候補が0頭で公開したレースは、
             //   馬0頭の画面を文面なしで出さず、次の文面を出します（「AIの評価を確認できなかった」とは別の文面）
-            $pubCands = json_decode((string) ($pub->candidates ?? ''), true);
-            if (is_array($pubCands) && $pubCands === []) {
-                return self::predictionLegacySavedOrUndetermined($date, $kaisuu, $basho, $day, $race,
-                           'AIの評価で根拠を確かめられた馬がいなかったため、予想は出せませんでした');
-            }
-            $key = 'prediction_answer:v2:' . (int) $snap->id . ':' . $pub->publication_id . ':' . (int) ($live->state_revision ?? 0);
+            // $pubCands = json_decode((string) ($pub->candidates ?? ''), true);
+            // if (is_array($pubCands) && $pubCands === []) {
+            //     return self::predictionLegacySavedOrUndetermined($date, $kaisuu, $basho, $day, $race,
+            //                'AIの評価で根拠を確かめられた馬がいなかったため、予想は出せませんでした');
+            // }   // 旧（11/10〜11/15）
+            // @ANCHOR-20261115-PREDICTION-REFILL  よっしー11/14「B：頭数分を表示」。候補0頭の公開も、頭数分を参考の補充として出します
+            //   （下の predictionPublishedAnswer で、全頭が「補充（参考）：AIの評価を確認できなかったため…」になります）
+            // $key = 'prediction_answer:v7:' . (int) $snap->id . ':' . $pub->publication_id . ':' . (int) ($live->state_revision ?? 0);   // 旧（20261116 指標反映の印を足したので v8）
+            $key = 'prediction_answer:v8:' . (int) $snap->id . ':' . $pub->publication_id . ':' . (int) ($live->state_revision ?? 0);
             $build = function () use ($snap, $pub, $cancelled, $date, $kaisuu, $basho, $day, $race) {
                 return $this->predictionPublishedAnswer($snap, $pub, $cancelled, $date, $kaisuu, $basho, $day, $race);
             };
@@ -1805,7 +1835,8 @@ class AiController extends Controller
         if ($legacy['first'] === null) { return $legacy; }
         // @ANCHOR-20261102-PREDICTION-FILL  公開できなかったレースも、凍結した出走馬から頭数をそろえて出す
         if (!$allCancelled) {
-            $key = 'prediction_answer:v2:fill:' . (int) $snap->id . ':' . (int) ($live->state_revision ?? 0);
+            // $key = 'prediction_answer:v7:fill:' . (int) $snap->id . ':' . (int) ($live->state_revision ?? 0);   // 旧（20261116 v8）
+            $key = 'prediction_answer:v8:fill:' . (int) $snap->id . ':' . (int) ($live->state_revision ?? 0);
             $build = function () use ($snap, $cancelled, $date, $kaisuu, $basho, $day, $race) {
                 return $this->predictionPublishedAnswer($snap, null, $cancelled, $date, $kaisuu, $basho, $day, $race);
             };
@@ -1838,6 +1869,7 @@ class AiController extends Controller
         }
         // 検証を通った応答の根拠の系統（両roleを合わせる）
         $fams = [];
+        $okRoles = [];
         foreach (['1st', '2nd'] as $role) {
             try {
                 $a = $this->acceptedHorsesOf((int) $snap->id, $role);
@@ -1845,6 +1877,8 @@ class AiController extends Controller
                 continue;
             }
             if (!($a['ok'] ?? false)) { continue; }
+            // $okRoles[$role] = true;   // @ANCHOR-20261115-PREDICTION-REFILL  補充の順位に使ってよい（検査を通った）role   （旧）
+            $okRoles[$role] = $a;   // @ANCHOR-20261115-PREDICTION-FILLRANK  検査を通った結果そのもの（補充の順位を、検証済みの順位から取るため）
             foreach ((array) ($a['merged'] ?? []) as $no => $h) {
                 foreach ((array) ($h['family_review'] ?? []) as $fam => $fr) {
                     if (is_array($fr) && ($fr['status'] ?? '') === 'SUPPORTED'
@@ -1855,6 +1889,20 @@ class AiController extends Controller
             }
         }
 
+        // @ANCHOR-20261116-PREDICTION-METRICSSLOT  3指標の選出連動（RACE_METRICS_SELECTION_V1）で入った馬に印を付ける（なる11/15 仕様9節）
+        //   公開記録の metrics_selection が APPLIED のときだけ。説明は実際に変更したときだけ出し、補充とは別のラベルにします。
+        //   おすすめ度のかさ上げ・購入推奨はしません（buy_recommended=false のまま）。
+        $msel = null;
+        if ($pub !== null) {
+            $evMs = json_decode((string) ($pub->evidence ?? ''), true);
+            $m0 = is_array($evMs) ? ($evMs['metrics_selection'] ?? null) : null;
+            if (is_array($m0) && ($m0['status'] ?? null) === 'APPLIED' && is_int($m0['added'] ?? null) && is_int($m0['removed'] ?? null)
+                && in_array($m0['target_band'] ?? null, ['B', 'D'], true) && in_array($m0['source_band'] ?? null, ['A', 'B', 'D'], true)) {
+                $msel = $m0;
+            }
+        }
+        $mselLabel = ($msel === null) ? null
+            : (($msel['target_band'] === 'D' ? '大穴進入度' : '下位進入度') . 'を反映：' . $msel['source_band'] . '帯から' . $msel['target_band'] . '帯へ1頭変更');
         $horses = [];
         foreach ((array) json_decode((string) ($pub->candidates ?? '[]'), true) as $c) {   // $pub が null なら0頭
             $no = (int) ($c['horse_no'] ?? 0);
@@ -1874,6 +1922,11 @@ class AiController extends Controller
                 'reason_2nd' => null,
                 'band'       => (string) ($c['band'] ?? ''),
             ];
+            if ($msel !== null && $no === $msel['added']) {   // @ANCHOR-20261116-PREDICTION-METRICSSLOT
+                $last = count($horses) - 1;
+                $horses[$last]['metrics_slot'] = true;
+                $horses[$last]['reason'] = '指標反映（' . $mselLabel . '）：' . $horses[$last]['reason'];
+            }
         }
         usort($horses, static function (array $x, array $y): int {
             if ($x['score'] !== $y['score']) { return $y['score'] <=> $x['score']; }
@@ -1890,23 +1943,49 @@ class AiController extends Controller
         // 補う順番は、AIが付けた帯の中の順位があればそれを先に（1st→2nd の順で、受け取れた応答から）、無ければ人気順
         $aiPos = [];
         foreach (['1st', '2nd'] as $role) {
-            foreach (\DB::table('baganriki_ai_attempts')->where('snapshot_id', $snap->id)->where('role', $role)
-                        ->where('status', BaganrikiWorker::RECEIVED)->orderBy('attempt_no')->get(['raw_response']) as $at) {
-                $ex = BaganrikiResponse::extract((string) $at->raw_response);
-                if (!$ex['ok'] || !is_array($ex['json']['band_ranks'] ?? null)) { continue; }
-                foreach ((array) $ex['json']['band_ranks'] as $b => $list) {
-                    foreach (array_values((array) $list) as $i => $no) {
-                        if (is_int($no) && !isset($aiPos[$no])) { $aiPos[$no] = $i; }
-                    }
+            // @ANCHOR-20261115-PREDICTION-REFILL  なる11/14「無効なAI回答の順位を、そのまま正常な順位として流用しない」
+            //   検査を通らなかった role の順位は使いません（その帯は6分前の人気順で補います）。
+            if (!isset($okRoles[$role])) { continue; }
+            // foreach (\DB::table('baganriki_ai_attempts')->where('snapshot_id', $snap->id)->where('role', $role)
+            //             ->where('status', BaganrikiWorker::RECEIVED)->orderBy('attempt_no')->get(['raw_response']) as $at) {
+            //     $ex = BaganrikiResponse::extract((string) $at->raw_response);
+            //     if (!$ex['ok'] || !is_array($ex['json']['band_ranks'] ?? null)) { continue; }
+            //     foreach ((array) $ex['json']['band_ranks'] as $b => $list) {
+            //         foreach (array_values((array) $list) as $i => $no) {
+            //             if (is_int($no) && !isset($aiPos[$no])) { $aiPos[$no] = $i; }
+            //         }
+            //     }
+            //     break 2;
+            // }   // 旧（11/15：検査を通った role でも、最初に届いた返事の順位をそのまま読んでいた。訂正で直った順位を使えない）
+            // @ANCHOR-20261115-PREDICTION-FILLRANK  なる11/15「補充の順位は、実際に採用・検証された順位に結び付ける」
+            //   公開と同じ markResponseUsed（読み取りだけ）で、検証済みの帯の順位（訂正・予備根拠順位・明示縮退を含む）を取ります。
+            //   E3・E5の入れ替えで外れた馬は、検証済みの順位の中で入れ替え相手より上にいるので、残りの馬の並びは入れ替え後と同じです。
+            //   評価が最後まで終わっていない（complete でない）・順位を取れないときは、その role を使わず、6分前の人気順に戻します。
+            $acc = $okRoles[$role];
+            if (($acc['complete'] ?? null) !== true) { continue; }
+            try { $rk = $this->markResponseUsed((int) $snap->id, $role, $acc); }
+            catch (\Throwable $e) { continue; }
+            $br = $rk['band_ranks'] ?? null;
+            if (!is_array($br) || $br === []) { continue; }
+            foreach ($br as $b => $list) {
+                foreach (array_values((array) $list) as $i => $no) {
+                    if (is_int($no) && !isset($aiPos[$no])) { $aiPos[$no] = $i; }
                 }
-                break 2;
             }
+            break;
         }
         // $fill = self::predictionFillRows($in, $quota, $horses, $cancelled, $aiPos);   // 旧（11/2 豊田の判断：根拠を確かめきれない枠も人気順などで埋める）
         // @ANCHOR-20261110-PREDICTION-NOFILL  よっしー11/10「B：根拠で選べた馬だけ表示」。根拠を確かめられない馬で枠を埋めません。
         //   画面に出すのは公開した候補（両AIの検証済みの根拠で選んだ馬。公開のときに別の帯から根拠のある馬で補った分を含む）だけです。
         //   1頭も公開できなかったレースは、呼び出し側で「予想は出せませんでした」になります。
-        $fill = [];
+        // $fill = [];   // 旧（11/10〜11/15：補充しない）
+        // @ANCHOR-20261115-PREDICTION-REFILL  よっしー11/14「B：頭数分を表示し、自信のある馬から並べる」（なる11/14の整理）
+        //   通常候補（公開した、少なくとも片方のAIの検証済みの根拠で選んだ馬）を先に、おすすめ度の順で並べます（上の usort）。
+        //   頭数（公開の枠）に足りない分だけ、同じ人気帯の中で補います（B・Dの不足をAでは埋めません）。
+        //   補った馬は後ろに並べ、理由の先頭に「補充」と書き、おすすめ度は0（画面には出しません）。購入推奨にも入れません。
+        $regularCount = count($horses);
+        if ($regularCount === 0) { $aiPos = []; }   // 参考の表示は、6分前の人気順だけで並べる（理由の文と合わせる）
+        $fill = self::predictionFillRows($in, $quota, $horses, $cancelled, $aiPos);
         foreach ($fill as $f) {
             $no = (int) $f['num'];
             $horses[] = [
@@ -1915,7 +1994,12 @@ class AiController extends Controller
                 'score'      => 0,
                 'odds_6'     => self::predictionRegNum($reg, 'h' . $no . '_win_odds_6'),
                 'popularity' => is_numeric($pop[$no] ?? null) ? (int) $pop[$no] : null,
-                'reason'     => '補充：AIの根拠を確かめきれなかったため、同じ人気帯の中でAIが付けた順位（無ければ6分前の人気順）で補いました。'
+                // 'reason'     => '補充：AIの根拠を確かめきれなかったため、同じ人気帯の中でAIが付けた順位（無ければ6分前の人気順）で補いました。'
+                //               . self::predictionReason($reg, $no, []),   // 旧
+                // @ANCHOR-20261115-PREDICTION-REFILL  通常候補が0頭のとき（AIの評価が成り立たなかった）は、参考の表示だと分かる文にする
+                'reason'     => ($regularCount === 0
+                                   ? '補充（参考）：AIの評価を確認できなかったため、同じ人気帯の中で6分前の人気順に並べた参考の表示です。'
+                                   : '補充：根拠を確かめられた馬だけでは頭数に足りないため、同じ人気帯の中でAIが付けた順位（無ければ6分前の人気順）で補いました。')
                               . self::predictionReason($reg, $no, []),
                 'category'   => 'matched',
                 'score_1st'  => 0,
@@ -1944,6 +2028,16 @@ class AiController extends Controller
                 'publication_id'  => ($pub === null) ? null : (string) $pub->publication_id,
                 'published_at'    => ($pub === null) ? null : (string) $pub->published_at,
                 'filled'          => count($fill),
+                // @ANCHOR-20261115-PREDICTION-REFILL  なる11/14「同じ成功として数えない」ための区分
+                //   REGULAR_FULL（通常候補だけで頭数どおり）／WITH_FILL（補充を含めて頭数どおり）／REFERENCE_ONLY（AIの評価が成り立たず、参考の表示だけ）／EMPTY（出せる馬なし）
+                'regular_count'   => $regularCount,
+                // 'fill_status'     => ($regularCount > 0 && count($fill) === 0) ? 'REGULAR_FULL'
+                //                      : (($regularCount > 0) ? 'WITH_FILL' : ((count($fill) > 0) ? 'REFERENCE_ONLY' : 'EMPTY')),   // 旧（目標の頭数と比べていなかった）
+                // @ANCHOR-20261115-PREDICTION-FILLSTATUS  なる11/15「目標・通常・補充・表示を別に記録し、充足を実際に比べる」
+                //   SHORT＝補充しても目標の頭数に届かない（取消などで、その帯に馬が残っていない）
+                'target_count'    => array_sum(array_map('intval', (array) $quota)),
+                'shown_count'     => count($horses),
+                'fill_status'     => self::predictionFillStatus($regularCount, count($fill), array_sum(array_map('intval', (array) $quota))),
                 'mode'            => $snap->mode ?? null,
                 'mode_status'     => $snap->mode_status ?? null,
                 'allocation_mode' => $snap->allocation_mode ?? null,
@@ -1952,6 +2046,15 @@ class AiController extends Controller
                                        ? BaganrikiPublicView::provisionalLabel($snap->allocation_mode ?? null) : null,
                 'cancelled'       => array_values($cancelled),
                 'buy_recommended' => false,
+                // @ANCHOR-20261116-PREDICTION-METRICSSLOT  3指標で実際に1頭変更したときだけ中身が入る（それ以外は null）
+                'metrics_selection' => ($msel === null) ? null : [
+                    'label'       => $mselLabel,
+                    'added'       => $msel['added'],
+                    'removed'     => $msel['removed'],
+                    'source_band' => $msel['source_band'],
+                    'target_band' => $msel['target_band'],
+                    'shown'       => !in_array($msel['added'], $cancelled, true),
+                ],
             ],
         ];
         // @ANCHOR-20261108-PREDICTION-METRICS  1st が答えた3指標（旧方式と同じ race_metrics の形。読めなければ null）
@@ -1977,10 +2080,20 @@ class AiController extends Controller
                 if ($metrics !== null) { break; }
             }
         }
+        // @ANCHOR-20261115-PREDICTION-METRICS-NA  なる11/14「人気帯そのものが存在しない場合は『対象外』と区別」
+        //   凍結した出走馬に 7〜10番人気がいなければ下位進入度、11番人気以下がいなければ大穴進入度を「対象外」にします。
+        //   （AIが値を返していても、その人気帯の馬がいないので使いません。11/14・15 は10頭以下のレースでAIが別の帯の馬を引いて検査で外れていました）
+        //   値は文字の「対象外」で返し、数字（1〜5）や0では埋めません。
+        if ($metrics !== null) {
+            $rk = array_map(static fn($r) => (int) ($r['win_rank'] ?? 0), (array) ($in['runners'] ?? []));
+            if (array_filter($rk, static fn($k) => $k >= 7 && $k <= 10) === []) { $metrics['下位進入度'] = '対象外'; }
+            if (array_filter($rk, static fn($k) => $k >= 11) === []) { $metrics['大穴進入度'] = '対象外'; }
+        }
         $meta['race_metrics'] = $metrics;
         // 1st の本文にも旧方式と同じ「レース指標|…」の行を先頭に置く（アプリが analysis_text からも読むため）
         if ($metrics !== null) {
-            $mv = static fn($v) => ($v === null) ? '未算出' : (string) $v;   // 未算出の項目は文字で（20261110）
+            // $mv = static fn($v) => ($v === null) ? '未算出' : (string) $v;   // 未算出の項目は文字で（20261110）   // 旧
+            $mv = static fn($v) => ($v === null) ? '未算出' : (string) $v;   // 未算出の項目は文字で（20261110）。「対象外」はそのまま文字で出る（20261115）
             $text = 'レース指標|波乱度: ' . $mv($metrics['波乱度']) . '|下位進入度: ' . $mv($metrics['下位進入度'])
                   . '|大穴進入度: ' . $mv($metrics['大穴進入度']) . ($text !== '' ? "\n" . $text : '');
         }
@@ -2188,6 +2301,28 @@ class AiController extends Controller
                 . substr(bin2hex(random_bytes(3)), 0, 6);
         $out = ['ok' => false, 'race_id' => $raceId, 'code' => null, 'reason' => null,
                 'skipped' => false, 'snapshot_hash' => null, 'counts' => []];
+        // @ANCHOR-20261115-PREDICTION-FREEZE-TIMING  凍結の段階ごとの時間と、そのときのサーバの混み具合をログに残します（動きは変えません）
+        //   11/15：凍結は単独なら4.5〜7秒なのに、本番では25〜47秒かかっていました（毎分のオッズ取り込みと重なる時刻）。
+        //   どの段階が延びているか（集める／組み立てる／E3・E5／保存）と、CPUの負荷・メモリを、11/21（土）の本番で確かめるためです。
+        $tm = ['start' => microtime(true)];
+        $earlyTry = false;   // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  T−300秒より前の早期凍結の試し
+        $logTiming = static function (array $tm, string $raceId, string $result): void {
+            try {
+                $sec = []; $prev = $tm['start'];
+                foreach ($tm as $k => $t) { if ($k === 'start') { continue; } $sec[$k] = round($t - $prev, 2); $prev = $t; }
+                $sec['total'] = round(microtime(true) - $tm['start'], 2);
+                $load = function_exists('sys_getloadavg') ? sys_getloadavg() : null;
+                $mem = null;
+                if (is_readable('/proc/meminfo') && preg_match('/MemAvailable:\s+(\d+)/', (string) @file_get_contents('/proc/meminfo'), $mm) === 1) {
+                    $mem = (int) round(((int) $mm[1]) / 1024);
+                }
+                \Log::error('[PREDICTION-FREEZE-TIMING] 凍結の段階ごとの秒数', [
+                    'race_id' => $raceId, 'result' => $result, 'sec' => $sec,
+                    'load' => $load, 'mem_available_mb' => $mem,
+                    'php_peak_mb' => (int) round(memory_get_peak_usage(true) / 1048576),
+                ]);
+            } catch (\Throwable $e) { /* 記録できなくても凍結には影響させません */ }
+        };
 
         if (!\Schema::hasTable('baganriki_snapshots')
             || !\Schema::hasTable('baganriki_race_runs')) {
@@ -2248,7 +2383,14 @@ class AiController extends Controller
             if ($anchorUs0 !== null) {
                 $freezeUs0 = BaganrikiTime::inputFreeze($anchorUs0);
                 $nowUs0    = BaganrikiWorker::nowUs();
-                if ($nowUs0 < $freezeUs0) {
+                // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  早期凍結の版なら、6分前のバッチが利用可能になっていれば T−300秒を待たずに凍結します
+                //   情報上限はこの時刻（freezeFor）。材料を集める処理にも同じ値を渡します（両AIに同じ凍結入力）。
+                if (BaganrikiTime::earlyFreezeActive() && $nowUs0 < $freezeUs0
+                    && $nowUs0 >= BaganrikiTime::earliestFreeze($anchorUs0)
+                    && self::predictionSlot6Ready($raceId, $nowUs0)) {
+                    $earlyTry = true;
+                    $override['input_freeze_us'] = BaganrikiTime::freezeFor($anchorUs0, $nowUs0, BaganrikiTime::TIME_CONTRACT_V2);
+                } elseif ($nowUs0 < $freezeUs0) {
                     $out['code']   = 'TOO_EARLY';
                     $out['reason'] = '情報上限に達していません（いま '
                                    . BaganrikiTime::toJst($nowUs0) . '／情報上限 '
@@ -2270,12 +2412,15 @@ class AiController extends Controller
         }
 
         // ── 材料を集めて両roleの入力を作ります ───────────────────────
+        $tm['before_gather'] = microtime(true);   // @ANCHOR-20261115-PREDICTION-FREEZE-TIMING
         $g = self::gatherPredictionContext($date, $kaisuu, $basho, $day, $race, $override);
+        $tm['gather'] = microtime(true);   // @ANCHOR-20261115-PREDICTION-FREEZE-TIMING
         $a1 = null; $a2 = null;
         if ($g['ok']) {
             $a1 = BaganrikiPrompt::assemble($g['ctx'], '1st');
             $a2 = BaganrikiPrompt::assemble($g['ctx'], '2nd');
         }
+        $tm['assemble'] = microtime(true);   // @ANCHOR-20261115-PREDICTION-FREEZE-TIMING
         $bad = null;
         if (!$g['ok'])                       $bad = [$g['code'], $g['reason']];
         elseif (!$a1['ok'])                  $bad = [$a1['code'], $a1['reason']];
@@ -2288,6 +2433,7 @@ class AiController extends Controller
             $ex = self::expectedAssemble($a1, $a2, $g['ctx']);
             if (!$ex['ok']) { $bad = [$ex['code'], $ex['reason']]; }
         }
+        $tm['expected'] = microtime(true);   // @ANCHOR-20261115-PREDICTION-FREEZE-TIMING
 
         // ── 4つの頭数 ────────────────────────────────────────────────
         $entryCount = ($g['ok'] && isset($g['ctx']['entry_nums']))
@@ -2313,6 +2459,13 @@ class AiController extends Controller
             return $out;
         }
 
+        // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  早期凍結の試しで入力が作れなかったときは記録しません
+        //   （6分前のレース全体がそろっていない等。次の巡回でもう一度試し、T−300秒からは今までどおり凍結・記録します）
+        if ($bad !== null && $earlyTry) {
+            $out['code']   = 'EARLY_NOT_READY';
+            $out['reason'] = '早期凍結の入力がまだそろいません（' . $bad[0] . '）。次の巡回か T−300秒で凍結します';
+            return $out;
+        }
         // ── 入力が作れないとき：race_runs だけ残します ────────────────
         if ($bad !== null) {
             \DB::table('baganriki_race_runs')->insert([
@@ -2325,6 +2478,7 @@ class AiController extends Controller
                 'created_at' => $nowDb, 'updated_at' => $nowDb,
             ]);
             $out['code'] = $bad[0]; $out['reason'] = $bad[1];
+            if (!$dryRun && $runKind === 'PRODUCTION') { $logTiming($tm, $raceId, 'NG:' . (string) $bad[0]); }   // @ANCHOR-20261115-PREDICTION-FREEZE-TIMING
             return $out;
         }
 
@@ -2406,10 +2560,21 @@ class AiController extends Controller
             // @ANCHOR-20261110-PREDICTION-EXPECTED-FREEZE  E3・E5 の計算の監査（過去レースの一覧・除外理由など）はDBだけに残します（AIには送りません）
             if ($ex !== null && \Schema::hasTable('baganriki_audit_events')) {
                 $au = $ex['audit']; unset($au['expected_proof']);
+                $au['saved_history_audit'] = AiController::$expectedSavedHistoryAudit;   // @ANCHOR-20261116-EXPECTED-SAVED-CONFIRM
                 \DB::table('baganriki_audit_events')->insert([
                     'race_id' => $raceId, 'snapshot_id' => $snapId, 'kind' => 'PREDICTION_EXPECTED_AUDIT',
                     'happened_at' => $nowDb, 'old_revision' => null, 'new_revision' => null,
                     'diagnostics' => $j($au), 'related_id' => null,
+                ]);
+            }
+            // @ANCHOR-20261116-METRICS-SPEC-FREEZE  なる11/16 仕上げ②：3指標の選出仕様（ID・有効/無効・パラメータの照合値）を凍結のときに記録します。
+            //   公開のときは、この記録と今のコードの仕様が一致するときだけ選出を補正します（AIには送りません。凍結入力も変えません）。
+            if (\Schema::hasTable('baganriki_audit_events')) {
+                $revSpec = ($ex !== null) ? ($ex['common']['prompt_text_revision'] ?? null) : ($in['prompt_text_revision'] ?? null);
+                \DB::table('baganriki_audit_events')->insert([
+                    'race_id' => $raceId, 'snapshot_id' => $snapId, 'kind' => BaganrikiMetricsSelection::SPEC_EVENT,
+                    'happened_at' => $nowDb, 'old_revision' => null, 'new_revision' => null,
+                    'diagnostics' => $j(BaganrikiMetricsSelection::specFor($revSpec)), 'related_id' => null,
                 ]);
             }
             // @ANCHOR-20261020-PREDICTION-CLOSE  投票締切の出どころを監査へ残します。
@@ -2460,6 +2625,8 @@ class AiController extends Controller
         $out['snapshot_hash'] = $in['snapshot_hash'];
         $out['generation']    = $generation;
         $out['run_kind']      = $runKind;
+        $tm['save'] = microtime(true);   // @ANCHOR-20261115-PREDICTION-FREEZE-TIMING
+        if ($runKind === 'PRODUCTION') { $logTiming($tm, $raceId, 'OK'); }
         return $out;
     }
 
@@ -2581,17 +2748,37 @@ class AiController extends Controller
                     $out['skipped'][$rid] = '発走時刻を組み立てられません';
                     continue;
                 }
+                // if ($now < BaganrikiTime::inputFreeze($anchorUs)) {
+                //     $out['skipped'][$rid] = 'まだ情報上限の前です';
+                //     continue;
+                // }   // 旧（T−300秒まで待つ）
+                // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  早期凍結の版なら、6分前のバッチが利用可能になった時点で凍結を起こします
+                $early = false;
                 if ($now < BaganrikiTime::inputFreeze($anchorUs)) {
-                    $out['skipped'][$rid] = 'まだ情報上限の前です';
-                    continue;
+                    $early = BaganrikiTime::earlyFreezeActive() && $now >= BaganrikiTime::earliestFreeze($anchorUs)
+                           && self::predictionSlot6Ready($rid, $now);
+                    if (!$early) {
+                        $out['skipped'][$rid] = 'まだ情報上限の前です';
+                        continue;
+                    }
                 }
                 if ($now >= $anchorUs) {
                     $out['skipped'][$rid] = '発走時刻を過ぎています';
                     continue;
                 }
-                $last = self::$sweepFreezeTriedAt[$rid] ?? null;
-                if ($last !== null && ($now - $last) < 30 * 1000000) { continue; }
-                self::$sweepFreezeTriedAt[$rid] = $now;
+                // $last = self::$sweepFreezeTriedAt[$rid] ?? null;
+                // if ($last !== null && ($now - $last) < 30 * 1000000) { continue; }
+                // self::$sweepFreezeTriedAt[$rid] = $now;   // 旧
+                // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  早期凍結の試しは10秒に1回。T−300秒からの試しは今までどおり30秒に1回（早期の試しとは別に数える）
+                if ($early) {
+                    $last = self::$sweepFreezeEarlyTriedAt[$rid] ?? null;
+                    if ($last !== null && ($now - $last) < 10 * 1000000) { continue; }
+                    self::$sweepFreezeEarlyTriedAt[$rid] = $now;
+                } else {
+                    $last = self::$sweepFreezeTriedAt[$rid] ?? null;
+                    if ($last !== null && ($now - $last) < 30 * 1000000) { continue; }
+                    self::$sweepFreezeTriedAt[$rid] = $now;
+                }
                 if (BaganrikiWorker::jobs()) {
                     $dp = $ctrl->dispatchPredictionJobs($d, $p[1], $p[2], $p[3], (int) $p[4]);
                     $out['started'][$rid] = 'JOB:' . (string) $dp['code'];
@@ -4061,7 +4248,7 @@ class AiController extends Controller
                     'evidence'   => $j(['shortfalls' => $publicationData['shortfalls'],
                                         'proof_roles' => $publicationData['proof'],
                                         'cancelled' => $cancelled] + array_intersect_key($publicationData,array_flip(BaganrikiWorker::isExpectedSnapshot($snap)
-                                            ? ['actual_quota','fill','role_issues','rank_source','rank_fallback','rank_notes','race_metrics']
+                                            ? ['actual_quota','fill','role_issues','rank_source','rank_fallback','rank_notes','race_metrics','metrics_selection']   // @ANCHOR-20261116-METRICS-SELECTION
                                             : ['actual_quota','fill','role_issues']))),
                     'shortfalls' => $j($publicationData['shortfalls']),
                     'used_state_revision'    => $readRev['state'],
@@ -5811,6 +5998,10 @@ class AiController extends Controller
             $races[$key][] = $r;
         }
         $out = [];
+        $savedLedger = self::expectedSavedLedger();   // @ANCHOR-20261116-EXPECTED-SAVED-CONFIRM
+        self::$expectedSavedHistoryAudit = ['target_date' => $targetDate, 'ledger' => $savedLedger === null ? null : count($savedLedger['races']), 'adopted' => 0, 'excluded' => []];
+        $savedFirst = null;   // @ANCHOR-20261116-EXPECTED-OLDHIST  保存表から作った過去レースの最初の日（これより前を古いデータで足す）
+        foreach ($races as $key => $hs) { $d0 = explode('|', $key)[0]; $savedFirst = ($savedFirst === null || $d0 < $savedFirst) ? $d0 : $savedFirst; }
         $tz = new \DateTimeZone('Asia/Tokyo');
         foreach ($races as $key => $hs) {
             [$d, $k, $b, $dy, $rc] = explode('|', $key);
@@ -5837,12 +6028,19 @@ class AiController extends Controller
             }
             if ($bad) { continue; }
             $rid = AiController::buildPredictionRaceId($d, $k, $b, $dy, (int) $rc);
+            // @ANCHOR-20261116-EXPECTED-SAVED-CONFIRM  なる11/16 質問2 A：結果の時刻は「当日 23:59:59」と仮に置かず、
+            //   結果の確認記録（results_confirmed_v1.json）の、今の内容と同じ最新の版の確認時刻を使う。
+            //   対象日の 0:00 より前に確認した版だけを使う。未確認・内容が違う・0:00 以降の確認は、理由を残して外す。
+            $resultAt = self::expectedSavedResultAt($savedLedger, $rid, self::expectedSavedDigest($rid, $roster, $results), $targetDate);
+            if ($resultAt === null) { continue; }
             $batches = ['6' => ['batch_id' => 'expected_score:' . $rid . ':6', 'requested_at' => $iso($t6),
                                 'received_at' => $iso($t6), 'available_at' => $iso($t6), 'quotes' => $q6]];
             if (is_string($t21) && $t21 !== '' && $q21) {
                 $batches['21'] = ['batch_id' => 'expected_score:' . $rid . ':21', 'requested_at' => $iso($t21),
                                   'received_at' => $iso($t21), 'available_at' => $iso($t21), 'quotes' => $q21];
             }
+            $savedFirst = ($savedFirst === null || $d < $savedFirst) ? $d : $savedFirst;   // @ANCHOR-20261116-EXPECTED-OLDHIST
+            self::$expectedSavedHistoryAudit['adopted']++;   // @ANCHOR-20261116-EXPECTED-SAVED-CONFIRM
             $out[] = ['race_id' => $rid, 'N' => count($roster), 'post_at' => $post->format('Y-m-d\TH:i:s.uP'),
                 'input_freeze_at' => $post->modify(BaganrikiTime::INPUT_FREEZE_OFFSET_SEC . ' seconds')->format('Y-m-d\TH:i:s.uP'),
                 // 'jurisdiction' => 'JRA', 'race_type' => 'FLAT', 'surface' => $hs[0]->surface,   // 旧（障害も平地として基準集団に入りえた）
@@ -5851,9 +6049,369 @@ class AiController extends Controller
                 'distance_metres' => $hs[0]->distance === null ? null : (int) $hs[0]->distance,
                 'class_group' => $hs[0]->class_group, 'roster' => $roster, 'batches' => $batches,
                 'post_freeze_scratch' => $cancel !== [], 'results' => $results,
-                'result_available_at' => (new \DateTimeImmutable($d . ' 23:59:59', $tz))->format('Y-m-d\TH:i:s.uP')];
+                // 'result_available_at' => (new \DateTimeImmutable($d . ' 23:59:59', $tz))->format('Y-m-d\TH:i:s.uP')];   // 旧（20261116 なる11/16 質問2 A：仮の時刻を置かない）
+                'result_available_at' => $resultAt];   // @ANCHOR-20261116-EXPECTED-SAVED-CONFIRM
+        }
+        // @ANCHOR-20261116-EXPECTED-OLDHIST  なる11/15「条件付きA」：取得時刻の記録が無い6月〜10/23の過去レースを、時刻不明の資料として足す
+        //   方針が有効なとき（contract.json の expected_history_policy）だけ。保存表に無い日（保存表の最初の日より前）だけを足す。
+        if (self::expectedOldHistoryEnabled()) {
+            try {
+                foreach (self::expectedOldHistory($targetDate, $from, $savedFirst ?? $targetDate) as $e) { $out[] = $e; }
+            } catch (\Throwable $e) {
+                \Log::error('[EXPECTED-OLDHIST] 古い過去レースを作れません（保存表の分だけで計算します）', ['message' => $e->getMessage()]);
+            }
         }
         return $out;
+    }
+
+    /**
+     * @ANCHOR-20261116-EXPECTED-OLDHIST  古い過去レース（取得時刻の記録なし）の方針
+     *   EXPECTED_HISTORY_UNRECORDED_TIME_V1（なる11/15 回答00の2章）
+     *   ・取得時刻は不明のまま（null）。発走時刻からの逆算で埋めない。発走時刻も記録が無いので、日付だけ（post_time_status=DATE_ONLY）
+     *   ・外すレース：全頭の21分前＝6分前／全頭の6分前＝確定単勝（上書きの疑い）／取消・除外・6分前の欠け／着順が数字・中止・失格でない馬がいる／払戻表なし・芝ダ以外
+     *   ・クラスは夜の試算と同じ固定の対応表（SummaryExpectedScore::classGroup）。決まらなければ UNK（近傍に使わない）
+     *   ・今のレースの取得猶予・情報上限・結果の混入防止は変えない（この例外は過去レースの取得時刻だけ）
+     */
+    /**
+     * @ANCHOR-20261116-EXPECTED-SAVED-CONFIRM  なる11/16 質問2 A：保存表の経路の「結果の確認記録」
+     *   記録の単位は「レース × 結果内容の版」。版ごとに、完全で有効な結果を確認した実時刻と内容の照合値を持つ。
+     *   ・同じ内容を確認し直しても、最初の確認時刻は変えない（毎晩の処理で時刻が後ろへずれない）
+     *   ・内容が変わったら（訂正）新しい版と確認時刻を足す。訂正版が前から使えたことにはしない
+     *   ・裏付けの無い既存データは、最初に確認した実時刻を使う（過去の日付へ戻さない）
+     *   ・予想に使うのは、今の内容と同じ「最新の版」で、確認時刻が対象日の 0:00（日本時間）より前のものだけ
+     *   毎晩 keiba:summaryExpectedScore（23:40）の最後に expectedResultsConfirm() で確認します。既存の凍結入力・回答・公開・成績は書き換えません。
+     */
+    public const EXPECTED_SAVED_LEDGER = 'app/baganriki/expected_results/results_confirmed_v1.json';
+    public const EXPECTED_SAVED_POLICY = 'EXPECTED_RESULT_CONFIRMED_TIME_V1';
+    /** 試験用：確認記録の置き場所を変える（本番は null） */
+    public static ?string $expectedSavedLedgerPath = null;
+    /** 直近の expectedHistory で、保存表の経路から使った数・外した理由ごとの数 */
+    public static array $expectedSavedHistoryAudit = [];
+
+    private static function expectedSavedLedgerFile(): string
+    {
+        return self::$expectedSavedLedgerPath ?? storage_path(self::EXPECTED_SAVED_LEDGER);
+    }
+
+    public static function expectedSavedLedger(): ?array
+    {
+        try {
+            $j = json_decode((string) @file_get_contents(self::expectedSavedLedgerFile()), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) { return null; }
+        if (!is_array($j) || ($j['policy'] ?? null) !== self::EXPECTED_SAVED_POLICY || !is_array($j['races'] ?? null)) { return null; }
+        return $j;
+    }
+
+    /** 結果内容の照合値（馬番と着順・中止・失格だけ。時刻は入れない） */
+    public static function expectedSavedDigest(string $rid, array $roster, array $results): string
+    {
+        $r = $results; usort($r, static fn($a, $b) => strcmp((string) $a['horse_id'], (string) $b['horse_id']));
+        return hash('sha256', json_encode([$rid, array_column($roster, 'horse_no'), $r], JSON_UNESCAPED_UNICODE));
+    }
+
+    /** 予想に使える確認時刻（対象日の 0:00 より前に確認した、今の内容と同じ最新の版）。使えなければ null（理由を数える） */
+    private static function expectedSavedResultAt(?array $ledger, string $rid, string $digest, string $targetDate): ?string
+    {
+        $why = null; $at = null;
+        if ($ledger === null) { $why = 'NO_RESULT_LEDGER'; }
+        else {
+            $versions = $ledger['races'][$rid] ?? [];
+            $last = is_array($versions) && $versions !== [] ? end($versions) : null;
+            if (!is_array($last)) { $why = 'RESULT_NOT_CONFIRMED'; }
+            elseif (($last['digest'] ?? null) !== $digest) { $why = 'RESULT_DIGEST_MISMATCH'; }
+            else {
+                try {
+                    $tz = new \DateTimeZone('Asia/Tokyo');
+                    $c = new \DateTimeImmutable((string) $last['confirmed_at']);
+                    if ($c >= new \DateTimeImmutable($targetDate . ' 00:00:00', $tz)) { $why = 'RESULT_CONFIRMED_AFTER_TARGET'; }
+                    else { $at = $c->setTimezone($tz)->format('Y-m-d\TH:i:s.uP'); }
+                } catch (\Throwable $e) { $why = 'RESULT_LEDGER_INVALID'; }
+            }
+        }
+        if ($why !== null) { self::$expectedSavedHistoryAudit['excluded'][$why] = (self::$expectedSavedHistoryAudit['excluded'][$why] ?? 0) + 1; }
+        return $at;
+    }
+
+    /**
+     * 結果を確認して記録する（毎晩 keiba:summaryExpectedScore の最後から呼ぶ）。
+     *   保存表（t_horse_odds_finder_expected_score）のレースのうち、全頭の結果が数字の着順・中止・失格でそろったものだけを確認します。
+     *   $nowIso は試験用（本番は null＝今の実時刻）。戻り値は件数。
+     */
+    public static function expectedResultsConfirm(?string $nowIso = null): array
+    {
+        $tz = new \DateTimeZone('Asia/Tokyo');
+        $now = ($nowIso !== null) ? new \DateTimeImmutable($nowIso) : new \DateTimeImmutable('now', $tz);
+        $nowStr = $now->setTimezone($tz)->format('Y-m-d\TH:i:s.uP');
+        $to = $now->setTimezone($tz)->format('Y-m-d');
+        $from = $now->setTimezone($tz)->modify('-800 days')->format('Y-m-d');
+        $rows = \DB::table('t_horse_odds_finder_expected_score')->where('date', '<=', $to)->where('date', '>=', $from)
+                  ->orderBy('date')->orderBy('kaisuu')->orderBy('basho')->orderBy('day')->orderBy('race')->orderBy('num')
+                  ->get(['date', 'kaisuu', 'basho', 'day', 'race', 'num']);
+        $res = [];
+        \DB::table('t_horse_odds_finder_race_result_history')->where('date', '<=', $to)->where('date', '>=', $from)
+            ->orderBy('id')->get(['date', 'kaisuu', 'basho_code', 'day', 'race', 'num', 'finishing_position', 'finishing_status'])
+            ->each(function ($r) use (&$res) {
+                $res[substr((string) $r->date, 0, 10) . '|' . (int) $r->kaisuu . '|' . $r->basho_code . '|' . (int) $r->day . '|' . (int) $r->race][(int) $r->num] = $r;
+            });
+        $races = [];
+        foreach ($rows as $r) { $races[substr((string) $r->date, 0, 10) . '|' . (int) $r->kaisuu . '|' . $r->basho . '|' . (int) $r->day . '|' . (int) $r->race][] = $r; }
+        $path = self::expectedSavedLedgerFile();
+        @mkdir(dirname($path), 0755, true);
+        $lock = fopen($path . '.lock', 'c');
+        if ($lock === false || !flock($lock, LOCK_EX)) { return ['ok' => false, 'code' => 'LOCK_FAILED']; }
+        try {
+            $ledger = self::expectedSavedLedger() ?? ['policy' => self::EXPECTED_SAVED_POLICY,
+                'note' => '結果の確認記録（なる11/16 質問2 A）。レース×結果内容の版ごとに、確認した実時刻と照合値。最初の確認時刻は変えない', 'races' => []];
+            $cnt = ['checked' => 0, 'new' => 0, 'same' => 0, 'corrected' => 0, 'incomplete' => 0];
+            foreach ($races as $key => $hs) {
+                [$d, $k, $b, $dy, $rc] = explode('|', $key);
+                if (!isset($res[$key])) { $cnt['incomplete']++; continue; }
+                $roster = []; $results = []; $bad = false;
+                foreach ($hs as $h) {
+                    $no = (int) $h->num; $id = 'H' . $no; $roster[] = ['horse_no' => $no, 'horse_id' => $id];
+                    $f = $res[$key][$no] ?? null;
+                    if ($f === null) { $bad = true; break; }
+                    $pos = (int) $f->finishing_position; $st = (string) ($f->finishing_status ?? '');
+                    if ($pos >= 1) { $results[] = ['horse_id' => $id, 'finish' => $pos]; }
+                    elseif ($st === '中止') { $results[] = ['horse_id' => $id, 'finish' => 'DNF']; }
+                    elseif ($st === '失格') { $results[] = ['horse_id' => $id, 'finish' => 'DQ']; }
+                    else { $bad = true; break; }
+                }
+                if ($bad) { $cnt['incomplete']++; continue; }
+                $cnt['checked']++;
+                $rid = AiController::buildPredictionRaceId($d, $k, $b, $dy, (int) $rc);
+                $digest = self::expectedSavedDigest($rid, $roster, $results);
+                $versions = $ledger['races'][$rid] ?? [];
+                $last = $versions !== [] ? end($versions) : null;
+                if (is_array($last) && ($last['digest'] ?? null) === $digest) { $cnt['same']++; continue; }   // 同じ内容：時刻は変えない
+                $versions[] = ['digest' => $digest, 'confirmed_at' => $nowStr];
+                $ledger['races'][$rid] = $versions;
+                $versions === [] || count($versions) === 1 ? $cnt['new']++ : $cnt['corrected']++;
+            }
+            if ($cnt['new'] > 0 || $cnt['corrected'] > 0 || !is_file($path)) {
+                $tmp = $path . '.tmp';
+                if (@file_put_contents($tmp, json_encode($ledger, JSON_UNESCAPED_UNICODE)) === false || !@rename($tmp, $path)) {
+                    return ['ok' => false, 'code' => 'WRITE_FAILED'] + $cnt;
+                }
+                @chmod($path, 0644);
+            }
+            return ['ok' => true, 'confirmed_at' => $nowStr, 'path' => $path] + $cnt;
+        } finally {
+            flock($lock, LOCK_UN); fclose($lock);
+        }
+    }
+
+    public const EXPECTED_HISTORY_POLICY = 'EXPECTED_HISTORY_UNRECORDED_TIME_V1';
+    public const EXPECTED_CLASS_TABLE = 'SummaryExpectedScore::classGroup@20261028';
+    /**
+     * @ANCHOR-20261116-EXPECTED-OLDHIST-FIX  なる11/15 再確認（02）の1・2・4への対応
+     *   1．結果の利用可能時刻を「レース当日 23:59:59」と仮に置かない。結果が入った時刻の記録が DB に無いため、
+     *      結果を実際に確かめて固定した時刻（確認台帳 old_results_confirmed_v1.json の confirmed_at。台帳を作った実時刻）を
+     *      result_available_at にする。対象日の 0:00 より後に確かめた結果は、その対象日には使わない（件数を別に数える）。
+     *      台帳に無いレース・台帳を作った後に中身が変わったレースも使わない。
+     *   2．summary の馬番と結果の馬番の全体が一致し、1〜N の連番であるレースだけを使う（欠けた馬を落として小さい頭立てにしない）。
+     *   4．期間は 2026-06-01〜2026-10-23 に固定（保存表の最初の日がずれても広がらない）。
+     *      「全頭の21分前＝6分前」の一律除外はやめ、台帳に書いたレースID（6/6〜6/20 の21分前の取得不具合）と原因で外す。
+     */
+    public const EXPECTED_OLD_FROM = '2026-06-01';
+    public const EXPECTED_OLD_BEFORE = '2026-10-24';   // この日を含まない（10/23 まで）
+    public const EXPECTED_OLD_LEDGER = 'app/baganriki/expected_history/old_results_confirmed_v1.json';
+    /** 試験用：true にすると contract.json に関係なく有効にします（本番は null のまま） */
+    public static ?bool $expectedOldHistoryForce = null;
+    /** 試験用（なる02 の3）：効果の試算だけ。確認台帳の時刻より前の対象日にも古い過去レースを使い、
+     *  result_time_status=EFFECT_TRIAL_NOT_AVAILABLE_THEN を付ける（当時使えた履歴だとは扱わない）。本番は false */
+    public static bool $expectedOldHistoryEffectTrial = false;
+    /** 直近に作った古い過去レースの監査（採用数・外した理由ごとの数・外したレースの一覧） */
+    public static array $expectedOldHistoryAudit = [];
+    private static ?bool $expectedOldHistoryMemo = null;
+
+    public static function expectedOldHistoryEnabled(): bool
+    {
+        if (self::$expectedOldHistoryForce !== null) { return self::$expectedOldHistoryForce; }
+        if (self::$expectedOldHistoryMemo === null) {
+            try {
+                $cfg = json_decode((string) file_get_contents(BaganrikiExpectedFiles::path('config/contract.json')), true, 512, JSON_THROW_ON_ERROR);
+                self::$expectedOldHistoryMemo = (($cfg['expected_history_policy'] ?? null) === self::EXPECTED_HISTORY_POLICY);
+            } catch (\Throwable $e) { self::$expectedOldHistoryMemo = false; }
+        }
+        return self::$expectedOldHistoryMemo;
+    }
+
+    /** 古い過去レース（$from 以上 $before 未満）を、summary・払戻表・着順表から作ります。1日分はキャッシュします（過去の資料は変わらないため） */
+    // 旧（20261116 なる02 の1・4 で置き換え：結果の時刻を仮に置いていた・期間が保存表の最初の日しだいで広がった）
+    // private static function expectedOldHistory(string $targetDate, string $from, string $before): array
+    // {
+    //     $key = 'expected_oldhist:v1:' . $from . ':' . $before;
+    //     $built = \Cache::remember($key, 86400, static fn() => self::expectedOldHistoryBuild($from, $before));
+    //     self::$expectedOldHistoryAudit = $built['audit'];
+    //     return $built['races'];
+    // }
+    private static function expectedOldHistory(string $targetDate, string $from, string $before): array
+    {
+        // @ANCHOR-20261116-EXPECTED-OLDHIST-FIX  期間は固定。730日の範囲・保存表の最初の日の内側だけ
+        $f = max($from, self::EXPECTED_OLD_FROM); $b = min($before, self::EXPECTED_OLD_BEFORE);
+        $audit = ['policy' => self::EXPECTED_HISTORY_POLICY, 'from' => $f, 'before' => $b, 'target_date' => $targetDate,
+                  'adopted' => 0, 'excluded' => [], 'excluded_races' => [], 'ledger' => null];
+        if ($f >= $b) { self::$expectedOldHistoryAudit = $audit + ['note' => 'NO_PERIOD']; return []; }
+        $ledger = self::expectedOldLedger();
+        if ($ledger === null) { self::$expectedOldHistoryAudit = $audit + ['note' => 'NO_LEDGER']; return []; }
+        $audit['ledger'] = ['confirmed_at' => $ledger['confirmed_at'], 'races' => count($ledger['races']), 'excluded_ids' => count($ledger['excluded_ids'])];
+        $built = \Cache::remember('expected_oldhist:v2:' . $f . ':' . $b, 86400, static fn() => self::expectedOldHistoryBuild($f, $b));
+        $audit['excluded'] = $built['audit']['excluded']; $audit['excluded_races'] = $built['audit']['excluded_races'];
+        $drop = static function (string $why, string $rid) use (&$audit) {
+            $audit['excluded'][$why] = ($audit['excluded'][$why] ?? 0) + 1;
+            $audit['excluded_races'][$why][] = $rid;
+        };
+        $tz = new \DateTimeZone('Asia/Tokyo');
+        $day = new \DateTimeImmutable($targetDate . ' 00:00:00', $tz);
+        $confirmed = new \DateTimeImmutable($ledger['confirmed_at']);
+        $out = [];
+        foreach ($built['races'] as $r) {
+            $rid = $r['race_id'];
+            if (isset($ledger['excluded_ids'][$rid])) { $drop('LEDGER_EXCLUDED:' . $ledger['excluded_ids'][$rid], $rid); continue; }
+            $digest = $ledger['races'][$rid] ?? null;
+            if ($digest === null) { $drop('RESULT_NOT_CONFIRMED', $rid); continue; }
+            if (!hash_equals($digest, $r['result_digest'])) { $drop('RESULT_CHANGED_AFTER_CONFIRM', $rid); continue; }
+            $trial = false;
+            if ($confirmed >= $day) {   // 過去の対象日へ遡って使わない
+                if (!self::$expectedOldHistoryEffectTrial) { $drop('RESULT_CONFIRMED_AFTER_TARGET', $rid); continue; }
+                $trial = true;
+            }
+            unset($r['result_digest'], $r['odds21_equals_odds6']);
+            $r['result_available_at'] = $trial ? $day->modify('-1 second')->format('Y-m-d\TH:i:s.uP') : $confirmed->setTimezone($tz)->format('Y-m-d\TH:i:s.uP');
+            $r['result_time_status'] = $trial ? 'EFFECT_TRIAL_NOT_AVAILABLE_THEN' : 'CONFIRMED_LEDGER';
+            $out[] = $r; $audit['adopted']++;
+        }
+        ksort($audit['excluded']);
+        self::$expectedOldHistoryAudit = $audit;
+        return $out;
+    }
+
+    /** @ANCHOR-20261116-EXPECTED-OLDHIST-FIX  結果の確認台帳を読む。無い・形が違えば null（古い過去レースは使わない） */
+    public static function expectedOldLedger(): ?array
+    {
+        try {
+            $j = json_decode((string) @file_get_contents(storage_path(self::EXPECTED_OLD_LEDGER)), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) { return null; }
+        if (!is_array($j) || ($j['policy'] ?? null) !== self::EXPECTED_HISTORY_POLICY || !is_string($j['confirmed_at'] ?? null)
+            || !is_array($j['races'] ?? null) || !is_array($j['excluded_ids'] ?? null)
+            || ($j['from'] ?? null) !== self::EXPECTED_OLD_FROM || ($j['before'] ?? null) !== self::EXPECTED_OLD_BEFORE) { return null; }
+        try { new \DateTimeImmutable($j['confirmed_at']); } catch (\Throwable $e) { return null; }
+        return $j;
+    }
+
+    /**
+     * @ANCHOR-20261116-EXPECTED-OLDHIST-FIX  結果の確認台帳を作る（試験・確認用の手順から一度だけ呼ぶ。本番の予想の流れからは呼ばない）
+     *   今の DB の結果を確かめ、各レースの中身の照合値と、確かめた実時刻（confirmed_at）を書く。既にあれば上書きしない。
+     *   21分前の取得不具合（6/6〜6/20 に全頭の21分前＝6分前）のレースは、レースIDと原因を excluded_ids に書く。
+     */
+    public static function expectedOldLedgerWrite(): array
+    {
+        $path = storage_path(self::EXPECTED_OLD_LEDGER);
+        if (is_file($path)) { return ['ok' => false, 'code' => 'LEDGER_EXISTS', 'path' => $path]; }
+        $built = self::expectedOldHistoryBuild(self::EXPECTED_OLD_FROM, self::EXPECTED_OLD_BEFORE);
+        $races = []; $excluded = [];
+        foreach ($built['races'] as $r) {
+            if ($r['odds21_equals_odds6'] && substr($r['race_id'], 0, 8) >= '20260606' && substr($r['race_id'], 0, 8) <= '20260620') {
+                $excluded[$r['race_id']] = 'ODDS21_ACQUISITION_DEFECT_20260606_20260620'; continue;
+            }
+            $races[$r['race_id']] = $r['result_digest'];
+        }
+        ksort($races); ksort($excluded);
+        $j = ['policy' => self::EXPECTED_HISTORY_POLICY, 'from' => self::EXPECTED_OLD_FROM, 'before' => self::EXPECTED_OLD_BEFORE,
+              'confirmed_at' => (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo')))->format('Y-m-d\TH:i:s.uP'),
+              'note' => '結果が入った時刻の記録が DB に無いため、この台帳を作った実時刻を結果の利用可能時刻とする（なる11/15 02 の1）',
+              'build_excluded' => $built['audit']['excluded'], 'races' => $races, 'excluded_ids' => $excluded];
+        @mkdir(dirname($path), 0755, true);
+        if (@file_put_contents($path, json_encode($j, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX) === false) {
+            return ['ok' => false, 'code' => 'LEDGER_WRITE_FAILED', 'path' => $path];
+        }
+        @chmod($path, 0644);
+        return ['ok' => true, 'path' => $path, 'confirmed_at' => $j['confirmed_at'], 'races' => count($races), 'excluded_ids' => count($excluded),
+                'build_excluded' => $built['audit']['excluded']];
+    }
+
+    private static function expectedOldHistoryBuild(string $from, string $before): array
+    {
+        $tz = new \DateTimeZone('Asia/Tokyo');
+        $num = static fn($v) => (is_string($v) && preg_match('/^[0-9]+(\.[0-9])?$/D', $v) === 1 && (float) $v >= 1.0) ? $v : null;
+        $pay = [];
+        \DB::table('t_horse_odds_finder_race_result_payout')->where('date', '>=', $from)->where('date', '<', $before)
+            ->get(['date', 'kaisuu', 'basho_code', 'day', 'race', 'race_name', 'grade', 'course', 'dist', 'race_condition'])
+            ->each(function ($p) use (&$pay) { $pay[substr((string) $p->date, 0, 10) . '|' . $p->basho_code . '|' . (int) $p->race] = $p; });
+        $res = [];
+        \DB::table('t_horse_odds_finder_race_result_history')->where('date', '>=', $from)->where('date', '<', $before)
+            ->get(['date', 'basho_code', 'race', 'num', 'tan', 'finishing_position', 'finishing_status'])
+            ->each(function ($r) use (&$res) { $res[substr((string) $r->date, 0, 10) . '|' . $r->basho_code . '|' . (int) $r->race][(int) $r->num] = $r; });
+        $races = [];
+        \DB::table('t_horse_odds_finder_summary')->where('date', '>=', $from)->where('date', '<', $before)
+            ->orderBy('date')->orderBy('basho')->orderBy('race')->orderBy('num')
+            ->get(['date', 'kaisuu', 'basho', 'day', 'race', 'num', 'odds_tan_before_6', 'odds_tan_before_21'])
+            ->each(function ($r) use (&$races) { $races[substr((string) $r->date, 0, 10) . '|' . $r->basho . '|' . (int) $r->race][] = $r; });
+        $out = []; $audit = ['policy' => self::EXPECTED_HISTORY_POLICY, 'class_table' => self::EXPECTED_CLASS_TABLE,
+                              'from' => $from, 'before' => $before, 'adopted' => 0, 'excluded' => [], 'excluded_races' => []];
+        $drop = static function (string $why, string $rid) use (&$audit) {
+            $audit['excluded'][$why] = ($audit['excluded'][$why] ?? 0) + 1;
+            $audit['excluded_races'][$why][] = $rid;
+        };
+        foreach ($races as $key => $hs) {
+            [$d, $b, $rc] = explode('|', $key);
+            $rid = AiController::buildPredictionRaceId($d, $hs[0]->kaisuu, $b, $hs[0]->day, (int) $rc);
+            $p = $pay[$key] ?? null;
+            if ($p === null) { $drop('NO_PAYOUT', $rid); continue; }
+            $surface = ($p->course === '芝') ? 'TURF' : (($p->course === 'ダート') ? 'DIRT' : null);
+            $class = \App\Console\Commands\SummaryExpectedScore::classGroup($p->course, $p->grade, $p->race_name, $p->race_condition);
+            if ($surface === null || $class === 'JUMP') { $drop('OUT_OF_SCOPE', $rid); continue; }
+            $roster = []; $q6 = []; $q21 = []; $results = []; $bad = null; $same = true; $final = true;
+            foreach ($hs as $h) {
+                $no = (int) $h->num; $id = 'H' . $no;
+                $o6 = $num(trim((string) $h->odds_tan_before_6)); $o21 = $num(trim((string) $h->odds_tan_before_21));
+                if ($o6 === null) { $bad = 'CANCEL_OR_MISSING_ODDS6'; break; }
+                $f = $res[$key][$no] ?? null;
+                if ($f === null) { $bad = 'NO_RESULT'; break; }
+                $pos = (int) $f->finishing_position; $st = (string) ($f->finishing_status ?? '');
+                if ($pos >= 1) { $results[] = ['horse_id' => $id, 'finish' => $pos]; }
+                elseif ($st === '中止') { $results[] = ['horse_id' => $id, 'finish' => 'DNF']; }
+                elseif ($st === '失格') { $results[] = ['horse_id' => $id, 'finish' => 'DQ']; }
+                else { $bad = 'CANCEL_OR_UNKNOWN_RESULT'; break; }
+                $roster[] = ['horse_no' => $no, 'horse_id' => $id];
+                $q6[] = ['horse_id' => $id, 'win' => $o6];
+                if ($o21 !== null) { $q21[] = ['horse_id' => $id, 'win' => $o21]; }
+                if ($o21 === null || (float) $o21 !== (float) $o6) { $same = false; }
+                $ft = $num(trim((string) ($f->tan ?? '')));
+                if ($ft === null || (float) $ft !== (float) $o6) { $final = false; }
+            }
+            if ($bad !== null) { $drop($bad, $rid); continue; }
+            // @ANCHOR-20261116-EXPECTED-OLDHIST-FIX  2．summary の馬番の全体＝結果の馬番の全体＝1〜N（欠けた馬を落として小さい頭立てにしない）
+            $sumNos = array_map(static fn($h) => (int) $h->num, $hs); sort($sumNos);
+            $resNos = array_map('intval', array_keys($res[$key] ?? [])); sort($resNos);
+            if ($sumNos !== $resNos) { $drop('ROSTER_MISMATCH_SUMMARY_VS_RESULT', $rid); continue; }
+            if ($sumNos !== range(1, count($sumNos))) { $drop('ROSTER_NOT_CONTIGUOUS', $rid); continue; }
+            if (count($roster) < 2) { $drop('TOO_FEW_RUNNERS', $rid); continue; }
+            // if ($same) { $drop('ODDS21_EQUALS_ODDS6', $rid); continue; }   // 旧（20261116 なる02 の4：一律に外さず、台帳のレースIDと原因で外す）
+            if ($final) { $drop('ODDS6_EQUALS_FINAL', $rid); continue; }
+            $post = new \DateTimeImmutable($d . ' 00:00:00', $tz);   // 発走時刻の記録が無いので日付だけ（post_time_status=DATE_ONLY）
+            $batches = ['6' => ['batch_id' => 'summary:' . $rid . ':6', 'requested_at' => null, 'received_at' => null, 'available_at' => null,
+                                'acquisition_time_status' => 'UNRECORDED', 'quotes' => $q6]];
+            if ($q21) {
+                $batches['21'] = ['batch_id' => 'summary:' . $rid . ':21', 'requested_at' => null, 'received_at' => null, 'available_at' => null,
+                                  'acquisition_time_status' => 'UNRECORDED', 'quotes' => $q21];
+            }
+            $out[] = ['race_id' => $rid, 'N' => count($roster), 'post_at' => $post->format('Y-m-d\TH:i:s.uP'),
+                'input_freeze_at' => $post->modify(BaganrikiTime::INPUT_FREEZE_OFFSET_SEC . ' seconds')->format('Y-m-d\TH:i:s.uP'),
+                'acquisition_time_status' => 'UNRECORDED', 'post_time_status' => 'DATE_ONLY', 'history_policy' => self::EXPECTED_HISTORY_POLICY,
+                'jurisdiction' => 'JRA', 'race_type' => 'FLAT', 'surface' => $surface,
+                'distance_metres' => ((int) preg_replace('/\D/', '', (string) $p->dist)) ?: null,
+                'class_group' => $class, 'roster' => $roster, 'batches' => $batches,
+                'post_freeze_scratch' => false, 'results' => $results,
+                // 'result_available_at' => (new \DateTimeImmutable($d . ' 23:59:59', $tz))->format('Y-m-d\TH:i:s.uP')];   // 旧（20261116 なる02 の1：仮の時刻を置かない）
+                // @ANCHOR-20261116-EXPECTED-OLDHIST-FIX  結果の利用可能時刻は、確認台帳を当てるとき（expectedOldHistory）に入れる
+                'result_available_at' => null, 'odds21_equals_odds6' => $same,
+                'result_digest' => hash('sha256', json_encode([$rid, $roster, $q6, $q21, $results, $surface, $class, $p->dist], JSON_UNESCAPED_UNICODE))];
+            $audit['adopted']++;
+        }
+        ksort($audit['excluded']);
+        return ['races' => $out, 'audit' => $audit];
     }
 
     /**
@@ -6145,8 +6703,14 @@ class AiController extends Controller
             // 公開済みのレースを、公開期限のあとにもう一度判定したとき（DEADLINE_PASSED）は記録しません
             if (!$zero && \DB::table('baganriki_publications')->where('snapshot_id', $snapshotId)->exists()) { return; }
             $category = $zero ? 'EVALUATED_NO_ELIGIBLE' : 'AI_EVALUATION_UNCONFIRMED';
-            $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first(['race_id', 'generation']);
+            // $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first(['race_id', 'generation']);   // 旧
+            $snap = \DB::table('baganriki_snapshots')->where('id', $snapshotId)->first(['race_id', 'generation', 'mode_status', 'allocation_mode']);
             if ($snap === null) { return; }
+            // @ANCHOR-20261115-PREDICTION-SELECTION-DISABLED  豊田さん11/15（B）：選出停止（selection_enabled=false）のレースは、
+            //   プロンプトの決まり（UNRESOLVED/selection_enabled=false では全頭評価だけを返し、公開は停止する）どおり公開しません。
+            //   AIの評価を確かめられなかったのではないので、AI_EVALUATION_UNCONFIRMED ではなく SELECTION_DISABLED として分けて残します
+            //   （11/15 京都6R：両AIの返事は届いて検査も通っていたのに、期限切れ・AI未確認と記録されていた）。公開するかどうかの動きは変えません。
+            if (!$zero && $snap->allocation_mode === null && (string) $snap->mode_status === 'UNRESOLVED') { $category = 'SELECTION_DISABLED'; }
             $roles = [];
             foreach (['1st', '2nd'] as $role) {
                 $a = \DB::table('baganriki_ai_attempts')->where('snapshot_id', $snapshotId)->where('role', $role)
@@ -6467,6 +7031,25 @@ class AiController extends Controller
             $out['scanned']++;
             $sid = (int) $snap->id;
             try {
+                // ══════════════════════════════════════════════════════
+                // @ANCHOR-20261115-PREDICTION-SWEEPSKIP  投票締切を過ぎて、公開か「出せなかった」の記録まで終わったレースは飛ばします
+                // ══════════════════════════════════════════════════════
+                //   11/15 の実測：この巡回は1時間前までのレースを毎回なめ、1レースごとに凍結入力（約50万字）を
+                //   読み直して期限を計算していました（frozenSales）。そのため、その日の2レース目以降は、
+                //   凍結から初回の送信まで 30〜60秒 かかり（朝の1レース目は約10秒）、
+                //   東京6R・福島8R・東京9R・京都8R は 2nd を送る時間が残らず、京都6R は公開が締切に間に合いませんでした。
+                //   【いま】DBの投票締切（sales_close_at）を60秒過ぎ、公開か「出せなかった」の記録があり、
+                //   送信中・予約中のAIが無いレースは、重い読み直しの前に飛ばします。まだ終わっていないレースは今までどおり回します。
+                $closeUs = BaganrikiWorker::dbUs($snap->sales_close_at ?? null);
+                if ($closeUs !== null && $now > $closeUs + 60 * 1000000
+                    && (\DB::table('baganriki_publications')->where('snapshot_id', $sid)->exists()
+                        || \DB::table('baganriki_audit_events')->where('snapshot_id', $sid)
+                               ->where('kind', 'PREDICTION_NOT_PUBLISHED')->exists())
+                    && !\DB::table('baganriki_ai_attempts')->where('snapshot_id', $sid)
+                           ->whereNotIn('status', BaganrikiWorker::TERMINAL)->exists()) {
+                    $out['rows'][] = (string) $snap->race_id . ':DONE_SKIPPED';
+                    continue;
+                }
                 // @ANCHOR-20261023-NARU-STARTTIME  発走時刻の前倒しを、オッズ取得とは別にここでも入れます
                 if ($roleOnly !== '2nd') {
                     $st = self::syncLiveStartTime($sid, 'sweep');
@@ -6879,6 +7462,18 @@ class AiController extends Controller
     public static function predictionQuotaOf($pubQuota, $snapQuota): array
     {
         return BaganrikiAnswer::predictionQuotaOf($pubQuota, $snapQuota);
+    }
+
+    /**
+     * @ANCHOR-20261115-PREDICTION-FILLSTATUS  頭数の充足の区分（記録用。表示や選び方は変えません）
+     *   REGULAR_FULL＝通常候補だけで目標の頭数／WITH_FILL＝補充を含めて目標の頭数／SHORT＝補充しても目標に届かない（通常候補あり）
+     *   REFERENCE_ONLY＝通常候補0で、参考の補充だけ／EMPTY＝出せる馬なし
+     */
+    public static function predictionFillStatus(int $regular, int $fill, int $target): string
+    {
+        if ($regular <= 0) { return $fill > 0 ? 'REFERENCE_ONLY' : 'EMPTY'; }
+        if ($regular >= $target && $fill === 0) { return 'REGULAR_FULL'; }
+        return ($regular + $fill >= $target) ? 'WITH_FILL' : 'SHORT';
     }
 
     /** BaganrikiAnswer::predictionFillRows の窓口（中身は BaganrikiAnswer） */
@@ -7424,9 +8019,14 @@ final class BaganrikiAnswer
         $haveN = ['A' => 0, 'B' => 0, 'D' => 0];
         foreach ($have as $h) { $b = (string) ($h['band'] ?? ''); if (isset($haveN[$b])) { $haveN[$b]++; } }
         $out = [];
-        $takeFrom = static function (string $b, int $n) use (&$pool, &$out): int {
+        // @ANCHOR-20261115-PREDICTION-REFILL  合計は枠の合計（頭数）を超えない
+        //   11/15 京都12R：公開のときに D の不足を A の根拠のある馬で埋めていたため、帯ごとに数えると D が1頭足りず、
+        //   補充で1頭足して 8頭（頭数7）になっていました。帯ごとの不足に加えて、全体の残りの数でも止めます。
+        $room = max(0, array_sum(array_map('intval', $quota)) - count($have));
+        $takeFrom = static function (string $b, int $n) use (&$pool, &$out, &$room): int {
             $got = 0;
-            while ($got < $n && $pool[$b] !== []) {
+            while ($got < $n && $room > 0 && $pool[$b] !== []) {
+                $room--;
                 $x = array_shift($pool[$b]);
                 $out[] = ['num' => $x['no'], 'band' => $b];
                 $got++;
@@ -7654,7 +8254,15 @@ final class BaganrikiInput
         //     <b>そのバッチの値だけ</b>を入力に使います。
         //     別のバッチの馬や値が混ざらないようにします。
         $assumeAudit = (bool) ($override['assume_audit'] ?? false);
-        $freezeUs    = BaganrikiTime::inputFreeze($anchorUs);
+        // $freezeUs    = BaganrikiTime::inputFreeze($anchorUs);   // 旧（T−300秒固定）
+        // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  情報上限は、凍結する側が決めた時刻（override の input_freeze_us）。無ければ今の時刻から決める
+        $timeVersion = BaganrikiTime::timeContractVersion();
+        $freezeUs    = (isset($override['input_freeze_us']) && is_int($override['input_freeze_us']))
+                     ? $override['input_freeze_us']
+                     : BaganrikiTime::freezeFor($anchorUs, BaganrikiWorker::nowUs(), $timeVersion);
+        if (!BaganrikiTime::freezeInWindow($anchorUs, $freezeUs, $timeVersion)) {
+            return $ng('TIME_CONTRACT_INVALID', '情報上限が決まりの範囲にありません（' . BaganrikiTime::toJst($freezeUs) . '）');
+        }
         $freezeAt    = BaganrikiPrompt::rfc3339($freezeUs);
         $audit  = null;
         $batchCells = [];     // 採用バッチの原値 [馬番][スロット][項目]
@@ -8037,7 +8645,7 @@ final class BaganrikiInput
             if (($fr['ok'] ?? false) === true) {
                 $ex = AiController::buildExtraSourceRegistry(
                     ['race_id' => $raceId, 'audit' => $audit],
-                    $fr['rank'], $cells, BaganrikiTime::inputFreeze($anchorUs));
+                    $fr['rank'], $cells, $freezeUs);   // @ANCHOR-20261116-PREDICTION-EARLYFREEZE（旧 BaganrikiTime::inputFreeze($anchorUs)）
                 foreach ($ex['registry'] as $k => $v) $registry[$k] = $v;
                 $extraCov = $ex['coverage'];
                 if ($ex['registry'] !== []) {
@@ -8050,7 +8658,7 @@ final class BaganrikiInput
                 //   当日を含む集計・情報上限より後に算出された集計は載せません。
                 $mp = AiController::buildMarketPriorRegistry($raceId, (string) $date,
                           $fr['rank'], $cells,
-                          BaganrikiPrompt::rfc3339(BaganrikiTime::inputFreeze($anchorUs)));
+                          BaganrikiPrompt::rfc3339($freezeUs));   // @ANCHOR-20261116-PREDICTION-EARLYFREEZE（旧 BaganrikiTime::inputFreeze($anchorUs)）
                 foreach ($mp['registry'] as $k => $v) { $registry[$k] = $v; }
                 $extraCov = $mp['coverage'] + $extraCov;
                 if ($mp['registry'] !== []) {
@@ -8063,8 +8671,16 @@ final class BaganrikiInput
         // ── @ANCHOR-20261020-PREDICTION-PAST  過去走 ─────────────────────────
         //   取消になった馬は凍結集合に残るので、過去走も載せます。
         //   情報上限の切り方は buildPastRunsRegistry の中に書いてあります。
-        $pr = AiController::buildPastRunsRegistry($raceId, (string) $date, $entryNames,
-                  BaganrikiPrompt::rfc3339(BaganrikiTime::inputFreeze($anchorUs)));
+        // $pr = AiController::buildPastRunsRegistry($raceId, (string) $date, $entryNames,
+        //           BaganrikiPrompt::rfc3339(BaganrikiTime::inputFreeze($anchorUs)));   // 旧
+        // @ANCHOR-20261115-PREDICTION-PRECANCEL  凍結より前に取消になった馬の過去走は載せません
+        //   11/15 京都10R：6番が発走前（情報上限まで）に取消。出走馬（runners）からは外れているのに、
+        //   出馬表の全頭で過去走を作っていたため、6番を指す出典が入力に残り、E3・E5を付けた入力の検査
+        //   （EXPECTED_SOURCE_HORSE：出典の馬番が出走馬にいるか）で凍結が止まりました。
+        //   凍結の後に取消になった馬（cancelledPost）は凍結集合に残るので、今までどおり載せます。
+        $pastNames = array_diff_key($entryNames, array_flip($cancelled));
+        $pr = AiController::buildPastRunsRegistry($raceId, (string) $date, $pastNames,
+                  BaganrikiPrompt::rfc3339($freezeUs));   // @ANCHOR-20261116-PREDICTION-EARLYFREEZE（旧 BaganrikiTime::inputFreeze($anchorUs)）
         foreach ($pr['registry'] as $k => $v) { $registry[$k] = $v; }
         $extraCov = $pr['coverage'] + $extraCov;
         if ($pr['registry'] !== []) {
@@ -8115,6 +8731,9 @@ final class BaganrikiInput
             'cancelled_post'  => $cancelledPost,
             'legacy_gap_type' => null,
             'similar'         => $override['similar'] ?? null,
+            // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  情報上限と時刻契約の版（buildInput がこの値で入力を作る）
+            'input_freeze_us'       => $freezeUs,
+            'time_contract_version' => $timeVersion,
         ];
         // @ANCHOR-20261020-PREDICTION-CLOSE  締切の出どころを返します
         //   （INPUT_JSON の time_contract は閉じた形なので、そこには入れません。
@@ -11841,6 +12460,55 @@ final class BaganrikiTime
     public static function inputFreeze(int $anchorUs): int
     { return $anchorUs + self::INPUT_FREEZE_OFFSET_SEC * self::US; }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  早期凍結（よっしー11/14 ③B・なる 草案v0.1のB・なる11/15 本文案 _05・別紙01【必須2】）
+    // ══════════════════════════════════════════════════════════════════════
+    //   6分前のオッズがそろったら、発走5分前（T−300秒）を待たずに凍結します。T−300秒は「最大の期限」です。
+    //   ・本文と時刻の決まりを同じ版で切り替えるため、本番の本文版が _05（EARLY_TEXT_REVISIONS）のときだけ使います。
+    //     _04 のままなら、今までどおり T−300秒ちょうどで凍結します（時刻契約 v1）。
+    //   ・早期凍結の情報上限 input_freeze_at は「凍結した時刻」で、6分前スロットの予定時刻（T−360秒）〜T−300秒の間。
+    //     採用する資料は、その時刻までに利用可能になったものだけ（acceptBatch の available_at ≤ input_freeze_at）。
+    //   ・6分前のレース全体がそろわないうちは凍結しません（入力が作れなかったら記録せずに次の巡回でもう一度。T−300秒からは今までどおり）。
+    //   ・旧スナップショット（v1）は、旧の決まり（T−300秒ちょうど）のまま検証します。
+    public const TIME_CONTRACT_V1 = 'baganriki-post-slot-grace-v1';
+    public const TIME_CONTRACT_V2 = 'baganriki-post-slot-grace-v2-early';
+    // public const EARLY_TEXT_REVISIONS = ['COMPACT_TEXT_20261109_05'];   // 旧（_05 だけ）
+    public const EARLY_TEXT_REVISIONS = ['COMPACT_TEXT_20261109_05','COMPACT_TEXT_20261109_06'];   // 20261116 _06（3指標の選出連動）も早期凍結
+    private static ?bool $earlyActiveMemo = null;
+
+    /** 早期凍結を使うか（本番の本文版が早期凍結の版のときだけ。1プロセスの中では最初に読んだ値を使う） */
+    public static function earlyFreezeActive(): bool
+    {
+        if (self::$earlyActiveMemo === null) {
+            try { self::$earlyActiveMemo = in_array(BaganrikiDispatch::activeRevision(), self::EARLY_TEXT_REVISIONS, true); }
+            catch (\Throwable $e) { self::$earlyActiveMemo = false; }
+        }
+        return self::$earlyActiveMemo;
+    }
+
+    /** 新しく凍結する入力の時刻契約の版 */
+    public static function timeContractVersion(): string
+    { return self::earlyFreezeActive() ? self::TIME_CONTRACT_V2 : self::TIME_CONTRACT_V1; }
+
+    /** 早く凍結してよい最初の時刻（6分前スロットの予定時刻＝T−360秒） */
+    public static function earliestFreeze(int $anchorUs): int
+    { return self::slotScheduled($anchorUs, 6); }
+
+    /** これから凍結する入力の情報上限。v1 は T−300秒。v2 は min(今, T−300秒)、ただし T−360秒より前にはしない */
+    public static function freezeFor(int $anchorUs, int $nowUs, ?string $version = null): int
+    {
+        $max = self::inputFreeze($anchorUs);
+        if (($version ?? self::timeContractVersion()) !== self::TIME_CONTRACT_V2) { return $max; }
+        return max(self::earliestFreeze($anchorUs), min($nowUs, $max));
+    }
+
+    /** 情報上限が決まりどおりか。v1 は T−300秒ちょうど。v2（と、版を持たない呼び出し）は T−360秒〜T−300秒 */
+    public static function freezeInWindow(int $anchorUs, int $freezeUs, ?string $version = null): bool
+    {
+        if ($version === self::TIME_CONTRACT_V1) { return $freezeUs === self::inputFreeze($anchorUs); }
+        return $freezeUs >= self::earliestFreeze($anchorUs) && $freezeUs <= self::inputFreeze($anchorUs);
+    }
+
     public static function publishDeadline(int $salesCloseUs): int
     { return $salesCloseUs - self::SAFETY_MARGIN_SEC * self::US; }
 
@@ -11912,7 +12580,9 @@ final class BaganrikiTime
                                   . '／正本 ' . self::toJst($want) . '）'];
             }
             $wantFz = self::inputFreeze($anchorUs);
-            if ($v['input_freeze_at'] !== $wantFz) {
+            // if ($v['input_freeze_at'] !== $wantFz) {   // 旧（T−300秒ちょうどだけ）
+            // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  早期凍結の情報上限（T−360秒〜T−300秒）も受け付けます。v1 の入力は T−300秒しか作りません
+            if (!self::freezeInWindow($anchorUs, $v['input_freeze_at'])) {
                 return ['ok' => false, 'code' => 'FREEZE_MISMATCH',
                         'reason' => 'input_freeze_at が正本の発走時刻から出した情報上限と'
                                   . '合いません（申告 ' . self::toJst($v['input_freeze_at'])
@@ -14487,8 +15157,14 @@ final class BaganrikiPrompt
             return $ng('SALES_CLOSE_UNRESOLVED',
                        '投票締切の正本が特定できないため送信しません（契約11.2）');
         }
+        // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  時刻契約の版は、材料を集めたときの版（無ければ v1）
+        $timeVersion = (string) ($ctx['time_contract_version'] ?? BaganrikiTime::TIME_CONTRACT_V1);
+        if (!in_array($timeVersion, [BaganrikiTime::TIME_CONTRACT_V1, BaganrikiTime::TIME_CONTRACT_V2], true)) {
+            return $ng('TIME_CONTRACT_INVALID', '時刻契約の版が分かりません: ' . $timeVersion);
+        }
         $time = [
-            'version'            => 'baganriki-post-slot-grace-v1',
+            // 'version'            => 'baganriki-post-slot-grace-v1',   // 旧
+            'version'            => $timeVersion,
             'anchor_kind'        => 'POST_TIME',
             'anchor_at'          => self::rfc3339($anchorUs),
             'snapshot_offsets'   => BaganrikiTime::INPUT_SLOTS,
@@ -14500,7 +15176,13 @@ final class BaganrikiPrompt
             'acquisition_grace_ms' => BaganrikiTime::GRACE_MS,
         ];
         $cutoffUs = BaganrikiTime::cutoff($anchorUs);
-        $freezeUs = BaganrikiTime::inputFreeze($anchorUs);
+        // $freezeUs = BaganrikiTime::inputFreeze($anchorUs);   // 旧（T−300秒固定）
+        // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  材料を集めたときの情報上限を使う。無ければ今までどおり T−300秒
+        $freezeUs = (isset($ctx['input_freeze_us']) && is_int($ctx['input_freeze_us']))
+                  ? $ctx['input_freeze_us'] : BaganrikiTime::inputFreeze($anchorUs);
+        if (!BaganrikiTime::freezeInWindow($anchorUs, $freezeUs, $timeVersion)) {
+            return $ng('TIME_CONTRACT_INVALID', '情報上限が時刻契約の範囲にありません');
+        }
 
         // ── 取得監査 ───────────────────────────────────────────────────
         $audit = (array) ($ctx['audit'] ?? []);
@@ -17862,6 +18544,20 @@ final class BaganrikiDerivedValue
         'PAST_RUNS_SUMMARY'                      => ['stat', null, null],
     ];
 
+    /**
+     * @ANCHOR-20261114-EXPECTED-TABLE-PARENT
+     * 親がDBの集計元テーブル名かどうか。
+     *   サーバの統計（一覧で 'stat'、版 'v1'、DERIVED）の項目で、親が t_horse_odds_finder_ で始まる
+     *   テーブル名のときだけ true。登録IDの親や、計算し直す項目（calc）には当てはめません。
+     */
+    public static function tableParent(array $e,mixed $parent):bool
+    {
+        if (!is_string($parent) || preg_match('/^t_horse_odds_finder_[a-z0-9_]+$/D',$parent)!==1) return false;
+        if (($e['source_kind']??null)!=='DERIVED' || ($e['formula_version']??null)!=='v1') return false;
+        $def=self::SERVER_FORMULAS[$e['formula_id']??'']??null;
+        return $def!==null && $def[0]==='stat';
+    }
+
     /** 止めた理由の詳細（凍結の理由に添えて記録する。試験と調査用） */
     public static ?string $lastProblem = null;
 
@@ -17880,6 +18576,8 @@ final class BaganrikiDerivedValue
         if ($scope!==null && $e['scope']!==$scope) throw self::fail($id,'EXPECTED_DERIVATION_SCOPE_VERSION');
         $v=BaganrikiOutputSchema::scalar($e['value'],$map,['source_registry',$id,'value']);
         foreach ($e['parents'] as $ref) {
+            // @ANCHOR-20261114-EXPECTED-TABLE-PARENT  集計元のテーブル名（入力の外の由来）は登録表に無いので、ここでは確かめません
+            if (!isset($reg[$ref]) && self::tableParent($e,$ref)) continue;
             $p=$reg[$ref]??null;
             if (!is_array($p) || ($p['race_id']??null)!==($e['race_id']??null)) throw self::fail($id,'EXPECTED_DERIVATION_OWNER');
             if ($e['scope']==='HORSE' && in_array($p['scope'],['HORSE','PAIR'],true) && array_diff($p['horse_nos'],$e['horse_nos']))
@@ -18243,10 +18941,15 @@ final class BaganrikiExpectedPacket
         return $out;
     }
 
-    private static function quotes(array $r, array $roster, int $slot, \DateTimeImmutable $post, \DateTimeImmutable $freeze, bool $partialHistory=false,array &$ambiguous=[],?string &$batchIssue=null): array
+    private static function quotes(array $r, array $roster, int $slot, \DateTimeImmutable $post, \DateTimeImmutable $freeze, bool $partialHistory=false,array &$ambiguous=[],?string &$batchIssue=null,bool $unrecorded=false): array
     {
         $b=$r['batches'][(string)$slot]??null;
         if (!is_array($b) || !is_string($b['batch_id']??null) || trim($b['batch_id'])==='') { $batchIssue='MISSING_BATCH';return []; }
+        // @ANCHOR-20261116-EXPECTED-OLDHIST  取得時刻の記録が無い過去レース：時刻は3つとも null であること。時刻の窓の検査は飛ばす（埋めた時刻で通さない）
+        if ($unrecorded || ($b['acquisition_time_status']??null)!==null) {
+            if (!$unrecorded || ($b['acquisition_time_status']??null)!=='UNRECORDED' || ($b['requested_at']??null)!==null || ($b['received_at']??null)!==null || ($b['available_at']??null)!==null)
+                { $batchIssue='INVALID_BATCH_TIME';return []; }
+        } else {
         try {
             $request=self::instant($b['requested_at']??null); $received=self::instant($b['received_at']??null);
             $available=self::instant($b['available_at']??null);
@@ -18256,6 +18959,7 @@ final class BaganrikiExpectedPacket
         // 取得の猶予は本番の設定（BaganrikiTime::GRACE_MS）に合わせる。6分前は60秒（11/7に決めた値）
         $end=$start->modify('+'.intdiv((int) BaganrikiTime::GRACE_MS[$slot],1000).' seconds');
         if ($request<$start || $request>$received || $received>$available || $available>$end || $available>$freeze) { $batchIssue='OUTSIDE_BATCH_WINDOW';return []; }
+        }   // @ANCHOR-20261116-EXPECTED-OLDHIST
         $quotes=$b['quotes']??null;
         if (!is_array($quotes) || !self::isList($quotes)) { $batchIssue='INVALID_QUOTE_LIST';return []; }
         $byId=[]; $seen=[]; $nos=array_flip($roster);
@@ -18285,6 +18989,8 @@ final class BaganrikiExpectedPacket
         ksort($quotes,SORT_NUMERIC); $values=[];
         foreach ($quotes as $no=>$token) $values[$no]=$token[0].':'.rtrim($token[1],'0');
         self::need($batch!==null,'EXPECTED_ODDS_BATCH_MISSING');
+        // @ANCHOR-20261116-EXPECTED-OLDHIST  取得時刻の記録が無いバッチは、時刻の代わりに印を入れる（時刻は埋めない）
+        if (($batch['acquisition_time_status']??null)==='UNRECORDED') return [$batch['batch_id'],'UNRECORDED',null,null,$values];
         return [$batch['batch_id'],self::utc(self::instant($batch['requested_at'])),self::utc(self::instant($batch['received_at'])),
             self::utc(self::instant($batch['available_at'])),$values];
     }
@@ -18323,10 +19029,18 @@ final class BaganrikiExpectedPacket
         $roster=self::roster($r);
         self::need(is_string($r['race_id']??null) && trim($r['race_id'])!=='','INVALID_RACE_ID');
         $post=self::instant($r['post_at']??null); $freeze=self::instant($r['input_freeze_at']??null);
-        self::need($post->modify(BaganrikiTime::INPUT_FREEZE_OFFSET_SEC.' seconds')==$freeze,'INVALID_FREEZE');
+        // self::need($post->modify(BaganrikiTime::INPUT_FREEZE_OFFSET_SEC.' seconds')==$freeze,'INVALID_FREEZE');   // 旧（T−300秒ちょうど）
+        // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  早期凍結の情報上限（T−360秒〜T−300秒）も受け付けます。過去レースは T−300秒で作っています
+        self::need($freeze<=$post->modify(BaganrikiTime::INPUT_FREEZE_OFFSET_SEC.' seconds') && $freeze>=$post->modify('-360 seconds'),'INVALID_FREEZE');
         $day=$post->setTimezone(new \DateTimeZone('Asia/Tokyo'))->setTime(0,0);
-        $ambiguous=[];$win=self::quotes($r,$roster,6,$post,$freeze);
-        $earlyIssue=null;$early=self::quotes($r,$roster,21,$post,$freeze,$history,$ambiguous,$earlyIssue);
+        // @ANCHOR-20261116-EXPECTED-OLDHIST  取得時刻の記録が無い過去レース（方針が有効なときだけ）。今のレースには使わない
+        $unrec=$history && ($r['acquisition_time_status']??null)==='UNRECORDED' && ($r['history_policy']??null)===AiController::EXPECTED_HISTORY_POLICY
+            && AiController::expectedOldHistoryEnabled();
+        self::need(!isset($r['acquisition_time_status']) || $unrec,'HISTORY_TIME_POLICY');
+        // $ambiguous=[];$win=self::quotes($r,$roster,6,$post,$freeze);
+        // $earlyIssue=null;$early=self::quotes($r,$roster,21,$post,$freeze,$history,$ambiguous,$earlyIssue);   // 旧
+        $ambiguous=[];$a6=[];$i6=null;$win=self::quotes($r,$roster,6,$post,$freeze,false,$a6,$i6,$unrec);
+        $earlyIssue=null;$early=self::quotes($r,$roster,21,$post,$freeze,$history,$ambiguous,$earlyIssue,$unrec);
         ksort($ambiguous,SORT_NUMERIC);
         $all=count($win)===count($roster);
         $order=$all ? array_keys($win) : [];
@@ -19865,9 +20579,18 @@ final class BaganrikiSourceEvidence
                 self::need(!isset($observations[$observation]),'EXPECTED_DUPLICATE_OBSERVATION');
                 $observations[$observation]=true;
             }
-            $degree[$id]=count($e['parents']);
-            if ($degree[$id]===0) $queue[]=$id;
+            // @ANCHOR-20261114-EXPECTED-TABLE-PARENT
+            //   帯別の統計（回収率・似たレース）は、設計どおり parents に集計元のテーブル名が入っています
+            //   （buildExtraSourceRegistry の「由来の残し方」）。テーブル名は登録表の中には無いので、
+            //   【旧】ここで EXPECTED_SOURCE_PARENT になり、11/14 福島1Rの凍結が止まりました。
+            //   統計（stat）の項目の、テーブル名の親だけを「入力の外の由来」として数えずに通します。
+            //   それ以外の親は今までどおり登録表に無ければ止めます。
+            // $degree[$id]=count($e['parents']);
+            // if ($degree[$id]===0) $queue[]=$id;
+            $degree[$id]=0;
             foreach ($e['parents'] as $p) {
+                if (!isset($reg[$p]) && BaganrikiDerivedValue::tableParent($e,$p)) continue;
+                $degree[$id]++;
                 self::need(isset($reg[$p]),'EXPECTED_SOURCE_PARENT');
                 $parent=$reg[$p];
                 self::need(BaganrikiExpectedPacket::instant($parent['observed_at'])<=$observed &&
@@ -19876,6 +20599,7 @@ final class BaganrikiSourceEvidence
                     self::need(BaganrikiExpectedPacket::instant($parent['computed_at'])<=BaganrikiExpectedPacket::instant($e['computed_at']),'EXPECTED_PARENT_TIME');
                 $children[$p][]=$id;
             }
+            if ($degree[$id]===0) $queue[]=$id;
         }
         for ($i=0;$i<count($queue);$i++) foreach ($children[$queue[$i]]??[] as $child) if (--$degree[$child]===0) $queue[]=$child;
         self::need(count($queue)===count($reg),'EXPECTED_SOURCE_CYCLE');
@@ -20261,7 +20985,13 @@ final class BaganrikiMarketState
         self::need(($in['learning_stage']??null)==='COLLECT_ONLY' && array_key_exists('model_version',$in) && $in['model_version']===null,'EXPECTED_LEARNING_STAGE');
         $tc=$in['time_contract']; $post=$utc($tc['anchor_at']);$freeze=$utc($in['input_freeze_at']);
         $sales=$utc($tc['sales_close_at']);
-        self::need($post->modify(BaganrikiTime::INPUT_FREEZE_OFFSET_SEC.' seconds')==$freeze && $post->modify('-360 seconds')==$utc($in['cutoff_at']) &&
+        // @ANCHOR-20261116-PREDICTION-EARLYFREEZE  v1 は T−300秒ちょうど、v2（早期凍結）は T−360秒〜T−300秒
+        $maxFreeze=$post->modify(BaganrikiTime::INPUT_FREEZE_OFFSET_SEC.' seconds');
+        $freezeOk=(($tc['version']??null)===BaganrikiTime::TIME_CONTRACT_V2)
+            ? ($freeze<=$maxFreeze && $freeze>=$post->modify('-360 seconds'))
+            : (($tc['version']??null)===BaganrikiTime::TIME_CONTRACT_V1 && $maxFreeze==$freeze);
+        // self::need($post->modify(BaganrikiTime::INPUT_FREEZE_OFFSET_SEC.' seconds')==$freeze && $post->modify('-360 seconds')==$utc($in['cutoff_at']) &&   // 旧
+        self::need($freezeOk && $post->modify('-360 seconds')==$utc($in['cutoff_at']) &&
             $sales->modify('-60 seconds')==$utc($tc['publish_deadline']) && $sales->modify('-90 seconds')==$utc($tc['reply_deadline']),'EXPECTED_TIME_CONTRACT');
         $rows=[];$odds=[];
         foreach ($in['runners'] as $h) $rows[$h['horse_no']]=['no'=>$h['horse_no'],'rank'=>$h['win_rank']];
@@ -21126,9 +21856,19 @@ final class BaganrikiPublishedRead
     }
 
     /** A transfer satisfies its requested band but the horse stays in its real popularity band. */
-    private static function checkFilled(array $quota, array $owners, array $moves, array $shortfalls): void
+    private static function checkFilled(array $quota, array $owners, array $moves, array $shortfalls, mixed $metricsMove = null): void
     {
         $filled = array_count_values($owners) + ['A'=>0,'B'=>0,'D'=>0];
+        // @ANCHOR-20261116-METRICS-SELECTION  補正があったときは、入れた馬が対象帯にいて外した馬が公開に無いこと、補充・不足が無いことを確かめ、
+        //   帯の数を基本配分へ戻してから今までどおり照合する（補正の無い公開は今までと同じ）
+        if (is_array($metricsMove) && ($metricsMove['status'] ?? null) === 'APPLIED') {
+            $add = $metricsMove['added'] ?? null; $rem = $metricsMove['removed'] ?? null;
+            $dst = $metricsMove['target_band'] ?? null; $src = $metricsMove['source_band'] ?? null;
+            self::need(($metricsMove['policy'] ?? null) === BaganrikiMetricsSelection::POLICY && is_int($add) && is_int($rem)
+                && in_array($dst,['B','D'],true) && in_array($src,['A','B','D'],true) && $src !== $dst
+                && ($owners[$add] ?? null) === $dst && !isset($owners[$rem]) && $moves === [] && $shortfalls === [], 'PUBLICATION_DATA_INVALID');
+            --$filled[$dst]; ++$filled[$src];
+        }
         $from = ['D'=>['B'],'B'=>['D'],'A'=>['B','D']];
         $seen = [];
         foreach ($moves as $move) {
@@ -21200,7 +21940,9 @@ final class BaganrikiPublishedRead
         if ($modern) {
             $moves = $selection['fill'] ?? $evidence['fill'] ?? null;
             self::need(is_array($moves) && BaganrikiExpectedPacket::isList($moves), 'PUBLICATION_DATA_INVALID');
-            self::checkFilled($public,$owners,$moves,$short);
+            // self::checkFilled($public,$owners,$moves,$short);   // 旧
+            // @ANCHOR-20261116-METRICS-SELECTION  3指標の補正で1枠動かしたときは、その1対1の入替を確かめてから枠と照合する
+            self::checkFilled($public,$owners,$moves,$short,$selection['metrics_selection'] ?? $evidence['metrics_selection'] ?? null);
         }
         if (!isset($pub->shortfalls)) { $pub->shortfalls=json_encode($short,JSON_THROW_ON_ERROR); }
     }
@@ -21255,6 +21997,7 @@ final class BaganrikiPublishedRead
             $replayed[$field] = $proof[$field] ?? [];
         }
         if (array_key_exists('race_metrics',$proof)) $replayed['race_metrics']=$proof['race_metrics'];
+        if (array_key_exists('metrics_selection',$proof)) $replayed['metrics_selection']=$proof['metrics_selection'];   // @ANCHOR-20261116-METRICS-SELECTION
         return $replayed;
     }
 
@@ -21587,9 +22330,14 @@ final class BaganrikiRaceMetrics
     public const KEYS=['wave_level','lower_entry','big_gap_entry'];
     public const LABELS=['wave_level'=>'波乱度','lower_entry'=>'下位進入度','big_gap_entry'=>'大穴進入度'];
 
+    /** @ANCHOR-20261116-PREDICTION-TEXT05  3指標を返す本文版（なる11/15 別紙01【必須1】）。_04 の保存済みの予想も、今までどおり検証・表示します。未知の版は許可しません */
+    // public const REVISIONS=['COMPACT_TEXT_20261109_04','COMPACT_TEXT_20261109_05'];   // 旧（_06 の前）
+    public const REVISIONS=['COMPACT_TEXT_20261109_04','COMPACT_TEXT_20261109_05','COMPACT_TEXT_20261109_06'];   // 20261116 _06 も3指標を返す
+
     public static function enabled(array $in):bool
     {
-        return ($in['prompt_text_revision']??null)===self::REVISION;
+        // return ($in['prompt_text_revision']??null)===self::REVISION;   // 旧（_04 だけ）
+        return in_array($in['prompt_text_revision']??null,self::REVISIONS,true);
     }
 
     /** Validate one assessment independently so an invalid neighbour cannot erase it. */
@@ -22377,13 +23125,19 @@ final class BaganrikiCandidateSelection
      * Project the application's independently inspected rows with the same boundary and merge rules
      * used when replaying stored E3・E5版の receipts. No candidate list supplied by a caller is authoritative.
      */
+    /** @ANCHOR-20261116-EXPECTED-COMPARE  試験用（なる02 の3）：保存済みの凍結入力の E3・E5 の部分だけを差し替えて、本番と同じ流れで最終候補まで作る。本番は null */
+    public static ?\Closure $testInputOverride=null;
+    /** 試験用：直近の submittedPublication で作った役割ごとの結果（帯ごとの KEEP/SWAP を数えるため） */
+    public static array $lastProjected=[];
+
     public static function submittedPublication(object $snapshot, array $active, callable $readRole):array
     {
         $seed=null; $roles=[]; $proof=[]; $groups=[]; $issues=[]; $sources=[]; $fallback=[]; $notes=[]; $metrics=null;
-        self::$lastRoleIssues=[]; $looked=[]; $issueAt=[];
+        self::$lastRoleIssues=[]; $looked=[]; $issueAt=[]; $roleHorses=[];   // @ANCHOR-20261116-METRICS-SELECTION
         foreach (['1st','2nd'] as $role) {
             try {
                 $input=BaganrikiFrozenInput::forInspection($snapshot,$role);
+                if (self::$testInputOverride!==null) $input=(self::$testInputOverride)($input,$role);   // @ANCHOR-20261116-EXPECTED-COMPARE  試験だけ
                 self::need(is_array($input) && $input['prompt_version']===self::VERSION,'EXPECTED_STORED_ID');
                 $seed=$input;
                 if (!$input['selection_enabled']) continue;
@@ -22425,6 +23179,7 @@ final class BaganrikiCandidateSelection
                     $projected['public_proof_hash']=$hash; $proof[$role]=$rank['proof']??[];
                 }
                 $roles[]=$projected;
+                $roleHorses[$role]=$horses;   // @ANCHOR-20261116-METRICS-SELECTION  3指標の補正で、次点の馬が ELIGIBLE かを確かめるため
                 if ($role==='1st' && BaganrikiRaceMetrics::enabled($input)) $metrics=$rank['race_metrics']??BaganrikiRaceMetrics::unknown($input);
                 foreach ($counts as $n=>$c) $groups[$n]=max($groups[$n]??0,$c);
                 $sources[$role]=$rank['rank_source']??[];
@@ -22433,16 +23188,35 @@ final class BaganrikiCandidateSelection
             } catch (\InvalidArgumentException $error) { $issues[$role]=$error->getMessage(); $issueAt[$role]=$error->getMessage().'@'.$error->getLine().'<'.implode('<',array_map(static fn($t)=>($t['function']??'').':'.($t['line']??''),array_slice($error->getTrace(),0,4))); }
         }
         self::$lastRoleIssues=['issues'=>$issueAt,'looked'=>$looked];
+        self::$lastProjected=$roles;   // @ANCHOR-20261116-EXPECTED-COMPARE
         self::need($seed!==null,'EXPECTED_STORED_ID');
         self::need($seed['selection_enabled'],'EXPECTED_SELECTION_DISABLED');
         $roster=self::frozenBands($seed);
         $quota=self::structuralQuota($seed['allocation_mode'],array_intersect_key($roster,array_flip($active)));
         $detail=[]; $selection=self::mergeChecked($seed,$roles,$quota,$active,$proof,$groups,$detail);
+        // @ANCHOR-20261116-METRICS-SELECTION  3指標による最終配分の補正（凍結入力の本文版が _06 のときだけ。凍結時に決まる）
+        $metricsSelection=null;
+        if (BaganrikiMetricsSelection::enabled($seed)) {
+            // @ANCHOR-20261116-METRICS-SPEC-FREEZE  凍結時に記録した仕様と一致するときだけ補正する（なる11/16 仕上げ②）
+            $specCheck=BaganrikiMetricsSelection::frozenSpecCheck($snapshot,$seed);
+            if (!$specCheck['ok']) {
+                $metricsSelection=['policy'=>BaganrikiMetricsSelection::POLICY,'status'=>'KEEP','reason'=>$specCheck['reason'],
+                    'before'=>$selection['public_candidates'],'after'=>$selection['public_candidates'],'frozen_spec'=>$specCheck['frozen_spec']];
+            } else {
+                $metricsSelection=BaganrikiMetricsSelection::apply($seed,$roles,$roleHorses,$selection,$quota,$metrics);
+                $metricsSelection['frozen_spec']=$specCheck['frozen_spec'];
+            }
+            if ($metricsSelection['status']==='APPLIED') {
+                $selection['public_candidates']=$metricsSelection['after'];
+                $selection['actual_quota']=$metricsSelection['effective_quota'];
+            }
+        }
         $rows=[];
         foreach ($selection['public_candidates'] as $n) $rows[]=$detail[$n];
         return (BaganrikiRaceMetrics::enabled($seed)?['race_metrics'=>$metrics??BaganrikiRaceMetrics::unknown($seed)]:[]) + ['candidates'=>$rows,'quota'=>$quota,'prediction_quota'=>$seed['quota'],
             'shortfalls'=>$selection['shortfalls'],'fill'=>$selection['fill'],'actual_quota'=>$selection['actual_quota'],
-            'proof'=>array_keys($proof),'rank_source'=>$sources,'rank_fallback'=>$fallback,'rank_notes'=>$notes,'role_issues'=>$issues];
+            'proof'=>array_keys($proof),'rank_source'=>$sources,'rank_fallback'=>$fallback,'rank_notes'=>$notes,'role_issues'=>$issues]
+            + ($metricsSelection!==null ? ['metrics_selection'=>$metricsSelection] : []);   // @ANCHOR-20261116-METRICS-SELECTION
     }
 
     /**
@@ -22531,6 +23305,7 @@ final class BaganrikiCandidateSelection
             $queues[$b]=$qs;
         }
         $picks=[];$missing=[];$fill=[];
+        $bandOrder=$queues;   // @ANCHOR-20261116-METRICS-SELECTION  帯ごとの統合順位（選ぶ前）。3指標の補正で「その帯の未選出の先頭」を決めるために返す
         foreach (self::BANDS as $b) {
             self::need(is_int($quota[$b]??null) && $quota[$b]>=0,'EXPECTED_EFFECTIVE_QUOTA');
             $picks[$b]=array_splice($queues[$b],0,$quota[$b]);
@@ -22549,6 +23324,261 @@ final class BaganrikiCandidateSelection
         foreach (self::BANDS as $b) if ($missing[$b]>0)
             $shortfalls[]=['band'=>$b,'requested'=>$quota[$b],'filled'=>$quota[$b]-$missing[$b],'missing'=>$missing[$b]];
         ksort($bonus,SORT_NUMERIC); ksort($proofs,SORT_NUMERIC);
-        return ['public_candidates'=>array_merge($picks['A'],$picks['B'],$picks['D']),'agreement_bonus'=>$bonus,'public_proof_hashes'=>$proofs,'fill'=>$fill,'shortfalls'=>$shortfalls,'actual_quota'=>array_map('count',$picks)];
+        return ['public_candidates'=>array_merge($picks['A'],$picks['B'],$picks['D']),'agreement_bonus'=>$bonus,'public_proof_hashes'=>$proofs,'fill'=>$fill,'shortfalls'=>$shortfalls,'actual_quota'=>array_map('count',$picks),
+            'band_order'=>$bandOrder];   // @ANCHOR-20261116-METRICS-SELECTION
+    }
+}
+
+/**
+ * @ANCHOR-20261116-METRICS-SELECTION  3指標を最終の選出に反映する（なる11/15 仕様 RACE_METRICS_SELECTION_V1。豊田さん「予想に影響しないと意味がない」）
+ *   ・波乱度4〜5で、下位進入度（B）か大穴進入度（D）も4〜5のときだけ、その帯を1枠増やす。総数は変えない。1レース1枠まで。
+ *   ・入れるのは、その帯の統合順位で未選出の先頭の馬だけ（飛ばして探さない）。その馬の複勝オッズの時系列をサーバが凍結入力で確かめ、
+ *     B：同じ複勝 field の6分前と、それより前の最新の時点（9→12→15→18→21）で厳密に短縮／D：同じ複勝 field で12＞9＞6分前
+ *     が成立すること（20261116 なるさんの決定 B案。AIが引用したかどうかは問わない。旧：その馬の採用済み market 根拠に参照がそろっていること）。
+ *   ・外すのは A帯の通常候補の最後（A は目標4・5頭なら2頭、6・7頭なら3頭は残す）。A から外せないときだけ、もう一方の穴帯
+ *     （その帯の進入度が検証済みの1〜2のとき）の最後。B は最大4頭、D は最大2頭。
+ *   ・使わないとき：選出停止／1st が公開に採用されていない／目標3頭以下／基本の枠が通常候補で埋まっていない（補充・不足あり）／
+ *     採用された AI の E3・E5 で SWAP がある／波乱度が4〜5でない／該当する進入度が無い。その理由を記録する。
+ *   ・AIへの追加の問い合わせはしない。AIの順位・採点・入力の mode・quota・role_quota は書き換えない。凍結入力の本文版が _06 のときだけ使う（凍結時に固定）。
+ *   【段階1（11/15 20:30）】この class はまだどこからも呼ばない（判定の規則と根拠の確認だけ）。公開の処理への組み込みは段階2。
+ */
+final class BaganrikiMetricsSelection
+{
+    public const POLICY='RACE_METRICS_SELECTION_V1';
+    public const TEXT_REVISIONS=['COMPACT_TEXT_20261109_06'];
+    public const PARAMS=['wave'=>[4,5],'entry'=>[4,5],'a_floor'=>['4'=>2,'5'=>2,'6'=>3,'7'=>3],'cap'=>['B'=>4,'D'=>2],
+        'donor_entry'=>[1,2],'b_earlier_slots'=>[9,12,15,18,21],'d_slots'=>[12,9,6],'min_target'=>4];
+    /** 試験用：true/false で本文版に関係なく有効・無効にする（本番は null） */
+    public static ?bool $force=null;
+    /** 試験用：1stの3指標の値を差し替えて、補正の流れを実データで確かめる（本番は null。20261116） */
+    public static ?array $testValues=null;
+
+    public static function enabled(array $in):bool
+    {
+        return self::$force ?? in_array($in['prompt_text_revision']??null,self::TEXT_REVISIONS,true);
+    }
+
+    public static function paramsSha():string
+    {
+        return hash('sha256',json_encode([self::POLICY,self::PARAMS],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
+    }
+
+    /** @ANCHOR-20261116-METRICS-SPEC-FREEZE  凍結のときに記録する選出仕様（なる11/16 仕上げ②） */
+    public const SPEC_EVENT='METRICS_SELECTION_SPEC';
+    public static function specFor(?string $revision):array
+    {
+        return ['policy'=>self::POLICY,'prompt_text_revision'=>$revision,
+            'enabled'=>in_array($revision,self::TEXT_REVISIONS,true),'params_sha256'=>self::paramsSha(),'params'=>self::PARAMS];
+    }
+
+    /**
+     * 公開のとき：そのスナップショットの凍結時の仕様の記録を読み、今のコードの仕様と一致するか確かめる。
+     *   戻り値 ['ok'=>bool,'reason'=>null|'SPEC_NOT_FROZEN'|'SPEC_DISABLED_AT_FREEZE'|'SPEC_MISMATCH','frozen_spec'=>記録 or null]
+     *   記録が無い・一致しない場合は、今の設定を推測で当てず、補正しない（理由を残す）。試験で $force=true のときだけ記録を問わない。
+     */
+    public static function frozenSpecCheck(object $snapshot,array $seed):array
+    {
+        if (self::$force===true) return ['ok'=>true,'reason'=>null,'frozen_spec'=>null,'test_force'=>true];
+        $row=\DB::table('baganriki_audit_events')->where('snapshot_id',(int)$snapshot->id)->where('kind',self::SPEC_EVENT)->orderBy('id')->get();
+        if (count($row)!==1) return ['ok'=>false,'reason'=>count($row)===0?'SPEC_NOT_FROZEN':'SPEC_DUPLICATE','frozen_spec'=>null];
+        $spec=json_decode((string)$row[0]->diagnostics,true);
+        if (!is_array($spec)) return ['ok'=>false,'reason'=>'SPEC_NOT_FROZEN','frozen_spec'=>null];
+        if (($spec['enabled']??null)!==true) return ['ok'=>false,'reason'=>'SPEC_DISABLED_AT_FREEZE','frozen_spec'=>$spec];
+        if (($spec['policy']??null)!==self::POLICY || ($spec['params_sha256']??null)!==self::paramsSha()
+            || ($spec['prompt_text_revision']??null)!==($seed['prompt_text_revision']??null))
+            return ['ok'=>false,'reason'=>'SPEC_MISMATCH','frozen_spec'=>$spec];
+        return ['ok'=>true,'reason'=>null,'frozen_spec'=>$spec];
+    }
+
+    /**
+     * 選出の規則そのもの（なるさんの参照実装 03 と同じ判定）。入力は正規化したもの。
+     * case: target_count, base_quota{A,B,D}, pools{A,B,D}（統合順位の有効な適格馬）, market_supported{B:[],D:[]},
+     *       metrics{wave,lower,big}（検証済みの1〜5、それ以外は null）, selection_enabled, first_adopted, e35_swapped, has_base_fill
+     */
+    public static function decide(array $case):array
+    {
+        $q=$case['base_quota']; $pools=$case['pools']; $c=(int)$case['target_count'];
+        $before=[]; foreach (['A','B','D'] as $b) foreach (array_slice($pools[$b],0,$q[$b]) as $n) $before[]=$n;
+        $r=['policy'=>self::POLICY,'status'=>'KEEP','reason'=>null,'base_quota'=>$q,'effective_quota'=>$q,
+            'before'=>$before,'after'=>$before,'removed'=>null,'added'=>null,'source_band'=>null,'target_band'=>null,'attempts'=>[]];
+        $keep=static function(string $why) use (&$r):array { $r['reason']=$why; return $r; };
+        $met=$case['metrics']??[];
+        $m=static fn($k)=>(is_int($met[$k]??null) && $met[$k]>=1 && $met[$k]<=5)?$met[$k]:null;
+        if (!($case['selection_enabled']??true)) return $keep('SELECTION_DISABLED');
+        if (!($case['first_adopted']??true)) return $keep('FIRST_NOT_ADOPTED');
+        if ($c<self::PARAMS['min_target']) return $keep('SMALL_FIELD');
+        if (($case['has_base_fill']??false)) return $keep('BASE_NOT_REGULAR_FULL');
+        foreach (['A','B','D'] as $b) if (count($pools[$b])<$q[$b]) return $keep('BASE_NOT_REGULAR_FULL');
+        if (($case['e35_swapped']??false)) return $keep('E35_SWAP_PRIORITY');
+        if (!in_array($m('wave'),self::PARAMS['wave'],true)) return $keep('WAVE_NOT_HIGH');
+        $values=['B'=>$m('lower'),'D'=>$m('big')];
+        $targets=array_values(array_filter(['B','D'],static fn($b)=>in_array($values[$b],self::PARAMS['entry'],true)));
+        usort($targets,static fn($x,$y)=>($values[$y]<=>$values[$x]) ?: ($x==='B'?-1:1));
+        if (!$targets) return $keep('NO_HIGH_ENTRY');
+        $aFloor=self::PARAMS['a_floor'][(string)$c]??3;
+        foreach ($targets as $dest) {
+            $at=['target_band'=>$dest,'reason'=>null];
+            if ($q[$dest]>=self::PARAMS['cap'][$dest]) { $at['reason']='TARGET_CAP';$r['attempts'][]=$at;continue; }
+            if (count($pools[$dest])<=$q[$dest]) { $at['reason']='NO_NEXT_CANDIDATE';$r['attempts'][]=$at;continue; }
+            $cand=$pools[$dest][$q[$dest]];
+            if (!in_array($cand,$case['market_supported'][$dest]??[],true)) { $at['reason']='NEXT_MARKET_NOT_SUPPORTED';$r['attempts'][]=$at;continue; }
+            $donor=null;
+            if ($q['A']>$aFloor) $donor='A';
+            elseif ($dest==='D' && in_array($values['B'],self::PARAMS['donor_entry'],true) && $q['B']>1) $donor='B';
+            elseif ($dest==='B' && in_array($values['D'],self::PARAMS['donor_entry'],true) && $q['D']>0) $donor='D';
+            if ($donor===null) { $at['reason']='NO_DONOR';$r['attempts'][]=$at;continue; }
+            $removed=$pools[$donor][$q[$donor]-1];
+            $cq=$q; $cq[$donor]--; $cq[$dest]++;
+            $after=[]; foreach (['A','B','D'] as $b) foreach (array_slice($pools[$b],0,$cq[$b]) as $n) $after[]=$n;
+            // 最終検査：総数・重複・1対1・A最低数・帯上限。成り立たなければ基本選出へ戻す
+            if (count($after)!==$c || count(array_unique($after))!==$c || array_values(array_diff($before,$after))!==[$removed]
+                || array_values(array_diff($after,$before))!==[$cand] || $cq['A']<$aFloor || $cq['B']>self::PARAMS['cap']['B'] || $cq['D']>self::PARAMS['cap']['D']) {
+                $at['reason']='FINAL_CHECK_FAILED';$r['attempts'][]=$at;continue;
+            }
+            $at['reason']='APPLIED';$r['attempts'][]=$at;
+            return array_replace($r,['status'=>'APPLIED','reason'=>'ONE_SLOT_ADJUSTMENT','effective_quota'=>$cq,'after'=>$after,
+                'removed'=>$removed,'added'=>$cand,'source_band'=>$donor,'target_band'=>$dest]);
+        }
+        return $keep('NO_FEASIBLE_ADJUSTMENT');
+    }
+
+    private static function odd(mixed $v):?array
+    {
+        $p=BaganrikiExpectedPacket::oddsParts($v);
+        return $p===null?null:array_slice($p,0,2);
+    }
+
+    private static function cmp(array $a,array $b):int
+    {
+        return ($a[0]<=>$b[0]) ?: strcmp($a[1],$b[1]);
+    }
+
+    // 20261116 なるさんの決定（B案）で置き換え：AIの採用済み market 根拠に複勝の時系列が引用されていることを必須にしていた旧版（AIはほぼ単勝しか引用しないため、補正が事実上起きなかった）
+    // /** その馬自身の採用済み market 根拠で、B（直近の短縮）・D（12＞9＞6）が確かめられるか。確かめた参照を返す（だめなら null） */
+    // public static function marketRefs(array $in,array $roleHorses,int $no,string $dest):?array
+    // {
+    //     $obs=[];
+    //     foreach ($in['source_registry'] as $ref=>$e) {
+    //         if (($e['scope']??null)!=='HORSE' || ($e['horse_nos']??null)!==[$no] || ($e['race_id']??null)!==$in['race_id']
+    //             || !in_array($e['field']??null,['place_min','place_max'],true) || ($e['unit']??null)!=='odds'
+    //             || ($e['source_kind']??null)!=='OBSERVED' || !in_array($e['slot_offset']??null,[21,18,15,12,9,6],true) || ($e['value']??null)===null) continue;
+    //         $o=self::odd($e['value']); if ($o===null) continue;
+    //         $obs[$e['field']][$e['slot_offset']]=[(string)$ref,$o];
+    //     }
+    //     foreach ($roleHorses as $role=>$horses) {
+    //         $h=$horses[$no]??null;
+    //         if (!is_array($h) || ($h['eligibility']??null)!=='ELIGIBLE') continue;
+    //         foreach ((array)($h['evidence']??[]) as $ev) {
+    //             if (($ev['family']??null)!=='market') continue;
+    //             $refs=array_flip(array_map('strval',(array)($ev['source_refs']??[])));
+    //             foreach (['place_min','place_max'] as $f) {
+    //                 $s=$obs[$f]??[];
+    //                 if (!isset($s[6])) continue;
+    //                 if ($dest==='B') {
+    //                     $prev=null; foreach (self::PARAMS['b_earlier_slots'] as $slot) if (isset($s[$slot])) { $prev=$slot;break; }
+    //                     if ($prev!==null && self::cmp($s[6][1],$s[$prev][1])<0 && isset($refs[$s[6][0]],$refs[$s[$prev][0]]))
+    //                         return ['role'=>$role,'evidence_id'=>$ev['evidence_id']??null,'field'=>$f,'refs'=>[$s[$prev][0],$s[6][0]]];
+    //                 } else {
+    //                     if (isset($s[12],$s[9]) && self::cmp($s[12][1],$s[9][1])>0 && self::cmp($s[9][1],$s[6][1])>0
+    //                         && isset($refs[$s[12][0]],$refs[$s[9][0]],$refs[$s[6][0]]))
+    //                         return ['role'=>$role,'evidence_id'=>$ev['evidence_id']??null,'field'=>$f,'refs'=>[$s[12][0],$s[9][0],$s[6][0]]];
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     return null;
+    // }
+    /**
+     * 20261116 B案（なるさんの決定）：次点の馬の複勝オッズの時系列を、サーバが凍結入力の source_registry で直接確かめる。
+     *   AIが引用したかどうかは問わない（AIの根拠・独立根拠数・Tier・点数・一致加点には一切足さない）。
+     *   B帯へ：place_min か place_max の同じ指標で、6分前 ＜ それより前の最新の利用可能な時点（9→12→15→18→21分の順。直近が使えれば古い時点へは飛ばさない）
+     *   D帯へ：同じ指標で 12分前 ＞ 9分前 ＞ 6分前
+     *   使う資料：同じレース・同じ馬・同じ指標の OBSERVED、単位 odds、値が正しく、凍結の情報上限（input_freeze_at）までに利用可能になったもの。
+     *   同じ時点が二重にある・欠けている・値が不正な時点は「利用できない」。
+     *   次点の馬は、どちらかの役割で ELIGIBLE であること（従来どおり）。
+     *   成立すればサーバ確認の根拠（参照ID・馬番・指標・時点・元値・判定）を返す。不成立なら null。
+     */
+    public static function serverPlaceCheck(array $in,array $roleHorses,int $no,string $dest):?array
+    {
+        $eligible=false;
+        foreach ($roleHorses as $horses) if (is_array($horses[$no]??null) && ($horses[$no]['eligibility']??null)==='ELIGIBLE') $eligible=true;
+        if (!$eligible) return null;
+        $limit=null;
+        try { if (is_string($in['input_freeze_at']??null)) $limit=new \DateTimeImmutable($in['input_freeze_at']); } catch (\Throwable) { $limit=null; }
+        if ($limit===null) return null;
+        $obs=[]; $dup=[];
+        foreach ((array)($in['source_registry']??[]) as $ref=>$e) {
+            if (!is_array($e) || ($e['scope']??null)!=='HORSE' || ($e['horse_nos']??null)!==[$no] || ($e['race_id']??null)!==($in['race_id']??null)
+                || !in_array($e['field']??null,['place_min','place_max'],true) || ($e['unit']??null)!=='odds'
+                || ($e['source_kind']??null)!=='OBSERVED' || !in_array($e['slot_offset']??null,[21,18,15,12,9,6],true)) continue;
+            $at=null;
+            try { if (is_string($e['available_at']??null)) $at=new \DateTimeImmutable($e['available_at']); } catch (\Throwable) { $at=null; }
+            if ($at===null || $at>$limit) continue;
+            $o=self::odd($e['value']??null); if ($o===null) continue;
+            $f=$e['field']; $slot=$e['slot_offset'];
+            if (isset($obs[$f][$slot])) { $dup[$f][$slot]=true; continue; }
+            $obs[$f][$slot]=['ref'=>(string)$ref,'slot'=>$slot,'value'=>$e['value'],'o'=>$o];
+        }
+        foreach ($dup as $f=>$slots) foreach ($slots as $slot=>$_) unset($obs[$f][$slot]);
+        $checks=[]; $hit=null;
+        foreach (['place_min','place_max'] as $f) {
+            $s=$obs[$f]??[]; $pts=[]; $ok=false;
+            if ($dest==='B') {
+                $prev=null; foreach (self::PARAMS['b_earlier_slots'] as $slot) if (isset($s[$slot])) { $prev=$slot; break; }
+                if (isset($s[6]) && $prev!==null) { $pts=[$s[$prev],$s[6]]; $ok=self::cmp($s[6]['o'],$s[$prev]['o'])<0; }
+            } else {
+                if (isset($s[12],$s[9],$s[6])) { $pts=[$s[12],$s[9],$s[6]]; $ok=self::cmp($s[12]['o'],$s[9]['o'])>0 && self::cmp($s[9]['o'],$s[6]['o'])>0; }
+            }
+            $checks[]=['field'=>$f,'points'=>array_map(static fn($p)=>['source_ref'=>$p['ref'],'slot_offset'=>$p['slot'],'value'=>$p['value']],$pts),
+                'result'=>$pts===[]?'NOT_AVAILABLE':($ok?'SATISFIED':'NOT_SATISFIED')];
+            if ($ok && $hit===null) $hit=$f;
+        }
+        if ($hit===null) return null;
+        $used=[]; foreach ($checks as $c) if ($c['field']===$hit) $used=$c['points'];
+        return ['basis'=>'SERVER_FROZEN_PLACE_ODDS','horse_no'=>$no,'target_band'=>$dest,
+            'rule'=>$dest==='B'?'PLACE_6_LT_LATEST_EARLIER':'PLACE_12_GT_9_GT_6','field'=>$hit,
+            'refs'=>array_column($used,'source_ref'),'checks'=>$checks];
+    }
+
+    /**
+     * 【段階2】submittedPublication から呼ぶ。基本選出（mergeChecked の結果）はそのまま残し、補正の結果と記録を返す。
+     *   $metrics は公開に採用した 1st の検証済みの3指標（markResponseUsed の race_metrics）。1st が採用されていなければ使わない。
+     */
+    public static function apply(array $in,array $roles,array $roleHorses,array $selection,array $quota,?array $metrics):array
+    {
+        $vals=['wave'=>null,'lower'=>null,'big'=>null];
+        $first=false;
+        foreach ($roles as $r) if (($r['ai_role']??null)==='1st') $first=true;
+        if ($first && is_array($metrics) && is_string($metrics['response_hash']??null)) {
+            foreach (['wave'=>'wave_level','lower'=>'lower_entry','big'=>'big_gap_entry'] as $k=>$key)
+                if (($metrics['status'][$key]??null)==='VALID' && is_int($metrics['values'][$key]??null)) $vals[$k]=$metrics['values'][$key];
+        } else { $first=false; }
+        if ($first && self::$testValues!==null) $vals=array_replace($vals,self::$testValues);
+        $swap=false;
+        foreach ($roles as $r) foreach ((array)($r['expected_reviews']??[]) as $rv) if (($rv['decision']??null)==='SWAP') $swap=true;
+        $pools=[];
+        foreach (['A','B','D'] as $b) $pools[$b]=array_values((array)($selection['band_order'][$b]??[]));
+        $supported=['B'=>[],'D'=>[]]; $refs=[];
+        foreach (['B','D'] as $b) {
+            $next=$pools[$b][(int)($quota[$b]??0)]??null;
+            if (is_int($next)) { $x=self::serverPlaceCheck($in,$roleHorses,$next,$b); if ($x!==null) { $supported[$b][]=$next; $refs[$b]=$x; } }   // 20261116 B案：旧 marketRefs から置き換え
+        }
+        $case=['target_count'=>array_sum($quota),'base_quota'=>$quota,'pools'=>$pools,'market_supported'=>$supported,'metrics'=>$vals,
+            'selection_enabled'=>(bool)($in['selection_enabled']??false),'first_adopted'=>$first,'e35_swapped'=>$swap,
+            'has_base_fill'=>(($selection['fill']??[])!==[] || ($selection['shortfalls']??[])!==[])];
+        $d=self::decide($case);
+        // 規則の before が、実際の基本選出（mergeChecked の結果）と一致しなければ適用しない
+        // 補充・不足があるレースは decide が先に「補正しない」と決めるので、その理由をそのまま残す（20261116）
+        $base=array_values((array)($selection['public_candidates']??[]));
+        if ($case['has_base_fill']) { $d['before']=$base; $d['after']=$base; }
+        if (!$case['has_base_fill'] && $d['before']!==$base) {
+            $d=array_replace($d,['status'=>'KEEP','reason'=>'BASE_SELECTION_MISMATCH','effective_quota'=>$quota,'before'=>$base,
+                'after'=>$base,'removed'=>null,'added'=>null,'source_band'=>null,'target_band'=>null]);
+        }
+        $d['params_sha256']=self::paramsSha();
+        $d['metrics']=$vals;
+        // $d['market_evidence']=($d['status']==='APPLIED') ? ($refs[$d['target_band']]??null) : null;   // 旧（AIの根拠を記録していた）
+        $d['server_place_check']=($d['status']==='APPLIED') ? ($refs[$d['target_band']]??null) : null;   // 20261116 B案：サーバ確認の根拠
+        return $d;
     }
 }

@@ -23,7 +23,10 @@
       "type": "object",
       "properties": {
         "version": {
-          "const": "baganriki-post-slot-grace-v1"
+          "enum": [
+            "baganriki-post-slot-grace-v1",
+            "baganriki-post-slot-grace-v2-early"
+          ]
         },
         "anchor_kind": {
           "const": "POST_TIME"
@@ -2015,7 +2018,9 @@
         "COMPACT_TEXT_20261109_03",
         "ORIGINAL_R15_18",
         "COMPACT_TEXT_20261109_02",
-        "COMPACT_TEXT_20261109_04"
+        "COMPACT_TEXT_20261109_04",
+        "COMPACT_TEXT_20261109_05",
+        "COMPACT_TEXT_20261109_06"
       ]
     }
   },

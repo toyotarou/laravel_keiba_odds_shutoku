@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力　なるさんの回答（11/15）への対応</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1d2430; --sub:#5b6575; --line:#e2e6ec; --accent:#1f6feb; --soft:#eaf2ff; --warn:#fff4e5; --warnline:#f0b35a; }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif; font-size:16px; line-height:1.7; }
+  header { background:#16213a; color:#fff; padding:20px 16px 18px; }
+  header h1 { margin:0 0 6px; font-size:20px; line-height:1.4; }
+  header p { margin:0; font-size:13px; color:#c9d3e6; }
+  main { max-width:720px; margin:0 auto; padding:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 14px 10px; margin:12px 0; }
+  h2 { font-size:18px; margin:0 0 8px; line-height:1.45; scroll-margin-top:12px; }
+  h3 { font-size:15px; margin:12px 0 4px; }
+  p { margin:6px 0; }
+  ul { margin:6px 0; padding-left:20px; }
+  li { margin:3px 0; }
+  .toc { padding-left:20px; margin:4px 0; }
+  .toc a { color:var(--accent); text-decoration:none; }
+  table { border-collapse:collapse; width:100%; font-size:14px; margin:6px 0; }
+  th, td { border:1px solid var(--line); padding:6px; text-align:left; vertical-align:top; }
+  th { background:#f0f3f7; font-weight:600; }
+  .scroll { overflow-x:auto; }
+  .ok { background:var(--soft); border-radius:8px; padding:8px 10px; margin:8px 0; }
+  .note { background:var(--warn); border-left:4px solid var(--warnline); padding:8px 10px; border-radius:6px; font-size:14px; margin:8px 0; }
+  .top { text-align:right; margin:8px 0 2px; font-size:14px; }
+  .top a { color:var(--accent); text-decoration:none; }
+  code { background:#f0f3f7; padding:1px 4px; border-radius:4px; font-size:13px; word-break:break-all; }
+  footer { text-align:center; font-size:12px; color:var(--sub); padding:20px 0 30px; }
+</style>
+</head>
+<body>
+<header id="top">
+  <h1>馬眼力　なるさんの回答（11/15）への対応</h1>
+  <p>2026年11月15日（日）夜　豊田／なるさん・よっしーさん向け</p>
+</header>
+<main>
+
+<div class="card">
+  <div class="ok"><b>11/15夜に、なるさんの本文案 _05 と早期凍結を本番（123）へ入れました。</b>別紙01の指摘は全部対応しました。作業2（古いデータを足す）も作りましたが、決定④のとおり、11/21の結果を見るまでは無効のままにしています。</div>
+  <ol class="toc">
+    <li><a href="#s1">別紙01【必須1】_05 の版の対応</a></li>
+    <li><a href="#s2">別紙01【必須2】早期凍結</a></li>
+    <li><a href="#s3">別紙01 作業3の確認1〜3（補充）</a></li>
+    <li><a href="#s4">古いデータ（条件付きA）の作り方と試験</a></li>
+    <li><a href="#s5">作業B（実際に送った本文の照合）</a></li>
+    <li><a href="#s6">11/21（土）で確かめること・この後の予定</a></li>
+  </ol>
+</div>
+
+<div class="card" id="s1">
+  <h2>1. 別紙01【必須1】_05 の版の対応</h2>
+  <ul>
+    <li>3指標を受け付ける版を、<b>_04 と _05 の2つだけ</b>にしました（未知の版は受け付けません）。単に _05 に置き換えて _04 を無効にする方法はとっていません。</li>
+    <li>_04 の原本（本文と補足の5ファイル）を <code>prompts/versions/COMPACT_TEXT_20261109_04/</code> に保存し、contract.json の <code>archived_text_revisions</code> に照合値を入れました。</li>
+    <li>contract.json：<code>active_text_revision</code>＝_05、<code>system_file_sha256</code>＝なるさんの本文の照合値（なるさんの一覧と一致）。</li>
+    <li>input_schema.json：<code>prompt_text_revision</code> に _05、<code>time_contract.version</code> に v2 を追加。</li>
+    <li><code>initial_transport</code> は、プログラムからは読んでいない設定でした（送る形式は <code>role_wire_format</code> で決まります）。_05 の項目は、実際の送信形式（1st＝SOURCE_DICT_V3、2nd＝SOURCE_TABLE_V1）で書き足しました。_04 の古い記述（1st＝FULL）は、そのまま残しています。</li>
+  </ul>
+  <h3>確かめたこと（123・保存なし・AIへの送信なし）</h3>
+  <ul>
+    <li>_05 で送る本文は、本文ファイルと一致。_04 で送る本文は、11/14・15に実際に送った本文と一致（sha256）。</li>
+    <li>未知の版は拒否される（EXPECTED_TEXT_REVISION）。</li>
+    <li>11/14・15の保存済みの予想（_04）の3指標は、今までどおり表示できる（37・40・32件で実測と一致、読めないもの0）。</li>
+    <li>なるさんの3指標の検証ケース12件は、全部期待どおり（実際の関数で実行）。</li>
+  </ul>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s2">
+  <h2>2. 別紙01【必須2】早期凍結</h2>
+  <ul>
+    <li>時刻の決まりに版を付けました。
+      <ul>
+        <li>v1（<code>baganriki-post-slot-grace-v1</code>）＝発走5分前ちょうど</li>
+        <li>v2（<code>baganriki-post-slot-grace-v2-early</code>）＝発走6分前〜5分前</li>
+      </ul>
+      _05 の入力は v2 で作ります。_04 以前の入力は、v1 のまま検査します。</li>
+    <li>凍結の情報上限 <code>input_freeze_at</code>＝実際に凍結した時刻です。その時刻までに利用可能になった資料だけを採用します。保存に時間がかかっても、上限や最終期限は後ろへ動かしません。</li>
+    <li>毎分の巡回の中（5秒ごと）で、6分前のバッチが利用可能になっていれば凍結を試します。次の1分の周期は待ちません。</li>
+    <li>6分前のレース全体がそろわないうちは凍結しません。入力が作れなかったときは記録を残さず、10秒後にもう一度試します。発走5分前からは、今までどおり凍結して記録します。</li>
+    <li>直した検査の場所（別紙01に挙がっていた箇所）：
+      <ul>
+        <li>凍結の入口（早すぎるかどうかの判定）</li>
+        <li>材料集め（情報上限の決め方）</li>
+        <li>入力の組み立て（時刻契約の版）</li>
+        <li>バッチを採用するときの検査（FREEZE_MISMATCH）</li>
+        <li>E3・E5 の prepare（INVALID_FREEZE）</li>
+        <li>市場の状態の検査（EXPECTED_TIME_CONTRACT）</li>
+      </ul>
+    </li>
+    <li>二重凍結・二重課金・片側だけ別入力は、今までの仕組み（1レース1凍結、両AIに同じ凍結入力）のままです。</li>
+  </ul>
+  <h3>確かめたこと（11/15の36レース・保存なし）</h3>
+  <div class="scroll"><table>
+    <tr><th>試したこと</th><th>結果</th></tr>
+    <tr><td>今までと同じ時刻（発走5分前の後）で凍結</td><td>36/36 凍結できる</td></tr>
+    <tr><td>6分前のバッチが利用可能になった1秒後に凍結</td><td>36/36 凍結できる。平均で発走の338秒前（最も早いのが345秒前、最も遅いのが311秒前）</td></tr>
+    <tr><td>本番と同じ入口（京都1R・5R・9R）でバッチの1秒前</td><td>TOO_EARLY（凍結しない）</td></tr>
+    <tr><td>同じくバッチの1秒後／発走5分前の後</td><td>凍結できる／凍結できる</td></tr>
+  </table></div>
+  <div class="note">早期にすると、6分前のバッチが遅れて届いたレースは、そのバッチが届くまで凍結しません。そのため、今まで発走5分前までに届いて採用していた遅いバッチを使う場面は、変わりません。一方、早く凍結した後に発表された取消は、今までは凍結に入っていましたが、これからは「凍結の後の取消」（今までの規則）として扱います。</div>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s3">
+  <h2>3. 別紙01 作業3の確認1〜3（補充）</h2>
+  <div class="scroll"><table>
+    <tr><th>指摘</th><th>対応</th></tr>
+    <tr><td>確認1：補充を「両AIが選んだ馬」と同じ扱いにしない</td><td>補充の馬はAI選出として扱います（印・総合予想・合致数）。ただし、両AIの一致・一致加点・おすすめ度には混ぜません。おすすめ度（サーバでは0）は、どの画面にも出さないようにしました（総合予想・馬の選択画面・レース画面のバッジ）。並べ替えにも使いません。</td></tr>
+    <tr><td>確認2：補充の順位を検証済みの順位に結び付ける</td><td>最初の返事の band_ranks を読むのをやめました。公開と同じ検証（訂正・予備根拠順位・明示縮退を含む）を通った順位から取ります。取れないときは、6分前の人気順にします。E3・E5の入れ替えで外れた馬は、検証済みの順位では入れ替え相手より上にいるので、残りの馬の並びは入れ替え後と同じです。</td></tr>
+    <tr><td>確認3：頭数どおりと公開成功を分けて数える</td><td>fill_status を目標の頭数と比べるようにしました（REGULAR_FULL／WITH_FILL／SHORT／REFERENCE_ONLY／EMPTY）。target_count・shown_count も返します。11/14・15の72レース：通常だけで49、補充込み14、参考の補充だけ6（東京12Rを含む）、出せない3、SHORT 0。当時公開できたのは68です。</td></tr>
+    <tr><td>7522行のコメント「D不足をAの根拠ある馬で埋めた」</td><td>コメントの誤記でした。11/15 京都12Rの公開記録では、D帯の不足を<b>B帯</b>の12番で埋めています（fill: requested D / actual B）。公開の統合（mergeChecked）のコードは、D←B、B←D、A←B・D の順で埋め、B・Dの不足をAでは埋めません。表示の補充も、A帯の不足ならA→B→D、B帯ならB→D、D帯ならD→Bで、同じくAでは埋めません。コメントは次にプログラムを上げるときに直します。</td></tr>
+  </table></div>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s4">
+  <h2>4. 古いデータ（条件付きA）の作り方と試験</h2>
+  <h3>作り方（回答00の2章の条件どおり）</h3>
+  <ul>
+    <li>保存表の最初の日（10/24）より前の過去レースを、summary・払戻表・着順表から作ります。</li>
+    <li>取得時刻は null のまま、<code>acquisition_time_status: UNRECORDED</code> の印を付けます。発走時刻も記録が無いので、日付だけ（<code>post_time_status: DATE_ONLY</code>）にします。時刻を埋めることはしません。</li>
+    <li>時刻の窓の検査を飛ばすのは、この印がある過去レースだけです。今のレースの取得猶予・情報上限・結果の混入防止は変えていません。</li>
+    <li>外すレース（理由ごとに数と一覧を残します）：
+      <ul>
+        <li>全頭の21分前＝6分前</li>
+        <li>全頭の6分前＝確定単勝（上書きの疑い）</li>
+        <li>取消・除外・6分前の欠け（取消の時点が分からないため）</li>
+        <li>着順が分からない馬がいる</li>
+        <li>払戻表が無い・芝ダ以外</li>
+      </ul>
+    </li>
+    <li>クラスは夜の試算と同じ固定の対応表で決めます（版 <code>SummaryExpectedScore::classGroup@20261028</code>）。決まらないものは UNK にして、近傍には使いません。</li>
+    <li>方針の名前は <code>EXPECTED_HISTORY_UNRECORDED_TIME_V1</code> です。contract.json の <code>expected_history_policy</code> がこの名前のときだけ動きます。<b>今は無効です。</b></li>
+    <li>式・頭数・馬場の条件・M≥100/K≥20/W≥10/n_eff≥15 は変えていません。</li>
+  </ul>
+  <h3>試験の結果（123・保存なし・AIへの送信なし）</h3>
+  <div class="scroll"><table>
+    <tr><th></th><th>11/14</th><th>11/15</th></tr>
+    <tr><td>比べられる馬（今）</td><td>0／516頭</td><td>0／504頭</td></tr>
+    <tr><td>比べられる馬（足した後）</td><td><b>160</b>／516頭</td><td><b>144</b>／504頭</td></tr>
+    <tr><td>16頭立ての最大のM（今→足した後）</td><td>26→169</td><td>32→175</td></tr>
+    <tr><td>当て直したAIの返事（検査済みの順位）</td><td>58件</td><td>50件</td></tr>
+    <tr><td>境目の判定 KEEP／SWAP（足した後）</td><td>19／1</td><td>6／2</td></tr>
+    <tr><td>候補が変わった</td><td>1件（福島4R 2nd：D帯 3番→11番）</td><td>2件（福島1R 2nd：A帯 7番→8番、京都4R 2nd：D帯 8番→9番）</td></tr>
+    <tr><td>E3・E5の計算の時間（1レース平均）</td><td>1.92→2.28秒</td><td>2.44→2.82秒</td></tr>
+  </table></div>
+  <ul>
+    <li>足した古いレースは1,056です。外したレースは次のとおりです。
+      <ul>
+        <li>21分前＝6分前：128（すべて6月）</li>
+        <li>取消・着順不明：86</li>
+        <li>6分前の欠け・取消：31</li>
+        <li>芝ダ以外：41</li>
+        <li>6分前＝確定単勝：0</li>
+      </ul>
+    </li>
+    <li><b>140／128／138の違い</b>：
+      <ul>
+        <li>140＝全頭の21分前＝6分前のレース（6月）</li>
+        <li>128＝そのうち、ほかの理由（取消など）で先に外れなかったもの。この数は、11/15の夜の試算で「過去レースの条件を満たしていた」レースの数と同じです。</li>
+        <li>138＝中間報告（11/12）の集計で、11/6までのデータを使った数え方の違いです。</li>
+      </ul>
+    </li>
+    <li>比べられる馬は16頭立てだけです。ほかの頭数はMが14〜96で、100に届きません。</li>
+    <li>7件の返事は、試験の作りの都合で当て直せませんでした（検査で外れた馬の行を補わずに当てたため。本番の選出では補ってから当てます）。</li>
+  </ul>
+  <div class="note">数字は「本番と同じE3・E5の計算」と「保存済みのAIの順位への当て直し」によるものです。比べられる馬が増えることと、候補が実際に入れ替わること、回収率がよくなることは別です。回収率については何も言えません。</div>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s5">
+  <h2>5. 作業B（実際に送った本文の照合）</h2>
+  <ul>
+    <li>11/14・15に送った136件すべて（1st 70件・2nd 66件）について、次のことを確かめました。
+      <ul>
+        <li>送った本文が、当時の本文ファイル（本文＋空行＋補足）と一致する</li>
+        <li>記録した照合値が、送った本文から計算した値と一致する</li>
+        <li>送った入力に、凍結入力の snapshot_hash が入っている</li>
+      </ul>
+    </li>
+    <li>訂正の送信は、2日間で0件でした（時間切れで送れなかったため。早期凍結で待てる時間が延びます）。</li>
+  </ul>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s6">
+  <h2>6. 11/21（土）で確かめること・この後の予定</h2>
+  <ul>
+    <li><b>早期凍結</b>：凍結の時刻（発走の何秒前か）、公開の時刻、発走4分前までに公開できた割合、最終期限内の割合、未公開。区間ごとに通常・補充・参考・未公開に分けて数えます。</li>
+    <li><b>凍結にかかる時間</b>：段階ごとの秒数とサーバの混み具合の記録（11/15に入れたもの）で、凍結が遅くなる原因を確かめます。</li>
+    <li><b>_05 の効き目</b>：3指標が出た件数、外れた理由（取り違え・比べる時点なし・資料不足）。新しい本文でAIが決まりどおりに答える割合は、まだ試していません（お金のかかるAI呼び出しはしていません）。</li>
+    <li><b>作業2を有効にする時期</b>：11/21の結果に問題が無ければ、11/23（月）以降に有効にします。本番は11/28（土）からの見込みです（決定④：時間短縮を先、E3・E5はその次）。有効にするのは contract.json に1行足すだけです。</li>
+  </ul>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+</main>
+<footer>馬眼力　なるさんの回答（11/15）への対応／2026年11月15日　豊田</footer>
+</body>
+</html>
