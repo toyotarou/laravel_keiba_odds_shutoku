@@ -1804,10 +1804,21 @@ class AiController extends Controller
             $build = function () use ($snap, $pub, $cancelled, $date, $kaisuu, $basho, $day, $race) {
                 return $this->predictionPublishedAnswer($snap, $pub, $cancelled, $date, $kaisuu, $basho, $day, $race);
             };
+            // try {
+            //     return \Cache::remember($key, 86400, $build);
+            // } catch (\Throwable $e) {
+            //     return $build();
+            // }   // 旧（20261118）
+            // @ANCHOR-20261118-PREDICTION-ANSWER-CACHE  画面を開いたときの「30秒を超えました」（laravel.log 11/15〜11/18）への対応
+            //   ① 組み立ては重いので、30秒で止めず最後まで組み立ててキャッシュへ残します（2人目からはすぐ返ります）
+            //   ② キャッシュへ書けなかったとき、もう一度組み立て直していました（時間が倍）。組み立て済みならそれを返します
+            //   ③ キーに公開IDと状態の版が入っているので、中身が変わればキーも変わります。1日で捨てず30日持ちます
+            @set_time_limit(120);
+            $built = null;
             try {
-                return \Cache::remember($key, 86400, $build);
+                return \Cache::remember($key, 2592000, function () use ($build, &$built) { return $built = $build(); });
             } catch (\Throwable $e) {
-                return $build();
+                return $built ?? $build();
             }
         }
 
@@ -1840,7 +1851,12 @@ class AiController extends Controller
             $build = function () use ($snap, $cancelled, $date, $kaisuu, $basho, $day, $race) {
                 return $this->predictionPublishedAnswer($snap, null, $cancelled, $date, $kaisuu, $basho, $day, $race);
             };
-            try { $fa = \Cache::remember($key, 86400, $build); } catch (\Throwable $e) { $fa = $build(); }
+            // try { $fa = \Cache::remember($key, 86400, $build); } catch (\Throwable $e) { $fa = $build(); }   // 旧（20261118）
+            // @ANCHOR-20261118-PREDICTION-ANSWER-CACHE  上と同じ（30秒で止めない・二度組み立てない・30日持つ）
+            @set_time_limit(120);
+            $built = null;
+            try { $fa = \Cache::remember($key, 2592000, function () use ($build, &$built) { return $built = $build(); }); }
+            catch (\Throwable $e) { $fa = $built ?? $build(); }
             if ((array) ($fa['second']['merged_horses'] ?? []) !== []) { return $fa; }
         }
         return self::predictionLegacySavedOrUndetermined($date, $kaisuu, $basho, $day, $race, $allCancelled
