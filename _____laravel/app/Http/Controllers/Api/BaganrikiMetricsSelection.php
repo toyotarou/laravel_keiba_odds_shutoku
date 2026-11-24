@@ -32,6 +32,16 @@ final class BaganrikiMetricsSelection
     /** 試験用：1stの3指標の値を差し替えて、補正の流れを実データで確かめる（本番は null。20261116） */
     public static ?array $testValues=null;
 
+    /**
+     * @ANCHOR-20261124-METRICS-SWAP-PAUSED  3指標による選出の入れ替えを止めます（なる 11/24 問4 B）
+     *   3指標をサーバ計算に替えた最初の2週末（11/28〜30、12/5〜6）は、表示だけに使います。
+     *   止めている間、公開記録の metrics_selection は status=KEEP・reason=SWAP_PAUSED で残ります。
+     *   「入れ替えていたら、どの馬が入り、どの馬が外れたか」は、保存済みの凍結入力と回答から後で計算し直します。
+     *   再開するときは false にします（試験の $force=true のときは、今までどおり動かせます）。
+     */
+    public const SWAP_PAUSED=true;
+    public const SWAP_PAUSED_REASON='SWAP_PAUSED';
+
     public static function enabled(array $in):bool
     {
         return self::$force ?? in_array($in['prompt_text_revision']??null,self::TEXT_REVISIONS,true);

@@ -1800,7 +1800,9 @@ class AiController extends Controller
             // @ANCHOR-20261115-PREDICTION-REFILL  よっしー11/14「B：頭数分を表示」。候補0頭の公開も、頭数分を参考の補充として出します
             //   （下の predictionPublishedAnswer で、全頭が「補充（参考）：AIの評価を確認できなかったため…」になります）
             // $key = 'prediction_answer:v7:' . (int) $snap->id . ':' . $pub->publication_id . ':' . (int) ($live->state_revision ?? 0);   // 旧（20261116 指標反映の印を足したので v8）
-            $key = 'prediction_answer:v8:' . (int) $snap->id . ':' . $pub->publication_id . ':' . (int) ($live->state_revision ?? 0);
+            // $key = 'prediction_answer:v8:' . (int) $snap->id . ':' . $pub->publication_id . ':' . (int) ($live->state_revision ?? 0);   // 旧（20261124 3指標をサーバ計算にしたので v9）
+            // $key = 'prediction_answer:v9:' . (int) $snap->id . ':' . $pub->publication_id . ':' . (int) ($live->state_revision ?? 0);   // 旧（20261124 問8 B で過去を保存値に戻したので v10）
+            $key = 'prediction_answer:v10:' . (int) $snap->id . ':' . $pub->publication_id . ':' . (int) ($live->state_revision ?? 0);
             $build = function () use ($snap, $pub, $cancelled, $date, $kaisuu, $basho, $day, $race) {
                 return $this->predictionPublishedAnswer($snap, $pub, $cancelled, $date, $kaisuu, $basho, $day, $race);
             };
@@ -1847,7 +1849,9 @@ class AiController extends Controller
         // @ANCHOR-20261102-PREDICTION-FILL  公開できなかったレースも、凍結した出走馬から頭数をそろえて出す
         if (!$allCancelled) {
             // $key = 'prediction_answer:v7:fill:' . (int) $snap->id . ':' . (int) ($live->state_revision ?? 0);   // 旧（20261116 v8）
-            $key = 'prediction_answer:v8:fill:' . (int) $snap->id . ':' . (int) ($live->state_revision ?? 0);
+            // $key = 'prediction_answer:v8:fill:' . (int) $snap->id . ':' . (int) ($live->state_revision ?? 0);   // 旧（20261124 v9）
+            // $key = 'prediction_answer:v9:fill:' . (int) $snap->id . ':' . (int) ($live->state_revision ?? 0);   // 旧（20261124 v10）
+            $key = 'prediction_answer:v10:fill:' . (int) $snap->id . ':' . (int) ($live->state_revision ?? 0);
             $build = function () use ($snap, $cancelled, $date, $kaisuu, $basho, $day, $race) {
                 return $this->predictionPublishedAnswer($snap, null, $cancelled, $date, $kaisuu, $basho, $day, $race);
             };
@@ -2075,6 +2079,7 @@ class AiController extends Controller
         ];
         // @ANCHOR-20261108-PREDICTION-METRICS  1st が答えた3指標（旧方式と同じ race_metrics の形。読めなければ null）
         $metrics = null;
+        $metricNotes = null;   // @ANCHOR-20261124-SERVER-METRICS-DISPLAY  数字に添える言葉（暫定・E5・参考・複勝オッズ など）
         if (BaganrikiWorker::isExpectedSnapshot($snap)) {
             // @ANCHOR-20261110-PREDICTION-EXPECTED-METRICS  予想の版：検査済みで公開記録に保存した3指標だけを返す（よっしーR15.20）
             //   AIの最新応答を別に読んで混ぜない。保存値が壊れていれば null（何も出さない）。項目ごとの null は「未算出」。
@@ -2082,11 +2087,19 @@ class AiController extends Controller
                 try {
                     $ev = json_decode((string) ($pub->evidence ?? ''), true);
                     $in1 = $in;   // この関数の最初で読んだ 1st の凍結入力
-                    if (is_array($in1) && BaganrikiRaceMetrics::enabled($in1)) {
+                    // @ANCHOR-20261124-SERVER-METRICS-DISPLAY  3指標は、サーバが凍結入力だけから計算した値を出す（なる 11/24 問1 A）
+                    //   AIの答えは使いません。同じ凍結入力なら何度読んでも同じ値です。計算できなければ null（何も出さない）。
+                    //   @ANCHOR-20261124-METRICS-DISPLAY-FROM  ただし 11/27 までのレースは、発走前に利用者が見た保存値のまま出します（なる 11/24 問8 B）
+                    if (is_array($in1) && BaganrikiServerRaceMetrics::enabled($in1, (string) $date)) {
+                        $serverMetrics = BaganrikiServerRaceMetrics::displayValues(BaganrikiServerRaceMetrics::compute($in1));
+                        $metrics = $serverMetrics['values'];
+                        $metricNotes = $serverMetrics['notes'];
+                    } elseif (is_array($in1) && BaganrikiRaceMetrics::enabled($in1)) {
                         $metrics = BaganrikiRaceMetrics::publicValues($in1, is_array($ev) ? ($ev['race_metrics'] ?? null) : null);
                     }
                 } catch (\Throwable $e) {
                     $metrics = null;
+                    $metricNotes = null;
                 }
             }
         } else {
@@ -2106,6 +2119,9 @@ class AiController extends Controller
             if (array_filter($rk, static fn($k) => $k >= 11) === []) { $metrics['大穴進入度'] = '対象外'; }
         }
         $meta['race_metrics'] = $metrics;
+        // @ANCHOR-20261124-SERVER-METRICS-DISPLAY  数字はこれまでと同じ race_metrics に入れ、添える言葉は別の項目で返す
+        //   （古いアプリは race_metrics の数字だけを読むので、今までどおり表示できます）
+        $meta['race_metric_notes'] = ($metrics !== null) ? $metricNotes : null;
         // 1st の本文にも旧方式と同じ「レース指標|…」の行を先頭に置く（アプリが analysis_text からも読むため）
         if ($metrics !== null) {
             // $mv = static fn($v) => ($v === null) ? '未算出' : (string) $v;   // 未算出の項目は文字で（20261110）   // 旧
@@ -3102,6 +3118,8 @@ class AiController extends Controller
             if ((int) ($ex['metric_braces_removed'] ?? 0) > 0) { $fixNotes[] = '原文の race_metrics の余計な } を ' . (int) $ex['metric_braces_removed'] . '個取り除いて読み直し'; }
             if ((int) ($ex['score_evidence_closed'] ?? 0) > 0) { $fixNotes[] = '原文の score_evidence の閉じ忘れを ' . (int) $ex['score_evidence_closed'] . 'か所閉じて読み直し'; }
             foreach ((array) ($ex['duplicate_keys_removed'] ?? []) as $dk) { $fixNotes[] = '原文で2回書かれた欄 ' . (string) $dk . ' の2回目を外して読み直し'; }
+            // @ANCHOR-20261122-PREDICTION-FRAME-MISSING  目印の行が無い返事を読んだときも「整えた」として記録します（一致加点の証明は付きません）
+            if (($ex['frame_missing'] ?? false) === true) { $fixNotes[] = '原文に始まり／終わりの目印の行が無かったので、JSON の部分だけを読み直し'; }
             if ($fixNotes !== []) { $out['tidied'] = array_merge($fixNotes, $out['tidied']); }
         }
 
@@ -5236,7 +5254,11 @@ class AiController extends Controller
         // 波乱度は、断層があってもなくても出せる指標なので、null は「指標を出さなかった」とみなします（なる11/10 5章：資料がそろうのに資料不足と申告）
         $wave = $j['race_metrics']['wave_level']['value'] ?? null;
         // 2nd は表示指標を出さない決まりなので、波乱度は見ません
-        return ['horses' => count($seen), 'evidence_horses' => count($ev), 'changed_fixed' => $changed, 'wave_null' => ($role === '2nd') ? false : !is_int($wave)];
+        // return ['horses' => count($seen), 'evidence_horses' => count($ev), 'changed_fixed' => $changed, 'wave_null' => ($role === '2nd') ? false : !is_int($wave)];   // 旧（〜_06）
+        // @ANCHOR-20261124-TEXT07-SERVER-METRICS  3指標をサーバが計算する版（_07）は、1st も指標を出さない決まりなので、波乱度は見ません
+        //   （見ると、すべての返事が「投げ出し」扱いになって、毎回もう1回送ってしまいます）
+        $waveNotAsked = ($role === '2nd') || BaganrikiRaceMetrics::serverComputed($in);
+        return ['horses' => count($seen), 'evidence_horses' => count($ev), 'changed_fixed' => $changed, 'wave_null' => $waveNotAsked ? false : !is_int($wave)];
     }
 
     // 【使わない】11/10 午後から replyQuality（書いた馬・根拠を書いた馬・写すだけの欄の書き換え）に置き換えました

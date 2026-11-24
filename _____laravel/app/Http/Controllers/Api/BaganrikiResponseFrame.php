@@ -40,6 +40,11 @@ final class BaganrikiResponseFrame
             if ($end>0 && $raw[$end-1]==="\r") --$end;
         }
         $framed=substr($raw,0,$end);
+        // @ANCHOR-20261122-PREDICTION-FRAME-MISSING  AIが始まり／終わりの目印の行を書き忘れたとき（11/21 は1stの24通中9通、11/22 は2通）、
+        //   中身が { で始まり } で終わる返事だけを、目印で挟んだものとして読みます（```json … ``` の囲みも外します）。
+        //   目印が片方だけある・目印の外に文章がある返事は、今までどおり EXPECTED_OUTER_LINES で使いません。中身の検査は同じです。
+        $bareBody=self::bareJsonBody($framed);
+        if ($bareBody!==null) $framed=BaganrikiResponse::BEGIN."\n".$bareBody."\n".BaganrikiResponse::END;
         $first=strpos($framed,"\n");$last=strrpos($framed,"\n");
         if ($first===false || $last===false || $last<=$first)
             return self::fail('EXPECTED_RESPONSE_FRAME','EXPECTED_OUTER_LINES');
@@ -84,7 +89,26 @@ final class BaganrikiResponseFrame
         if (!is_array($parsed['value']) || ($parsed['map']['kind'][BaganrikiJson::pathKey([])]??null)!=='obj')
             return self::fail('EXPECTED_RESPONSE_JSON','EXPECTED_OBJECT_REQUIRED');
         return ['ok'=>true,'code'=>null,'reason'=>null,'json'=>$parsed['value'],
-            'number_paths'=>(array)($parsed['number_paths']??[]),'map'=>(array)$parsed['map'],'duplicate_keys_removed'=>$dupRemoved,'stray_quotes_removed'=>$strayRemoved,'metric_braces_removed'=>$braceRemoved,'score_evidence_closed'=>$closeAdded];
+            'number_paths'=>(array)($parsed['number_paths']??[]),'map'=>(array)$parsed['map'],'duplicate_keys_removed'=>$dupRemoved,'stray_quotes_removed'=>$strayRemoved,'metric_braces_removed'=>$braceRemoved,'score_evidence_closed'=>$closeAdded,'frame_missing'=>$bareBody!==null];
+    }
+
+    /**
+     * @ANCHOR-20261122-PREDICTION-FRAME-MISSING  目印の行が無い返事の、JSON の部分を返します（当てはまらなければ null）
+     *   ① 前後の空白・改行を外す（NUL などの制御文字は外さず、strict() で弾きます）
+     *   ② ```json（または ```）の行で始まり ``` の行で終わるなら、その2行を外す
+     *   ③ 残りが { で始まり } で終わるときだけ返す
+     */
+    private static function bareJsonBody(string $framed):?string
+    {
+        $t=trim($framed," \t\r\n");
+        if (str_starts_with($t,'```')) {
+            $nl=strpos($t,"\n");
+            if ($nl===false || preg_match('/^```(?:json)?[ \t]*\r?$/i',substr($t,0,$nl))!==1) return null;
+            if (!str_ends_with($t,'```')) return null;
+            $t=trim(substr($t,$nl+1,-3)," \t\r\n");
+        }
+        if ($t==='' || $t[0]!=='{' || !str_ends_with($t,'}')) return null;
+        return $t;
     }
 
     /** 同じ階層の重複キーを、2回目以降だけ取り除いた本文を返す（先の値を残す）。読めなければ null */

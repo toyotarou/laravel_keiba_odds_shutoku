@@ -210,7 +210,9 @@ final class BaganrikiDispatch
     {
         $policyInput=BaganrikiFrozenInput::checked($frozen);
         // 1st は名前で引ける形だけ（よっしー11/9 A）。表の形では送らない
-        if (BaganrikiRaceMetrics::enabled($policyInput) && $policyInput['ai_role']==='1st' && $format!=='SOURCE_DICT_V3') throw new \InvalidArgumentException('EXPECTED_SEND_POLICY');
+        // if (BaganrikiRaceMetrics::enabled($policyInput) && $policyInput['ai_role']==='1st' && $format!=='SOURCE_DICT_V3') throw new \InvalidArgumentException('EXPECTED_SEND_POLICY');   // 旧（〜_06）
+        // @ANCHOR-20261124-TEXT07-SERVER-METRICS  3指標を外した版（_07）でも、1st の送信形式の縛りは今までどおり（SOURCE_DICT_V3 だけ）
+        if ((BaganrikiRaceMetrics::enabled($policyInput) || BaganrikiRaceMetrics::serverComputed($policyInput)) && $policyInput['ai_role']==='1st' && $format!=='SOURCE_DICT_V3') throw new \InvalidArgumentException('EXPECTED_SEND_POLICY');
         self::need(in_array($number,[0,1],true) && strlen($user)<=4194304,'EXPECTED_SENT_RECORD');
         $in=BaganrikiFrozenInput::checked($frozen);$systemHash=hash('sha256',$system);$userHash=hash('sha256',$user);
         self::need(self::knownSystem($in,$format,$system),'EXPECTED_SENT_SYSTEM');

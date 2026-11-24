@@ -133,6 +133,41 @@ class ImportKeibaJraRaceOneResult extends Command
             }
         }
 
+        // ─────────────────────────────────────────────────────────────────
+        // 【ブロック 3.5】AI予想を作っている最中のレースがあれば、結果の取得を見送る
+        //   @ANCHOR-20261122-RESULT-AVOID-PREDICTION
+        //   11/21・11/22 の京都10R（15:01発走）は、入力を固める 14:56 に、もう一方の会場の10R と京都9R の結果取得
+        //   （Node.js）と払戻金の取得（Node.js）がちょうど重なり、サーバが重くなっていました（空きメモリ 260MB 前後）。
+        //   11/22 は 2nd の送信が43秒遅れて時間切れになり、京都10R の予想を公開できませんでした。
+        //   そこで、発走まで2〜8分のレース（6分前オッズの取得 → 入力を固める → AI予想 → 公開 の最中）があるあいだは、
+        //   結果の取得をその回だけ見送ります（豊田さん 11/22 「お任せします」で A 案）。
+        //   ・発走+10〜25分のレースは、次の回（5分後）に取ります（今も 10・15・20・25・30分後に取りに行く作り）。
+        //   ・発走+30分（最後の回）は、まだ結果が1件も無いレースだけ取ります。結果がもう入っているレースは見送ります
+        //     （残りの馬と払戻金は、夜 20:20 の importJraRaceResult と 21:50 の importRaceResultPayout が埋めます）。
+        // ─────────────────────────────────────────────────────────────────
+        if (!$isDebug && !empty($hitRaces)) {
+            $busyRace = null;
+            foreach ($resultRaces as $r) {
+                $untilStart = (strtotime("{$r->date} {$r->start_time}") - $now) / 60;
+                if ($untilStart >= 2 && $untilStart <= 8) { $busyRace = $r; break; }
+            }
+            if ($busyRace !== null) {
+                $keptRaces = [];
+                foreach ($hitRaces as $race) {
+                    if ($race->_diff >= 30) {
+                        $hasResult = DB::table('t_horse_odds_finder_race_results')
+                            ->where('date', $race->date)->where('kaisuu', $race->kaisuu)->where('basho', $race->basho)
+                            ->where('day', $race->day)->where('race', $race->race)->whereNotNull('result')
+                            ->exists();
+                        if (!$hasResult) { $keptRaces[] = $race; continue; }
+                    }
+                    $this->info("  見送り: kaisuu={$race->kaisuu} {$race->basho_name} {$race->day}日目 R{$race->race} (発走+{$race->_diff}分)"
+                              . " … {$busyRace->basho_name} R{$busyRace->race} のAI予想中のため");
+                }
+                $hitRaces = $keptRaces;
+            }
+        }
+
         if (empty($hitRaces)) {
             $this->info('ヒットするレースなし。終了します。');
             $this->info('========== keiba:importJraRaceOneResult 終了 ' . date('Y-m-d H:i:s') . ' ==========');

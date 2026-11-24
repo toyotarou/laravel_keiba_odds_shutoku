@@ -704,6 +704,10 @@ final class BaganrikiCandidateSelection
             if (!$specCheck['ok']) {
                 $metricsSelection=['policy'=>BaganrikiMetricsSelection::POLICY,'status'=>'KEEP','reason'=>$specCheck['reason'],
                     'before'=>$selection['public_candidates'],'after'=>$selection['public_candidates'],'frozen_spec'=>$specCheck['frozen_spec']];
+            } elseif (BaganrikiMetricsSelection::SWAP_PAUSED && BaganrikiMetricsSelection::$force!==true) {
+                // @ANCHOR-20261124-METRICS-SWAP-PAUSED  最初の2週末は入れ替えない（なる 11/24 問4 B）。基本の選出のまま公開し、理由を残す
+                $metricsSelection=['policy'=>BaganrikiMetricsSelection::POLICY,'status'=>'KEEP','reason'=>BaganrikiMetricsSelection::SWAP_PAUSED_REASON,
+                    'before'=>$selection['public_candidates'],'after'=>$selection['public_candidates'],'frozen_spec'=>$specCheck['frozen_spec']];
             } else {
                 $metricsSelection=BaganrikiMetricsSelection::apply($seed,$roles,$roleHorses,$selection,$quota,$metrics);
                 $metricsSelection['frozen_spec']=$specCheck['frozen_spec'];

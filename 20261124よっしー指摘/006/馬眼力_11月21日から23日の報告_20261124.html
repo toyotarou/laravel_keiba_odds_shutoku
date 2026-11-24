@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>馬眼力　11/21〜23の報告と、11/28からの変更</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1d2430; --sub:#5b6575; --line:#e2e6ec; --accent:#1f6feb; --soft:#eaf2ff; --warn:#fff4e5; --warnline:#f0b35a; --red:#fdecec; --redline:#e5534b; }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif; font-size:16px; line-height:1.7; }
+  header { background:#16213a; color:#fff; padding:20px 16px 18px; }
+  header h1 { margin:0 0 6px; font-size:20px; line-height:1.4; }
+  header p { margin:0; font-size:13px; color:#c9d3e6; }
+  main { max-width:720px; margin:0 auto; padding:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 14px 10px; margin:12px 0; }
+  h2 { font-size:18px; margin:0 0 8px; line-height:1.45; scroll-margin-top:12px; }
+  p { margin:6px 0; }
+  ul { margin:6px 0; padding-left:20px; }
+  li { margin:3px 0; }
+  .toc { padding-left:20px; margin:4px 0; }
+  .toc a { color:var(--accent); text-decoration:none; }
+  table { border-collapse:collapse; width:100%; font-size:14px; margin:6px 0; }
+  th, td { border:1px solid var(--line); padding:6px; text-align:left; vertical-align:top; }
+  th { background:#f0f3f7; font-weight:600; }
+  .scroll { overflow-x:auto; }
+  .big { background:var(--red); border-left:5px solid var(--redline); border-radius:8px; padding:10px 12px; margin:8px 0; }
+  .big b { font-size:17px; }
+  .note { background:var(--warn); border-left:4px solid var(--warnline); padding:8px 10px; border-radius:6px; font-size:14px; margin:8px 0; }
+  .ok { background:var(--soft); border-radius:8px; padding:8px 10px; margin:8px 0; }
+  .q { border:2px solid var(--accent); border-radius:10px; padding:10px 12px; margin:8px 0; }
+  .top { text-align:right; margin:8px 0 2px; font-size:14px; }
+  .top a { color:var(--accent); text-decoration:none; }
+  footer { text-align:center; font-size:12px; color:var(--sub); padding:20px 0 30px; }
+</style>
+</head>
+<body>
+<header id="top">
+  <h1>馬眼力　11/21（土）〜23（月・祝）の報告と、11/28からの変更</h1>
+  <p>2026年11月24日（火）朝　豊田／よっしーさん・なるさん向け</p>
+</header>
+<main>
+
+<div class="card">
+  <h2>目次</h2>
+  <ol class="toc">
+    <li><a href="#s1">3日間の結果</a></li>
+    <li><a href="#s2">11/24に本番へ入れた変更（11/28の予想から）</a></li>
+    <li><a href="#s3">波乱度・下位進入度・大穴進入度の新しい出し方</a></li>
+    <li><a href="#s4">過去データを足す件（作業2）の試算</a></li>
+    <li><a href="#s5">まだ残っている課題</a></li>
+    <li><a href="#s6">11/28からの予定</a></li>
+  </ol>
+  <div class="ok">今回、決めていただくことはありません。なるさんに確認いただいた内容で、11/24 に本番へ入れました。</div>
+</div>
+
+<div class="card" id="s1">
+  <h2>1. 3日間の結果</h2>
+  <div class="scroll"><table>
+    <tr><th>日</th><th>レース</th><th>公開</th><th>凍結→公開 平均／最長</th><th>公開→締切 平均／最短</th></tr>
+    <tr><td>11/21（土）</td><td>24</td><td>22</td><td>112／199秒</td><td>163／86秒</td></tr>
+    <tr><td>11/22（日）</td><td>24</td><td>23</td><td>121／168秒</td><td>151／90秒</td></tr>
+    <tr><td>11/23（月・祝）</td><td>24</td><td>23</td><td>135／190秒</td><td>125／69秒</td></tr>
+  </table></div>
+  <ul>
+    <li><b>2ndの回答待ちの時間切れ（通信が待ち時間内に終わらなかった）は 11/21 0回・11/22 1回・11/23 4回の計5回（前の週末は 2回・8回）。5回とも、回答の中身を検査する前に通信が切れたもの</b>。うち4レースは1stの答えだけで公開。11/22 京都10R は1stも全頭の評価を投げ出していたため予想なし。</li>
+    <li>2ndが送られなかったレースが1つ（11/23 東京8R。1stの答えだけで公開）。凍結できなかったレースは0。</li>
+    <li><b>2ndの送信が凍結から遅れています</b>：凍結から送信まで 平均 13・23・37秒と日ごとに長くなり、時間切れの5レースは 70〜106秒遅れていました。遅れた分だけ回答を待てる時間が短くなります。原因を調べます（下の5）。</li>
+    <li><b>予想が出なかったのは4レース</b>（11/21 福島9R・京都11R、11/22 京都10R、11/23 福島10R）。</li>
+    <li>1stの答えが検査を通らなかったのは 9・2・2回。<b>13回すべて「所定の始まり・終わりの行が欠け、JSON だけを返した」</b>もので、中身はそろっていた → 11/24 に直した（下の2）。</li>
+    <li>11/21 の福島1Rだけ、古い版（10/20版）で動いた。11/19 のキー入れ替えで、第6版を動かす設定の1行が消えていたため。11/21 朝に戻し、手元の設定にも入れて再発しないようにした。</li>
+    <li class="note" style="list-style:none;margin-left:-20px;">訂正：11/24 朝にお送りした資料（週末3日の結果）で「2ndの時間切れは0回」と書いたのは誤りです。正しくは上のとおり、回答待ちの時間切れ5回・送られなかった1回です。</li>
+    <li>費用：1st 3日で約6.3ドル、2nd 約3.7ドル。夜の結果確認は3日とも正常。サーバのエラーは0件。</li>
+  </ul>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s2">
+  <h2>2. 11/24に本番へ入れた変更（11/28の予想から）</h2>
+  <div class="scroll"><table>
+    <tr><th>変更</th><th>理由・見込み</th></tr>
+    <tr><td><b>1stが始まり・終わりの行を付けずに JSON だけを返しても読む</b></td><td>上の13回はすべてこれ。保存データで試すと13回とも使えるようになり、11/21 の予想なし2レースは1stの答えが使えた</td></tr>
+    <tr><td><b>3指標をサーバが計算する</b></td><td>よっしーさんのご指摘「中途半端」への対応。AIが答えていたときは、3つとも出たのが半分、値もいつも真ん中だった。下の3</td></tr>
+    <tr><td><b>本文を第7版に</b>（1stの本文から3指標の指示を外す）</td><td>1stの本文が約2割短くなる。時間が縮むかは 11/28〜30 の実測で見る。保存データで、3指標なしの答えが採用され、当時と同じ馬が公開されることを確かめた</td></tr>
+    <tr><td><b>過去データを足す（作業2）</b></td><td>6月〜10/23 の過去レースを足して、3着内／5着内の傾向を計算する。下の4</td></tr>
+    <tr><td>発走2〜8分前のレースがある間は、ほかのレースの結果を取りに行かない</td><td>11/22 京都10R は、結果の取得と凍結が重なり、2ndの送信が凍結から76秒遅れ、回答待ちの時間切れになった</td></tr>
+    <tr><td>土曜の朝は翌日分を取り込まない</td><td>土曜の朝に日曜のレースが中途半端に出ていた件</td></tr>
+  </table></div>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s3">
+  <h2>3. 波乱度・下位進入度・大穴進入度の新しい出し方</h2>
+  <ul>
+    <li><b>11/28 のレースから</b>、凍結した入力だけでサーバが計算します。同じ入力なら、いつ計算しても同じ値です。</li>
+    <li><b>波乱度</b>：サーバがレースの型を決めるときの点数を、1〜5 にしたもの。材料の一部が決まらず、取りうる点数が2つ以上の段階にまたがるときは、低い方を出して（暫定）と付けます。またがらなければ確定の値です。</li>
+    <li><b>下位進入度・大穴進入度</b>：その人気帯（7〜10番人気／11番人気以下）の馬の「5着内傾向」のいちばん高い値を、1〜5 にしたもの。区切りは帯ごとに分けました。大穴進入度を3以上にするには、今までどおり複勝の続けての短縮が要ります。</li>
+    <li>5着内傾向を出せないレースは、複勝オッズの動きだけで参考の値を出し、算出元を分けて表示します。</li>
+    <li><b>当面は表示だけ</b>です。3指標で最終の枠を1頭動かす仕組みは、2週末止めて、当たり方を確かめます。</li>
+    <li><b>11/27 までのレースの画面は、当時の値のまま</b>です（発走前に見た値を残すため）。</li>
+  </ul>
+  <div class="scroll"><table>
+    <tr><th>画面の表示</th><th>意味</th></tr>
+    <tr><td>4</td><td>波乱度。段階が4に確定</td></tr>
+    <tr><td>2（暫定）</td><td>波乱度。取りうる点数が2つ以上の段階にまたがるので、低い方の段階</td></tr>
+    <tr><td>3（E5）</td><td>下位・大穴進入度。5着内傾向から出した値</td></tr>
+    <tr><td>3（参考・複勝オッズ）</td><td>下位・大穴進入度。5着内傾向を出せないレースで、複勝オッズの動きだけから出した参考の値</td></tr>
+    <tr><td>対象外</td><td>その人気帯の馬がいないレース</td></tr>
+    <tr><td>未算出（時系列不足）</td><td>必要なオッズの時点がそろわなかった</td></tr>
+  </table></div>
+  <div class="note">11/21〜23 の71レースで試算すると、71レースすべてで値が出ました（大穴は対象外6を除く）。波乱度は 1〜4 に散らばり（1が7・2が18・3が34・4が12）、下位進入度（E5）は 1〜5 が 5・10・22・9・5。大穴進入度は1〜2がほとんどで、3以上は対象馬がいた65レース中4レース（E5由来が2：11/21 京都2R＝4、11/23 東京12R＝5。参考・複勝オッズ由来が2）でした。段階が高いほど本当に5着以内に入るかは、3日分では件数が少なく、まだ分かりません。</div>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s4">
+  <h2>4. 過去データを足す件（作業2）の試算</h2>
+  <p>11/21〜23 の保存データで、足した場合と足さない場合を比べました。最終の公開候補が1頭入れ替わるのは、67レース中7レースでした。</p>
+  <div class="scroll"><table>
+    <tr><th>レース</th><th>外れる馬（着順）</th><th>入る馬（着順・複勝）</th></tr>
+    <tr><td>11/21 福島12R</td><td>16番（16着）</td><td>10番（5着）</td></tr>
+    <tr><td>11/22 東京7R</td><td>12番（7着）</td><td>3番（8着）</td></tr>
+    <tr><td>11/22 東京8R</td><td>11番（8着）</td><td>5番（5着）</td></tr>
+    <tr><td>11/23 福島2R</td><td>1番（6着）</td><td>8番（3着・複勝990円）</td></tr>
+    <tr><td>11/23 福島3R</td><td>1番（14着）</td><td>14番（5着）</td></tr>
+    <tr><td>11/23 福島12R</td><td>8番（5着）</td><td>9番（12着）</td></tr>
+    <tr><td>11/23 東京8R</td><td>11番（10着）</td><td>15番（3着・複勝120円）</td></tr>
+  </table></div>
+  <p>5着以内に入ったのは、入る馬 5/7、外れる馬 1/7。7レースだけなので、良くなったとは言い切れません。11/28 から本番で使い、続けて見ます。</p>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s5">
+  <h2>5. まだ残っている課題</h2>
+  <ul>
+    <li><b>1stが全頭の評価を投げ出す</b>（採用0頭）：11/21 福島4R、11/22 京都7R・東京11R・京都10R。<b>2ndの JSON の崩れ</b>も残っています。</li>
+    <li>1stの「始まり・終わりの行の欠け」を直した後の 11/28〜30 で、予想が出ないレースがどれだけ残るかを数えます。そのうえで、残る原因に合わせて、「今のモデル（Haiku）のまま直す案」と「頭数が多いレースだけ上のモデル（Sonnet）を使う案」を、費用と時間の見込みを付けてお出しします。モデルを変えるときは、必ずご了解をいただいてからにします。</li>
+    <li><b>2ndの送信が凍結から遅れる件</b>（上の1）：11/25〜27 に記録を読んで原因を調べます。サーバに手を入れる必要があれば、11/27（金）までに入れるか、12/1 以降にするかを、内容をお伝えしてから決めます。</li>
+    <li>待ち時間を短くする案（AIに書かせる量をさらに減らす案）も、第7版の実測を見てから入れるかを決めます。</li>
+  </ul>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+<div class="card" id="s6">
+  <h2>6. 11/28からの予定</h2>
+  <ul>
+    <li><b>11/28（土）〜30（月）</b>：3日間開催。サーバには触りません。初回のレースで、第7版で公開され、画面に3指標と算出元が出たことを確かめて、なるさんにお送りします。</li>
+    <li><b>12/1（火）〜</b>：時間（凍結→公開、公開→締切）と、3指標の段階ごとの件数・その人気帯から5着以内に入った割合を、E5由来・オッズ由来に分けて集計し、報告します。</li>
+    <li>E3・E5 などの記号の名前を、意味の分かる名前に変える作業（12/1以降）。</li>
+  </ul>
+  <p class="top"><a href="#top">▲ 上にもどる</a></p>
+</div>
+
+</main>
+<footer>馬眼力　11/21〜23の報告／2026年11月24日　豊田</footer>
+</body>
+</html>

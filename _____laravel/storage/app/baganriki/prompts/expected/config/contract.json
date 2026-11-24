@@ -1,6 +1,7 @@
 {
   "prompt_version": "baganriki-v041-r12-2-w2-e35-r15-20261104",
   "validator_version": "w2-r15.21",
+  "expected_history_policy": "EXPECTED_HISTORY_UNRECORDED_TIME_V1",
   "schema_version": "baganriki-v041-r12-2-w2-e35-r15",
   "base_quota": {
     "4": {
@@ -141,14 +142,14 @@
     "buy_recommended": false
   },
   "system_file_sha256": {
-    "prompt_1st.txt": "3495bb98e4512e23927a27db542f836326ce450160db1d55d765367d2dd9e40b",
-    "prompt_2nd.txt": "eb3c8f5939761e43f4507d1a4ffd07b54c827919a8ee7bc4ca8c9a2a8e49ed85",
-    "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "fed377789e4899a73fc474d69687d81afd480d80abf201370abb483438ef678c",
-    "SOURCE_DICT_V3_ADDENDUM_V1.txt": "58a9fbf8cbb4ee0380ab6946de89f589ece19e112dcc3ffad6bc0a6931ff1f9b"
+    "prompt_1st.txt": "05926eb62d72705c4f2203a6df109b812558d179658b05adb70a189950186928",
+    "prompt_2nd.txt": "7fd4ea9953c28ddd40b27ed69c2955af71f9cf3177eba9b85bb04b57a63f5f29",
+    "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "8655798a9ade2962aecbfe6c6ce292cde5d39d661937f851f4b5ccb4241ad33c",
+    "SOURCE_DICT_V3_ADDENDUM_V1.txt": "a0c8e3a574cefa0c5ad8fec623f8ee1e4d82892ef404554edff5c3104dec7c4f"
   },
   "score_evidence_policy": "W2_R14_SCORE_MATERIALS_V1",
   "family_evidence_policy": "W2_R14_FAMILY_MATERIALS_V1",
-  "active_text_revision": "COMPACT_TEXT_20261109_06",
+  "active_text_revision": "COMPACT_TEXT_20261124_07",
   "archived_text_revisions": {
     "ORIGINAL_R15_18": {
       "prompt_1st.txt": "fc73c229618a7d2ba1c5462bddafaa08b61a760395c0b165d325914b187660fb",
@@ -176,6 +177,12 @@
       "prompt_2nd.txt": "21e4f6f9c68313bbf139c041b641005a464a8732099398ecf3a15ad292b8bc60",
       "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "fed377789e4899a73fc474d69687d81afd480d80abf201370abb483438ef678c",
       "SOURCE_DICT_V3_ADDENDUM_V1.txt": "02f33e6ca2935fa8ebc60a45a8ba575b064b499d74e3fc62bb38e68326f4542c"
+    },
+    "COMPACT_TEXT_20261109_06": {
+      "prompt_1st.txt": "3495bb98e4512e23927a27db542f836326ce450160db1d55d765367d2dd9e40b",
+      "prompt_2nd.txt": "eb3c8f5939761e43f4507d1a4ffd07b54c827919a8ee7bc4ca8c9a2a8e49ed85",
+      "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "fed377789e4899a73fc474d69687d81afd480d80abf201370abb483438ef678c",
+      "SOURCE_DICT_V3_ADDENDUM_V1.txt": "58a9fbf8cbb4ee0380ab6946de89f589ece19e112dcc3ffad6bc0a6931ff1f9b"
     }
   },
   "validation_contract_revision": "w2-r15.21",
@@ -189,6 +196,10 @@
       "2nd": "SOURCE_TABLE_V1"
     },
     "COMPACT_TEXT_20261109_06": {
+      "1st": "SOURCE_DICT_V3",
+      "2nd": "SOURCE_TABLE_V1"
+    },
+    "COMPACT_TEXT_20261124_07": {
       "1st": "SOURCE_DICT_V3",
       "2nd": "SOURCE_TABLE_V1"
     }
@@ -206,7 +217,14 @@
     "selection_effect": {
       "COMPACT_TEXT_20261109_04": false,
       "COMPACT_TEXT_20261109_05": false,
-      "COMPACT_TEXT_20261109_06": "RACE_METRICS_SELECTION_V1"
+      "COMPACT_TEXT_20261109_06": "RACE_METRICS_SELECTION_V1",
+      "COMPACT_TEXT_20261124_07": false
+    },
+    "producer_by_text_revision": {
+      "COMPACT_TEXT_20261109_04": "1st",
+      "COMPACT_TEXT_20261109_05": "1st",
+      "COMPACT_TEXT_20261109_06": "1st",
+      "COMPACT_TEXT_20261124_07": "server"
     }
   },
   "role_wire_format": {
@@ -226,7 +244,8 @@
   "time_contract_by_text_revision": {
     "COMPACT_TEXT_20261109_04": "baganriki-post-slot-grace-v1",
     "COMPACT_TEXT_20261109_05": "baganriki-post-slot-grace-v2-early",
-    "COMPACT_TEXT_20261109_06": "baganriki-post-slot-grace-v2-early"
+    "COMPACT_TEXT_20261109_06": "baganriki-post-slot-grace-v2-early",
+    "COMPACT_TEXT_20261124_07": "baganriki-post-slot-grace-v2-early"
   },
   "early_freeze_policy": {
     "id": "EARLY_AFTER_SLOT6_V1",
@@ -267,5 +286,23 @@
     ],
     "record": "公開記録 metrics_selection（before/after・配分・理由・試した帯・server_place_check＝参照ID・馬番・field・時点・元値・判定）",
     "old_revisions": "_04・_05 の入力・公開には適用しない"
-  }
+  },
+  "server_race_metrics_policy": {
+    "id": "SERVER_RACE_METRICS_V1",
+    "text_revisions": [
+      "COMPACT_TEXT_20261124_07"
+    ],
+    "display_from_race_date": "2026-11-28",
+    "wave_level": "レースの型の点数 S=2*X1+X2+X3+X4+X5+X6-2*Z。0以下=1、1=2、2〜3=3、4〜5=4、6以上=5。不明の信号があれば点数の下限〜上限を残し、段階がまたがれば低い方を暫定",
+    "lower_entry": "凍結単勝7〜10番人気の5着内傾向（E5）の最大値。35未満=1、40未満=2、44未満=3、50未満=4、50以上=5",
+    "big_gap_entry": "凍結単勝11番人気以下の5着内傾向（E5）の最大値。18未満=1、20未満=2、23未満=3、30未満=4、30以上=5。3以上は対象帯の同じ馬の複勝（下限か上限の一方）が12分前>9分前>6分前のときだけ。無ければ2",
+    "without_expected_top5": "複勝オッズの動きから参考値（算出元を分けて表示）。対象馬なし・時系列不足は未算出",
+    "selection_effect": false,
+    "note": "区切りは11/21〜23の71レースから決めた暫定値。最初の2週末（11/28〜30、12/5〜6）は固定し表示だけに使う（なる11/24 問4 B・問7 A・問8 B）"
+  },
+  "local_changes_20261124": [
+    "本文を COMPACT_TEXT_20261124_07 に（なる11/24 問1 A）。1st の本文・送信形式の付録から3指標（race_metrics）の出力要求を外した。3指標はサーバが凍結入力だけから計算する（BaganrikiServerRaceMetrics）。_06 の原本（本文3つと付録2つ）は prompts/versions/COMPACT_TEXT_20261109_06/ に保存し、archived_text_revisions で照合する",
+    "_07 の1stの応答に race_metrics があっても読まずに捨てる（検査しない・不通過にしない）。_04〜_06 の保存済み予想は今までどおり検査・再現する",
+    "3指標による選出の入れ替え（RACE_METRICS_SELECTION_V1）は _07 では行わない"
+  ]
 }

@@ -198,8 +198,9 @@ class ImportKeibaSchedule extends Command
 
             // ─────────────────────────────────────────────────────────────
             // 【ブロック 7】データ絞り込み（土曜日以外は当日分のみ）
-            //   土曜日: deleteKeibaTableRecords が事前に全テーブルを TRUNCATE 済みのため
+            //   （20261124 まで）土曜日: deleteKeibaTableRecords が事前に全テーブルを TRUNCATE 済みのため
             //           絞り込みなし→土日両日分を全件 INSERT する。
+            //   （20261124 から）土曜日も当日分のみ INSERT する（@ANCHOR-20261124-SCHEDULE-TODAY-ONLY）。
             //   日曜日: 当日分のみ INSERT（土曜のデータには触れない）。
             //   DEBUGモード: 絞り込みをスキップして取得した全データを INSERT する。
             //
@@ -209,7 +210,12 @@ class ImportKeibaSchedule extends Command
             $this->info('──────────────────────────────────────');
             $this->info('トランザクション開始 ── データを入れ替えます...');
 
-            if (!$isDebug && date('w') !== '6') {
+            // if (!$isDebug && date('w') !== '6') {   // 旧（20261124）
+            // @ANCHOR-20261124-SCHEDULE-TODAY-ONLY  土曜も当日分だけを入れます（豊田さん 11/21 の指示）
+            //   土曜の朝は、JRA に日曜の情報がまだそろっていません（11/21 の朝は、11/22 が京都だけで東京が無かった）。
+            //   そのまま入れると、画面に翌日のレース情報が中途半端に出ます。
+            //   翌日以降の分は、その日の朝 6:00 のこの処理が「当日分」として入れます（日曜・祝日の月曜は今もこの動き）。
+            if (!$isDebug) {
                 $schedules = array_values(array_filter($schedules, fn($r) => $r['date'] === $today));
                 $races      = array_values(array_filter($races,     fn($r) => $r['date'] === $today));
                 $horses     = array_values(array_filter($horses,    fn($r) => $r['date'] === $today));

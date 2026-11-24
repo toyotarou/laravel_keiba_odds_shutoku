@@ -221,6 +221,8 @@ final class BaganrikiResponseInspection
         $shape=[];$invalid=[];$unsafe=[];$cache=[];
         foreach (BaganrikiRaceMetrics::issues($in,$res,$map) as $key=>$code) $add('top_fields','race_metrics.'.$key,$code,'表示指標を凍結資料と照合してください。正常な指標と馬の評価は保持します');
         foreach (BaganrikiOutputSchema::outputIssues($res,$map) as $path) {
+            // @ANCHOR-20261124-TEXT07-SERVER-METRICS  サーバ計算の版の 1st：race_metrics は読まずに捨てるので、形が違っても指摘にしない
+            if (($path[0]??null)==='race_metrics' && BaganrikiRaceMetrics::serverComputed($in) && ($in['ai_role']??null)==='1st') continue;
             $why='JSONの項目・型を照合してください '.BaganrikiJson::pathKey($path);
             $key=$path[0]??'response';
             if ($key!=='horses') {

@@ -19,6 +19,18 @@ final class BaganrikiRaceMetrics
     // public const REVISIONS=['COMPACT_TEXT_20261109_04','COMPACT_TEXT_20261109_05'];   // 旧（_06 の前）
     public const REVISIONS=['COMPACT_TEXT_20261109_04','COMPACT_TEXT_20261109_05','COMPACT_TEXT_20261109_06'];   // 20261116 _06 も3指標を返す
 
+    /**
+     * @ANCHOR-20261124-TEXT07-SERVER-METRICS  3指標をサーバが計算する本文版（なる 11/24 問1 A）。
+     *   この版では、1st の本文・付録から3指標の出力要求を外してあります。AI の応答に race_metrics があっても、読まずに捨てます
+     *   （検査しない・不通過にしない・保存しない）。_04〜_06 の保存済み予想は、上の REVISIONS で今までどおり検査・再現します。
+     */
+    public const SERVER_COMPUTED_REVISIONS=['COMPACT_TEXT_20261124_07'];
+
+    public static function serverComputed(array $in):bool
+    {
+        return in_array($in['prompt_text_revision']??null,self::SERVER_COMPUTED_REVISIONS,true);
+    }
+
     public static function enabled(array $in):bool
     {
         // return ($in['prompt_text_revision']??null)===self::REVISION;   // 旧（_04 だけ）
@@ -106,6 +118,8 @@ final class BaganrikiRaceMetrics
     public static function issues(array $in,array $reply,?array $map=null):array
     {
         $has=array_key_exists('race_metrics',$reply);
+        // @ANCHOR-20261124-TEXT07-SERVER-METRICS  サーバ計算の版の 1st：race_metrics があっても読まずに捨てる（指摘にしない）
+        if (self::serverComputed($in) && ($in['ai_role']??null)==='1st') return [];
         if (!self::enabled($in) || ($in['ai_role']??null)!=='1st') return $has?['race_metrics'=>'EXPECTED_METRIC_ROLE_OR_REVISION']:[];
         $rows=$reply['race_metrics']??null;$issues=[];
         if (!is_array($rows) || array_diff(array_keys($rows),self::KEYS)) $issues['race_metrics']='EXPECTED_METRIC_SHAPE';
