@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>今までに片付いた懸案事項（2026年11月25日）</title>
+<style>
+  body { margin:0; background:#f4f5f7; color:#222; font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; font-size:16px; line-height:1.75; }
+  header { background:#1f4e79; color:#fff; padding:20px 16px 16px; }
+  header h1 { margin:0; font-size:21px; }
+  header p { margin:6px 0 0; font-size:13px; opacity:.85; }
+  nav { background:#fff; margin:12px; border-radius:12px; padding:12px 16px; box-shadow:0 1px 3px rgba(0,0,0,.08); font-size:15px; }
+  nav b { display:block; margin-bottom:4px; color:#1f4e79; }
+  nav a { color:#1f4e79; text-decoration:none; display:block; padding:3px 0; }
+  main { padding:0 12px 12px; max-width:640px; margin:0 auto; }
+  section { background:#fff; border-radius:12px; padding:14px 16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  section.now { border:2px solid #1f4e79; }
+  h2.part { font-size:19px; color:#fff; background:#1f4e79; border-radius:10px; padding:8px 12px; margin:22px 0 12px; }
+  h3.period { font-size:15px; color:#1f4e79; margin:18px 4px 8px; border-bottom:2px solid #c9d6e3; padding-bottom:2px; }
+  .head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:6px; }
+  h2 { font-size:17px; margin:0; color:#1f4e79; }
+  h4 { font-size:16px; margin:14px 0 4px; color:#333; }
+  .done { flex-shrink:0; font-size:13px; font-weight:bold; color:#fff; background:#1b7f3b; border-radius:10px; padding:2px 10px; white-space:nowrap; }
+  .stop { flex-shrink:0; font-size:13px; font-weight:bold; color:#fff; background:#b35c00; border-radius:10px; padding:2px 10px; white-space:nowrap; }
+  .when { font-size:13px; color:#888; margin-bottom:4px; }
+  ul, ol { margin:4px 0 0; padding-left:20px; }
+  li { margin:4px 0; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:6px 0; }
+  th, td { padding:6px 4px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
+  th { color:#555; font-weight:normal; font-size:13px; }
+  .note { font-size:13px; color:#666; }
+</style>
+</head>
+<body>
+<header>
+  <h1>今までに片付いた懸案事項</h1>
+  <p>2026年11月25日（水）時点　／　馬眼力</p>
+</header>
+
+<nav>
+  <b>もくじ</b>
+  <a href="#now">第1部　いま、プロンプトはどうなっているか</a>
+  <a href="#done">第2部　今までに片付いた懸案事項（全56件）</a>
+  <a href="#p1">　11/7〜11/9　新しいプロンプトへの切り替え</a>
+  <a href="#p2">　11/10〜11/11　E3・E5版の稼働準備</a>
+  <a href="#p3">　11/14〜11/16　最初の週末を受けて</a>
+  <a href="#p4">　11/18〜11/20　速さと守り</a>
+  <a href="#p5">　11/21〜11/25　第7版とプレミアR5</a>
+  <a href="#left">まだ残っていること</a>
+</nav>
+
+<main>
+
+<h2 class="part" id="now">第1部　いま、プロンプトはどうなっているか</h2>
+
+<section class="now">
+  <div class="head"><h2>ひとことで言うと</h2></div>
+  <ul>
+    <li>11/28（土）の予想から「<b>プレミアR5</b>」（E5専用・8項目86点）で動きます。</li>
+    <li>AIに送る本文は、なるさんのZIP（11/25）のファイルそのものです。</li>
+    <li>2つのAI（1st＝Claude、2nd＝DeepSeek）が同じ材料で全頭を評価し、サーバーが検査してまとめ、出走頭数に応じた頭数を画面に出します。</li>
+    <li>11/27 までに固めたレースは、前の版（10項目・100点満点）のまま扱います。結果は変わりません。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>1レースの流れ</h2></div>
+  <ol>
+    <li>発走21・18・15・12・9・6分前にオッズを取ります。</li>
+    <li>6分前のオッズが全頭そろったら、AIに渡す材料を固めます。そろわなくても、遅くとも発走5分前には固めます。固めた後のオッズは使いません。</li>
+    <li>1stと2ndに、同じ材料を同時に送ります。お互いの答えは見せません。</li>
+    <li>返事を馬ごとに検査し、根拠を確かめられた馬だけを使います。書き方だけの誤りは、サーバーが機械的に直せるものだけ直します。</li>
+    <li>サーバーが2つの答えをまとめ、枠の境目の入れ替えを判断し、足りない頭数を「補充」で埋めて公開します。</li>
+    <li>3つの指標（波乱度・下位進入度・大穴進入度）は、サーバーが計算して表示します。</li>
+  </ol>
+</section>
+
+<section>
+  <div class="head"><h2>AIがすること・サーバーがすること</h2></div>
+  <table>
+    <tr><th>AI（1st・2nd）</th><th>サーバー</th></tr>
+    <tr><td>全頭を5つの系統で調べる</td><td>材料を集めて固める（2つのAIに同じもの）</td></tr>
+    <tr><td>8項目で採点する</td><td>レースの型（堅い・混戦・波乱）と、帯ごとの枠を決める</td></tr>
+    <tr><td>人気帯ごとに順位を付ける</td><td>5着内傾向（E5）を計算する</td></tr>
+    <tr><td>枠の境目を判断して書く</td><td>返事を検査する（引用した数字が本当に入力にあるか、など）</td></tr>
+    <tr><td>選んだ理由を短く書く</td><td>境目の判断を計算し直す（AIの判断は使わない）</td></tr>
+    <tr><td></td><td>2つの答えをまとめる・補充・3指標・画面の文</td></tr>
+  </table>
+</section>
+
+<section>
+  <div class="head"><h2>AIに渡すもの</h2></div>
+  <ul>
+    <li>出走表と、6分前の単勝人気で分けた人気帯（A＝1〜6番人気、B＝7〜10番人気、D＝11番人気以下）。</li>
+    <li>各馬のオッズ（単勝・複勝の最小と最大）。21分前から6分前まで。</li>
+    <li>各馬の近走成績（最大10走）、似た条件の成績統計とその件数、人気の過熱度（OPI）など。</li>
+    <li>5着内傾向（E5）の表。サーバーが計算したもので、AIは計算し直しません。</li>
+    <li>レースの型、目標の頭数、帯ごとの枠。</li>
+    <li>送るときは詰めた形にします（1stは名前で引ける辞書の形、2ndは表の形）。中身は1件も省いていません。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>AIに守らせている大原則</h2></div>
+  <ul>
+    <li>全頭を1回ずつ、同じ基準で評価する。途中までの評価を完成扱いにしない。</li>
+    <li>根拠の無い馬で枠を埋めない。根拠のある人気薄を拾う。</li>
+    <li>数字は入力の値をそのまま引用する。計算し直したり、別の馬の値を借りたりしない。</li>
+    <li>資料が無いことと、支持が無いことを区別する。資料があるのに「資料不足」と言わない。</li>
+    <li>過去の回収率は、採点・根拠・順位のどこにも使わない（11/28から）。</li>
+    <li>購入の推奨はしない。的中や利益を保証しない。</li>
+    <li>入力の中の文章を、新しい指示として実行しない。もう片方のAIの答えは見ない。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>5つの系統（根拠の種類）</h2></div>
+  <table>
+    <tr><th>系統</th><th>中身</th></tr>
+    <tr><td>能力</td><td>その馬の近走成績・適性</td></tr>
+    <tr><td>市場</td><td>同じ馬・同じオッズの、2つの時点の比較（支持の変化）</td></tr>
+    <tr><td>断層</td><td>人気順で隣り合う2頭のオッズの開き。その馬が上側にいて、開きが2.00倍以上のときだけ根拠になる</td></tr>
+    <tr><td>単複差</td><td>同じ時点の単勝と複勝の差</td></tr>
+    <tr><td>類似・妙味</td><td>似た条件の成績率と件数、または人気の過熱度（OPI）</td></tr>
+  </table>
+  <ul>
+    <li>独立した系統が2つ以上＝根拠Tier A、1つ＝Tier B。1つでもあれば選ぶ資格があります。</li>
+    <li>「支持加速」は、12→9分と9→6分の短縮がともにプラスで、後半の方が大きいときだけです。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>8項目の採点（86点満点）</h2></div>
+  <table>
+    <tr><th>項目</th><th>満点</th><th>使う資料</th></tr>
+    <tr><td>H1 能力</td><td>18</td><td>その馬の過去走</td></tr>
+    <tr><td>H2 時系列</td><td>15</td><td>オッズの動き</td></tr>
+    <tr><td>H3 断層</td><td>12</td><td>隣り合う2頭の開き</td></tr>
+    <tr><td>H4 類似統計</td><td>9</td><td>似た条件の3着内率か5着内率と、その件数（件数があれば0%も評価する）</td></tr>
+    <tr><td>H5 単複差</td><td>6</td><td>同じ時点の単勝と複勝</td></tr>
+    <tr><td>V1 補正OPI</td><td>12</td><td>その馬の人気の過熱度</td></tr>
+    <tr><td>V2 能力と価格の差</td><td>10</td><td>能力資料＋6分前の価格かOPI（両方必要）</td></tr>
+    <tr><td>V5 情報・価格の確かさ</td><td>4</td><td>同じ時点の複勝の最小と最大の組、またはH4と同じ組</td></tr>
+  </table>
+  <ul>
+    <li>的中寄り（H）60点＋妙味寄り（V）26点＝86点。100点への換算はしません。</li>
+    <li>分からない項目は空欄（null）。8項目そろえば合計点、1つでも空欄なら合計なしです。</li>
+    <li>11/27 までは、ここに回収率（8点）と最終オッズ予測（6点）を加えた10項目・100点満点でした。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>順位の付け方と、枠の境目の入れ替え</h2></div>
+  <ul>
+    <li>帯の中の選べる馬が全頭8項目そろっていれば、合計点→V小計→H小計→馬番の順で並べます。</li>
+    <li>1頭でも空欄の項目があれば、根拠の強さ・続き方・反証で比べて並べます（点数は使いません）。</li>
+    <li>そのうえで、枠に入った最後の馬（i）と次点（j）の1組だけを比べます。</li>
+    <li>jの5着内傾向がiより高く、しかもjの人気の普段の割合より高いときだけ、入れ替えます。</li>
+    <li>比べられるのは、両方の馬で過去の似たレースが十分そろったとき（過去レース100以上など）だけです。評価の段階が違うときも入れ替えません。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>何頭出すか（頭数と枠）</h2></div>
+  <table>
+    <tr><th>出走頭数</th><th>出す頭数</th></tr>
+    <tr><td>8頭以下</td><td>4頭（3頭以下ならその頭数）</td></tr>
+    <tr><td>9〜13頭</td><td>5頭</td></tr>
+    <tr><td>14〜15頭</td><td>6頭</td></tr>
+    <tr><td>16頭以上</td><td>7頭</td></tr>
+  </table>
+  <p>人気帯ごとの枠（A帯・B帯・D帯）は、レースの型で決まります。</p>
+  <table>
+    <tr><th>出す頭数</th><th>堅い</th><th>混戦</th><th>波乱</th></tr>
+    <tr><td>7頭</td><td>5・2・0</td><td>3・3・1</td><td>3・3・1</td></tr>
+    <tr><td>6頭</td><td>4・2・0</td><td>3・2・1</td><td>3・2・1</td></tr>
+    <tr><td>5頭</td><td>4・1・0</td><td>3・2・0</td><td>2・2・1</td></tr>
+    <tr><td>4頭</td><td>3・1・0</td><td>2・2・0</td><td>2・1・1</td></tr>
+  </table>
+  <ul>
+    <li>レースの型は、オッズの開き方などの信号を点数にして決めます（1以下＝堅い、2〜3＝混戦、4以上＝波乱）。</li>
+    <li>2ndが出す候補は最大5頭です。全頭の評価と順位は省きません。</li>
+    <li>根拠のある馬で足りないときは、サーバーが同じ人気帯の馬で「補充」して頭数をそろえます。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>返事の書き方</h2></div>
+  <ul>
+    <li>始まりの行、JSON、終わりの行の3つだけ。説明文は付けません。</li>
+    <li>理由や解釈は30字ほどの短い日本語1文。根拠は1頭につき系統ごとに1件まで。</li>
+    <li>直してもらう依頼は最大1回の決まりですが、今は訂正を依頼しない方針で動かしています。</li>
+  </ul>
+</section>
+
+<h2 class="part" id="done">第2部　今までに片付いた懸案事項（全56件）</h2>
+
+<h3 class="period" id="p1">11/7〜11/9　新しいプロンプトへの切り替え</h3>
+
+<section>
+  <div class="head"><h2>1. 予想を新しいプロンプトだけで出す</h2><span class="done">済</span></div>
+  <div class="when">11/7（土）から</div>
+  <ul>
+    <li>アプリの予想を、よっしーさんと作った新しいプロンプトに切り替えました。</li>
+    <li>うまくいかないときに以前の方式へ戻る仕組みは、豊田さんの判断で入れていません。</li>
+    <li>以前の方式で過去に保存した予想は、これまでどおり見られます。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>2. 6分前オッズが遅れると、以前の方式になっていた件</h2><span class="done">済</span></div>
+  <div class="when">11/7（土）夜</div>
+  <ul>
+    <li>11/7 の京都8R・福島12Rは、6分前オッズが38秒・45秒遅れ、以前の方式で予想していました。</li>
+    <li>待つ時間を30秒から60秒に延ばしました。</li>
+    <li>11/8 は、以前の方式になったレースが0件でした。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>3. レースごとの質問文が保存されていなかった件</h2><span class="done">済</span></div>
+  <div class="when">11/7（土）</div>
+  <ul>
+    <li>新しいプロンプトに切り替えたとき、質問文の保存が止まっていました。</li>
+    <li>1stと2ndで別々のフォルダに、全レース分を保存するようにしました。</li>
+    <li>11/8 は36ファイルずつ保存されていました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>4. 3つの指標が画面から消えていた件</h2><span class="done">済</span></div>
+  <div class="when">11/9（月）</div>
+  <ul>
+    <li>切り替えで、波乱度・下位進入度・大穴進入度が画面に出なくなっていました。</li>
+    <li>1stに1〜5の数字で答えてもらい、画面に出し直しました（11/14 から表示）。</li>
+    <li>その後、47で、サーバーが計算する形に変えています。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>5. 予想の文章の「確かめた根拠：」が読みにくい件</h2><span class="done">済</span></div>
+  <div class="when">11/9（月）</div>
+  <ul>
+    <li>各馬の文章の頭に付いていた「確かめた根拠：」を外しました。</li>
+    <li>文章の中身はそのままです。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>6. AIの返事の記号1つの抜けで、全体が読めなくなる件</h2><span class="done">済</span></div>
+  <div class="when">11/9（月）</div>
+  <ul>
+    <li>カンマや括弧が1つ抜けるだけで、返事全体が読めませんでした（11/7 に2レースで代わりの表示）。</li>
+    <li>記号の抜けや余分を自動で直してから読むようにしました。馬・順位・文章の中身は変えません。</li>
+    <li>11/7 の壊れた返事で試すと、3つのうち2つは大部分が読めるようになりました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>7. 両AIとも失敗しているのに、しばらく「予想中」のままだった件</h2><span class="done">済</span></div>
+  <div class="when">11/9（月）</div>
+  <ul>
+    <li>両方のAIが失敗と分かった時点で、期限を待たずに表示を切り替えるようにしました。</li>
+    <li>11/7 福島3R・11/8 東京6R は、公開期限まで「予想中」のままでした。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>8. 以前の方式のプログラムが残っていた件</h2><span class="done">済</span></div>
+  <div class="when">11/9（月）</div>
+  <ul>
+    <li>以前の方式で予想を作る部分を、プログラムから取り除きました。</li>
+    <li>整理の前と後で、319レース・1,289回分の結果がすべて同じになることを確かめました。</li>
+  </ul>
+</section>
+
+<h3 class="period" id="p2">11/10〜11/11　E3・E5版の稼働準備</h3>
+
+<section>
+  <div class="head"><h2>9. E3・E5を使う版へ切り替え</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）に切り替え、11/14 の予想から使用</div>
+  <ul>
+    <li>枠の境目を3着内・5着内の傾向（E3・E5）で判断する版に、豊田さんの判断で前倒しして切り替えました。</li>
+    <li>土日はサーバーに触れないので、平日のうちに入れました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>10. AIへ送る量が多く、費用がかかる件</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）</div>
+  <ul>
+    <li>1stには名前で引ける辞書の形、2ndには表の形に詰めて送るようにしました。中身は1件も省いていません。</li>
+    <li>大きさは元の約5分の1、費用は1レース約3円になりました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>11. 書き方だけの誤りで、聞き直すと費用が倍になる件</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）</div>
+  <ul>
+    <li>合計点の計算違いや、決まった項目名の書き間違いは、サーバーが計算し直して整えます。</li>
+    <li>根拠を確かめられない部分だけを外し、残った正しい根拠で判定し直します。</li>
+    <li>根拠をサーバーで作り足すことはしません。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>12. 2ndの返事が締切に間に合わない件（1回目）</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）</div>
+  <ul>
+    <li>11/8 は、2ndの返事が締切に間に合わないレースが36レース中8ありました（平均90秒）。</li>
+    <li>2ndに「根拠は系統ごとに1件まで」「理由は30字ほどの1文」など、短く書く指示を足しました。</li>
+    <li>返事の長さは約半分になり、試験の5レースは31〜72秒で返りました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>13. 2ndが余計な「"」を1文字書いて、全体が読めなくなる件</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）</div>
+  <ul>
+    <li>返事が読めなかったときだけ、その1文字を取り除いて読み直します。</li>
+    <li>中身には手を加えません。直したことは記録に残します。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>14. 1stが途中で書くのをやめる件</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）</div>
+  <ul>
+    <li>1stが「全頭書く」の指示に反して、1頭や0頭で返事を終えることがありました。</li>
+    <li>締切まで十分な時間があるときだけ、同じ内容をもう1回だけ送ります（1回2円ほど）。</li>
+    <li>書いた馬の数だけでなく、根拠を書いた馬の数でも判断します。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>15. 新馬戦などで、1stが予想をあきらめる件</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）</div>
+  <ul>
+    <li>過去の走りがない馬がいると、1stが予想そのものをあきらめることがありました。</li>
+    <li>「能力は資料不足にして、残りの4系統は調べる」という説明を、1stへの付録に足しました。</li>
+    <li>試験では、新馬戦でも予想が出ることを確かめました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>16. 2ndが途中でやめたとき、使えるAIが減る件</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）</div>
+  <ul>
+    <li>2ndにも、1stと同じ送り直しの仕組みを入れました。</li>
+    <li>途中でやめた・読めない・根拠を書いた馬が少なすぎるとき、時間があれば1回だけ送り直します。</li>
+    <li>2回目のほうが良いときだけ、2回目を使います。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>17. 両AIとも使えないときの表示と記録</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）</div>
+  <ul>
+    <li>画面には、よっしーさんの文面どおり「AIの評価を確認できなかったため、予想は出せませんでした」と出します。</li>
+    <li>出せないと決まった時点で、レースごとに1件だけ原因を記録します（AIごとの送信状態・検査の判定・送り直しの有無）。</li>
+    <li>同時に処理が走っても、記録が2件入らないようにしました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>18. 1.03倍の差を「断層」と呼んだ根拠の件</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）</div>
+  <ul>
+    <li>断層の根拠は、その馬が上側にいて、比が2.00以上の組があるときだけ認めるようにしました（プロンプトの決まりどおり）。</li>
+    <li>条件に合わない根拠は外し、点数・順位・候補は残った根拠からやり直します。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>19. AIが書いた入れ替えの判断と、サーバーの判断がずれる件</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）</div>
+  <ul>
+    <li>公開する候補は、もともとサーバーの判断で決めていて、AIが書いた判断は使っていません。</li>
+    <li>そのうえで、AIの判断とサーバーの判断のずれを、レースごとに記録するようにしました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>20. 3つの指標が出ない理由が分からない件</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）</div>
+  <ul>
+    <li>出ない理由を「対象の人気帯に馬がいない」「1stの返事を使えない」「AIが空欄にした」「検査で外れた」に分けて記録するようにしました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>21. 送り直したときに料金が二重に数えられる件</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）</div>
+  <ul>
+    <li>送信ごとに使用量を残し、確かめられたものだけを1回ずつ足すようにしました。</li>
+    <li>使わなかった返事の原文も残します。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>22. 締切間際に届いた返事の扱い</h2><span class="done">済</span></div>
+  <div class="when">11/10（火）夜</div>
+  <ul>
+    <li>返事が届いた時刻を、その原文と組にして残し、期限の判定はその時刻で行うようにしました。</li>
+    <li>期限より後に届いた2回目は、中身が良くても使わず、期限内の1回目を保ちます。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>23. 障害レースが、平地の比較対象に入っていた件</h2><span class="done">済</span></div>
+  <div class="when">11/11（水）</div>
+  <ul>
+    <li>過去の障害レースを、平地のE3・E5の比較対象から外しました。</li>
+    <li>今回のレースが障害なら、E3・E5は「対象外」にします（「材料不足」とは分けます）。</li>
+    <li>11/8 の全36レースで、直す前と後を比べて確かめました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>24. 当日の確認コマンドが、記録の欠けを見逃す件</h2><span class="done">済</span></div>
+  <div class="when">11/11（水）夜</div>
+  <ul>
+    <li>過去レースの一覧の記録が欠けているとき、「0件」と同じに扱わず「不合格」にするようにしました。</li>
+    <li>異常なケース11件と、実際のレースで誤って不合格にならないことを確かめました。</li>
+  </ul>
+</section>
+
+<h3 class="period" id="p3">11/14〜11/16　最初の週末を受けて</h3>
+
+<section>
+  <div class="head"><h2>25. 取消の馬がいると、材料を固められない件</h2><span class="done">済</span></div>
+  <div class="when">11/14（土）夜・11/15（日）</div>
+  <ul>
+    <li>11/14 福島1R・11/15 京都10R は、発走前に取消になった馬の過去走が残っていて、材料を固められませんでした。</li>
+    <li>固める前に取消になった馬の過去走は、入力に入れないようにしました。</li>
+    <li>11/15 の36レースを固め直す試験で、36レースすべて固められました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>26. 3つの指標が、全部「未算出」になっていた不具合</h2><span class="done">済</span></div>
+  <div class="when">11/15（日）</div>
+  <ul>
+    <li>画面に返す処理が版の情報を読んでおらず、検査を通った値まで「未算出」になっていました。</li>
+    <li>版を読むように直しました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>27. 対象の人気帯に馬がいないのに「未算出」と出る件</h2><span class="done">済</span></div>
+  <div class="when">11/15（日）</div>
+  <ul>
+    <li>その人気帯に馬がいないときは「対象外」と出すようにしました（サーバーとアプリ）。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>28. 頭数どおりに出ない件（補充を戻す）</h2><span class="done">済</span></div>
+  <div class="when">11/15（日）</div>
+  <ul>
+    <li>11/10 に「根拠で選べた馬だけを出す」にしていたため、頭数どおりに出ないレースがありました（11/15 は33レース中21レースだけ頭数どおり）。</li>
+    <li>よっしーさんの判断（B：頭数分を表示）で、足りない分を「補充」で埋めるように戻しました。</li>
+    <li>京都12Rで8頭出ていた件も直し、合計が頭数を超えないようにしました。</li>
+    <li>根拠のある馬が0頭のときは、全頭を「補充（参考）」で出します。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>29. 補充の並び順と、充足の記録</h2><span class="done">済</span></div>
+  <div class="when">11/15（日）夜</div>
+  <ul>
+    <li>補充の並び順を、検査を通った順位から取るようにしました（取れないときは6分前の人気順）。</li>
+    <li>「通常だけで頭数どおり」「補充込み」「参考だけ」などを、レースごとに記録するようにしました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>30. 補充の馬の画面表示</h2><span class="done">済</span></div>
+  <div class="when">11/15（日）夜</div>
+  <ul>
+    <li>補充の馬はAI選出の印を付けたまま、おすすめ度の「%」を出さないようにしました（総合予想・馬の選択画面・レース画面）。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>31. レースの型が決まらないレース（11/15 京都6R）の扱い</h2><span class="done">済</span></div>
+  <div class="when">11/15（日）</div>
+  <ul>
+    <li>信号が2つ不明でレースの型が決まらず、決まりどおり選ぶのをやめていました。</li>
+    <li>豊田さんの「任せる」で、プロンプトの決まりどおり公開しない扱いにしました。</li>
+    <li>記録を「AIの評価を確認できなかった」と分け、監視でエラーに数えないようにしました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>32. 早めに材料を固める（早期凍結）</h2><span class="done">済</span></div>
+  <div class="when">11/15（日）夜に入れ、11/21 から使用</div>
+  <ul>
+    <li>6分前のオッズがそろった時点で、発走5分前を待たずに固めるようにしました（本文 第5版）。</li>
+    <li>11/15 の36レースで試すと、平均で発走の約338秒前（今までより約38秒早い）に固められました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>33. 3つの指標を候補の選び方にも使う</h2><span class="stop">済・2週末は表示だけ（なるさんと合意）</span></div>
+  <div class="when">11/16（月）に入れ、11/21〜23 に使用</div>
+  <ul>
+    <li>荒れそうなレースで、A帯の最後の1頭をB帯かD帯の次の1頭と入れ替える仕組みを作りました（本文 第6版）。入った馬には「指標反映」の印を付けます。</li>
+    <li>11/24 に3指標の出し方をサーバー計算に変えたので、新しい数字で入れ替えてよいかは、まだ確かめられていません。</li>
+    <li>そのため、なるさんの判断（11/24 問4 B）で、11/28〜30 と次の週末は表示だけにして、入れ替えはしません。</li>
+    <li>その間「入れ替えていたら、どの馬が入って、どの馬が外れたか」と、その馬の着順・複勝払戻を、保存したデータから集計します。</li>
+    <li>結果を見て、入れ替えを再開するかを決めます。再開するときは、プレミアR5の版でも動くように設定を足します。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>34. レース後の「合致数」の内訳</h2><span class="done">済</span></div>
+  <div class="when">11/16（月）</div>
+  <ul>
+    <li>「全体（補充含む）7頭中2頭が合致（通常5頭中1頭・補充2頭中1頭）」のように、内訳を出すようにしました。</li>
+    <li>AI予想の画面と過去レースの画面の両方で同じ出し方です。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>35. 過去レースの結果を、いつ確かめたかの記録</h2><span class="done">済</span></div>
+  <div class="when">11/16（月）</div>
+  <ul>
+    <li>毎晩23:40の処理で結果を確かめ、確かめ終わった実際の時刻を記録するようにしました。</li>
+    <li>予想の日の0時より前に確かめた結果だけを、予想に使います。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>36. 選び方の決まりを、固めたときに記録する</h2><span class="done">済</span></div>
+  <div class="when">11/16（月）</div>
+  <ul>
+    <li>材料を固めたときに、使う選び方の決まり（有効か・中の数値）を記録するようにしました。</li>
+    <li>公開のときは、その記録と一致する決まりだけで選びます。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>37. 実際にAIへ送った本文が、決めた本文と同じか</h2><span class="done">済</span></div>
+  <div class="when">11/15（日）</div>
+  <ul>
+    <li>11/14・15 に送った136件すべてで、送った本文が本文ファイルと一致することを確かめました。</li>
+    <li>11/21〜23 の141件でも、保管した第6版と一致しました（11/24）。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>38. 材料を固めるのが本番で遅い件の調査</h2><span class="done">済</span></div>
+  <div class="when">11/15（日）〜</div>
+  <ul>
+    <li>単独なら5〜7秒の処理が、本番では25〜47秒かかっていました。</li>
+    <li>段階ごとの秒数とサーバーの混み具合を記録するようにし、終わったレースを見回りで飛ばすようにしました。</li>
+    <li>11/24 に、重なっていたのは結果の取り込みだと分かりました（50）。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>39. 説明画面と早見表を最新に</h2><span class="done">済</span></div>
+  <div class="when">11/16（月）</div>
+  <ul>
+    <li>アプリの説明画面2つと早見表に、指標反映の条件・早期凍結・結果の確認時刻などを書き足しました。</li>
+  </ul>
+</section>
+
+<h3 class="period" id="p4">11/18〜11/20　速さと守り</h3>
+
+<section>
+  <div class="head"><h2>40. 画面を開くと「30秒を超えました」と出る件</h2><span class="done">済</span></div>
+  <div class="when">11/18（水）</div>
+  <ul>
+    <li>予想の組み立てが重く、画面を開いたときに時間切れになることがありました。</li>
+    <li>組み立てた予想を残しておき、2人目からはすぐ返すようにしました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>41. AIの鍵が、身に覚えのない使われ方をした件</h2><span class="done">済</span></div>
+  <div class="when">11/19（木）</div>
+  <ul>
+    <li>月の上限に届いて予想が止まったので、その鍵を止めて新しい鍵を馬眼力のサーバーにだけ入れました。</li>
+    <li>馬眼力専用の枠を作り、月の上限を30ドルにしました。自動の買い足しは止めました。</li>
+    <li>漏れ口そのものは、まだ分かっていません（残っていること）。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>42. サーバーの守りを固める</h2><span class="done">済</span></div>
+  <div class="when">11/19（木）</div>
+  <ul>
+    <li>外から入れる口を、Webと管理用の3つだけにしました。</li>
+    <li>サーバーへのログインは、豊田さんのMacの鍵でしかできないようにしました。</li>
+    <li>馬眼力のサーバーに、入り込まれた跡はありませんでした。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>43. 1つの大きなプログラムファイル</h2><span class="done">済</span></div>
+  <div class="when">11/20（金）</div>
+  <ul>
+    <li>1つの大きなファイルを、役割ごとの43ファイルに分けました。</li>
+    <li>中身は1行も変えていないことを確かめています。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>44. 土日に予想が止まらないかの確認</h2><span class="done">済</span></div>
+  <div class="when">11/20（金）</div>
+  <ul>
+    <li>サーバーのファイル57個が手元と同じか、新しい鍵が使えるか、材料を固められるか、などを確かめました。</li>
+    <li>11/14・15 の68レースを今のプログラムで作り直すと、すべて公開したものと同じでした。</li>
+    <li>どれもDBに何も残さない形で行いました。</li>
+  </ul>
+</section>
+
+<h3 class="period" id="p5">11/21〜11/25　第7版とプレミアR5</h3>
+
+<section>
+  <div class="head"><h2>45. 新しいプロンプトが止まっていた件（11/21 朝）</h2><span class="done">済</span></div>
+  <div class="when">11/21（土）朝</div>
+  <ul>
+    <li>11/19 の鍵の入れ替えのとき、新しいプロンプトを有効にする設定が消えていました。</li>
+    <li>11/21 の福島1Rだけ古いプロンプトで予想し、9時台に設定を戻しました（京都1Rからは新しいプロンプト）。</li>
+    <li>手元の設定ファイルにも入れ、次の入れ替えで消えないようにしました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>46. 週末（11/21〜23）の集計と報告</h2><span class="done">済</span></div>
+  <div class="when">11/24（火）</div>
+  <ul>
+    <li>3日間の時間、時間切れ、予想を出せなかったレース、料金を集計し、報告書と早見表をなるさんへ渡しました。</li>
+    <li>夜の結果確認とエラーの記録も確かめました（エラー0件）。</li>
+    <li>料金は3日で約10ドルでした。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>47. 3つの指標が出たり出なかったりする件（第7版）</h2><span class="done">済</span></div>
+  <div class="when">11/24（火）に入れ、11/28 の予想から表示</div>
+  <ul>
+    <li>11/21〜23 は、半分のレースでしか出ず、値もほぼ真ん中でした。</li>
+    <li>AIに答えさせるのをやめ、サーバーが毎回同じ決まりで計算するようにしました（1stの本文からも外しました）。</li>
+    <li>数字の下に「（E5）」「（参考・複勝オッズ）」など、どこから出した数字かを出します。</li>
+    <li>11/27 までのレースは、そのとき保存したAIの値を表示します。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>48. AIの返事を、目印の行が無いだけで捨てていた件</h2><span class="done">済</span></div>
+  <div class="when">11/24（火）</div>
+  <ul>
+    <li>中身は正しいのに、決まりの始まり・終わりの行を付けずに返すことがありました（11/21〜23 で13件、すべて1st）。</li>
+    <li>返事が丸ごとJSONだけのときは、中身の検査を通れば使うようにしました。</li>
+    <li>保存済みの13件は、すべて読めるようになりました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>49. 2ndの返事の「{」抜けで全体が読めなくなる件</h2><span class="done">済</span></div>
+  <div class="when">11/24（火）</div>
+  <ul>
+    <li>根拠の区切りで「{」を1文字書き忘れ、返事全体が読めなくなることがありました（11/14〜23 で5件）。</li>
+    <li>11/23 福島10R の全頭補充は、これと1stの投げ出しが重なったのが原因でした。</li>
+    <li>なるさんと決めた範囲（2ndの返事だけ・1か所だけ）で、補って読むようにしました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>50. 2ndの送信が遅れて時間切れになる件（2回目）</h2><span class="done">済</span></div>
+  <div class="when">11/24（火）</div>
+  <ul>
+    <li>11/21〜23 は、2ndの時間切れが5回、送れなかったレースが1回ありました。</li>
+    <li>どれも、ほかのレースの結果を取り込む処理と重なり、2ndを送るのが遅れていました。</li>
+    <li>発走2〜8分前のレースがある間は、結果の取り込みを見送るようにしました。見送った分は5分後の回と夜の取り込みで埋まります。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>51. 土曜の朝に、日曜のレースが中途半端に出る件</h2><span class="done">済</span></div>
+  <div class="when">11/24（火）</div>
+  <ul>
+    <li>土曜の朝の時点では、JRAに日曜の情報がまだそろっておらず、一部の競馬場だけ出ていました。</li>
+    <li>土曜も、ほかの日と同じく当日分だけを取り込むようにしました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>52. 5着内傾向（E5）がほとんど働いていない件（作業2）</h2><span class="done">済</span></div>
+  <div class="when">11/24（火）に入れ、11/28 の予想から使用</div>
+  <ul>
+    <li>E5の計算に使う過去レースに、6月からのデータを足しました。予想の時点で使えたものだけを使います。</li>
+    <li>今の設定で 11/23 の24レースを固め直すと、E5を比べられる馬は359頭中158頭でした（当日の本番では0頭）。</li>
+    <li>試験で、境目の入れ替えが実際に1件起きました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>53. E5専用・8項目86点（プレミアR5）</h2><span class="done">済</span></div>
+  <div class="when">11/25（水）に入れ、11/28 の予想から使用</div>
+  <ul>
+    <li>よっしーさんのPDFと、なるさんのZIPのとおりに作りました。本文はZIPのファイルそのものです。</li>
+    <li>採点は8項目・86点満点（回収率と最終オッズ予測を外しました）、枠の境目は5着内傾向だけで判断します。</li>
+    <li>AIへ渡すE5の表から、3着内用の値を外しました。</li>
+    <li>境目のサーバー判断と、資料があるのにH4・V5を採点しなかった馬を、記録するようにしました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>54. ZIPの厳しい検査で、使える馬が減る件</h2><span class="done">済</span></div>
+  <div class="when">11/25（水）</div>
+  <ul>
+    <li>ZIPの検査をそのまま使うと、1stの候補になれる馬が466頭から321頭に減り、0頭になるレースも出ることが分かりました。</li>
+    <li>採否は今の検査のまま、ZIPの検査に合わない所は記録するだけにしました（なるさんも了承）。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>55. アプリの説明画面の文</h2><span class="done">済</span></div>
+  <div class="when">11/24（火）・11/25（水）に配置</div>
+  <ul>
+    <li>3つの指標の数字の下に、算出元を出すようにしました。</li>
+    <li>「AI分析について」の説明を8項目・86点満点に直し、枠の境目の入れ替えの説明を足しました。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="head"><h2>56. 出走頭数に応じた数を出せているか</h2><span class="done">済</span></div>
+  <div class="when">11/25（水）に確認</div>
+  <ul>
+    <li>11/21〜23 は、全レースで出走頭数に応じた頭数（4・5・6・7頭）が画面に出ていました。</li>
+    <li>AIの根拠がある馬で足りなかった6レースは「補充」、両AIとも使えなかった4レースは全頭「補充（参考）」でした。</li>
+    <li>11/28 からの新しい版でも、頭数をそろえる仕組みは同じです。</li>
+  </ul>
+</section>
+
+<section id="left">
+  <div class="head"><h2>まだ残っていること</h2></div>
+  <ul>
+    <li><b>1stが全頭を評価しきれない</b>　→ 11/21〜23 は71レース中38で初回に評価しきれませんでした。3指標を外した本文で減るかを、11/28〜30 に数えます。</li>
+    <li><b>1stがV5を採点しない</b>　→ 試験の2レースで全34頭が未採点でした。点数順を使えなかった帯の数を、11/28〜30 に数えます。</li>
+    <li><b>買う時間が足りないとき、返事を短くする案</b>　→ 11/28〜30 の時間を見て決めます。</li>
+    <li><b>3つの指標による入れ替え</b>　→ 2週末は止めています。当たり方を見てから決めます。</li>
+    <li><b>AIへの訂正の依頼</b>　→ 今は依頼しない方針です。再開するときに、H4・V5の訂正と帯の書き間違いの訂正を入れます。</li>
+    <li><b>鍵の漏れ口</b>　→ 調べている最中です。漏れても、馬眼力の枠の上限（月30ドル）より多くは使われません。</li>
+    <li><b>プログラムの中の分かりにくい名前</b>（E3・E5 など）　→ 12/1 から。</li>
+  </ul>
+  <p class="note">レースがある日（11/28〜30）は、サーバーには手を入れません。</p>
+</section>
+
+</main>
+</body>
+</html>

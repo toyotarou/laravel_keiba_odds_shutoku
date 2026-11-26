@@ -1,8 +1,8 @@
 {
-  "prompt_version": "baganriki-v041-r12-2-w2-e35-r15-20261104",
+  "prompt_version": "baganriki-v041-r12-2-w2-e5-r15-score8-e5-r5-20261125",
   "validator_version": "w2-r15.21",
   "expected_history_policy": "EXPECTED_HISTORY_UNRECORDED_TIME_V1",
-  "schema_version": "baganriki-v041-r12-2-w2-e35-r15",
+  "schema_version": "baganriki-v041-r12-2-w2-e5-r15-score8-e5-r5",
   "base_quota": {
     "4": {
       "FIRM": [
@@ -81,8 +81,6 @@
     "H5": 6,
     "V1": 12,
     "V2": 10,
-    "V3": 8,
-    "V4": 6,
     "V5": 4
   },
   "max_snapshot_runners": 18,
@@ -110,7 +108,7 @@
   "decimal_protocol": "raw JSON decimal or DB decimal-string export; no float roundtrip",
   "evidence_only_rank_uses_scores": false,
   "coverage_version": "coverage-v1-r8",
-  "implementation_version": "baganriki-v041-r12-2-w2-e35-r15-20261104",
+  "implementation_version": "baganriki-v041-r12-2-w2-e5-r15-score8-e5-r5-20261125",
   "mode_policy_id": "BASE_TRI_STATE_V1",
   "provisional_mode_policy_id": "X6_ONLY_UPPER_MODE_V1",
   "time_contract_version": "baganriki-post-slot-grace-v1",
@@ -130,7 +128,7 @@
   "model_version": null,
   "buy_recommended": false,
   "expected_score_policy": {
-    "id": "E35_BAND_BOUNDARY_V1",
+    "id": "E5_BAND_BOUNDARY_V1",
     "enabled_for_W2_selection": true,
     "scope": "BAND_BOUNDARY",
     "formula_version": "baganriki-expected-v0.1-draft-20261025",
@@ -139,17 +137,18 @@
     "eligible_status": "COMPARISON_READY",
     "calibration_default": null,
     "public_release_approved": false,
-    "buy_recommended": false
+    "buy_recommended": false,
+    "rule": "全帯：次点の E5 が最後の候補の E5 を上回り、かつ次点の p5_raw が次点自身の p0_5 を上回るとき SWAP。E3 は使わない"
   },
   "system_file_sha256": {
-    "prompt_1st.txt": "05926eb62d72705c4f2203a6df109b812558d179658b05adb70a189950186928",
-    "prompt_2nd.txt": "7fd4ea9953c28ddd40b27ed69c2955af71f9cf3177eba9b85bb04b57a63f5f29",
-    "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "8655798a9ade2962aecbfe6c6ce292cde5d39d661937f851f4b5ccb4241ad33c",
-    "SOURCE_DICT_V3_ADDENDUM_V1.txt": "a0c8e3a574cefa0c5ad8fec623f8ee1e4d82892ef404554edff5c3104dec7c4f"
+    "prompt_1st.txt": "168ffae16878962560ec0a81b8d64d22365d50dcd1026ea275d115e781d91dea",
+    "prompt_2nd.txt": "5a6d51be975c2c74fd3a2f902e578b9d4d2e56fe53341e3e59cb0cf06d0b8a34",
+    "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "0b1327bcfa17ecb96a3a22b3519229f29c56d2fa4537782ed0517d9b82d2cce5",
+    "SOURCE_DICT_V3_ADDENDUM_V1.txt": "7abcebd6cb483837c5d1b27104645a892583e4a02fce784f4de25b86345d17ad"
   },
   "score_evidence_policy": "W2_R14_SCORE_MATERIALS_V1",
   "family_evidence_policy": "W2_R14_FAMILY_MATERIALS_V1",
-  "active_text_revision": "COMPACT_TEXT_20261124_07",
+  "active_text_revision": "E5_SCORE8_R5_20261125_02",
   "archived_text_revisions": {
     "ORIGINAL_R15_18": {
       "prompt_1st.txt": "fc73c229618a7d2ba1c5462bddafaa08b61a760395c0b165d325914b187660fb",
@@ -183,6 +182,18 @@
       "prompt_2nd.txt": "eb3c8f5939761e43f4507d1a4ffd07b54c827919a8ee7bc4ca8c9a2a8e49ed85",
       "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "fed377789e4899a73fc474d69687d81afd480d80abf201370abb483438ef678c",
       "SOURCE_DICT_V3_ADDENDUM_V1.txt": "58a9fbf8cbb4ee0380ab6946de89f589ece19e112dcc3ffad6bc0a6931ff1f9b"
+    },
+    "COMPACT_TEXT_20261124_07": {
+      "prompt_1st.txt": "05926eb62d72705c4f2203a6df109b812558d179658b05adb70a189950186928",
+      "prompt_2nd.txt": "7fd4ea9953c28ddd40b27ed69c2955af71f9cf3177eba9b85bb04b57a63f5f29",
+      "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "8655798a9ade2962aecbfe6c6ce292cde5d39d661937f851f4b5ccb4241ad33c",
+      "SOURCE_DICT_V3_ADDENDUM_V1.txt": "a0c8e3a574cefa0c5ad8fec623f8ee1e4d82892ef404554edff5c3104dec7c4f"
+    },
+    "E5_SCORE8_R5_20261125": {
+      "prompt_1st.txt": "b38ae70a567cffd3362f96f478601c9ed14c593b691a21ab8effa9d07858a6fb",
+      "prompt_2nd.txt": "fb25d2d2d1c39416a960f01614e9fecb2b45ec17ec4691bcf1c4d981470f6725",
+      "SOURCE_TABLE_V1_ADDENDUM_V2.txt": "0b1327bcfa17ecb96a3a22b3519229f29c56d2fa4537782ed0517d9b82d2cce5",
+      "SOURCE_DICT_V3_ADDENDUM_V1.txt": "7edbaa488e098fe21c5458daf5daf2ac6f2ae9ee7cf6bf439b1c65195b376a49"
     }
   },
   "validation_contract_revision": "w2-r15.21",
@@ -202,6 +213,14 @@
     "COMPACT_TEXT_20261124_07": {
       "1st": "SOURCE_DICT_V3",
       "2nd": "SOURCE_TABLE_V1"
+    },
+    "E5_SCORE8_R5_20261125": {
+      "1st": "SOURCE_DICT_V3",
+      "2nd": "SOURCE_TABLE_V1"
+    },
+    "E5_SCORE8_R5_20261125_02": {
+      "1st": "SOURCE_DICT_V3",
+      "2nd": "SOURCE_TABLE_V1"
     }
   },
   "race_metrics_policy": {
@@ -218,13 +237,17 @@
       "COMPACT_TEXT_20261109_04": false,
       "COMPACT_TEXT_20261109_05": false,
       "COMPACT_TEXT_20261109_06": "RACE_METRICS_SELECTION_V1",
-      "COMPACT_TEXT_20261124_07": false
+      "COMPACT_TEXT_20261124_07": false,
+      "E5_SCORE8_R5_20261125": false,
+      "E5_SCORE8_R5_20261125_02": false
     },
     "producer_by_text_revision": {
       "COMPACT_TEXT_20261109_04": "1st",
       "COMPACT_TEXT_20261109_05": "1st",
       "COMPACT_TEXT_20261109_06": "1st",
-      "COMPACT_TEXT_20261124_07": "server"
+      "COMPACT_TEXT_20261124_07": "server",
+      "E5_SCORE8_R5_20261125": "server",
+      "E5_SCORE8_R5_20261125_02": "server"
     }
   },
   "role_wire_format": {
@@ -245,7 +268,9 @@
     "COMPACT_TEXT_20261109_04": "baganriki-post-slot-grace-v1",
     "COMPACT_TEXT_20261109_05": "baganriki-post-slot-grace-v2-early",
     "COMPACT_TEXT_20261109_06": "baganriki-post-slot-grace-v2-early",
-    "COMPACT_TEXT_20261124_07": "baganriki-post-slot-grace-v2-early"
+    "COMPACT_TEXT_20261124_07": "baganriki-post-slot-grace-v2-early",
+    "E5_SCORE8_R5_20261125": "baganriki-post-slot-grace-v2-early",
+    "E5_SCORE8_R5_20261125_02": "baganriki-post-slot-grace-v2-early"
   },
   "early_freeze_policy": {
     "id": "EARLY_AFTER_SLOT6_V1",
@@ -290,7 +315,9 @@
   "server_race_metrics_policy": {
     "id": "SERVER_RACE_METRICS_V1",
     "text_revisions": [
-      "COMPACT_TEXT_20261124_07"
+      "COMPACT_TEXT_20261124_07",
+      "E5_SCORE8_R5_20261125",
+      "E5_SCORE8_R5_20261125_02"
     ],
     "display_from_race_date": "2026-11-28",
     "wave_level": "レースの型の点数 S=2*X1+X2+X3+X4+X5+X6-2*Z。0以下=1、1=2、2〜3=3、4〜5=4、6以上=5。不明の信号があれば点数の下限〜上限を残し、段階がまたがれば低い方を暫定",
@@ -304,5 +331,43 @@
     "本文を COMPACT_TEXT_20261124_07 に（なる11/24 問1 A）。1st の本文・送信形式の付録から3指標（race_metrics）の出力要求を外した。3指標はサーバが凍結入力だけから計算する（BaganrikiServerRaceMetrics）。_06 の原本（本文3つと付録2つ）は prompts/versions/COMPACT_TEXT_20261109_06/ に保存し、archived_text_revisions で照合する",
     "_07 の1stの応答に race_metrics があっても読まずに捨てる（検査しない・不通過にしない）。_04〜_06 の保存済み予想は今までどおり検査・再現する",
     "3指標による選出の入れ替え（RACE_METRICS_SELECTION_V1）は _07 では行わない"
+  ],
+  "expected_score_policy_e35": {
+    "id": "E35_BAND_BOUNDARY_V1",
+    "enabled_for_W2_selection": true,
+    "scope": "BAND_BOUNDARY",
+    "formula_version": "baganriki-expected-v0.1-draft-20261025",
+    "implementation_version": "baganriki-expected-impl-v0.1.4",
+    "max_swaps_per_band_per_role": 1,
+    "eligible_status": "COMPARISON_READY",
+    "calibration_default": null,
+    "public_release_approved": false,
+    "buy_recommended": false
+  },
+  "versions": {
+    "baganriki-v041-r12-2-w2-e35-r15-20261104": {
+      "schema_version": "baganriki-v041-r12-2-w2-e35-r15",
+      "score_caps": "10項目100点（プログラムの SCORE_CAPS_E35）",
+      "boundary": "E35_BAND_BOUNDARY_V1",
+      "schemas": "schemas/",
+      "frozen": "〜2026-11-27"
+    },
+    "baganriki-v041-r12-2-w2-e5-r15-score8-e5-r5-20261125": {
+      "schema_version": "baganriki-v041-r12-2-w2-e5-r15-score8-e5-r5",
+      "score_caps": "8項目86点（この contract.json の score_caps）",
+      "boundary": "E5_BAND_BOUNDARY_V1",
+      "schemas": "schemas/e5_score8/",
+      "frozen": "2026-11-28〜"
+    }
+  },
+  "local_changes_20261125": [
+    "E5専用・8項目86点の版（よっしー11/25「E5専用プロンプト R5」）にした。prompt_version・schema_version・score_caps・active_text_revision（E5_SCORE8_R5_20261125）を変更",
+    "E3 を枠の境目の比較から外した（E5_BAND_BOUNDARY_V1）。採点から V3（回収率）・V4（推定確定オッズと誤差）を外した",
+    "回答・入力・復元の形は schemas/e5_score8/ に置いた。〜11/27 に凍結したレースは、今までの版（e35-r15、schemas/ 直下、10項目）のまま検査・再現する",
+    "_07 の原本（本文3つと付録2つ）は prompts/versions/COMPACT_TEXT_20261124_07/ に保存",
+    "common_prompt.txt は送信に使わないため _07 のまま（E5専用版の共通本文は受け取っていない）",
+    "（11/25 追記）なるの元ファイル（馬眼力_プレミア_8項目86点_E5専用_エンジニア用.zip）を受け取り、本文3つ（prompt_1st・prompt_2nd・common_prompt）と付録2つ、schemas/e5_score8/ の output_schema.json・recovery_schema.json を、ZIPのファイルそのものに置き換えた。本文の版は E5_SCORE8_R5_20261125_02",
+    "E5_SCORE8_R5_20261125（PDFから取り出した本文。空白以外は _02 と同じ）は prompts/versions/E5_SCORE8_R5_20261125/ に保存。11/25 の非公開試験（世代900）の再現に使う",
+    "E5専用版の expected_v01.rows から E3・p3_raw・p0_3 を外した（入力の形 schemas/e5_score8/input_schema.json と、入力の検査も合わせた）"
   ]
 }

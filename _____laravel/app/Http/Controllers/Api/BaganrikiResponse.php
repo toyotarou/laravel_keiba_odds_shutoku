@@ -273,10 +273,10 @@ final class BaganrikiResponse
             if (is_array($h['scores'] ?? null)) {
                 $sum = 0; $cap = 0; $ok = true;
                 foreach ($h['scores'] as $sk => $sv) {
-                    if (!array_key_exists($sk, BaganrikiDiagnose::SCORE_CAP)) { $ok = false; break; }
+                    if (!array_key_exists($sk, BaganrikiDiagnose::scoreCap())) { $ok = false; break; }
                 }
                 if ($ok) {
-                    foreach (BaganrikiDiagnose::SCORE_CAP as $sk => $mx) {
+                    foreach (BaganrikiDiagnose::scoreCap() as $sk => $mx) {
                         if (!array_key_exists($sk, $h['scores'])) { $ok = false; break; }
                         $sv = $h['scores'][$sk];
                         if ($sv === null) { continue; }
@@ -285,7 +285,7 @@ final class BaganrikiResponse
                     }
                 }
                 if ($ok) {
-                    $st = ($cap === array_sum(BaganrikiDiagnose::SCORE_CAP)) ? 'complete' : 'partial';
+                    $st = ($cap === array_sum(BaganrikiDiagnose::scoreCap())) ? 'complete' : 'partial';
                     $want = ['observed_sum' => $sum, 'observed_cap' => $cap, 'score_status' => $st,
                              'total_score' => ($st === 'complete') ? $sum : null];
                     foreach ($want as $fk => $fv) {

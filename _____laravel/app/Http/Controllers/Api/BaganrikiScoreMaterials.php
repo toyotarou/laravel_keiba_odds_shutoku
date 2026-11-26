@@ -29,7 +29,7 @@ final class BaganrikiScoreMaterials
 
     public static function usesR14Rules(mixed $version):bool
     {
-        return $version===self::R14 || $version===BaganrikiCandidateSelection::VERSION;
+        return $version===self::R14 || BaganrikiCandidateSelection::isExpected($version);
     }
 
     public static function handlesVersion(mixed $version):bool

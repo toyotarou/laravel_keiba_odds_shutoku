@@ -60,6 +60,13 @@ final class BaganrikiDiagnose
     public const SCORE_CAP = ['H1' => 18, 'H2' => 15, 'H3' => 12, 'H4' => 9, 'H5' => 6,
                               'V1' => 12, 'V2' => 10, 'V3' => 8,  'V4' => 6, 'V5' => 4];
 
+    /** @ANCHOR-20261125-E5-SCORE8  いま扱っている版の満点（E5専用版は8項目。それ以外は上の10項目） */
+    public static function scoreCap(): array
+    {
+        return BaganrikiCandidateSelection::e5Only(BaganrikiCandidateSelection::contextVersion())
+            ? BaganrikiCandidateSelection::scoreCaps() : self::SCORE_CAP;
+    }
+
     /** 1頭ぶんに必ずある項目 */
     public const HORSE_KEYS = ['horse_no', 'band', 'tier', 'eligibility', 'family_review',
                                'evidence', 'counterevidence', 'scores', 'score_evidence',
@@ -123,6 +130,9 @@ final class BaganrikiDiagnose
         //   observed_sum・observed_cap・total_score は集計の誤りなので、
         //   ここには入れません（計算し直せば直るためです）。
         $badScore = [];
+        // @ANCHOR-20261125-UNSCORED-WITH-MATERIAL  採点できる資料がそろっているのに、AIが H4・V5 を「資料不足（null）」にした馬と項目（なる 11/25「はじめに.txt」R5）
+        //   記録するだけ。指摘（findings）には入れないので、馬の採否・順位・候補は今までと同じ（訂正は依頼しない方針のため）
+        $unscoredWithMaterial = [];
         $markScore = static function (int $no, $keys) use (&$badScore) {
             foreach ((array) $keys as $k) {
                 if (!is_string($k) || $k === '') { continue; }
@@ -141,7 +151,8 @@ final class BaganrikiDiagnose
         sort($frozenNums);
 
         $w2Projection = BaganrikiScoreMaterials::usesR14Rules($src['prompt_version'] ?? null);
-        $w15 = ($src['prompt_version'] ?? null) === BaganrikiCandidateSelection::VERSION;
+        BaganrikiCandidateSelection::useVersion($src['prompt_version'] ?? null);   // @ANCHOR-20261125-E5-SCORE8
+        $w15 = BaganrikiCandidateSelection::isExpected($src['prompt_version'] ?? null);
         $typedInvalid = $unsafeNested = [];
         if ($w15 && $responseMap !== null && $inputMap !== null) {
             [$typedInvalid, $unsafeNested] = BaganrikiResponseInspection::raw($src, $res, $inputMap, $responseMap, $add, $markScore);
@@ -262,7 +273,7 @@ final class BaganrikiDiagnose
                 $okRow = false;
             } else {
                 $extra = array_values(array_diff(array_keys($sc),
-                                                 array_keys(self::SCORE_CAP)));
+                                                 array_keys(self::scoreCap())));
                 if ($extra !== []) {
                     $add('horses', $no, 'SCORES_UNKNOWN_KEY',
                          '採点辞書に無い項目があります（' . implode('・', $extra) . '）');
@@ -270,7 +281,7 @@ final class BaganrikiDiagnose
                     $okRow = false;
                 }
                 $sum = 0; $cap = 0; $bad = [];
-                foreach (self::SCORE_CAP as $k => $mx) {
+                foreach (self::scoreCap() as $k => $mx) {
                     if (!array_key_exists($k, $sc)) {
                         $add('horses', $no, 'SCORES_MISSING', $k . 'がありません');
                         $markScore($no, [$k]);        // @ANCHOR-...-SCOREKEY
@@ -300,7 +311,7 @@ final class BaganrikiDiagnose
                              'observed_cap が採点した項目の満点合計と合いません');
                         $okRow = false;
                     }
-                    $expectedStatus = ($cap === array_sum(self::SCORE_CAP)) ? 'complete' : 'partial';
+                    $expectedStatus = ($cap === array_sum(self::scoreCap())) ? 'complete' : 'partial';
                     if (($h['score_status'] ?? null) !== $expectedStatus
                         || ($expectedStatus === 'complete'
                             && (!is_int($h['total_score'] ?? null) || $h['total_score'] !== $sum))
@@ -332,11 +343,11 @@ final class BaganrikiDiagnose
                 $add('horses', $no, 'SCORE_EVIDENCE_TYPE',
                      'score_evidence がありません');
                 // No item has verifiable score evidence when the container is unusable.
-                $markScore($no, array_keys(self::SCORE_CAP));
+                $markScore($no, array_keys(self::scoreCap()));
                 $okRow = false;
             } else {
                 $exSe = array_values(array_diff(array_keys($se),
-                                                array_keys(self::SCORE_CAP)));
+                                                array_keys(self::scoreCap())));
                 if ($exSe !== []) {
                     $add('horses', $no, 'SCORE_EVIDENCE_UNKNOWN_KEY',
                          '採点辞書に無い項目の出典があります（'
@@ -344,7 +355,7 @@ final class BaganrikiDiagnose
                     $markScore($no, $exSe);           // @ANCHOR-...-SCOREKEY
                     $okRow = false;
                 }
-                foreach (self::SCORE_CAP as $k => $mx) {
+                foreach (self::scoreCap() as $k => $mx) {
                     if (!array_key_exists($k, $se)) {
                         $add('horses', $no, 'SCORE_EVIDENCE_MISSING',
                              $k . 'の出典欄がありません');
@@ -382,6 +393,17 @@ final class BaganrikiDiagnose
                              $k . 'に点が付いているのに出典がありません');
                         $markScore($no, [$k]);        // @ANCHOR-...-SCOREKEY
                         $okRow = false;
+                    }
+                    // @ANCHOR-20261125-UNSCORED-WITH-MATERIAL  E5専用版：H4・V5 が null のとき、この馬に使える凍結資料の全体から「完全な組」があるかを見る
+                    //   H4＝同じ類似集計の入着率＋正の母数。V5＝その組、または同じ馬・同じ観測枠の複勝最小・最大（BaganrikiScoreMaterials::supports と同じ条件）
+                    if ($v === null && in_array($k, ['H4', 'V5'], true)
+                            && BaganrikiCandidateSelection::e5Only($src['prompt_version'] ?? null)) {
+                        $w2ScoreCache ??= [];
+                        try {
+                            $materialExists = BaganrikiScoreMaterials::supports($src, $no, $k,
+                                BaganrikiSourceEvidence::availableRefs($src, $no), $w2ScoreCache);
+                        } catch (\Throwable $unreadable) { $materialExists = false; }
+                        if ($materialExists) { $unscoredWithMaterial[] = ['horse_no' => $no, 'score_key' => $k]; }
                     }
                     if ($v === null && $reason === '') {
                         $add('summary_horses', $no, 'SCORE_NULL_WITHOUT_REASON',
@@ -570,7 +592,7 @@ final class BaganrikiDiagnose
             // Rank mode follows the scores that survive validation and local salvage.
             // A claimed 'complete' must not preserve SCORE order after an item is nulled.
             $scoreComplete[$no] = is_array($sc);
-            foreach (self::SCORE_CAP as $key => $max) {
+            foreach (self::scoreCap() as $key => $max) {
                 $value = is_array($sc) ? ($sc[$key] ?? null) : null;
                 if (!is_int($value) || $value < 0 || $value > $max
                     || isset($badScore[$no][$key])) {
@@ -802,12 +824,14 @@ final class BaganrikiDiagnose
             //   救済はこの項目だけを null にします（全部ではありません）。
             'bad_scores'   => array_map(
                 static fn($m) => array_values(array_keys((array) $m)), $badScore),
+            // @ANCHOR-20261125-UNSCORED-WITH-MATERIAL  資料がそろっているのに未採点だった馬と項目（記録だけ）
+            'unscored_with_material' => $unscoredWithMaterial,
         ];
     }
 
     public static function revision(mixed $release):string
     {
-        return $release === BaganrikiCandidateSelection::VERSION
+        return BaganrikiCandidateSelection::isExpected($release)
             ? BaganrikiResponseInspection::REVISION : self::VERSION;
     }
 

@@ -21,6 +21,7 @@ final class BaganrikiResponseFrame
             'baganriki-v041-r12-2-w2-e35-r13-20261104',
             'baganriki-v041-r12-2-w2-e35-r14-20261104',
             BaganrikiCandidateSelection::VERSION,
+            BaganrikiCandidateSelection::VERSION_E5,   // @ANCHOR-20261125-E5-SCORE8
         ],true);
     }
 
@@ -60,6 +61,32 @@ final class BaganrikiResponseFrame
         $body=substr($framed,$first+1,$bodyEnd-$first-1);
         // No generic trim(): NUL / vertical tab / non-JSON bytes must be rejected by strict().
         $parsed=BaganrikiJson::strict($body);
+        // @ANCHOR-20261124-PREDICTION-EVIDENCE-BRACE  根拠（evidence）のかたまりの始まりの { が1つ抜けた返事（なる 11/24 A）
+        //   例 …"interpretation":"…"},"evidence_id":"e12_wp",… （正しくは },{"evidence_id"）。11/14〜23 に5件（11/23 福島10R の 2nd など）。
+        //   ・ふつうに読めなかったときだけ試します。読める返事には何もしません。
+        //   ・文字列の外で、} , のすぐ後に "evidence_id" のキーが続く所だけを探し、その , の直後に { を1文字入れます（入れる位置は1つに決まる）。
+        //     正しい返事では、"evidence_id" の直前は必ず { なので、この並びは出てきません。
+        //   ・入れた後に、ふつうの厳密な読み取りで読めたときだけ使います。読めなければ何もしなかったことにして、今までどおりの直しへ進みます。
+        //   ・馬番・点数・順位などの中身は変えません。原文はそのまま保存し、入れた位置は記録に残します。この後の検査と期限は今までどおりです。
+        //   ・重複キー（JSON_DUPLICATE_KEY）の直しより先に試します（{ が抜けると2つの根拠が1つにつながり、重複キーに見えるため。11/22 京都6R）。
+        //   ・【なる 11/24 13:06 で範囲を狭めた】使うのは「2nd の返事で、抜けが1か所だけ（{ を1文字入れるだけ）」のときに限ります。
+        //     2か所以上の抜けや、重複キーの直しとの組み合わせ（11/22 京都6R 型）は、別に決めるまで使いません（今までどおり捨てます）。
+        //     見つかった数は evidence_braces_found に残し、週末の集計で「1か所」と「2か所以上」を分けて数えます。
+        // //   ・{ を入れた後に、同じ欄を2回書いた所（重複キー）が残るときだけ、今までの重複キーの直し（2回目以降を外す）を続けて使います（11/22 京都6R の 2nd）。   // 旧（13:03〜13:06。なるの合意の範囲外）
+        $evidenceBraces=[];$evidenceDupRemoved=[];$evidenceFound=0;
+        if (!$parsed['ok']) {
+            $at=self::missingEvidenceBraces($body);
+            $evidenceFound=count($at);
+            if (count($at)===1) {
+                $fixed=self::insertBraces($body,$at);
+                $p0=BaganrikiJson::strict($fixed);
+                // if (!$p0['ok'] && (string)$p0['code']==='JSON_DUPLICATE_KEY') {
+                //     $d0=[];$f0=self::dedupeKeys($fixed,$d0);
+                //     if ($f0!==null) { $p0=BaganrikiJson::strict($f0); if ($p0['ok']) $evidenceDupRemoved=$d0; }
+                // }   // 旧（13:03〜13:06）：重複キーの直しとの組み合わせ。なるの合意の範囲外なので使わない
+                if ($p0['ok'] && is_array($p0['value']) && (($p0['value']['ai_role'] ?? null) === '2nd')) { $parsed=$p0; $evidenceBraces=$at; }
+            }
+        }
         // @ANCHOR-20261109-PREDICTION-DUPKEY  AIが同じ欄を2回書いたとき（JSON_DUPLICATE_KEY）は、2回目以降だけを外して読み直します（先に書いた値を使う。11/9 非公開試験で発生）
         $dupRemoved=[];
         if (!$parsed['ok'] && (string)$parsed['code']==='JSON_DUPLICATE_KEY') {
@@ -85,11 +112,13 @@ final class BaganrikiResponseFrame
                 if ($p2['ok']) $parsed=$p2; else { $strayRemoved=0;$braceRemoved=0;$closeAdded=0; }
             }
         }
-        if (!$parsed['ok']) return self::fail('EXPECTED_RESPONSE_JSON',(string)$parsed['code']);
+        // if (!$parsed['ok']) return self::fail('EXPECTED_RESPONSE_JSON',(string)$parsed['code']);   // 旧
+        if (!$parsed['ok']) return self::fail('EXPECTED_RESPONSE_JSON',(string)$parsed['code'])+['evidence_braces_found'=>$evidenceFound];   // @ANCHOR-20261124-PREDICTION-EVIDENCE-BRACE  集計用
         if (!is_array($parsed['value']) || ($parsed['map']['kind'][BaganrikiJson::pathKey([])]??null)!=='obj')
             return self::fail('EXPECTED_RESPONSE_JSON','EXPECTED_OBJECT_REQUIRED');
         return ['ok'=>true,'code'=>null,'reason'=>null,'json'=>$parsed['value'],
-            'number_paths'=>(array)($parsed['number_paths']??[]),'map'=>(array)$parsed['map'],'duplicate_keys_removed'=>$dupRemoved,'stray_quotes_removed'=>$strayRemoved,'metric_braces_removed'=>$braceRemoved,'score_evidence_closed'=>$closeAdded,'frame_missing'=>$bareBody!==null];
+            'number_paths'=>(array)($parsed['number_paths']??[]),'map'=>(array)$parsed['map'],'duplicate_keys_removed'=>array_merge($evidenceDupRemoved,$dupRemoved),'stray_quotes_removed'=>$strayRemoved,'metric_braces_removed'=>$braceRemoved,'score_evidence_closed'=>$closeAdded,'frame_missing'=>$bareBody!==null,
+            'evidence_braces_added'=>count($evidenceBraces),'evidence_brace_positions'=>$evidenceBraces,'evidence_braces_found'=>$evidenceFound];   // @ANCHOR-20261124-PREDICTION-EVIDENCE-BRACE
     }
 
     /**
@@ -109,6 +138,48 @@ final class BaganrikiResponseFrame
         }
         if ($t==='' || $t[0]!=='{' || !str_ends_with($t,'}')) return null;
         return $t;
+    }
+
+    /**
+     * @ANCHOR-20261124-PREDICTION-EVIDENCE-BRACE  文字列の外にある「} , "evidence_id" :」の並びを探し、{ を入れる位置（, の直後のバイト位置）を返します
+     *   } と , と "evidence_id" と : の間の空白は許します。文字列の中（理由の文章など）は見ません。
+     */
+    public static function missingEvidenceBraces(string $b):array
+    {
+        $at=[];$n=strlen($b);$in=false;
+        for ($i=0;$i<$n;$i++) {
+            $c=$b[$i];
+            if ($in) { if ($c==='\\') { $i++; continue; } if ($c==='"') $in=false; continue; }
+            if ($c==='"') { $in=true; continue; }
+            if ($c!=='}') continue;
+            $j=$i+1; while ($j<$n && strpos(" \t\r\n",$b[$j])!==false) $j++;
+            if ($j>=$n || $b[$j]!==',') continue;
+            $comma=$j; $j++; while ($j<$n && strpos(" \t\r\n",$b[$j])!==false) $j++;
+            if (substr($b,$j,13)!=='"evidence_id"') continue;
+            $k=$j+13; while ($k<$n && strpos(" \t\r\n",$b[$k])!==false) $k++;
+            if ($k>=$n || $b[$k]!==':') continue;
+            $at[]=$comma+1;
+        }
+        return $at;
+    }
+
+    /**
+     * @ANCHOR-20261124-PREDICTION-EVIDENCE-BRACE  根拠の始まりの { が抜けた所に { を入れた本文を返します（当てはまる所が無ければ null）
+     *   返事の「投げ出し」判定（AiController::replyQuality）など、検査の前に返事の中身の量だけを数える所でも、同じ直しで読めるようにするためです。
+     */
+    public static function withEvidenceBraces(string $b):?string
+    {
+        $at=self::missingEvidenceBraces($b);
+        // return ($at===[]) ? null : self::insertBraces($b,$at);   // 旧（13:03〜13:06）
+        return (count($at)===1) ? self::insertBraces($b,$at) : null;   // 検査と同じく、抜けが1か所のときだけ（なる 11/24 13:06）
+    }
+
+    /** 決めた位置（昇順）に { を1文字ずつ入れた本文を返します */
+    private static function insertBraces(string $b,array $at):string
+    {
+        $out='';$pos=0;
+        foreach ($at as $p) { $out.=substr($b,$pos,$p-$pos).'{'; $pos=$p; }
+        return $out.substr($b,$pos);
     }
 
     /** 同じ階層の重複キーを、2回目以降だけ取り除いた本文を返す（先の値を残す）。読めなければ null */

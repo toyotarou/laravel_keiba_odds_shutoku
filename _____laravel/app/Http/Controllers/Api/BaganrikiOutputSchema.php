@@ -112,7 +112,10 @@ final class BaganrikiOutputSchema
     {
         static $schemas=[];
         if (!in_array($kind,['input','output','recovery'],true)) throw new \InvalidArgumentException('EXPECTED_SCHEMA_KIND');
-        return $schemas[$kind]??=json_decode(file_get_contents(BaganrikiExpectedFiles::path("schemas/{$kind}_schema.json")),true,512,JSON_THROW_ON_ERROR);
+        // return $schemas[$kind]??=json_decode(file_get_contents(BaganrikiExpectedFiles::path("schemas/{$kind}_schema.json")),true,512,JSON_THROW_ON_ERROR);   // 旧（〜11/27：版は1つ）
+        // @ANCHOR-20261125-E5-SCORE8  E5専用・8項目の版の形は schemas/e5_score8/ に置く。E3・E5版（〜11/27 の凍結分）は今までのファイル
+        $dir=BaganrikiCandidateSelection::e5Only(BaganrikiCandidateSelection::contextVersion()) ? 'schemas/e5_score8/' : 'schemas/';
+        return $schemas[$dir.$kind]??=json_decode(file_get_contents(BaganrikiExpectedFiles::path("{$dir}{$kind}_schema.json")),true,512,JSON_THROW_ON_ERROR);
     }
 
     private static function horseSchema():array
@@ -128,7 +131,33 @@ final class BaganrikiOutputSchema
     /** Collect disjoint field errors for the one allowed correction. Keep the raw JSON type map. */
     public static function outputIssues(array $reply,array $map):array
     {
-        $out=[];$schema=self::schema('output');
+        return self::outputIssuesWith(self::schema('output'),$reply,$map);
+    }
+
+    /**
+     * @ANCHOR-20261125-ZIP-ORIGINAL-SHAPE  なるの元ファイル（ZIP）の「回答の形」に照らすと、どこが合わないかを数える（記録だけ。採否には使わない）
+     *   豊田さん 11/25：ZIPの形をそのまま採否に使うと、11/21〜23 の 1st の「候補になれる馬」が 466→321 に減り、0頭になるレースも出たので、採否は今の形のまま。
+     *   返すもの：['合わない場所（番号は * に置き換え）'=>件数]。E5専用版でないとき・ファイルが無いときは空。
+     */
+    public static function zipOriginalShapeNotes(array $reply,array $map):array
+    {
+        if (!BaganrikiCandidateSelection::e5Only(BaganrikiCandidateSelection::contextVersion())) return [];
+        static $original=null;
+        $file=BaganrikiExpectedFiles::path('schemas/e5_score8/output_schema_zip_original.json');
+        if ($original===null) $original=is_readable($file)?json_decode((string)file_get_contents($file),true):false;
+        if (!is_array($original)) return [];
+        $notes=[];
+        foreach (self::outputIssuesWith($original,$reply,$map,$original['properties']['horses']['items']) as $path) {
+            $where=preg_replace('/(?<=[\[,])\d+(?=[,\]])/','*',BaganrikiJson::pathKey($path));
+            $notes[$where]=($notes[$where]??0)+1;
+        }
+        arsort($notes);
+        return array_slice($notes,0,80,true);
+    }
+
+    private static function outputIssuesWith(array $schema,array $reply,array $map,?array $horseSchema=null):array
+    {
+        $out=[];$horseSchema??=self::horseSchema();
         $fields=static function(array $schema,array $row,array $path,bool $skipRows=false)use(&$out,&$map):void {
             foreach ($schema['required'] as $key) if (!array_key_exists($key,$row)) $out[]=[...$path,$key];
             foreach ($row as $key=>$value) {
@@ -148,7 +177,7 @@ final class BaganrikiOutputSchema
             foreach ($reply['horses'] as $i=>$row) {
                 $path=['horses',$i];
                 if (self::scalar($row,$map,$path)[0]!=='object') { $out[]=$path;continue; }
-                $fields(self::horseSchema(),$row,$path);
+                $fields($horseSchema,$row,$path);
             }
         return $out;
     }

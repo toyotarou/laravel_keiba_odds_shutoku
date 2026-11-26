@@ -85,7 +85,8 @@ final class BaganrikiFrozenInput
 
     public static function checked(self|array $input): array
     {
-        if ($input instanceof self) return $input->tree;
+        if ($input instanceof self) { BaganrikiCandidateSelection::useVersion($input->tree['prompt_version']??null); return $input->tree; }
+        BaganrikiCandidateSelection::useVersion($input['prompt_version']??null);   // @ANCHOR-20261125-E5-SCORE8
         $hash=$input['snapshot_hash']??null;
         if (!is_string($hash) || ($input['snapshot_hash_version']??null)!=='exact-common-payload-sha256-r8' ||
             !hash_equals(hash('sha256',self::nativeJson(self::common($input))),$hash))
@@ -157,8 +158,9 @@ final class BaganrikiFrozenInput
         }
         if ($tree['snapshot_hash']!==$savedHash || $tree['ai_role']!==$role ||
             ($tree['snapshot_hash_version']??null)!=='exact-common-payload-sha256-r8' ||
-            ($tree['prompt_version']??null)!==BaganrikiCandidateSelection::VERSION || ($tree['schema_version']??null)!==BaganrikiCandidateSelection::SCHEMA)
+            !BaganrikiCandidateSelection::versionPair($tree['prompt_version']??null,$tree['schema_version']??null))
             throw new \InvalidArgumentException('EXPECTED_ROLE_ID');
+        BaganrikiCandidateSelection::useVersion($tree['prompt_version']);   // @ANCHOR-20261125-E5-SCORE8  この後の入力の形の検査を、その版のものでするため
         $cmp=BaganrikiJson::same($common['value'],$common['map'],self::common($tree),$input['map'],true);
         if (!$cmp['same']) throw new \InvalidArgumentException('EXPECTED_STORED_COMMON_MISMATCH');
         BaganrikiOutputSchema::validate('input',$tree,$input['map']);
@@ -170,10 +172,11 @@ final class BaganrikiFrozenInput
     {
         if (!in_array($role,['1st','2nd'],true)) throw new \InvalidArgumentException('EXPECTED_STORED_ROLE');
         $column=$role==='1st'?'input_json_1st':'input_json_2nd';$raw=(string)($snapshot->$column??'');
-        if (($snapshot->release_version??null)===BaganrikiCandidateSelection::VERSION)
+        if (BaganrikiCandidateSelection::isExpected($snapshot->release_version??null))
             return self::inspectStoredRole((string)($snapshot->common_json??''),$raw,(string)($snapshot->snapshot_hash??''),$role,(string)($snapshot->race_id??''),$types);
         $input=self::decodeForInspection($raw,$types);
-        if (($input['prompt_version']??null)===BaganrikiCandidateSelection::VERSION) throw new \InvalidArgumentException('EXPECTED_STORED_VERSION');
+        BaganrikiCandidateSelection::useVersion($input['prompt_version']??null);
+        if (BaganrikiCandidateSelection::isExpected($input['prompt_version']??null)) throw new \InvalidArgumentException('EXPECTED_STORED_VERSION');
         return $input;
     }
 

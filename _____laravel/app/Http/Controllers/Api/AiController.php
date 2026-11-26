@@ -2523,7 +2523,7 @@ class AiController extends Controller
             $hash = ['ok' => true, 'json' => $ex['json'], 'hash' => $ex['hash']];
             $in['snapshot_hash'] = $ex['hash'];
             $a1['user'] = $ex['user1']; $a2['user'] = $ex['user2'];
-            $release = BaganrikiCandidateSelection::VERSION;
+            $release = BaganrikiCandidateSelection::activeVersion();   // @ANCHOR-20261125-E5-SCORE8  いま本番の版（旧：VERSION 固定）
         }
         $frozenRank = [];
         foreach ((array) $in['runners'] as $r) {
@@ -3117,6 +3117,11 @@ class AiController extends Controller
             if ((int) ($ex['stray_quotes_removed'] ?? 0) > 0) { $fixNotes[] = '原文の余計な " を ' . (int) $ex['stray_quotes_removed'] . '個取り除いて読み直し'; }
             if ((int) ($ex['metric_braces_removed'] ?? 0) > 0) { $fixNotes[] = '原文の race_metrics の余計な } を ' . (int) $ex['metric_braces_removed'] . '個取り除いて読み直し'; }
             if ((int) ($ex['score_evidence_closed'] ?? 0) > 0) { $fixNotes[] = '原文の score_evidence の閉じ忘れを ' . (int) $ex['score_evidence_closed'] . 'か所閉じて読み直し'; }
+            // @ANCHOR-20261124-PREDICTION-EVIDENCE-BRACE  根拠のかたまりの始まりの { の抜けを補ったとき（入れた位置＝原文の本文の先頭からのバイト位置も残します。一致加点の証明は付きません）
+            if ((int) ($ex['evidence_braces_added'] ?? 0) > 0) {
+                $fixNotes[] = '原文の根拠（evidence）の始まりの { が抜けていた ' . (int) $ex['evidence_braces_added'] . 'か所に { を入れて読み直し（位置 '
+                            . implode(',', array_slice((array) ($ex['evidence_brace_positions'] ?? []), 0, 20)) . ((count((array) ($ex['evidence_brace_positions'] ?? [])) > 20) ? ' ほか' : '') . '）';
+            }
             foreach ((array) ($ex['duplicate_keys_removed'] ?? []) as $dk) { $fixNotes[] = '原文で2回書かれた欄 ' . (string) $dk . ' の2回目を外して読み直し'; }
             // @ANCHOR-20261122-PREDICTION-FRAME-MISSING  目印の行が無い返事を読んだときも「整えた」として記録します（一致加点の証明は付きません）
             if (($ex['frame_missing'] ?? false) === true) { $fixNotes[] = '原文に始まり／終わりの目印の行が無かったので、JSON の部分だけを読み直し'; }
@@ -3187,7 +3192,7 @@ class AiController extends Controller
         $bad = [];                       // 馬番 => その馬に付いた指摘コード
         foreach ((array) $d['findings'] as $fd) {
             // A presentation error still needs its own fix but cannot invalidate independently salvageable scores.
-            if (($src['prompt_version'] ?? null) === BaganrikiCandidateSelection::VERSION &&
+            if (BaganrikiCandidateSelection::isExpected($src['prompt_version'] ?? null) &&
                 ($fd['scope'] ?? null) === 'presentation_horses') { continue; }
             $t = $fd['target'] ?? null;
             if (!is_int($t) && !(is_string($t) && ctype_digit($t))) { continue; }
@@ -3220,7 +3225,7 @@ class AiController extends Controller
                 $only  = ($codes !== [])
                       && array_diff($codes, array_merge(self::SCORE_ONLY_ERROR_CODES,
                           ['EVIDENCE_REF_UNKNOWN', 'EVIDENCE_REF_NOT_OWNED'])) === [];
-                if (($src['prompt_version'] ?? null) === BaganrikiCandidateSelection::VERSION &&
+                if (BaganrikiCandidateSelection::isExpected($src['prompt_version'] ?? null) &&
                     $codes === ['EXPECTED_FALSE_ACCELERATION'] && isset($idxOf[$no])) {
                     $marketSalvage = BaganrikiResponseInspection::salvageMarket(
                         $src, $h, $idxOf[$no], $inputTypes, $resMap);
@@ -3233,7 +3238,7 @@ class AiController extends Controller
                     }
                 }
                 // @ANCHOR-20261109-PREDICTION-EVIDENCE-SALVAGE  E3・E5版：根拠の一部だけが不正な行は、正しい根拠だけで組み直して残します
-                if (!$rowValid && ($src['prompt_version'] ?? null) === BaganrikiCandidateSelection::VERSION && isset($idxOf[$no])) {
+                if (!$rowValid && BaganrikiCandidateSelection::isExpected($src['prompt_version'] ?? null) && isset($idxOf[$no])) {
                     $evSalvage = BaganrikiResponseInspection::salvageEvidence($src, $h, $idxOf[$no], $inputTypes, $resMap);
                     if ($evSalvage !== null) {
                         $normal[$no] = $evSalvage['row'];
@@ -3270,12 +3275,12 @@ class AiController extends Controller
                 }
                 // 採点辞書に無い項目は落とします（残すと再計算が狂います）
                 foreach (array_keys($h['scores']) as $sk) {
-                    if (!array_key_exists($sk, BaganrikiDiagnose::SCORE_CAP)) {
+                    if (!array_key_exists($sk, BaganrikiDiagnose::scoreCap())) {
                         unset($h['scores'][$sk]);
                     }
                 }
                 foreach ($badKeys as $sk) {
-                    if (array_key_exists($sk, BaganrikiDiagnose::SCORE_CAP)) {
+                    if (array_key_exists($sk, BaganrikiDiagnose::scoreCap())) {
                         $h['scores'][$sk] = null;
                         if (BaganrikiScoreMaterials::handlesVersion($src['prompt_version'] ?? null)) {
                             $refs = is_array($h['score_evidence'][$sk] ?? null) ? ($h['score_evidence'][$sk]['source_refs'] ?? []) : [];
@@ -3287,7 +3292,7 @@ class AiController extends Controller
                 }
                 // 残った項目から合計を出し直します
                 $sumS = 0; $capS = 0; $nNull = 0;
-                foreach (BaganrikiDiagnose::SCORE_CAP as $sk => $mxS) {
+                foreach (BaganrikiDiagnose::scoreCap() as $sk => $mxS) {
                     $vS = $h['scores'][$sk] ?? null;
                     if (!array_key_exists($sk, $h['scores'])) {
                         $h['scores'][$sk] = null;      // 欄は残します
@@ -3333,7 +3338,7 @@ class AiController extends Controller
                 ];
                 $salvaged[] = $no;
             }
-            if (($src['prompt_version'] ?? null) === BaganrikiCandidateSelection::VERSION)
+            if (BaganrikiCandidateSelection::isExpected($src['prompt_version'] ?? null))
                 $h = array_intersect_key($h, array_flip(BaganrikiDiagnose::HORSE_KEYS));
             $normal[$no] = $h;
         }
@@ -3426,7 +3431,12 @@ class AiController extends Controller
             'salvaged'   => $salvaged,
             // @ANCHOR-20261020-PREDICTION-SCOREKEY  馬ごとの「おかしい採点項目」
             'bad_scores' => (array) ($d['bad_scores'] ?? []),
+            // @ANCHOR-20261125-UNSCORED-WITH-MATERIAL  資料がそろっているのに H4・V5 が未採点だった馬と項目（E5専用版だけ。記録だけで採否は変えない）
+            'unscored_with_material' => (array) ($d['unscored_with_material'] ?? []),
         ];
+        // @ANCHOR-20261125-ZIP-ORIGINAL-SHAPE  なるの元ファイル（ZIP）の回答の形に合わない場所と件数（E5専用版だけ。記録だけで、採否は今の形のまま）
+        try { $out['diag']['zip_original_shape_notes'] = BaganrikiOutputSchema::zipOriginalShapeNotes((array) $res, (array) ($ex['map'] ?? [])); }
+        catch (\Throwable $shapeNoteError) { $out['diag']['zip_original_shape_notes'] = ['（数えられませんでした）' => 1]; }
         // ══════════════════════════════════════════════════════════════
         // @ANCHOR-20261021-PREDICTION-TYPEMAP  normal の型の地図（・3-4）
         // ══════════════════════════════════════════════════════════════
@@ -4372,7 +4382,7 @@ class AiController extends Controller
         $rankTypes = null;
         try { $rankInput = BaganrikiFrozenInput::forInspection($snap, $role, $rankTypes); }
         catch (\InvalidArgumentException $e) { return $o; }
-        $current = ($rankInput['prompt_version'] ?? null) === BaganrikiCandidateSelection::VERSION;
+        $current = BaganrikiCandidateSelection::isExpected($rankInput['prompt_version'] ?? null);
         if ($current && ($accepted['ok'] ?? false) !== true) return $o;
         $src1 = $current ? $rankInput : json_decode((string)$snap->input_json_1st,true);
         $partial = ($accepted['code'] ?? null) === 'FIX_PARTIAL';
@@ -4702,7 +4712,7 @@ class AiController extends Controller
         $ju = json_decode($user, true);
         $input = $ju['input'] ?? $ju;
         $w2Input = class_exists(BaganrikiCandidateSelection::class)
-            && ($input['prompt_version'] ?? null) === BaganrikiCandidateSelection::VERSION ? $input : null;
+            && BaganrikiCandidateSelection::isExpected($input['prompt_version'] ?? null) ? $input : null;
         if ($w2Input !== null && $snapshotId === null) {
             $out['code'] = 'NO_SNAPSHOT';
             $out['reason'] = 'E3・E5版の送信には凍結入力のIDが必要です';
@@ -5241,6 +5251,13 @@ class AiController extends Controller
                                ['$1,{"', '},"$1":{', '$1},"score_status"'], substr($raw, $a, $b - $a + 1));
             $j = is_string($fx) ? json_decode($fx, true) : null;
         }
+        // @ANCHOR-20261124-PREDICTION-EVIDENCE-BRACE  根拠の始まりの { が抜けた返事も、検査（BaganrikiResponseFrame::extract）と同じ直しで読んで数えます
+        //   （読めないままだと「読めない返事」として、使える返事なのにもう1回送ってしまうため）
+        //   検査と同じく、2nd の返事で抜けが1か所のときだけ（なる 11/24 13:06）
+        if (!is_array($j) && $role === '2nd') {
+            $fx2 = BaganrikiResponseFrame::withEvidenceBraces(substr($raw, $a, $b - $a + 1));
+            $j = is_string($fx2) ? json_decode($fx2, true) : null;
+        }
         if (!is_array($j) || !isset($j['horses']) || !is_array($j['horses'])) { return null; }
         $seen = []; $ev = [];
         foreach ($j['horses'] as $h) {
@@ -5340,6 +5357,7 @@ class AiController extends Controller
                 if ($attempt === null || $attempt->status !== BaganrikiWorker::SENT || !is_string($attempt->token ?? null)
                     || $attempt->token === '') { return $refused; }
                 $format = BaganrikiDispatch::formatOfInput($w2Input);
+                BaganrikiCandidateSelection::useVersion($snap->release_version ?? null);   // @ANCHOR-20261125-E5-SCORE8
                 $request = BaganrikiDispatch::requestHash($snap->race_id,$snap->snapshot_hash,$role,$slot,$format,$systemHash,$userHash);
                 $binding = BaganrikiDispatch::sendBinding($snapshotId,$attempt->token,$raw,$request);
                 if (($attempt->send_proof ?? null) !== 'R' . $binding) { return $refused; }
@@ -6493,8 +6511,11 @@ class AiController extends Controller
             BaganrikiDerivedValue::$lastProblem = null;
             $base = $a1['input'];
             foreach (BaganrikiPrompt::HASH_EXCLUDE as $k) { unset($base[$k]); }
-            $base['schema_version'] = BaganrikiCandidateSelection::SCHEMA;
-            $base['prompt_version'] = BaganrikiCandidateSelection::VERSION;
+            // $base['schema_version'] = BaganrikiCandidateSelection::SCHEMA;
+            // $base['prompt_version'] = BaganrikiCandidateSelection::VERSION;   // 旧（〜11/27）
+            $base['schema_version'] = BaganrikiCandidateSelection::activeSchema();    // @ANCHOR-20261125-E5-SCORE8  新しく凍結する入力は、いま本番の版
+            $base['prompt_version'] = BaganrikiCandidateSelection::activeVersion();
+            BaganrikiCandidateSelection::useVersion($base['prompt_version']);
             $base = self::expectedAddGapPairs($base);
             $base = self::expectedMarkAbilitySignals($base);
             $current = self::expectedCurrent($base, $ctx);

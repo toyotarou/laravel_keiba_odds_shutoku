@@ -174,7 +174,7 @@ final class BaganrikiTime
     public const TIME_CONTRACT_V2 = 'baganriki-post-slot-grace-v2-early';
     // public const EARLY_TEXT_REVISIONS = ['COMPACT_TEXT_20261109_05'];   // 旧（_05 だけ）
     // public const EARLY_TEXT_REVISIONS = ['COMPACT_TEXT_20261109_05','COMPACT_TEXT_20261109_06'];   // 20261116 _06（3指標の選出連動）も早期凍結   // 旧（_07 の前）
-    public const EARLY_TEXT_REVISIONS = ['COMPACT_TEXT_20261109_05','COMPACT_TEXT_20261109_06','COMPACT_TEXT_20261124_07'];   // 20261124 _07（1st から3指標を外した版）も早期凍結
+    public const EARLY_TEXT_REVISIONS = ['COMPACT_TEXT_20261109_05','COMPACT_TEXT_20261109_06','COMPACT_TEXT_20261124_07','E5_SCORE8_R5_20261125','E5_SCORE8_R5_20261125_02'];   // 20261125 _02＝なるの元ファイルそのものの本文     // 20261125 E5専用版も早期凍結   // 20261124 _07（1st から3指標を外した版）も早期凍結
     private static ?bool $earlyActiveMemo = null;
 
     /** 早期凍結を使うか（本番の本文版が早期凍結の版のときだけ。1プロセスの中では最初に読んだ値を使う） */

@@ -18,7 +18,7 @@ final class BaganrikiDispatch
         $raw=file_get_contents(BaganrikiExpectedFiles::path('config/contract.json'));
         try { $cfg=json_decode($raw,true,512,JSON_THROW_ON_ERROR); }
         catch (\JsonException $e) { throw new \InvalidArgumentException('EXPECTED_SYSTEM_VERSION',0,$e); }
-        self::need(is_array($cfg) && ($cfg['prompt_version']??null)===BaganrikiCandidateSelection::VERSION,'EXPECTED_SYSTEM_VERSION');
+        self::need(is_array($cfg) && BaganrikiCandidateSelection::isExpected($cfg['prompt_version']??null),'EXPECTED_SYSTEM_VERSION');
         return $cfg;
     }
 
@@ -32,7 +32,7 @@ final class BaganrikiDispatch
             $raw=is_readable($config)?file_get_contents($config):false;self::need(is_string($raw),'EXPECTED_SYSTEM_VERSION');
             try { $cfg=json_decode($raw,true,512,JSON_THROW_ON_ERROR); }
             catch (\JsonException $e) { throw new \InvalidArgumentException('EXPECTED_SYSTEM_VERSION',0,$e); }
-            self::need(($cfg['prompt_version']??null)===BaganrikiCandidateSelection::VERSION,'EXPECTED_SYSTEM_VERSION');
+            self::need(BaganrikiCandidateSelection::isExpected($cfg['prompt_version']??null),'EXPECTED_SYSTEM_VERSION');
             if ($revision!==null && $revision!==($cfg['active_text_revision']??null)) {
                 self::need(preg_match('/^[A-Za-z0-9_-]+$/D',$revision)===1 && isset($cfg['archived_text_revisions'][$revision]),'EXPECTED_TEXT_REVISION');
                 $cfg['system_file_sha256']=$cfg['archived_text_revisions'][$revision];
@@ -216,6 +216,7 @@ final class BaganrikiDispatch
         self::need(in_array($number,[0,1],true) && strlen($user)<=4194304,'EXPECTED_SENT_RECORD');
         $in=BaganrikiFrozenInput::checked($frozen);$systemHash=hash('sha256',$system);$userHash=hash('sha256',$user);
         self::need(self::knownSystem($in,$format,$system),'EXPECTED_SENT_SYSTEM');
+        BaganrikiCandidateSelection::useVersion($in['prompt_version']??null);
         $request=self::requestHash($in['race_id'],$in['snapshot_hash'],$in['ai_role'],$number,$format,$systemHash,$userHash);
         return ['format'=>$format,'attempt_no'=>$number,'system_text'=>$system,'user_json'=>$user,'system_sha256'=>$systemHash,
             'user_sha256'=>$userHash,'request_sha256'=>$request];
@@ -223,7 +224,8 @@ final class BaganrikiDispatch
 
     public static function requestHash(string $race,string $snapshot,string $role,int $number,string $format,string $systemHash,string $userHash):string
     {
-        $identity=['EXPECTED_REQUEST_V1',BaganrikiCandidateSelection::VERSION,$race,$snapshot,$role,$number,$format,$systemHash,$userHash];
+        // @ANCHOR-20261125-E5-SCORE8  送信の照合値に入れる版は、そのレースの凍結入力の版（〜11/27 の分は今までと同じ値になる）
+        $identity=['EXPECTED_REQUEST_V1',BaganrikiCandidateSelection::contextVersion(),$race,$snapshot,$role,$number,$format,$systemHash,$userHash];
         return hash('sha256',json_encode($identity,JSON_THROW_ON_ERROR));
     }
 

@@ -12,6 +12,8 @@ use App\Services\AnthropicService;
 final class BaganrikiExpectedPacket
 {
     public const POLICY = 'E35_BAND_BOUNDARY_V1';
+    /** @ANCHOR-20261125-E5-SCORE8  E5専用版の、枠の境目の決まりの名前 */
+    public const POLICY_E5 = 'E5_BAND_BOUNDARY_V1';
     public const FORMULA = 'baganriki-expected-v0.1-draft-20261025';
     public const ENGINE = 'baganriki-expected-impl-v0.1.4';
     private const CLASSES = ['NEW','MAIDEN','C1','C2','C3','OP','L','G1','G2','G3'];
@@ -322,7 +324,12 @@ final class BaganrikiExpectedPacket
                 'reason'=>$x['support_status']==='COMPARISON_READY'?null:$x['support_status']];
             $audit[$no]=['horse_id'=>$horseId,'calculator'=>$x,'neighbours'=>$near];
         }
-        $packet=['policy_id'=>self::POLICY,'formula_version'=>self::FORMULA,'implementation_version'=>self::ENGINE,
+        // @ANCHOR-20261125-E5-ONLY-ROWS  E5専用版（なる 11/25「はじめに.txt」）：AIへ渡す行に、3着以内用の3つ（E3・p3_raw・p0_3）を持たせない
+        //   凍結して保存する入力・計算の原文（expected_proof）・AIへ送る文面は、どれもこの行をそのまま使うので、3つとも同じ形になる
+        //   3着以内の計算結果そのものは、下の audit（DBだけに残す監査）に今までどおり残る
+        if (BaganrikiCandidateSelection::e5Only(BaganrikiCandidateSelection::activeVersion()))
+            foreach ($rows as $rowIndex=>$row) { unset($row['E3'],$row['p3_raw'],$row['p0_3']); $rows[$rowIndex]=$row; }
+        $packet=['policy_id'=>BaganrikiCandidateSelection::boundaryPolicy(BaganrikiCandidateSelection::activeVersion()),'formula_version'=>self::FORMULA,'implementation_version'=>self::ENGINE,
             'race_id'=>$c['id'],'input_freeze_at'=>$current['input_freeze_at'],'history_before'=>$day->format(DATE_ATOM),
             'current_sha256'=>$c['source_hash'],'history_sha256'=>$historyHash,'calibration_id'=>$calibration['id']??null,'rows'=>$rows];
         // Store these original calculator bytes alongside the input audit, before an AI payload is assembled.

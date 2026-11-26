@@ -1,0 +1,4315 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "baganriki-v041-r12-2-w2-e5-r15-score8-e5-r5"
+    },
+    "prompt_version": {
+      "const": "baganriki-v041-r12-2-w2-e5-r15-score8-e5-r5-20261125"
+    },
+    "ai_role": {
+      "enum": [
+        "1st",
+        "2nd"
+      ]
+    },
+    "race_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "snapshot_hash": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selection_enabled": {
+      "type": "boolean"
+    },
+    "mode": {
+      "enum": [
+        "FIRM",
+        "MIXED",
+        "VOLATILE",
+        "UNKNOWN"
+      ]
+    },
+    "target_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 7
+    },
+    "role_cap": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 7
+    },
+    "quota": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "A": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "B": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "D": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            }
+          },
+          "required": [
+            "A",
+            "B",
+            "D"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "role_quota": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "A": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "B": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "D": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            }
+          },
+          "required": [
+            "A",
+            "B",
+            "D"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "learning_stage": {
+      "const": "COLLECT_ONLY"
+    },
+    "horses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "horse_no": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "band": {
+            "enum": [
+              "A",
+              "B",
+              "D"
+            ]
+          },
+          "tier": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "UNVERIFIED"
+            ]
+          },
+          "eligibility": {
+            "enum": [
+              "ELIGIBLE",
+              "NO_EVIDENCE",
+              "UNVERIFIED"
+            ]
+          },
+          "family_review": {
+            "type": "object",
+            "properties": {
+              "market": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "SUPPORTED",
+                      "NO_SUPPORT",
+                      "DATA_MISSING"
+                    ]
+                  },
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "status",
+                  "source_refs",
+                  "evidence_ids",
+                  "reason"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "status": {
+                          "const": "SUPPORTED"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        },
+                        "evidence_ids": {
+                          "minItems": 1
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "evidence_ids": {
+                          "maxItems": 0
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "status": {
+                          "const": "NO_SUPPORT"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "ability": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "SUPPORTED",
+                      "NO_SUPPORT",
+                      "DATA_MISSING"
+                    ]
+                  },
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "status",
+                  "source_refs",
+                  "evidence_ids",
+                  "reason"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "status": {
+                          "const": "SUPPORTED"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        },
+                        "evidence_ids": {
+                          "minItems": 1
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "evidence_ids": {
+                          "maxItems": 0
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "status": {
+                          "const": "NO_SUPPORT"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "gap": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "SUPPORTED",
+                      "NO_SUPPORT",
+                      "DATA_MISSING"
+                    ]
+                  },
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "status",
+                  "source_refs",
+                  "evidence_ids",
+                  "reason"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "status": {
+                          "const": "SUPPORTED"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        },
+                        "evidence_ids": {
+                          "minItems": 1
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "evidence_ids": {
+                          "maxItems": 0
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "status": {
+                          "const": "NO_SUPPORT"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "win_place": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "SUPPORTED",
+                      "NO_SUPPORT",
+                      "DATA_MISSING"
+                    ]
+                  },
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "status",
+                  "source_refs",
+                  "evidence_ids",
+                  "reason"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "status": {
+                          "const": "SUPPORTED"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        },
+                        "evidence_ids": {
+                          "minItems": 1
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "evidence_ids": {
+                          "maxItems": 0
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "status": {
+                          "const": "NO_SUPPORT"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "similar_value": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "SUPPORTED",
+                      "NO_SUPPORT",
+                      "DATA_MISSING"
+                    ]
+                  },
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "status",
+                  "source_refs",
+                  "evidence_ids",
+                  "reason"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "status": {
+                          "const": "SUPPORTED"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        },
+                        "evidence_ids": {
+                          "minItems": 1
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "evidence_ids": {
+                          "maxItems": 0
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "status": {
+                          "const": "NO_SUPPORT"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "required": [
+              "market",
+              "ability",
+              "gap",
+              "win_place",
+              "similar_value"
+            ],
+            "additionalProperties": false
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "family": {
+                  "enum": [
+                    "market",
+                    "ability",
+                    "gap",
+                    "win_place",
+                    "similar_value"
+                  ]
+                },
+                "dependency_group": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "facts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "source_ref": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "source_ref",
+                      "value"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1
+                },
+                "observation": {
+                  "type": "string",
+                  "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                },
+                "interpretation": {
+                  "type": "string",
+                  "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                },
+                "market_claim": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "kind",
+                    "metric"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "ACCELERATION",
+                        "OTHER"
+                      ]
+                    },
+                    "metric": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "win_odds",
+                        "place_min",
+                        "place_max",
+                        null
+                      ]
+                    }
+                  }
+                }
+              },
+              "required": [
+                "evidence_id",
+                "family",
+                "dependency_group",
+                "source_refs",
+                "facts",
+                "observation",
+                "interpretation"
+              ],
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "family": {
+                        "const": "market"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "market_claim"
+                    ],
+                    "if": {
+                      "properties": {
+                        "market_claim": {
+                          "properties": {
+                            "kind": {
+                              "const": "ACCELERATION"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "market_claim": {
+                          "properties": {
+                            "metric": {
+                              "enum": [
+                                "win_odds",
+                                "place_min",
+                                "place_max"
+                              ]
+                            }
+                          }
+                        },
+                        "observation": {
+                          "const": "支持加速（12→9→6分）"
+                        },
+                        "source_refs": {
+                          "minItems": 3
+                        },
+                        "facts": {
+                          "minItems": 3
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "market_claim": {
+                          "properties": {
+                            "metric": {
+                              "type": "null"
+                            }
+                          }
+                        },
+                        "observation": {
+                          "const": "市場比較（支持加速を根拠にしない）"
+                        }
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "market_claim": false
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "counterevidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "reason": {
+                  "type": "string",
+                  "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                }
+              },
+              "required": [
+                "source_refs",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "scores": {
+            "type": "object",
+            "properties": {
+              "H1": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 18
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "H2": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 15
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "H3": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 12
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "H4": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "H5": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "V1": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 12
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "V2": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "V5": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "H1",
+              "H2",
+              "H3",
+              "H4",
+              "H5",
+              "V1",
+              "V2",
+              "V5"
+            ],
+            "additionalProperties": false
+          },
+          "score_evidence": {
+            "type": "object",
+            "properties": {
+              "H1": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "H2": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "H3": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "H4": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "H5": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "V1": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "V2": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "V5": {
+                "type": "object",
+                "properties": {
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "source_refs",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "H1",
+              "H2",
+              "H3",
+              "H4",
+              "H5",
+              "V1",
+              "V2",
+              "V5"
+            ],
+            "additionalProperties": false
+          },
+          "score_status": {
+            "enum": [
+              "complete",
+              "partial"
+            ]
+          },
+          "total_score": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 86
+          },
+          "observed_sum": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 86
+          },
+          "observed_cap": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 86
+          },
+          "rank_basis": {
+            "enum": [
+              "SCORE",
+              "EVIDENCE",
+              "NOT_RANKED"
+            ]
+          },
+          "rank_reason": {
+            "type": "string",
+            "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+          },
+          "public_candidate": {
+            "type": "boolean"
+          },
+          "nonselect_reason": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "enum": [
+                      "BAND_QUOTA",
+                      "NO_EVIDENCE",
+                      "UNVERIFIED",
+                      "SELECTION_DISABLED"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+                  }
+                },
+                "required": [
+                  "code",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "explanation": {
+            "type": "string",
+            "pattern": "[^\\s​﻿]",
+            "allOf": [
+              {
+                "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+              }
+            ]
+          },
+          "evidence_rank_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "evidence_rank_reason": {
+            "type": "string",
+            "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+          }
+        },
+        "required": [
+          "horse_no",
+          "band",
+          "tier",
+          "eligibility",
+          "family_review",
+          "evidence",
+          "counterevidence",
+          "scores",
+          "score_evidence",
+          "score_status",
+          "total_score",
+          "observed_sum",
+          "observed_cap",
+          "rank_basis",
+          "rank_reason",
+          "public_candidate",
+          "nonselect_reason",
+          "explanation",
+          "evidence_rank_evidence_ids",
+          "evidence_rank_reason"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "score_status": {
+                  "const": "partial"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "total_score": {
+                  "type": "null"
+                },
+                "scores": {
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "H1": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "H2": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "H3": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "H4": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "H5": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "V1": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "V2": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "V5": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "observed_cap": {
+                  "maximum": 82
+                },
+                "observed_sum": {
+                  "maximum": 82
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "score_status": {
+                  "const": "complete"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "total_score": {
+                  "type": "integer"
+                },
+                "scores": {
+                  "properties": {
+                    "H1": {
+                      "type": "integer"
+                    },
+                    "H2": {
+                      "type": "integer"
+                    },
+                    "H3": {
+                      "type": "integer"
+                    },
+                    "H4": {
+                      "type": "integer"
+                    },
+                    "H5": {
+                      "type": "integer"
+                    },
+                    "V1": {
+                      "type": "integer"
+                    },
+                    "V2": {
+                      "type": "integer"
+                    },
+                    "V5": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "observed_cap": {
+                  "const": 86
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "tier": {
+                  "enum": [
+                    "A",
+                    "B"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "eligibility": {
+                  "const": "ELIGIBLE"
+                },
+                "evidence": {
+                  "minItems": 1
+                },
+                "evidence_rank_evidence_ids": {
+                  "minItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "tier": {
+                  "const": "C"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "eligibility": {
+                  "const": "NO_EVIDENCE"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "tier": {
+                  "const": "UNVERIFIED"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "eligibility": {
+                  "const": "UNVERIFIED"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scores": {
+                  "properties": {
+                    "H1": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "score_evidence": {
+                  "properties": {
+                    "H1": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scores": {
+                  "properties": {
+                    "H2": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "score_evidence": {
+                  "properties": {
+                    "H2": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scores": {
+                  "properties": {
+                    "H3": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "score_evidence": {
+                  "properties": {
+                    "H3": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scores": {
+                  "properties": {
+                    "H4": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "score_evidence": {
+                  "properties": {
+                    "H4": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scores": {
+                  "properties": {
+                    "H5": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "score_evidence": {
+                  "properties": {
+                    "H5": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scores": {
+                  "properties": {
+                    "V1": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "score_evidence": {
+                  "properties": {
+                    "V1": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scores": {
+                  "properties": {
+                    "V2": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "score_evidence": {
+                  "properties": {
+                    "V2": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scores": {
+                  "properties": {
+                    "V5": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "score_evidence": {
+                  "properties": {
+                    "V5": {
+                      "properties": {
+                        "source_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "eligibility": {
+                  "const": "ELIGIBLE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "rank_basis": {
+                  "enum": [
+                    "SCORE",
+                    "EVIDENCE"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "rank_basis": {
+                  "const": "NOT_RANKED"
+                },
+                "evidence": {
+                  "maxItems": 0
+                },
+                "evidence_rank_evidence_ids": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "eligibility": {
+                  "const": "ELIGIBLE"
+                },
+                "score_status": {
+                  "const": "partial"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "rank_basis": {
+                  "const": "EVIDENCE"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "public_candidate": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "eligibility": {
+                  "const": "ELIGIBLE"
+                },
+                "nonselect_reason": {
+                  "const": null
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "nonselect_reason": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "eligibility": {
+                  "const": "ELIGIBLE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "nonselect_reason": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "BAND_QUOTA",
+                        "SELECTION_DISABLED"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "eligibility": {
+                  "const": "UNVERIFIED"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "nonselect_reason": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "UNVERIFIED",
+                        "SELECTION_DISABLED"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "eligibility": {
+                  "const": "NO_EVIDENCE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "nonselect_reason": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "NO_EVIDENCE",
+                        "SELECTION_DISABLED"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 18
+    },
+    "band_ranks": {
+      "type": "object",
+      "properties": {
+        "A": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "uniqueItems": true,
+          "maxItems": 18
+        },
+        "B": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "uniqueItems": true,
+          "maxItems": 18
+        },
+        "D": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "uniqueItems": true,
+          "maxItems": 18
+        }
+      },
+      "required": [
+        "A",
+        "B",
+        "D"
+      ],
+      "additionalProperties": false
+    },
+    "public_candidates": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 18
+      },
+      "maxItems": 7,
+      "uniqueItems": true
+    },
+    "shortfalls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "band": {
+            "enum": [
+              "A",
+              "B",
+              "D"
+            ]
+          },
+          "requested": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "eligible": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "missing": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+          }
+        },
+        "required": [
+          "band",
+          "requested",
+          "eligible",
+          "missing",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 3
+    },
+    "validation_issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "enum": [
+              "INFO",
+              "WARNING",
+              "ERROR"
+            ]
+          },
+          "horse_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 18
+          },
+          "field": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "[^\\x00- - ­͏؜ᅟ-ᅠ ឴-឵᠋-᠏ -‏ -  -⁯⠀　ㅤ︀-️﻿ﾠ￰-￸𛲠-𛲣𝅳-𝅺󠀀-󠿿]"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "horse_no",
+          "field",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "evidence_band_ranks": {
+      "type": "object",
+      "properties": {
+        "A": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "uniqueItems": true,
+          "maxItems": 18
+        },
+        "B": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "uniqueItems": true,
+          "maxItems": 18
+        },
+        "D": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "uniqueItems": true,
+          "maxItems": 18
+        }
+      },
+      "required": [
+        "A",
+        "B",
+        "D"
+      ],
+      "additionalProperties": false
+    },
+    "mode_status": {
+      "enum": [
+        "CONFIRMED",
+        "PROVISIONAL",
+        "UNRESOLVED"
+      ]
+    },
+    "allocation_mode": {
+      "enum": [
+        "FIRM",
+        "MIXED",
+        "VOLATILE",
+        null
+      ]
+    },
+    "mode_policy_id": {
+      "enum": [
+        "BASE_TRI_STATE_V1",
+        "X6_ONLY_UPPER_MODE_V1"
+      ]
+    },
+    "selection_ranks": {
+      "type": "object",
+      "properties": {
+        "A": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "uniqueItems": true,
+          "maxItems": 18
+        },
+        "B": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "uniqueItems": true,
+          "maxItems": 18
+        },
+        "D": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "uniqueItems": true,
+          "maxItems": 18
+        }
+      },
+      "required": [
+        "A",
+        "B",
+        "D"
+      ],
+      "additionalProperties": false
+    },
+    "expected_reviews": {
+      "type": "object",
+      "properties": {
+        "A": {
+          "type": "object",
+          "properties": {
+            "incumbent": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 18
+            },
+            "challenger": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 18
+            },
+            "decision": {
+              "enum": [
+                "SELECTION_DISABLED",
+                "NO_BOUNDARY",
+                "TIER_MISMATCH",
+                "E_UNAVAILABLE",
+                "BASIS_MISMATCH",
+                "KEEP",
+                "SWAP"
+              ]
+            }
+          },
+          "required": [
+            "incumbent",
+            "challenger",
+            "decision"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "decision": {
+                    "enum": [
+                      "SELECTION_DISABLED",
+                      "NO_BOUNDARY"
+                    ]
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "incumbent": {
+                    "const": null
+                  },
+                  "challenger": {
+                    "const": null
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "incumbent": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 18
+                  },
+                  "challenger": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 18
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 1
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "minimum": 2
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 2
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 1
+                      },
+                      {
+                        "minimum": 3
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 3
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 2
+                      },
+                      {
+                        "minimum": 4
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 4
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 3
+                      },
+                      {
+                        "minimum": 5
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 5
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 4
+                      },
+                      {
+                        "minimum": 6
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 6
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 5
+                      },
+                      {
+                        "minimum": 7
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 7
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 6
+                      },
+                      {
+                        "minimum": 8
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 8
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 7
+                      },
+                      {
+                        "minimum": 9
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 9
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 8
+                      },
+                      {
+                        "minimum": 10
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 10
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 9
+                      },
+                      {
+                        "minimum": 11
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 11
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 10
+                      },
+                      {
+                        "minimum": 12
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 12
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 11
+                      },
+                      {
+                        "minimum": 13
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 13
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 12
+                      },
+                      {
+                        "minimum": 14
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 14
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 13
+                      },
+                      {
+                        "minimum": 15
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 15
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 14
+                      },
+                      {
+                        "minimum": 16
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 16
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 15
+                      },
+                      {
+                        "minimum": 17
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 17
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 16
+                      },
+                      {
+                        "minimum": 18
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 18
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "maximum": 17
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "B": {
+          "type": "object",
+          "properties": {
+            "incumbent": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 18
+            },
+            "challenger": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 18
+            },
+            "decision": {
+              "enum": [
+                "SELECTION_DISABLED",
+                "NO_BOUNDARY",
+                "TIER_MISMATCH",
+                "E_UNAVAILABLE",
+                "BASIS_MISMATCH",
+                "KEEP",
+                "SWAP"
+              ]
+            }
+          },
+          "required": [
+            "incumbent",
+            "challenger",
+            "decision"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "decision": {
+                    "enum": [
+                      "SELECTION_DISABLED",
+                      "NO_BOUNDARY"
+                    ]
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "incumbent": {
+                    "const": null
+                  },
+                  "challenger": {
+                    "const": null
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "incumbent": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 18
+                  },
+                  "challenger": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 18
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 1
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "minimum": 2
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 2
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 1
+                      },
+                      {
+                        "minimum": 3
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 3
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 2
+                      },
+                      {
+                        "minimum": 4
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 4
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 3
+                      },
+                      {
+                        "minimum": 5
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 5
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 4
+                      },
+                      {
+                        "minimum": 6
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 6
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 5
+                      },
+                      {
+                        "minimum": 7
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 7
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 6
+                      },
+                      {
+                        "minimum": 8
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 8
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 7
+                      },
+                      {
+                        "minimum": 9
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 9
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 8
+                      },
+                      {
+                        "minimum": 10
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 10
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 9
+                      },
+                      {
+                        "minimum": 11
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 11
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 10
+                      },
+                      {
+                        "minimum": 12
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 12
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 11
+                      },
+                      {
+                        "minimum": 13
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 13
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 12
+                      },
+                      {
+                        "minimum": 14
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 14
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 13
+                      },
+                      {
+                        "minimum": 15
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 15
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 14
+                      },
+                      {
+                        "minimum": 16
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 16
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 15
+                      },
+                      {
+                        "minimum": 17
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 17
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 16
+                      },
+                      {
+                        "minimum": 18
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 18
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "maximum": 17
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "D": {
+          "type": "object",
+          "properties": {
+            "incumbent": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 18
+            },
+            "challenger": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 18
+            },
+            "decision": {
+              "enum": [
+                "SELECTION_DISABLED",
+                "NO_BOUNDARY",
+                "TIER_MISMATCH",
+                "E_UNAVAILABLE",
+                "BASIS_MISMATCH",
+                "KEEP",
+                "SWAP"
+              ]
+            }
+          },
+          "required": [
+            "incumbent",
+            "challenger",
+            "decision"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "decision": {
+                    "enum": [
+                      "SELECTION_DISABLED",
+                      "NO_BOUNDARY"
+                    ]
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "incumbent": {
+                    "const": null
+                  },
+                  "challenger": {
+                    "const": null
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "incumbent": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 18
+                  },
+                  "challenger": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 18
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 1
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "minimum": 2
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 2
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 1
+                      },
+                      {
+                        "minimum": 3
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 3
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 2
+                      },
+                      {
+                        "minimum": 4
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 4
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 3
+                      },
+                      {
+                        "minimum": 5
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 5
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 4
+                      },
+                      {
+                        "minimum": 6
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 6
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 5
+                      },
+                      {
+                        "minimum": 7
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 7
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 6
+                      },
+                      {
+                        "minimum": 8
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 8
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 7
+                      },
+                      {
+                        "minimum": 9
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 9
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 8
+                      },
+                      {
+                        "minimum": 10
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 10
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 9
+                      },
+                      {
+                        "minimum": 11
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 11
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 10
+                      },
+                      {
+                        "minimum": 12
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 12
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 11
+                      },
+                      {
+                        "minimum": 13
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 13
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 12
+                      },
+                      {
+                        "minimum": 14
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 14
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 13
+                      },
+                      {
+                        "minimum": 15
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 15
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 14
+                      },
+                      {
+                        "minimum": 16
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 16
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 15
+                      },
+                      {
+                        "minimum": 17
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 17
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "anyOf": [
+                      {
+                        "maximum": 16
+                      },
+                      {
+                        "minimum": 18
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "incumbent": {
+                    "const": 18
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "challenger": {
+                    "maximum": 17
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "A",
+        "B",
+        "D"
+      ],
+      "additionalProperties": false
+    },
+    "race_metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wave_level",
+        "lower_entry",
+        "big_gap_entry"
+      ],
+      "properties": {
+        "wave_level": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "source_refs",
+            "reason"
+          ],
+          "properties": {
+            "value": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 5
+            },
+            "source_refs": {
+              "type": "array",
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          }
+        },
+        "lower_entry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "source_refs",
+            "reason"
+          ],
+          "properties": {
+            "value": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 5
+            },
+            "source_refs": {
+              "type": "array",
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          }
+        },
+        "big_gap_entry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "source_refs",
+            "reason"
+          ],
+          "properties": {
+            "value": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 5
+            },
+            "source_refs": {
+              "type": "array",
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "prompt_version",
+    "ai_role",
+    "race_id",
+    "snapshot_hash",
+    "selection_enabled",
+    "mode",
+    "target_count",
+    "role_cap",
+    "quota",
+    "role_quota",
+    "learning_stage",
+    "horses",
+    "band_ranks",
+    "public_candidates",
+    "shortfalls",
+    "validation_issues",
+    "evidence_band_ranks",
+    "mode_status",
+    "allocation_mode",
+    "mode_policy_id",
+    "selection_ranks",
+    "expected_reviews"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "ai_role": {
+            "const": "2nd"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "role_cap": {
+            "maximum": 5
+          },
+          "public_candidates": {
+            "maxItems": 5
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "CONFIRMED"
+          }
+        },
+        "required": [
+          "mode_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "quota": {
+            "type": "object"
+          },
+          "role_quota": {
+            "type": "object"
+          },
+          "role_cap": {
+            "minimum": 1
+          },
+          "selection_enabled": {
+            "const": true
+          },
+          "mode": {
+            "enum": [
+              "FIRM",
+              "MIXED",
+              "VOLATILE"
+            ]
+          },
+          "mode_policy_id": {
+            "const": "BASE_TRI_STATE_V1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "PROVISIONAL"
+          }
+        },
+        "required": [
+          "mode_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "quota": {
+            "type": "object"
+          },
+          "role_quota": {
+            "type": "object"
+          },
+          "role_cap": {
+            "minimum": 1
+          },
+          "selection_enabled": {
+            "const": true
+          },
+          "mode": {
+            "const": "UNKNOWN"
+          },
+          "allocation_mode": {
+            "enum": [
+              "MIXED",
+              "VOLATILE"
+            ]
+          },
+          "mode_policy_id": {
+            "const": "X6_ONLY_UPPER_MODE_V1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "UNRESOLVED"
+          }
+        },
+        "required": [
+          "mode_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "mode": {
+            "const": "UNKNOWN"
+          },
+          "allocation_mode": {
+            "type": "null"
+          },
+          "mode_policy_id": {
+            "const": "BASE_TRI_STATE_V1"
+          },
+          "selection_enabled": {
+            "const": false
+          },
+          "quota": {
+            "type": "null"
+          },
+          "role_quota": {
+            "type": "null"
+          },
+          "role_cap": {
+            "const": 0
+          },
+          "public_candidates": {
+            "maxItems": 0
+          },
+          "shortfalls": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "CONFIRMED"
+          },
+          "mode": {
+            "const": "FIRM"
+          }
+        },
+        "required": [
+          "mode_status",
+          "mode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "allocation_mode": {
+            "const": "FIRM"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "CONFIRMED"
+          },
+          "mode": {
+            "const": "MIXED"
+          }
+        },
+        "required": [
+          "mode_status",
+          "mode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "allocation_mode": {
+            "const": "MIXED"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode_status": {
+            "const": "CONFIRMED"
+          },
+          "mode": {
+            "const": "VOLATILE"
+          }
+        },
+        "required": [
+          "mode_status",
+          "mode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "allocation_mode": {
+            "const": "VOLATILE"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "ai_role": {
+            "const": "2nd"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "race_metrics": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selection_enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "expected_reviews": {
+            "properties": {
+              "A": {
+                "properties": {
+                  "decision": {
+                    "enum": [
+                      "NO_BOUNDARY",
+                      "TIER_MISMATCH",
+                      "E_UNAVAILABLE",
+                      "BASIS_MISMATCH",
+                      "KEEP",
+                      "SWAP"
+                    ]
+                  }
+                }
+              },
+              "B": {
+                "properties": {
+                  "decision": {
+                    "enum": [
+                      "NO_BOUNDARY",
+                      "TIER_MISMATCH",
+                      "E_UNAVAILABLE",
+                      "BASIS_MISMATCH",
+                      "KEEP",
+                      "SWAP"
+                    ]
+                  }
+                }
+              },
+              "D": {
+                "properties": {
+                  "decision": {
+                    "enum": [
+                      "NO_BOUNDARY",
+                      "TIER_MISMATCH",
+                      "E_UNAVAILABLE",
+                      "BASIS_MISMATCH",
+                      "KEEP",
+                      "SWAP"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "horses": {
+            "items": {
+              "properties": {
+                "nonselect_reason": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "BAND_QUOTA",
+                        "UNVERIFIED",
+                        "NO_EVIDENCE"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "expected_reviews": {
+            "properties": {
+              "A": {
+                "properties": {
+                  "decision": {
+                    "const": "SELECTION_DISABLED"
+                  }
+                }
+              },
+              "B": {
+                "properties": {
+                  "decision": {
+                    "const": "SELECTION_DISABLED"
+                  }
+                }
+              },
+              "D": {
+                "properties": {
+                  "decision": {
+                    "const": "SELECTION_DISABLED"
+                  }
+                }
+              }
+            }
+          },
+          "horses": {
+            "items": {
+              "properties": {
+                "public_candidate": {
+                  "const": false
+                },
+                "nonselect_reason": {
+                  "properties": {
+                    "code": {
+                      "const": "SELECTION_DISABLED"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selection_enabled": {
+            "const": true
+          },
+          "role_quota": {
+            "properties": {
+              "A": {
+                "const": 0
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "expected_reviews": {
+            "properties": {
+              "A": {
+                "properties": {
+                  "decision": {
+                    "const": "NO_BOUNDARY"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selection_enabled": {
+            "const": true
+          },
+          "role_quota": {
+            "properties": {
+              "B": {
+                "const": 0
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "expected_reviews": {
+            "properties": {
+              "B": {
+                "properties": {
+                  "decision": {
+                    "const": "NO_BOUNDARY"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selection_enabled": {
+            "const": true
+          },
+          "role_quota": {
+            "properties": {
+              "D": {
+                "const": 0
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "expected_reviews": {
+            "properties": {
+              "D": {
+                "properties": {
+                  "decision": {
+                    "const": "NO_BOUNDARY"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "ai_role": {
+            "const": "2nd"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "role_quota": {
+            "properties": {
+              "A": {
+                "maximum": 5
+              },
+              "B": {
+                "maximum": 5
+              },
+              "D": {
+                "maximum": 5
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "horses": {
+            "minItems": 1,
+            "maxItems": 1
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target_count": {
+            "const": 1
+          }
+        },
+        "if": {
+          "properties": {
+            "selection_enabled": {
+              "const": true
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "role_cap": {
+              "const": 1
+            },
+            "public_candidates": {
+              "maxItems": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "horses": {
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target_count": {
+            "const": 2
+          }
+        },
+        "if": {
+          "properties": {
+            "selection_enabled": {
+              "const": true
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "role_cap": {
+              "const": 2
+            },
+            "public_candidates": {
+              "maxItems": 2
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "horses": {
+            "minItems": 3,
+            "maxItems": 3
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target_count": {
+            "const": 3
+          }
+        },
+        "if": {
+          "properties": {
+            "selection_enabled": {
+              "const": true
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "role_cap": {
+              "const": 3
+            },
+            "public_candidates": {
+              "maxItems": 3
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "horses": {
+            "minItems": 4,
+            "maxItems": 8
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target_count": {
+            "const": 4
+          }
+        },
+        "if": {
+          "properties": {
+            "selection_enabled": {
+              "const": true
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "role_cap": {
+              "const": 4
+            },
+            "public_candidates": {
+              "maxItems": 4
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "horses": {
+            "minItems": 9,
+            "maxItems": 13
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target_count": {
+            "const": 5
+          }
+        },
+        "if": {
+          "properties": {
+            "selection_enabled": {
+              "const": true
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "role_cap": {
+              "const": 5
+            },
+            "public_candidates": {
+              "maxItems": 5
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "horses": {
+            "minItems": 14,
+            "maxItems": 15
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target_count": {
+            "const": 6
+          }
+        },
+        "if": {
+          "properties": {
+            "selection_enabled": {
+              "const": true
+            }
+          }
+        },
+        "then": {
+          "if": {
+            "properties": {
+              "ai_role": {
+                "const": "2nd"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "role_cap": {
+                "const": 5
+              },
+              "public_candidates": {
+                "maxItems": 5
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "role_cap": {
+                "const": 6
+              },
+              "public_candidates": {
+                "maxItems": 6
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "horses": {
+            "minItems": 16,
+            "maxItems": 18
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target_count": {
+            "const": 7
+          }
+        },
+        "if": {
+          "properties": {
+            "selection_enabled": {
+              "const": true
+            }
+          }
+        },
+        "then": {
+          "if": {
+            "properties": {
+              "ai_role": {
+                "const": "2nd"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "role_cap": {
+                "const": 5
+              },
+              "public_candidates": {
+                "maxItems": 5
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "role_cap": {
+                "const": 7
+              },
+              "public_candidates": {
+                "maxItems": 7
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$id": "urn:baganriki:r12-2-w2-e5-r15:output:w2-r15.21-score8-e5-r5"
+}

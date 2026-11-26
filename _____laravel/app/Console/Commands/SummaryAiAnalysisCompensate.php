@@ -135,6 +135,7 @@ class SummaryAiAnalysisCompensate extends Command
     use \App\Console\Commands\AiAnalysisCompensate\PredictionExpectedVersionChecks;
     use \App\Console\Commands\AiAnalysisCompensate\PredictionPromptContractChecks;
     use \App\Console\Commands\AiAnalysisCompensate\PredictionAcceptanceTests;
+    use \App\Console\Commands\AiAnalysisCompensate\PredictionUpperClassFactors;   // @ANCHOR-20261126-UPPER-CLASS-FACTORS
 
     // ══════════════════════════════════════════════════════════════════
     // @ANCHOR-20261020-PREDICTION-IDLECAP  旗が下りているときの空回しの上限（秒）
@@ -180,6 +181,8 @@ class SummaryAiAnalysisCompensate extends Command
                            // @ANCHOR-20261110-PREDICTION-EXPECTED-CHECKDAY  よっしー11/10「現在の稼働版とR15.24の差分」：その日の全レースで、凍結と両AIへ送る原文の準備が通るかを確かめる
                            . ' {--prediction-expected-jump-compare= : 指定した日の全レースで、障害レースの扱いを直す前と後の E3・E5 の材料を比べる（AIへは送らない・0円・レースごとにDBを元に戻す）}'
                            . ' {--prediction-expected-pool-strict-test= : 当日確認（--prediction-expected-check-day）が監査記録の pool_ids の欠落・型不正を不合格にし、正しい空配列は M=0 として通すかを、指定した日の最初の1レースで確かめる（AIへは送らない・0円・DBは元に戻す）}'
+                           // @ANCHOR-20261126-UPPER-CLASS-FACTORS  なる11/26 第4稿：比較用の追加資料だけを作って書き出す（本番には触らない）
+                           . ' {--prediction-upper-factors-day= : 指定した日（例 2026-11-28）の全レースで、第4稿の追加資料（①条件復帰 ②休み明け何走目 ③6分前人気順位別の3着内率 ④複勝の支持加速）を作り、storage/app/baganriki/upper_factors/日付.json に書き出す（DBは読むだけ・AIへは送らない・費用0円・レース後に実行）}'
                            . ' {--prediction-expected-check-day= : 指定した日（例 2026-11-08）の全レースで、E3・E5を付けた凍結と、両AIへ送る原文の準備（圧縮して元に戻せるかの照合を含む）を試す（AIへは送らない・費用0円・レースごとにDBを元に戻す）}'
                            // @ANCHOR-20261110-PREDICTION-EXPECTED-EXPORT  よっしー11/10「実際の1レース分の送信全文・両AIの回答・補正前後と検査結果」を書き出す
                            . ' {--prediction-expected-export : 非公開試験（世代900）のレースごとに、両AIへ送った全文・返事の原文・整えた後の返事・検査の結果・公開の記録・料金を ~/baganriki_export/ に書き出す（読むだけ・DBは変えない）}'
@@ -292,6 +295,11 @@ class SummaryAiAnalysisCompensate extends Command
         // @ANCHOR-20261111-CHECK-POOLSTRICT  なる 11/11 夜：当日確認の pool_ids の欠落・型不正を不合格にしたことの確認
         if ((string) ($this->option('prediction-expected-pool-strict-test') ?? '') !== '') {
             $this->runPredictionExpectedPoolStrictTest((string) $this->option('prediction-expected-pool-strict-test'));
+            return;
+        }
+        // @ANCHOR-20261126-UPPER-CLASS-FACTORS
+        if ((string) ($this->option('prediction-upper-factors-day') ?? '') !== '') {
+            $this->runPredictionUpperFactorsDay((string) $this->option('prediction-upper-factors-day'));
             return;
         }
         if ((string) ($this->option('prediction-expected-check-day') ?? '') !== '') {

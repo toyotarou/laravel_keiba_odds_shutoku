@@ -359,7 +359,7 @@ final class BaganrikiWorker
     public static function isExpectedSnapshot(object $snap): bool
     {
         return class_exists(BaganrikiCandidateSelection::class)
-            && ($snap->release_version ?? null) === BaganrikiCandidateSelection::VERSION;
+            && BaganrikiCandidateSelection::isExpected($snap->release_version ?? null);
     }
 
     /** 凍結馬番・累積取消・残頭数を同じ読取りから照合する。欠損を空集合にしない。 */

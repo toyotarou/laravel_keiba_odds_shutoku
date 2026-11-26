@@ -1,0 +1,15 @@
+【送信形式 SOURCE_DICT_V3】
+この入力では source_registry を source_dict に詰めて送る。中身は source_registry と同じで、値・出典は1件も省いていない。
+source_dict.entries のキーが source_ref で、値がその出典1件。各馬の値は h{馬番}_{field}（時点があれば _{分前}）のキーで引ける。
+各件の項目名は短くしてある：v=value、f=field、h=horse_nos、ah=applicable_horse_nos、p=parents、s=slot_offset、o=observed_at、a=available_at、c=computed_at、d=dependency_key。
+f が無ければ、source_ref から先頭の「h{馬番}_」と末尾の「_{s}」を除いた残りが field。
+h が無ければ、source_ref が h{馬番}_ で始まるなら [馬番]、それ以外は []。ah・p が無ければ []。s・c が無ければ null。
+o・a・c に整数があれば source_dict.time_dict の番号（0始まり）として読む。明示されたnullはそのまま使い、既定値で置き換えない。o が無ければ source_dict.field_auto[field].os[s]（s があるとき）、無ければ field_auto[field].o、それも無ければ null。a が無ければ field_auto[field].as[s]（s があるとき）、無ければその件の o と同じ。
+d が整数 n なら、source_ref をUTF-8で表した先頭 n バイトを文字列に戻す（例：h1_能力_6 の先頭9バイトは h1_能力）。明示された文字列はそのまま使う。d が無ければ source_dict.field_auto[field].d（{h} は馬番）、それも無ければ source_ref と同じ。
+race_id は全件 source_dict.race_id。unit・dependency_role・source_kind・scope・formula_id・formula_version は、その件にあればその値、無ければ source_dict.field_defaults[field] の値。
+field_catalog の各項目で、display_label が無ければ項目名と同じ、maximum・minimum が無ければ null、missing_allowed が無ければ true。
+input_indices は送らない（source_dict から用途別に引ける）。coverage の source_fields は、その field の出典すべてを指す。
+根拠を引用するときは entries のキー（source_ref）の文字列をそのまま使い、facts の value にはその件の v をそのまま書く。source_registry と書かれている指示は source_dict に読み替える。
+【全頭を1回で書く】horsesはrunnersの全N頭を1回ずつ含め、各馬の5系統・8採点項目・必須理由を返す。途中までの評価を完成扱いにしない。資料不足は該当項目のDATA_MISSING/nullと具体的理由で表し、他の評価可能な項目は残す。最初と最後の行は必ず <<<BAGANRIKI_V041_R8_BEGIN>>> と <<<BAGANRIKI_V041_R8_END>>> をそのまま書く。
+【過去走が無い馬】新馬戦などで過去走の資料が無い馬は、当該馬に使える能力資料がなければability を DATA_MISSING、H1をnull とする。他の4系統（market・gap・win_place・similar_value）は個別に確認する。対象馬に適用できる類似統計またはOPIがあれば、similar_valueの裏付けとして評価する。全頭に過去走が無いレースでも、評価をやめたり horses を空にしたりしない。
+【返事は短く書く】全頭・全必須項目を保ったまま、自由記述と不要な重複だけを短くする。短く書くため、evidence は1頭につき系統ごとに1件まで（多くて5件）、各 evidence の source_refs と facts はその判断に使った参照だけで4件まで。counterevidence ははっきりした反証があるときだけ1件まで、無ければ []。family_review・score_evidence・counterevidence の reason、interpretation、rank_reason、evidence_rank_reason、nonselect_reason の reason、explanation は、どれも30字程度の短い日本語1文を目安にし、資料の数字をそのまま使う。observation は、決まった文言（例「支持加速（12→9→6分）」）があるときはその文言をそのまま書き、無いときは20字以内。validation_issues は本当に問題があるときだけ。JSON は改行や字下げを入れずに書く。各必須欄は単独で意味が通るように書き、同じ結論を必要な複数の欄へ短く記すことは許される。具体的な根拠・不足条件を正確に書くため必要なときは、30字の目安より正確さを優先し、output_schema.jsonの制限内に収める。最後にhorse_noの集合がrunnersと一致し、重複なし・全必須キーあり・JSONの括弧と引用符が閉じていることを確認する。確認過程の文章は出力しない。

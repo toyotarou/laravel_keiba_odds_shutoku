@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新しいプロンプトの現状（2026年11月25日）</title>
+<style>
+  body { margin:0; background:#f4f5f7; color:#222; font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; font-size:16px; line-height:1.75; }
+  header { background:#1f4e79; color:#fff; padding:20px 16px 16px; }
+  header h1 { margin:0; font-size:21px; }
+  header p { margin:6px 0 0; font-size:13px; opacity:.85; }
+  nav { background:#fff; margin:12px; border-radius:12px; padding:12px 16px; box-shadow:0 1px 3px rgba(0,0,0,.08); font-size:15px; }
+  nav b { display:block; margin-bottom:4px; color:#1f4e79; }
+  nav a { color:#1f4e79; text-decoration:none; display:block; padding:3px 0; }
+  main { padding:0 12px 12px; max-width:640px; margin:0 auto; }
+  section { background:#fff; border-radius:12px; padding:14px 16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  h2 { font-size:18px; margin:0 0 10px; color:#1f4e79; border-left:4px solid #1f4e79; padding-left:8px; }
+  h3 { font-size:16px; margin:16px 0 6px; color:#333; }
+  .big { font-size:18px; font-weight:bold; }
+  .ok { color:#1b7f3b; font-weight:bold; }
+  .warn { color:#b35c00; font-weight:bold; }
+  .note { font-size:13px; color:#666; }
+  table { width:100%; border-collapse:collapse; font-size:15px; margin:6px 0; }
+  th, td { padding:7px 4px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
+  th { color:#555; font-weight:normal; font-size:13px; }
+  td.n { text-align:right; font-weight:bold; white-space:nowrap; }
+  ul, ol { margin:4px 0; padding-left:22px; }
+  li { margin:5px 0; }
+  .tag { display:inline-block; font-size:12px; background:#e8f0f8; color:#1f4e79; border-radius:10px; padding:1px 8px; margin-right:4px; }
+  .box { background:#f7f9fc; border:1px solid #dde6f0; border-radius:10px; padding:10px 12px; margin:8px 0; }
+  .term { margin:10px 0; }
+  .term b { color:#1f4e79; }
+  .flow { counter-reset:f; list-style:none; padding:0; }
+  .flow li { position:relative; padding:8px 10px 8px 44px; background:#f7f9fc; border-radius:10px; margin:8px 0; }
+  .flow li::before { counter-increment:f; content:counter(f); position:absolute; left:10px; top:8px; width:24px; height:24px; border-radius:12px; background:#1f4e79; color:#fff; font-size:13px; text-align:center; line-height:24px; }
+  .flow .t { display:block; font-size:13px; color:#1f4e79; font-weight:bold; }
+</style>
+</head>
+<body>
+<header>
+  <h1>新しいプロンプトの現状</h1>
+  <p>2026年11月25日（水）09:00 時点のまとめ　／　馬眼力</p>
+</header>
+
+<nav>
+  <b>もくじ</b>
+  <a href="#s1">1. ひとことで言うと</a>
+  <a href="#s2">2. この資料に出てくる言葉</a>
+  <a href="#s3">3. 予想が出るまでの流れ（11/28から）</a>
+  <a href="#s4">4. 先週末（11/21〜23）の結果</a>
+  <a href="#s5">5. 11/24 に直したこと</a>
+  <a href="#s6">6. 11/25 に入れたこと（E5専用・8項目86点＝プレミアR5）</a>
+  <a href="#s7">7. なるさんと決めたこと</a>
+  <a href="#s8">8. 土曜の前に確かめたこと</a>
+  <a href="#s9">9. 頭数どおりに出ているか</a>
+  <a href="#s10">10. お金（AIの料金）</a>
+  <a href="#s11">11. まだ残っていること</a>
+  <a href="#s12">12. これからの予定</a>
+</nav>
+
+<main>
+
+<section id="s1">
+  <h2>1. ひとことで言うと</h2>
+  <p class="big">11/28（土）からは「プレミアR5」（E5専用・8項目86点）で予想します。本番サーバーへの反映と確認は終わりました。</p>
+  <ul>
+    <li>プロンプトの本文は、なるさんから届いたZIPのファイルそのものです。</li>
+    <li>採点は <b>8項目・86点満点</b> です（回収率8点・最終オッズ予測6点を外しました）。</li>
+    <li>枠の境目の1組だけ、<b>5着内傾向（E5）だけ</b>で入れ替えを判断します（3着内傾向 E3 は使いません）。</li>
+    <li>3つの指標（波乱度・下位進入度・大穴進入度）は、11/28 からサーバーが計算して表示します。選び方への反映は、2週末止めます。</li>
+    <li>11/27 までに固めたレースは、今までの版のまま扱います。結果は変わりません。</li>
+  </ul>
+</section>
+
+<section id="s2">
+  <h2>2. この資料に出てくる言葉</h2>
+  <div class="term"><b>1st／2nd</b>　1st は Claude、2nd は DeepSeek。同じレースを別々に評価します。</div>
+  <div class="term"><b>固める（凍結）</b>　AIに渡す材料を、6分前のオッズがそろった時点で確定させることです。固めた後のオッズは、その予想に使いません。</div>
+  <div class="term"><b>5着内傾向（E5）</b>　似たレースで、同じ6分前の人気の馬が5着以内に入った傾向（0〜100）。過去の似たレースが十分にそろったときだけ「比べられる」状態になります。</div>
+  <div class="term"><b>枠の境目</b>　人気帯ごとに、枠に入った最後の馬と、すぐ下の次点の馬の1組です。</div>
+  <div class="term"><b>補充</b>　根拠を確かめられた馬だけでは頭数に足りないとき、同じ人気帯の馬で埋めて頭数どおりに表示することです。補った馬には「補充」と書きます。</div>
+  <div class="term"><b>回答の形（スキーマ）</b>　AIの返事の書き方を決めたファイルです。サーバーはこれで返事を検査し、決まりに合わない行を使いません。</div>
+</section>
+
+<section id="s3">
+  <h2>3. 予想が出るまでの流れ（11/28から）</h2>
+  <ol class="flow">
+    <li><span class="t">固める</span>6分前のオッズが全頭そろったら材料を固めます（遅くとも発走5分前）。このとき、5着内傾向と、どの版で予想するかも記録します。</li>
+    <li><span class="t">AIへ送る</span>1st と 2nd に同時に送ります。本文はZIPのファイルそのものです。AIに渡す5着内傾向の行には、3着内用の値を入れません。</li>
+    <li><span class="t">検査する</span>返事を8項目・86点の決まりで検査し、根拠を確かめられた馬だけを使います。ZIPの回答の形に合わなかった所は、件数を記録します（採否には使いません）。</li>
+    <li><span class="t">境目を判断する</span>サーバーが計算し直して、人気帯ごと・AIごとに判断を記録します（入れ替え／そのまま／比べられない など）。AIが書いた判断は使いません。</li>
+    <li><span class="t">公開する</span>2つのAIの結果をまとめ、出走頭数に応じた頭数を出します。足りない分は「補充」します。3つの指標はサーバーが計算して表示します。</li>
+  </ol>
+</section>
+
+<section id="s4">
+  <h2>4. 先週末（11/21〜23）の結果</h2>
+  <table>
+    <tr><th>日</th><th>レース</th><th>公開</th><th>固めて→公開<br>平均／最長</th><th>公開→締切<br>平均／最短</th></tr>
+    <tr><td>11/21</td><td class="n">24</td><td class="n">22</td><td class="n">112／199秒</td><td class="n">163／86秒</td></tr>
+    <tr><td>11/22</td><td class="n">24</td><td class="n">23</td><td class="n">121／168秒</td><td class="n">151／90秒</td></tr>
+    <tr><td>11/23</td><td class="n">24</td><td class="n">23</td><td class="n">135／190秒</td><td class="n">125／69秒</td></tr>
+  </table>
+  <ul>
+    <li>固められなかったレース：<span class="ok">0</span>（前の週末は各日1）。</li>
+    <li>両AIとも使えず、全頭を「補充（参考）」で出したレース：4（11/21 福島9R・京都11R、11/22 京都10R、11/23 福島10R）。</li>
+    <li>2nd の回答待ちの時間切れ：5回（11/21 0・11/22 1・11/23 4）。ほかに2nd を送れなかったレースが1つ。</li>
+    <li>3つの指標：公開68レースのうち3つとも出たのは34（50%）。出た値もほぼ真ん中（波乱度3・4、下位2・3、大穴1・2）でした。</li>
+  </ul>
+</section>
+
+<section id="s5">
+  <h2>5. 11/24 に直したこと</h2>
+  <h3>1）1st の返事を、目印の行が無いだけで捨てない</h3>
+  <p>中身は正しいのに、決まりの始まり・終わりの行を付けずに返した1stの返事を、検査に通すようにしました。保存済みの13件は、すべて読めるようになりました。</p>
+  <h3>2）2nd の送信の遅れ</h3>
+  <p>時間切れ5回・未送信1回のすべてで、2ndを送る時間帯に、ほかのレースの結果取得が重なっていました。発走2〜8分前のレースがある間は、結果取得を見送るようにしました。</p>
+  <h3>3）2nd の返事の { 抜けを1か所だけ補う</h3>
+  <p>根拠の区切りで <code>{</code> が1文字抜けて、全体が読めなくなる返事がありました。2ndの1回答につき1か所だけ、補って読みます（11/23 福島10R がこの形でした）。</p>
+  <h3>4）土曜の朝に、日曜のレースを入れない</h3>
+  <p>土曜の朝の画面に、日曜のレースが中途半端に出ていました。土曜も当日分だけを取り込みます。</p>
+  <h3>5）6月からの過去データを足す（作業2）</h3>
+  <p>11/28 の予想から使います。5着内傾向が「比べられる」馬が増えます（8章）。</p>
+  <h3>6）3つの指標をサーバーが計算する（第7版）</h3>
+  <p>1st に3つの指標を答えさせるのをやめ、サーバーが毎回同じ決まりで計算します。数字の下に「（E5）」「（参考・複勝オッズ）」など算出元を出します。最初の2週末は表示だけで、選び方は変えません。アプリの表示は 11/24 に配置済みです。</p>
+</section>
+
+<section id="s6">
+  <h2>6. 11/25 に入れたこと（E5専用・8項目86点＝プレミアR5）</h2>
+  <p>よっしーさんのPDF（朝）と、なるさんのZIP（元ファイル一式）に合わせました。</p>
+  <table>
+    <tr><th>項目</th><th>11/27 まで</th><th>11/28 から</th></tr>
+    <tr><td>採点</td><td>10項目・100点</td><td><b>8項目・86点</b></td></tr>
+    <tr><td>的中寄り</td><td>5項目60点</td><td>5項目60点（変更なし）</td></tr>
+    <tr><td>妙味寄り</td><td>5項目40点</td><td>3項目26点（回収率8点・最終オッズ予測6点を外す）</td></tr>
+    <tr><td>境目の判断</td><td>3着内と5着内の両方</td><td><b>5着内だけ</b>（全帯共通）</td></tr>
+    <tr><td>AIに渡す傾向の値</td><td>3着内・5着内</td><td>5着内だけ</td></tr>
+    <tr><td>本文</td><td>第7版</td><td>ZIPのファイルそのもの</td></tr>
+  </table>
+  <h3>境目の入れ替えの決まり</h3>
+  <p>枠に入った最後の馬（i）と次点（j）を比べ、次の2つを両方満たしたときだけ入れ替えます。</p>
+  <ul>
+    <li>j の5着内傾向が i より高い</li>
+    <li>j の5着内傾向が、j の人気の普段の割合より高い</li>
+  </ul>
+  <p>両方の馬が「比べられる」状態でないとき、評価の段階が違うときは入れ替えません。</p>
+  <h3>あわせて記録するようにしたこと</h3>
+  <ul>
+    <li>境目のサーバー判断（人気帯ごと・AIごと）</li>
+    <li>ZIPの回答の形に合わなかった場所と件数</li>
+    <li>資料がそろっているのに、H4（似たレースの統計）・V5（情報とオッズの確かさ）を採点しなかった馬と項目</li>
+  </ul>
+  <p>アプリの説明画面も8項目・86点に合わせ、11/25 08:51 に配置しました。</p>
+</section>
+
+<section id="s7">
+  <h2>7. なるさんと決めたこと（11/25 08:48）</h2>
+  <div class="box">
+    <p><span class="tag">問1 A</span><b>ZIPの回答の形は記録用。採否は今の検査のまま。</b></p>
+    <p class="note">ZIPの回答の形をそのまま採否に使うと、11/21〜23 の1stで「候補になれる馬」が466頭から321頭に減りました（11/22 京都6Rは7頭→0頭）。引っかかったのは、ほとんどが書き方の決まり（順位の付け方の欄、選ばなかった理由の欄、出典の欄など）でした。</p>
+  </div>
+  <div class="box">
+    <p><span class="tag">問2 A</span><b>訂正の2つの仕組みは、訂正を再開するときに入れる。</b></p>
+    <p class="note">「資料がそろっているのに未採点の H4・V5 を訂正の対象にする」「人気帯の書き間違いを凍結した帯へ戻す訂正」の2つです。今はAIに訂正を依頼しない方針なので、件数の記録だけにします。</p>
+  </div>
+  <p>なるさんの結論は「この内容でプレミアR5の実測に進めてください」です。</p>
+</section>
+
+<section id="s8">
+  <h2>8. 土曜の前に確かめたこと</h2>
+  <h3>AIへ送らない確認（11/23 の24レースで固め直し。DBは元に戻した）</h3>
+  <ul>
+    <li>24レースすべて、固める・両AIへ送る文面の準備が <span class="ok">OK</span>。</li>
+    <li>5着内傾向の状態（359頭）：比べられる158頭／似たレースが少ない112頭／条件不足75頭（5レース）／対象外14頭（障害1レース）。</li>
+    <li>過去データを足した効果で、11/23 の本番では0頭だった「比べられる」馬が158頭になりました。境目の入れ替えは、11/28 から実際に起きます。</li>
+    <li>11/21〜23 の返事136件の検査結果は、反映の前後で同じでした（11/27 までの版に影響なし）。</li>
+  </ul>
+  <h3>実際にAIへ送った確認（11/25、お客様の画面には出ない試験）</h3>
+  <table>
+    <tr><th></th><th>東京12R（18頭）</th><th>東京7R（16頭）</th></tr>
+    <tr><td>1st</td><td>61秒・候補になれる馬6頭</td><td>61秒・候補になれる馬8頭</td></tr>
+    <tr><td>2nd</td><td>80秒・候補になれる馬18頭</td><td>105秒・候補になれる馬16頭</td></tr>
+    <tr><td>公開</td><td><span class="ok">7頭</span>（補充なし）</td><td><span class="ok">7頭</span>（補充なし）</td></tr>
+    <tr><td>境目</td><td>比べられない（似たレース89で100未満）</td><td>2ndのD帯で入れ替え1件（8番→1番）</td></tr>
+  </table>
+  <p class="warn">1st は2レースとも、全頭（計34頭）で V5 を未採点にしました。</p>
+  <p>同じ馬・同じ時点の複勝の下限と上限はそろっていて、2nd は採点できています。未採点の項目があると、その帯は点数順ではなく根拠の数で順位を決めます。週末の一番の注目点です（12章）。</p>
+</section>
+
+<section id="s9">
+  <h2>9. 頭数どおりに出ているか</h2>
+  <p class="big">11/21〜23 は、全レースで出走頭数に応じた頭数が画面に出ていました。</p>
+  <table>
+    <tr><th>出走頭数</th><th>表示する頭数</th></tr>
+    <tr><td>8頭以下</td><td class="n">4頭</td></tr>
+    <tr><td>9〜13頭</td><td class="n">5頭</td></tr>
+    <tr><td>14〜15頭</td><td class="n">6頭</td></tr>
+    <tr><td>16頭以上</td><td class="n">7頭</td></tr>
+  </table>
+  <ul>
+    <li>AIの根拠がある馬だけで頭数がそろわなかった6レースは、残りを「補充」で埋めました（例：11/23 福島6R はAIの馬3頭＋補充4頭）。</li>
+    <li>両AIとも使えなかった4レースは、全頭を「補充（参考）」で出しました。</li>
+    <li>頭数をそろえる処理は今回変えていません。11/28 からの版でも同じです。</li>
+  </ul>
+</section>
+
+<section id="s10">
+  <h2>10. お金（AIの料金）</h2>
+  <table>
+    <tr><th>内容</th><th>額</th></tr>
+    <tr><td>11/21〜23 の1st（Claude、3日分。サーバーの記録からの見積もり）</td><td class="n">約6.3ドル</td></tr>
+    <tr><td>11/21〜23 の2nd（DeepSeek、3日分）</td><td class="n">約3.7ドル</td></tr>
+    <tr><td>11/25 の試験（2回、各2レース）</td><td class="n">約0.2ドル</td></tr>
+  </table>
+  <p class="note">11/28〜30 を足しても、Claude の馬眼力専用の枠（月30ドル）に収まる見込みです。試験の額は1回目の見積もりからの推定で、2回目の実額は確かめていません。</p>
+</section>
+
+<section id="s11">
+  <h2>11. まだ残っていること</h2>
+  <ul>
+    <li><b>1st の返事が雑</b>　→ 初回に全頭を評価しきれない返事が71レース中38、V5の全頭未採点。週末の数字を見て、次に直す所を決めます。</li>
+    <li><b>2nd の送信の遅れ</b>　→ 11/24 の直しで止まる見込みです。11/28 に、固めてから2ndを送るまでの秒数で確かめます。</li>
+    <li><b>AIへの訂正の依頼</b>　→ 今は依頼しない方針です。再開するときに、7章の問2の2つを入れます。</li>
+    <li><b>鍵がどこから漏れたか</b>　→ 調べている最中です。漏れても、馬眼力の枠の上限（月30ドル）より多くは使われません。</li>
+    <li><b>プログラムの中の分かりにくい名前</b>（E3・E5 など）　→ 12/1 から。</li>
+  </ul>
+</section>
+
+<section id="s12">
+  <h2>12. これからの予定</h2>
+  <table>
+    <tr><th>いつ</th><th>内容</th></tr>
+    <tr><td>11/28（土）朝</td><td>最初のレースが新しい版で公開されたかを確かめます。あわせて、1stの採否、公開時刻、画面の3指標と算出元、固めてから2ndを送るまでの秒数、日曜のレースが前日に出ていないことを見ます。</td></tr>
+    <tr><td>11/28〜30</td><td>プレミアR5で予想します。サーバーには手を入れません。</td></tr>
+    <tr><td>12/1（火）〜</td><td>3日分を集計して報告します。</td></tr>
+  </table>
+  <h3>週末の集計で見ること</h3>
+  <ul>
+    <li><b>1st の V5</b>：V5を評価できる馬のうち、何頭が未採点だったか。V5だけが欠けたために、点数順を使えなかった帯がいくつあったか。</li>
+    <li><b>ZIPの回答の形に合わなかった所</b>：「順位や公開の印の書き違い」と「採点を裏付ける出典の不足」に分けて数えます。</li>
+    <li><b>境目の判断</b>：人気帯ごと・AIごとの判断の内訳。入れ替わった馬の3着内・5着内と複勝の払戻。</li>
+    <li><b>時間</b>：固める→送信、回答の受信、公開に分けて測ります。</li>
+    <li><b>3つの指標</b>：E5 由来とオッズ由来に分け、段階ごとの件数と、その人気帯から実際に5着以内に入った割合を見ます。</li>
+    <li><b>補充</b>：補充を含んだレースの数（先週は10）。</li>
+  </ul>
+  <p class="note">レースがある日（11/28〜30）は、サーバーには手を入れません。</p>
+</section>
+
+</main>
+</body>
+</html>

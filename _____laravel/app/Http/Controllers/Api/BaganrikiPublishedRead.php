@@ -32,7 +32,7 @@ final class BaganrikiPublishedRead
         self::need(is_string($raw) && is_string($hash) && hash_equals(hash('sha256',$raw),$hash), 'TIME_UNCOMPUTABLE');
         $input = BaganrikiFrozenInput::decodeForInspection($raw);
         self::need(is_array($input) && ($input['race_id'] ?? null) === ($snap->race_id ?? null)
-            && is_string($snap->race_id ?? null) && ($input['prompt_version'] ?? null) === BaganrikiCandidateSelection::VERSION,
+            && is_string($snap->race_id ?? null) && BaganrikiCandidateSelection::isExpected($input['prompt_version'] ?? null),
             'TIME_UNCOMPUTABLE');
         $time = $input['time_contract']['sales_close_at'] ?? null;
         $cutoff = is_string($time) ? BaganrikiTime::us($time) : null;

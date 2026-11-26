@@ -14,6 +14,46 @@ final class BaganrikiCandidateSelection
     /** AIとやり取りする予想の版（E3・E5を使う版）。AIが返事にこの値を書き、検査でも照合する契約の値なので中身は変えない */
     public const VERSION='baganriki-v041-r12-2-w2-e35-r15-20261104';
     public const SCHEMA='baganriki-v041-r12-2-w2-e35-r15';
+    /**
+     * @ANCHOR-20261125-E5-SCORE8  E5専用・8項目86点の版（よっしー 11/25「E5専用プロンプト R5」）
+     *   ・E3 を使わない。枠の境目は、全帯で「次点の E5 が上」かつ「次点の p5_raw が、次点自身の p0_5 より上」のときだけ入れ替える。
+     *   ・採点は8項目（V3 回収率・V4 推定確定オッズと誤差 を外す）。満点は H 60＋V 26＝86。
+     *   ・11/27 までに凍結したレースは上の VERSION（E3・E5、10項目100点）のままで、今までどおり検査・再現する。
+     *     どちらの版で扱うかは、その凍結入力の prompt_version で決まる（下の useVersion）。
+     */
+    public const VERSION_E5='baganriki-v041-r12-2-w2-e5-r15-score8-e5-r5-20261125';
+    public const SCHEMA_E5='baganriki-v041-r12-2-w2-e5-r15-score8-e5-r5';
+    public const SCHEMAS=[self::VERSION=>self::SCHEMA,self::VERSION_E5=>self::SCHEMA_E5];
+    /** E3・E5版（10項目）の満点。contract.json の score_caps は、いま本番の版（8項目）のものになったので、旧版の分はここに残す */
+    public const SCORE_CAPS_E35=['H1'=>18,'H2'=>15,'H3'=>12,'H4'=>9,'H5'=>6,'V1'=>12,'V2'=>10,'V3'=>8,'V4'=>6,'V5'=>4];
+    /** いま扱っている凍結入力の版（1プロセスの中で、入力を確かめるたびに入れ直す） */
+    private static ?string $contextVersion=null;
+
+    /** 予想の版（E3・E5版か、E5専用版）か */
+    public static function isExpected(mixed $version):bool
+    {
+        return is_string($version) && isset(self::SCHEMAS[$version]);
+    }
+    /** prompt_version と schema_version の組が、同じ版のものか */
+    public static function versionPair(mixed $version,mixed $schema):bool
+    {
+        return self::isExpected($version) && self::SCHEMAS[$version]===$schema;
+    }
+    public static function e5Only(mixed $version):bool { return $version===self::VERSION_E5; }
+    /** これから扱う凍結入力の版を覚える（満点・回答の形・境目の比べ方を、その版のものにするため） */
+    public static function useVersion(mixed $version):void
+    {
+        if (is_string($version) && $version!=='') self::$contextVersion=$version;
+    }
+    public static function contextVersion():string { return self::$contextVersion ?? self::activeVersion(); }
+    /** いま本番で新しく凍結する版（contract.json の prompt_version） */
+    public static function activeVersion():string { return self::contract()['prompt_version']; }
+    public static function activeSchema():string { return self::SCHEMAS[self::activeVersion()]; }
+    /** 枠の境目の決まりの名前（凍結入力の expected_v01.policy_id） */
+    public static function boundaryPolicy(mixed $version):string
+    {
+        return self::e5Only($version) ? BaganrikiExpectedPacket::POLICY_E5 : BaganrikiExpectedPacket::POLICY;
+    }
     public const BANDS=['A','B','D'];
     /** 直前の submittedPublication で、各AIの返事を使えなかった理由（公開できなかったときに理由へ書き足します） */
     public static array $lastRoleIssues=[];
@@ -59,7 +99,7 @@ final class BaganrikiCandidateSelection
         }
         self::need(count($bands) === $in['N'] && $in['N'] >= 1 && $in['N'] <= 18 &&
             $in['target_count'] === self::target($in['N']) &&
-            ($in['schema_version'] ?? null) === self::SCHEMA && ($in['prompt_version'] ?? null) === self::VERSION &&
+            self::versionPair($in['prompt_version'] ?? null, $in['schema_version'] ?? null) &&
             is_string($in['snapshot_hash']) && preg_match('/^[0-9a-f]{64}$/D', $in['snapshot_hash']) === 1, 'EXPECTED_BASE_ID');
         $mode = $in['allocation_mode'];
         $confirmed = $in['mode_status'] === 'CONFIRMED' && $in['mode'] === $mode &&
@@ -115,14 +155,15 @@ final class BaganrikiCandidateSelection
         if ($contract===null) {
             $contract=json_decode(file_get_contents(BaganrikiExpectedFiles::path('config/contract.json')),true,512,JSON_THROW_ON_ERROR);
         }
-        self::need($contract['prompt_version']===self::VERSION,'EXPECTED_CONFIG_VERSION');
+        // self::need($contract['prompt_version']===self::VERSION,'EXPECTED_CONFIG_VERSION');   // 旧（〜11/27：版は1つ）
+        self::need(self::versionPair($contract['prompt_version']??null,$contract['schema_version']??null),'EXPECTED_CONFIG_VERSION');
         return $contract;
     }
 
     /** Validate score components already verified against their source evidence by 新方式. */
     private static function scoreKey(array $horse,bool $checkTotals=true): ?array
     {
-        $scores=$horse['scores']??null; $caps=self::contract()['score_caps'];
+        $scores=$horse['scores']??null; $caps=self::scoreCaps();
         self::need(is_array($scores) && count($scores)===count($caps),'EXPECTED_SCORE_FIELDS');
         $sum=0; $capSum=0; $v=0;
         foreach ($caps as $key=>$cap) {
@@ -159,7 +200,12 @@ final class BaganrikiCandidateSelection
         return $order;
     }
 
-    public static function scoreCaps():array { return self::contract()['score_caps']; }
+    // public static function scoreCaps():array { return self::contract()['score_caps']; }   // 旧（〜11/27）
+    /** @ANCHOR-20261125-E5-SCORE8  いま扱っている版の満点（E5専用版＝contract.json の8項目、E3・E5版＝10項目） */
+    public static function scoreCaps():array
+    {
+        return self::e5Only(self::contextVersion()) ? self::contract()['score_caps'] : self::SCORE_CAPS_E35;
+    }
 
     /** Used on all model or recovered rows, including a horse that has no public rank. */
     public static function validateHorseSummary(array $h):void
@@ -181,8 +227,9 @@ final class BaganrikiCandidateSelection
     private static function checkPacket(array $in, array $nos): array
     {
         $p=$in['expected_v01']??[];
-        self::need(($in['prompt_version']??null)===self::VERSION && ($in['schema_version']??null)===self::SCHEMA
-            && ($p['policy_id']??null)===BaganrikiExpectedPacket::POLICY && ($p['formula_version']??null)===BaganrikiExpectedPacket::FORMULA
+        self::useVersion($in['prompt_version']??null);
+        self::need(self::versionPair($in['prompt_version']??null,$in['schema_version']??null)
+            && ($p['policy_id']??null)===self::boundaryPolicy($in['prompt_version']) && ($p['formula_version']??null)===BaganrikiExpectedPacket::FORMULA
             && ($p['implementation_version']??null)===BaganrikiExpectedPacket::ENGINE && ($p['race_id']??null)===$in['race_id']
             && is_string($p['current_sha256']??null) && preg_match('/^[0-9a-f]{64}$/D',$p['current_sha256'])===1
             && BaganrikiExpectedPacket::instant($p['input_freeze_at']??null)==BaganrikiExpectedPacket::instant($in['input_freeze_at']), 'EXPECTED_PACKET_IDENTITY');
@@ -197,7 +244,11 @@ final class BaganrikiCandidateSelection
                 is_string($p['history_sha256']) && preg_match('/^[0-9a-f]{64}$/D',$p['history_sha256'])===1,'EXPECTED_EMPTY_BASELINE');
 
             self::need(in_array($status,['COMPARISON_READY','LOW_SUPPORT','BASELINE_ONLY','UNAVAILABLE_BASELINE','UNAVAILABLE_INPUT','OUT_OF_SCOPE'],true),'EXPECTED_SUPPORT_STATUS');
-            $values=['E3','E5','p0_3','p0_5','p3_raw','p5_raw'];
+            // $values=['E3','E5','p0_3','p0_5','p3_raw','p5_raw'];   // 旧（〜11/25：どの版も6つ）
+            // @ANCHOR-20261125-E5-ONLY-ROWS  E5専用版の行は5着以内用の3つだけ。3着以内用の3つ（E3・p3_raw・p0_3）は、あってはいけない
+            $fifthOnly=self::e5Only($in['prompt_version']??null);
+            $values=$fifthOnly?['E5','p0_5','p5_raw']:['E3','E5','p0_3','p0_5','p3_raw','p5_raw'];
+            if ($fifthOnly) foreach (['E3','p3_raw','p0_3'] as $key) self::need(!array_key_exists($key,$row),'EXPECTED_E5_ONLY_ROW');
             if (in_array($status,['UNAVAILABLE_INPUT','OUT_OF_SCOPE','UNAVAILABLE_BASELINE'],true)) {
                 self::need($row['basis']==='UNAVAILABLE' && is_string($row['reason']) && BaganrikiText::visible($row['reason']),'EXPECTED_MISSING_BASIS');
                 foreach ($values as $key) self::need(array_key_exists($key,$row) && $row[$key]===null,'EXPECTED_FAKE_MISSING_SCORE');
@@ -220,15 +271,20 @@ final class BaganrikiCandidateSelection
                 foreach ($values as $key) {
                     self::need(self::num($row[$key]) && $row[$key]>=0 && $row[$key]<=($key[0]==='E'?100:1),'EXPECTED_SCORE_RANGE');
                 }
-                self::need($row['E3']<=$row['E5'] && $row['p3_raw']<=$row['p5_raw'] && $row['p0_3']<=$row['p0_5'],'EXPECTED_SCORE_ORDER');
+                // self::need($row['E3']<=$row['E5'] && $row['p3_raw']<=$row['p5_raw'] && $row['p0_3']<=$row['p0_5'],'EXPECTED_SCORE_ORDER');   // 旧（〜11/25）
+                // E5専用版は「3着以内 ≦ 5着以内」の検査をしない（なる 11/25：旧処理の「E3≦E5」を新版の関門にしない）
+                if (!$fifthOnly) self::need($row['E3']<=$row['E5'] && $row['p3_raw']<=$row['p5_raw'] && $row['p0_3']<=$row['p0_5'],'EXPECTED_SCORE_ORDER');
                 self::need(in_array($row['basis'],['RAW_UNCALIBRATED','CALIBRATION_APPLIED'],true) &&
                     ($row['basis']!=='CALIBRATION_APPLIED' || (is_string($p['calibration_id']) && BaganrikiText::visible($p['calibration_id']))),'EXPECTED_BASIS');
                 if ($row['K']>0) self::need(($row['basis']==='CALIBRATION_APPLIED')===($p['calibration_id']!==null),'EXPECTED_COMMON_CALIBRATION');
                 if ($row['basis']==='RAW_UNCALIBRATED') {
-                    self::need((float)$row['E3']===100.0*$row['p3_raw'] && (float)$row['E5']===100.0*$row['p5_raw'],'EXPECTED_ROUNDED_OR_WRONG_RAW');
+                    // self::need((float)$row['E3']===100.0*$row['p3_raw'] && (float)$row['E5']===100.0*$row['p5_raw'],'EXPECTED_ROUNDED_OR_WRONG_RAW');   // 旧（〜11/25）
+                    self::need(($fifthOnly || (float)$row['E3']===100.0*$row['p3_raw']) && (float)$row['E5']===100.0*$row['p5_raw'],'EXPECTED_ROUNDED_OR_WRONG_RAW');
                 }
+                // if ($status==='BASELINE_ONLY') self::need($row['basis']==='RAW_UNCALIBRATED' &&
+                //     (float)$row['p3_raw']===(float)$row['p0_3'] && (float)$row['p5_raw']===(float)$row['p0_5'],'EXPECTED_BASELINE_ONLY');   // 旧（〜11/25）
                 if ($status==='BASELINE_ONLY') self::need($row['basis']==='RAW_UNCALIBRATED' &&
-                    (float)$row['p3_raw']===(float)$row['p0_3'] && (float)$row['p5_raw']===(float)$row['p0_5'],'EXPECTED_BASELINE_ONLY');
+                    ($fifthOnly || (float)$row['p3_raw']===(float)$row['p0_3']) && (float)$row['p5_raw']===(float)$row['p0_5'],'EXPECTED_BASELINE_ONLY');
             }
             if ($row['M']!==null) {
                 self::need($poolSize===null || $poolSize===$row['M'],'EXPECTED_POOL_SIZE');
@@ -265,6 +321,7 @@ final class BaganrikiCandidateSelection
     /** Preflight of role quotas and band geometry does not issue a frozen proof or a publication decision. */
     public static function checkInspectionInput(array $in):void
     {
+        self::useVersion($in['prompt_version']??null);
         self::roleScores($in,self::frozenBands($in));
     }
 
@@ -276,6 +333,7 @@ final class BaganrikiCandidateSelection
 
     private static function applyChecked(array $in,array $horses,array $baseRanks): array
     {
+        self::useVersion($in['prompt_version']??null);
         $roster=self::frozenBands($in); $info=[]; $eligible=array_fill_keys(self::BANDS,[]);
         $scores=self::roleScores($in,$roster);
         foreach ($horses as $h) {
@@ -300,7 +358,7 @@ final class BaganrikiCandidateSelection
             array_push($chosen,...array_slice($list,0,$q));
         }
         self::need($requested===$in['role_cap'] && count($chosen)<=$in['role_cap'],'EXPECTED_ROLE_CAP');
-        return ['public_proof_hash'=>null,'prompt_version'=>self::VERSION,'ai_role'=>$in['ai_role'],'race_id'=>$in['race_id'],'snapshot_hash'=>$in['snapshot_hash'],
+        return ['public_proof_hash'=>null,'prompt_version'=>$in['prompt_version'],'ai_role'=>$in['ai_role'],'race_id'=>$in['race_id'],'snapshot_hash'=>$in['snapshot_hash'],
                 'selection_ranks'=>$final,'expected_reviews'=>$reviews,'base_candidates'=>$basePublic,'public_candidates'=>$chosen];
     }
 
@@ -319,9 +377,12 @@ final class BaganrikiCandidateSelection
             elseif ($a['status']!=='COMPARISON_READY'||$c['status']!=='COMPARISON_READY') $code='E_UNAVAILABLE';
             elseif ($a['basis']!==$c['basis']) $code='BASIS_MISMATCH';
             else {
-                $swap=$b==='A'
-                    ? ($c['E5']>$a['E5'] && $c['E3']>=$a['E3'] && $c['p5_raw']>$c['p0_5'])
-                    : ($c['E3']>$a['E3'] && $c['E5']>=$a['E5'] && $c['p3_raw']>$c['p0_3']);
+                // @ANCHOR-20261125-E5-SCORE8  E5専用版：全帯で、次点の E5 が上、かつ次点の p5_raw が次点自身の p0_5 より上（E3 は見ない）
+                $swap=self::e5Only(self::contextVersion())
+                    ? ($c['E5']>$a['E5'] && $c['p5_raw']>$c['p0_5'])
+                    : ($b==='A'
+                        ? ($c['E5']>$a['E5'] && $c['E3']>=$a['E3'] && $c['p5_raw']>$c['p0_5'])
+                        : ($c['E3']>$a['E3'] && $c['E5']>=$a['E5'] && $c['p3_raw']>$c['p0_3']));
                 $code=$swap?'SWAP':'KEEP';
                 if ($swap) [$list[$q-1],$list[$q]]=[$j,$i];
             }
@@ -640,7 +701,8 @@ final class BaganrikiCandidateSelection
             try {
                 $input=BaganrikiFrozenInput::forInspection($snapshot,$role);
                 if (self::$testInputOverride!==null) $input=(self::$testInputOverride)($input,$role);   // @ANCHOR-20261116-EXPECTED-COMPARE  試験だけ
-                self::need(is_array($input) && $input['prompt_version']===self::VERSION,'EXPECTED_STORED_ID');
+                self::need(is_array($input) && self::isExpected($input['prompt_version']),'EXPECTED_STORED_ID');
+                self::useVersion($input['prompt_version']);
                 $seed=$input;
                 if (!$input['selection_enabled']) continue;
                 [$accepted,$rank]=$readRole($role);
@@ -687,6 +749,13 @@ final class BaganrikiCandidateSelection
                 $sources[$role]=$rank['rank_source']??[];
                 if (!empty($rank['fallback'])) $fallback[$role]=$rank['fallback'];
                 foreach ($rank['rank_notes']??[] as $note) $notes[]=$role.'：'.$note;
+                // @ANCHOR-20261125-SERVER-BOUNDARY-NOTE  E5専用版：枠の境目のサーバ判定を、公開の記録（rank_notes）に残す（なる 11/25：サーバ側の判定記録）
+                //   AIが返事に書いた判定（expected_reviews）は公開に使っていない。ここに残すのは、サーバが検査済みの順位から計算し直した判定
+                if (self::e5Only($input['prompt_version']??null)) foreach (self::BANDS as $band) {
+                    $serverReview=$projected['expected_reviews'][$band];
+                    $notes[]=$role.'：'.$band.'帯の枠の境目のサーバ判定 '.$serverReview['decision']
+                        .($serverReview['incumbent']===null?'':'（枠内最後 '.$serverReview['incumbent'].'番・次点 '.$serverReview['challenger'].'番）');
+                }
             } catch (\InvalidArgumentException $error) { $issues[$role]=$error->getMessage(); $issueAt[$role]=$error->getMessage().'@'.$error->getLine().'<'.implode('<',array_map(static fn($t)=>($t['function']??'').':'.($t['line']??''),array_slice($error->getTrace(),0,4))); }
         }
         self::$lastRoleIssues=['issues'=>$issueAt,'looked'=>$looked];
@@ -738,6 +807,7 @@ final class BaganrikiCandidateSelection
 
     private static function mergeChecked(array $in,array $roles,?array $quota,array $activeNos,array $proof,array $groups,?array &$details=null):array
     {
+        self::useVersion($in['prompt_version']??null);
         $by=self::frozenBands($in);
         $sizes=array_count_values($by)+array_fill_keys(self::BANDS,0);
         $active=[];
@@ -750,7 +820,7 @@ final class BaganrikiCandidateSelection
         self::need($roles!==[],'EXPECTED_NO_VERIFIED_ROLE');
         $orders=array_fill_keys(self::BANDS,[]); $seenRoles=[]; $eligibleBonus=[]; $nominations=[];
         foreach ($roles as $r) {
-            $role=$r['ai_role']; self::need(in_array($role,['1st','2nd'],true) && !isset($seenRoles[$role]) && ($r['prompt_version']??null)===self::VERSION && $r['snapshot_hash']===$in['snapshot_hash'] && $r['race_id']===$in['race_id'],'EXPECTED_MERGE_SOURCE');
+            $role=$r['ai_role']; self::need(in_array($role,['1st','2nd'],true) && !isset($seenRoles[$role]) && ($r['prompt_version']??null)===$in['prompt_version'] && $r['snapshot_hash']===$in['snapshot_hash'] && $r['race_id']===$in['race_id'],'EXPECTED_MERGE_SOURCE');
             $seenRoles[$role]=true;
             $roleQuota=self::roleQuota($frozenQuota,$role);
             $ranked=[]; $prefix=[]; $before=[];

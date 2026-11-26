@@ -49,7 +49,7 @@ trait PredictionExpectedVersionChecks
                 $this->line("==== {$f['race_id']} 凍結: " . ($f['ok'] ? 'OK' : 'NG') . ' ' . ($f['code'] ?? '') . ' ' . ($f['reason'] ?? ''));
                 if (!$f['ok']) { $ng++; continue; }
                 $snap = \DB::table('baganriki_snapshots')->where('race_id', $f['race_id'])->where('generation', 900)->first();
-                $isExp = ($snap->release_version === \App\Http\Controllers\Api\BaganrikiCandidateSelection::VERSION);
+                $isExp = \App\Http\Controllers\Api\BaganrikiCandidateSelection::isExpected($snap->release_version);
                 $this->line('  版: ' . ($isExp ? 'E3・E5版' : '違う版 ' . $snap->release_version));
                 if (!$isExp) { $ng++; continue; }
                 $in = json_decode((string) $snap->input_json_1st, true);
@@ -1057,7 +1057,11 @@ trait PredictionExpectedVersionChecks
         // $races = [['2026-11-08', '5', '05', '2', 9], ['2026-11-08', '5', '08', '2', 9], ['2026-11-08', '3', '03', '2', 10],
         //           ['2026-11-08', '5', '05', '2', 11], ['2026-11-08', '5', '08', '2', 11], ['2026-11-08', '3', '03', '2', 11]];
         // 11/10 夜：2nd の送り直しと、予想を出せなかった記録の確認（世代900は消してある。午後に 2nd が使えなかった東京9R・福島11R を含む4レース）
-        $races = [['2026-11-08', '5', '05', '2', 9], ['2026-11-08', '3', '03', '2', 11], ['2026-11-08', '5', '08', '2', 11], ['2026-11-08', '5', '08', '2', 6]];
+        // $races = [['2026-11-08', '5', '05', '2', 9], ['2026-11-08', '3', '03', '2', 11], ['2026-11-08', '5', '08', '2', 11], ['2026-11-08', '5', '08', '2', 6]];
+        // 11/25：E5専用・8項目の版（よっしー 11/25 R5）を本番へ入れる前の確認。11/8 のオッズは土曜の整理で消えているので、11/23 の2レース（福島12R 16頭・東京11R 12頭）
+        // $races = [['2026-11-23', '3', '03', '6', 12], ['2026-11-23', '5', '05', '6', 11]];   // 11/25 朝の試験（世代900が固定済み。PDFから取り出した本文・E3付きの行）
+        // 11/25：なるの元ファイル（ZIP）そのものにした後の確認。まだ世代900を作っていない 11/23 の2レース（東京12R 18頭・東京7R 16頭）
+        $races = [['2026-11-23', '5', '05', '6', 12], ['2026-11-23', '5', '05', '6', 7]];
         foreach (['BAGANRIKI_PREDICTION_EXPECTED' => '1'] as $k => $v) { putenv("{$k}={$v}"); $_ENV[$k] = $v; $_SERVER[$k] = $v; }
         $NS = '\\App\\Http\\Controllers\\Api\\';
         $W = $NS . 'BaganrikiWorker'; $T = $NS . 'BaganrikiTime'; $A = $NS . 'AiController';

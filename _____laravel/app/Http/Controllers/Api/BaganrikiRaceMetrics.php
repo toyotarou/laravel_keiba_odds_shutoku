@@ -24,7 +24,9 @@ final class BaganrikiRaceMetrics
      *   この版では、1st の本文・付録から3指標の出力要求を外してあります。AI の応答に race_metrics があっても、読まずに捨てます
      *   （検査しない・不通過にしない・保存しない）。_04〜_06 の保存済み予想は、上の REVISIONS で今までどおり検査・再現します。
      */
-    public const SERVER_COMPUTED_REVISIONS=['COMPACT_TEXT_20261124_07'];
+    // public const SERVER_COMPUTED_REVISIONS=['COMPACT_TEXT_20261124_07'];   // 旧
+    // public const SERVER_COMPUTED_REVISIONS=['COMPACT_TEXT_20261124_07','E5_SCORE8_R5_20261125'];   // 旧（〜11/25 朝）
+    public const SERVER_COMPUTED_REVISIONS=['COMPACT_TEXT_20261124_07','E5_SCORE8_R5_20261125','E5_SCORE8_R5_20261125_02'];   // 20261125 _02＝なるの元ファイルそのものの本文     // 20261125 E5専用版も3指標はサーバ計算
 
     public static function serverComputed(array $in):bool
     {

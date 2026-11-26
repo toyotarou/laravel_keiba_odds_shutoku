@@ -19,7 +19,7 @@ final class BaganrikiExpectedBridge
         foreach (['1st','2nd'] as $role) BaganrikiDispatch::system($role,'FULL',$base['prompt_text_revision']);
         foreach (['snapshot_hash','ai_role','role_cap','role_quota','expected_v01'] as $key)
             if (array_key_exists($key,$base)) throw new \InvalidArgumentException('EXPECTED_PRE_HASH_COMMON');
-        if (($base['prompt_version']??null)!==BaganrikiCandidateSelection::VERSION || ($base['schema_version']??null)!==BaganrikiCandidateSelection::SCHEMA ||
+        if (!BaganrikiCandidateSelection::versionPair($base['prompt_version']??null,$base['schema_version']??null) ||
             ($current['race_id']??null)!==($base['race_id']??null) || ($current['N']??null)!==($base['N']??null) ||
             BaganrikiExpectedPacket::instant($current['post_at'])!=BaganrikiExpectedPacket::instant($base['time_contract']['anchor_at']) ||
             BaganrikiExpectedPacket::instant($current['input_freeze_at'])!=BaganrikiExpectedPacket::instant($base['input_freeze_at'])) {
@@ -111,7 +111,7 @@ final class BaganrikiExpectedBridge
 
     public static function compact(array $full, callable $pack, callable $expand, callable $sameTree): array
     {
-        if (!isset($full['expected_v01']) || ($full['prompt_version']??null)!==BaganrikiCandidateSelection::VERSION)
+        if (!isset($full['expected_v01']) || !BaganrikiCandidateSelection::isExpected($full['prompt_version']??null))
             throw new \InvalidArgumentException('EXPECTED_SCORE_INPUT');
         $rest=$full; $packet=$rest['expected_v01'];$revision=$rest['prompt_text_revision']??null;
         unset($rest['expected_v01'],$rest['prompt_text_revision']);
