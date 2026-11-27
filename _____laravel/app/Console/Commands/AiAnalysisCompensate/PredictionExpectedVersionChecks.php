@@ -408,7 +408,7 @@ trait PredictionExpectedVersionChecks
         if (self::$testCheckDayLimit !== null) { $races = $races->take(self::$testCheckDayLimit)->values(); }   // @ANCHOR-20261111-CHECK-POOLSTRICT  試験のときだけ
         $this->line("==== {$date} の全レース（" . count($races) . 'レース）で、凍結と送る原文の準備を試します（AIへは送りません・0円）');
         $sum = ['races' => 0, 'freeze_ok' => 0, 'prep_ok' => ['1st' => 0, '2nd' => 0], 'ng' => [], 'status' => [], 'horses' => 0,
-                'bytes' => ['1st' => [0, 0], '2nd' => [0, 0]], 'excluded' => []];
+                'bytes' => ['1st' => [0, 0], '2nd' => [0, 0]], 'excluded' => [], 'target' => [], 'target_by_n' => []];
         foreach ($races as $r) {
             $sum['races']++;
             $st = $T::normalizeRaceStartClock((string) ($r->start_time ?? ''));
@@ -460,6 +460,19 @@ trait PredictionExpectedVersionChecks
                     $pk = is_array($aj) ? ($aj['packet'] ?? $aj) : [];
                     foreach ((array) ($pk['excluded'] ?? []) as $why => $n) { $sum['excluded'][$why] = ($sum['excluded'][$why] ?? 0) + (int) $n; }
                     // $line .= '凍結: OK ' . count($rows) . '頭 M=' . count((array) ($pk['pool_ids'] ?? []));   // 旧（欠落も M=0 と表示していた）
+                    // @ANCHOR-20261126-CHECK-TARGET-COUNT  豊田さん11/26「出走頭数に応じた頭数が予想頭数に上がること」を毎レース確かめます
+                    //   決まり：出走頭数N≤8→min(N,4)、9〜13→5、14〜15→6、16以上→7。1stの枠の合計＝予想頭数、2ndの枠の合計＝min(5,予想頭数)。
+                    $nAct = (int) ($in['N'] ?? 0);
+                    $tgWant = $nAct <= 8 ? min($nAct, 4) : ($nAct <= 13 ? 5 : ($nAct <= 15 ? 6 : 7));
+                    $tgGot = (int) ($snap->target_count ?? -1);
+                    $q1 = array_sum(array_map('intval', (array) json_decode((string) $snap->quota_1st, true)));
+                    $q2 = array_sum(array_map('intval', (array) json_decode((string) $snap->quota_2nd, true)));
+                    $selOn = (bool) ($in['selection_enabled'] ?? false);
+                    $tgOk = $tgGot === $tgWant && (!$selOn || ($q1 === $tgGot && $q2 === min(5, $tgGot)));
+                    $sum['target'][$tgOk ? 'ok' : 'ng'] = ($sum['target'][$tgOk ? 'ok' : 'ng'] ?? 0) + 1;
+                    $sum['target_by_n'][$nAct] = $tgGot;
+                    $line .= ' 出走' . $nAct . '頭→予想' . $tgGot . '頭' . ($tgOk ? '(OK)' : '(NG 決まりでは' . $tgWant . '頭)') . ' 枠1st=' . $q1 . ' 2nd=' . $q2 . ($selOn ? '' : ' 選出停止') . ' ';
+                    if (!$tgOk) { $sum['ng'][] = $line . '予想頭数が決まりと違う'; }
                     $line .= '凍結: OK ' . count($rows) . '頭 M=' . count($pool);
                     $A::$testExpectedNowUs = (int) $T::us((string) $in['input_freeze_at']) + 5000000;
                     foreach (['1st', '2nd'] as $role) {
@@ -490,6 +503,8 @@ trait PredictionExpectedVersionChecks
             [$w, $o] = $sum['bytes'][$role];
             $this->line(sprintf('  %s：送る本文の合計 %d バイト（元 %d バイト、%.1f%%）', $role, $w, $o, $o > 0 ? $w * 100 / $o : 0));
         }
+        ksort($sum['target_by_n']);   // @ANCHOR-20261126-CHECK-TARGET-COUNT
+        $this->line('  予想頭数の確認 OK ' . ($sum['target']['ok'] ?? 0) . ' ／ NG ' . ($sum['target']['ng'] ?? 0) . '　出走頭数→予想頭数 ' . json_encode($sum['target_by_n'] ?? [], JSON_UNESCAPED_UNICODE));
         $this->line('  E3・E5 の状態（頭数） ' . json_encode($sum['status'], JSON_UNESCAPED_UNICODE) . ' 合計 ' . $sum['horses'] . '頭');
         $this->line('  過去レースを外した理由（延べ） ' . json_encode($sum['excluded'], JSON_UNESCAPED_UNICODE));
         // @ANCHOR-20261111-PREDICTION-EXPECTED-WHY
